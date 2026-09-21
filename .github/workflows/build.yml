@@ -1,0 +1,52 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  sysroot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: prefix-dev/rattler-build-action@v0.2.39
+        with:
+          recipe-path: recipes/xclang-sysroot/recipe.yaml
+          artifact-name: xclang-sysroot
+          build-args: --channel conda-forge
+
+  sysroot-run:
+    needs: sysroot
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            triple: x86_64-w64-mingw32
+          - os: windows-11-arm
+            triple: aarch64-w64-mingw32
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: xclang-sysroot
+          path: channel
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: t
+          create-args: >-
+            -c ./channel -c conda-forge
+            xclang-sysroot-${{ matrix.triple }} clang lld llvm-tools
+      - name: compile, link and run
+        shell: bash -el {0}
+        env:
+          XCLANG_TRIPLE: ${{ matrix.triple }}
+        run: |
+          PREFIX=$CONDA_PREFIX bash recipes/xclang-sysroot/test.sh
+          ./hello.exe
