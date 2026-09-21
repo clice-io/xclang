@@ -29,10 +29,10 @@ no libLLVM, no libclang, no headers for building against LLVM.
 
 ## Distribution
 
-- **conda-forge**: each piece is a package (`xclang`, `xclang-sysroot-<triple>`,
-  ...), so a `pixi add xclang` gives a project a pinned, reproducible
-  toolchain. The recipes live in `recipes/`; the conda-forge feedstocks are
-  generated from them.
+- **conda-forge**: `pixi add xclang` gives a project a pinned, reproducible
+  toolchain. Two feedstocks, generated from `recipes/`: `xclang-bootstrap`
+  (the sysroots and the PGO profile, built once on Linux, noarch) and
+  `xclang` (the compiler and runtimes, one build per host).
 - **GitHub releases**: planned. The same build, as a tarball per host.
 
 ## Status
@@ -40,7 +40,7 @@ no libLLVM, no libclang, no headers for building against LLVM.
 | piece | state |
 |---|---|
 | `xclang-sysroot-<triple>` — mingw-w64 headers, CRT and winpthreads, built with clang, for `x86_64-w64-mingw32` and `aarch64-w64-mingw32` | recipe done, CI builds it and runs a linked exe on Windows x64 and arm64 |
-| `xclang-profdata` — PGO profile for the compiler | planned |
+| `xclang-profdata` — PGO profile for the compiler, an output of `xclang-bootstrap` | planned |
 | `xclang` — the PGO+ThinLTO clang/lld and per-target runtimes | planned |
 
 ## Why not ...
@@ -59,7 +59,7 @@ no libLLVM, no libclang, no headers for building against LLVM.
 ## Building locally
 
 ```sh
-rattler-build build --recipe recipes/xclang-sysroot/recipe.yaml --channel conda-forge
+rattler-build build --recipe recipes/xclang-bootstrap/recipe.yaml --channel conda-forge
 ```
 
 The CI does the same on Linux, then installs the packages with pixi on

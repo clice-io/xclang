@@ -4,7 +4,7 @@ context:
   version: "14.0.0"
 
 recipe:
-  name: xclang-sysroot
+  name: xclang-bootstrap
   version: ${{ version }}
 
 source:
@@ -19,7 +19,7 @@ build:
 
 outputs:
   - staging:
-      name: xclang-sysroot-stage
+      name: xclang-bootstrap-stage
     build:
       script:
         file: build.sh
@@ -32,7 +32,7 @@ outputs:
 
   - package:
       name: xclang-sysroot-x86_64-w64-mingw32
-    inherit: xclang-sysroot-stage
+    inherit: xclang-bootstrap-stage
     build:
       noarch: generic
       files:
@@ -60,7 +60,7 @@ outputs:
 
   - package:
       name: xclang-sysroot-aarch64-w64-mingw32
-    inherit: xclang-sysroot-stage
+    inherit: xclang-bootstrap-stage
     build:
       noarch: generic
       files:
