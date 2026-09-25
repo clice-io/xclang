@@ -14,6 +14,10 @@ jobs:
   mac:
     runs-on: macos-15
     steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
       - uses: actions/download-artifact@v8
         with:
           name: dist-aarch64-apple-darwin
@@ -47,6 +51,14 @@ jobs:
           try man-thin-archive -O2 -flto=thin "${manual[@]}" -nostdlib++ "$lib/libc++.a"
           try man-thin-syslibcxx -O2 -flto=thin --no-default-config -fuse-ld=lld
           try man-thin-nounwind -O2 -flto=thin "${manual[@]}" -L"$lib" -Wl,-no_compact_unwind
+          export SDKROOT=$(xcrun --show-sdk-path)
+          B=$PWD/work/bootstrap/bin
+          boot() { name=$1; shift; echo "=== $name: $*"; set +e; "$B/clang++" "$@" t.cpp -o "$name" && ./"$name"; echo "exit $?"; set -e; }
+          boot boot-O2-lld -O2 -fuse-ld=lld
+          boot boot-thin-lld -O2 -flto=thin -fuse-ld=lld
+          boot boot-full-lld -O2 -flto=full -fuse-ld=lld
+          boot boot-thin-ld64 -O2 -flto=thin -Wl,-lto_library,$PWD/work/bootstrap/lib/libLTO.dylib
+          ls work/bootstrap/lib | head
           "$X/bin/llvm-nm" -m "$lib/libc++.a" 2>/dev/null | grep -E '__gxx_personality_v0|_ZTISt9exception$|_ZTISt13runtime_error' | head
           "$X/bin/llvm-nm" -m cfg-thin | grep -E 'personality|_ZTISt9exception|_ZTISt13runtime_error' | head
           "$X/bin/llvm-otool" -L cfg-thin
