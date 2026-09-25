@@ -79,7 +79,9 @@ const args = [
   ...common.cmakeToolchainArgs(stage, host),
   "-C", path.join(caches, "clang.cmake"),
   ...(mode === "release" ? [] : ["-C", path.join(caches, `${mode}.cmake`)]),
-  "-DCMAKE_INSTALL_PREFIX=/",
+  /// Installed with DESTDIR, then moved out of it (install() below); "/"
+  /// itself would make GNUInstallDirs put everything under usr/.
+  "-DCMAKE_INSTALL_PREFIX=/xclang",
   `-DLLVM_DEFAULT_TARGET_TRIPLE=${host.triple}`,
 ];
 if (cross) args.push(`-DLLVM_HOST_TRIPLE=${host.triple}`);
@@ -100,9 +102,13 @@ if (profile) {
 common.run("cmake", args);
 
 function install(target: string, dest: string): void {
+  const destdir = `${dest}.destdir`;
   fs.rmSync(dest, { recursive: true, force: true });
+  fs.rmSync(destdir, { recursive: true, force: true });
   const start = Date.now();
-  common.run("cmake", ["--build", build, "--target", target], { env: { ...process.env, DESTDIR: dest } });
+  common.run("cmake", ["--build", build, "--target", target], { env: { ...process.env, DESTDIR: destdir } });
+  fs.renameSync(path.join(destdir, "xclang"), dest);
+  fs.rmSync(destdir, { recursive: true, force: true });
   console.log(`${target}: ${Math.round((Date.now() - start) / 60000)} min`);
 }
 
