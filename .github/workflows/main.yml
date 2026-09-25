@@ -1,24 +1,37 @@
 name: main
 
 # The whole release pipeline, started by hand. Each stage is a reusable
-# workflow; `stages` picks which run, and the reuse inputs take a stage's
+# workflow; `stages` picks which run, and the *-run inputs take a stage's
 # artifacts from an earlier run instead of building them again.
+#
+#   runtimes       runtimes of every target
+#   instrumented   the clang and lld that record the profile (Linux x64)
+#   train          the training run, giving `profile`
+#   toolchain      every host's toolchain and libclang
 
 on:
   workflow_dispatch:
     inputs:
       stages:
-        description: "Comma-separated stages to run: runtimes"
+        description: "Comma-separated stages: runtimes, instrumented, train, toolchain"
         type: string
-        default: runtimes
+        default: runtimes,instrumented,train,toolchain
       runtimes:
         description: JSON list of the runtimes units to build; the others come from reuse-run
         type: string
         default: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "darwin"]'
+      hosts:
+        description: JSON list of the hosts to build a toolchain for
+        type: string
+        default: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin"]'
       reuse-run:
-        description: Run whose artifacts stand in for what is not built
+        description: Run whose artifacts stand in for the stages not run
         type: string
         default: ""
+      profile-run:
+        description: Run holding the profile when train does not run; none builds without PGO
+        type: string
+        default: none
 
 permissions:
   contents: read
@@ -31,3 +44,25 @@ jobs:
     with:
       build: ${{ inputs.runtimes }}
       reuse-run: ${{ inputs.reuse-run }}
+
+  instrumented:
+    needs: runtimes
+    if: ${{ !cancelled() && contains(inputs.stages, 'instrumented') && needs.runtimes.result != 'failure' }}
+    uses: ./.github/workflows/toolchain.yml
+    with:
+      host: x86_64-unknown-linux-gnu
+      mode: instrumented
+      runtimes-run: ${{ needs.runtimes.result == 'success' && github.run_id || inputs.reuse-run }}
+
+  toolchain:
+    needs: runtimes
+    if: ${{ !cancelled() && contains(inputs.stages, 'toolchain') && needs.runtimes.result != 'failure' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        host: ${{ fromJSON(inputs.hosts) }}
+    uses: ./.github/workflows/toolchain.yml
+    with:
+      host: ${{ matrix.host }}
+      runtimes-run: ${{ needs.runtimes.result == 'success' && github.run_id || inputs.reuse-run }}
+      profile-run: ${{ inputs.profile-run }}

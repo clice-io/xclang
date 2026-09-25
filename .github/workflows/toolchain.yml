@@ -1,0 +1,70 @@
+name: toolchain
+
+# One host's build: its toolchain and its libclang (release), the
+# instrumented clang and lld (instrumented), or the ASan libclang (asan).
+
+on:
+  workflow_call:
+    inputs:
+      host:
+        type: string
+        required: true
+      mode:
+        type: string
+        default: release
+      runtimes-run:
+        description: Run holding the runtimes-* artifacts
+        type: string
+        required: true
+      profile-run:
+        description: Run holding the `profile` artifact; none for no PGO
+        type: string
+        default: none
+
+jobs:
+  build:
+    runs-on: ${{ contains(inputs.host, 'apple') && 'macos-15' || 'ubuntu-24.04' }}
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/free-disk
+      - uses: ./.github/actions/setup
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: runtimes-*
+          path: work/artifacts
+          merge-multiple: true
+          run-id: ${{ inputs.runtimes-run }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v8
+        if: inputs.mode == 'release' && inputs.profile-run != 'none'
+        with:
+          name: profile
+          path: work/profile
+          run-id: ${{ inputs.profile-run }}
+          github-token: ${{ github.token }}
+      - name: Build
+        run: |
+          mkdir -p work/out
+          for archive in work/artifacts/runtimes-*.tar.zst; do zstd -dc "$archive" | tar -C work/out -xf -; done
+          profile=()
+          [[ -f work/profile/profile.profdata ]] && profile=(--profile work/profile/profile.profdata)
+          start=$SECONDS
+          pixi run toolchain --host ${{ inputs.host }} --mode ${{ inputs.mode }} "${profile[@]}"
+          echo "${{ inputs.host }} ${{ inputs.mode }}: $(( (SECONDS - start) / 60 )) min" | tee -a "$GITHUB_STEP_SUMMARY"
+          cd work/out
+          for dir in toolchain-* libclang-*; do
+            du -sh "$dir" | tee -a "$GITHUB_STEP_SUMMARY"
+            tar -cf - "$dir" | zstd -T0 -6 -o "../../$dir.tar.zst"
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: toolchain-${{ inputs.host }}${{ inputs.mode != 'release' && format('-{0}', inputs.mode) || '' }}
+          path: |
+            toolchain-*.tar.zst
+            libclang-*.tar.zst
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error

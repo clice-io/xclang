@@ -1,0 +1,28 @@
+name: free-disk
+description: Room and swap for an LLVM build on a hosted runner.
+
+runs:
+  using: composite
+  steps:
+    - if: runner.os == 'Linux'
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: true
+    - if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo swapoff -a
+        sudo fallocate -l 16G /mnt/swapfile
+        sudo chmod 600 /mnt/swapfile
+        sudo mkswap /mnt/swapfile
+        sudo swapon /mnt/swapfile
+        nproc; free -g | sed -n 2p; df -h / | tail -n 1
+    - if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        sudo rm -rf /Library/Developer/CoreSimulator ~/Library/Android /usr/local/share/dotnet ~/.ghcup
+        platforms="$(xcode-select -p)/Platforms"
+        for p in iPhoneOS iPhoneSimulator AppleTVOS AppleTVSimulator WatchOS WatchSimulator XROS XRSimulator; do
+          sudo rm -rf "$platforms/$p.platform"
+        done
+        sysctl -n hw.ncpu hw.memsize; df -h / | tail -n 1
