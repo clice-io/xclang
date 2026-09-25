@@ -1,0 +1,57 @@
+name: release
+
+# A draft release <llvm version>.<revision> with every archive and the
+# profile. Drafts create no tag; publishing one is done by hand.
+
+on:
+  workflow_call:
+    inputs:
+      revision:
+        type: string
+        required: true
+      dist-run:
+        type: string
+        required: true
+      profile-run:
+        type: string
+        required: true
+
+jobs:
+  draft:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: dist-*
+          path: dist
+          merge-multiple: true
+          run-id: ${{ inputs.dist-run }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: profile
+          path: profile
+          run-id: ${{ inputs.profile-run }}
+          github-token: ${{ github.token }}
+      - name: Draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          llvm=$(sed -n 's/^export const LLVM_VERSION = "\(.*\)";/\1/p' scripts/common.ts)
+          version="$llvm.${{ inputs.revision }}"
+          if gh release view "$version" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "::error::release $version exists; a rebuild gets the next revision"
+            exit 1
+          fi
+          cp profile/profile.profdata "dist/xclang-$version.profdata"
+          (cd dist && sha256sum * > SHA256SUMS)
+          cat dist/SHA256SUMS | tee -a "$GITHUB_STEP_SUMMARY"
+          gh release create "$version" -R "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" \
+            --title "xclang $version" \
+            --notes "LLVM $llvm, build run https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            dist/*

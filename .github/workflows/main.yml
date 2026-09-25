@@ -8,14 +8,17 @@ name: main
 #   instrumented   the clang and lld that record the profile (Linux x64)
 #   train          the training run, giving `profile`
 #   toolchain      every host's toolchain and libclang
+#   package        every host's release archives
+#   test           every host's archive checked on a machine of that host
+#   release        a draft release of everything (needs the profile)
 
 on:
   workflow_dispatch:
     inputs:
       stages:
-        description: "Comma-separated stages: runtimes, instrumented, train, toolchain"
+        description: "Comma-separated stages: runtimes, instrumented, train, toolchain, package, test, release"
         type: string
-        default: runtimes,instrumented,train,toolchain
+        default: runtimes,instrumented,train,toolchain,package,test
       runtimes:
         description: JSON list of the runtimes units to build; the others come from reuse-run
         type: string
@@ -32,6 +35,10 @@ on:
         description: Run holding the profile when train does not run; none builds without PGO
         type: string
         default: none
+      revision:
+        description: Release revision, the last component of <llvm version>.<revision>
+        type: string
+        default: "1"
 
 permissions:
   contents: read
@@ -73,4 +80,42 @@ jobs:
     with:
       host: ${{ matrix.host }}
       runtimes-run: ${{ needs.runtimes.result == 'success' && github.run_id || inputs.reuse-run }}
+      profile-run: ${{ needs.train.result == 'success' && github.run_id || inputs.profile-run }}
+
+  package:
+    needs: [runtimes, toolchain]
+    if: ${{ !cancelled() && contains(inputs.stages, 'package') && !contains(needs.*.result, 'failure') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        host: ${{ fromJSON(inputs.hosts) }}
+    uses: ./.github/workflows/package.yml
+    with:
+      host: ${{ matrix.host }}
+      revision: ${{ inputs.revision }}
+      runtimes-run: ${{ needs.runtimes.result == 'success' && github.run_id || inputs.reuse-run }}
+      toolchain-run: ${{ needs.toolchain.result == 'success' && github.run_id || inputs.reuse-run }}
+
+  test:
+    needs: package
+    if: ${{ !cancelled() && contains(inputs.stages, 'test') && needs.package.result != 'failure' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        host: ${{ fromJSON(inputs.hosts) }}
+    uses: ./.github/workflows/test.yml
+    with:
+      host: ${{ matrix.host }}
+      dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
+
+  release:
+    needs: [train, package, test]
+    if: ${{ !cancelled() && contains(inputs.stages, 'release') && !contains(needs.*.result, 'failure') }}
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/release.yml
+    with:
+      revision: ${{ inputs.revision }}
+      dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
       profile-run: ${{ needs.train.result == 'success' && github.run_id || inputs.profile-run }}

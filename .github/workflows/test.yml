@@ -1,0 +1,43 @@
+name: test
+
+# One host's toolchain archive, unpacked and checked (tests/smoke.ts) on a
+# machine of that host.
+
+on:
+  workflow_call:
+    inputs:
+      host:
+        type: string
+        required: true
+      dist-run:
+        type: string
+        required: true
+
+jobs:
+  smoke:
+    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm","aarch64-apple-darwin":"macos-15","x86_64-apple-darwin":"macos-15-intel"}')[inputs.host] }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist-${{ inputs.host }}
+          path: dist
+          run-id: ${{ inputs.dist-run }}
+          github-token: ${{ github.token }}
+      - name: Unpack (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Get-ChildItem dist/xclang-*.zip | Expand-Archive -DestinationPath unpacked
+      - name: Unpack
+        if: runner.os != 'Windows'
+        run: mkdir unpacked && tar -C unpacked -xf dist/xclang-*.tar.xz
+      - name: Smoke test
+        run: node tests/smoke.ts --tree unpacked/xclang

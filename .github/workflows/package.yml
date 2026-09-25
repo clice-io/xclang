@@ -1,0 +1,59 @@
+name: package
+
+# One host's release archives (scripts/package.ts), as the dist-<host>
+# artifact.
+
+on:
+  workflow_call:
+    inputs:
+      host:
+        type: string
+        required: true
+      revision:
+        type: string
+        required: true
+      runtimes-run:
+        type: string
+        required: true
+      toolchain-run:
+        type: string
+        required: true
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: prefix-dev/setup-pixi@v0.10.2
+        with:
+          pixi-version: v0.71.1
+          cache: false
+          locked: true
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: runtimes-*
+          path: work/artifacts
+          merge-multiple: true
+          run-id: ${{ inputs.runtimes-run }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: toolchain-${{ inputs.host }}
+          path: work/artifacts
+          run-id: ${{ inputs.toolchain-run }}
+          github-token: ${{ github.token }}
+      - name: Package
+        run: |
+          mkdir -p work/out
+          for archive in work/artifacts/*.tar.zst; do zstd -dc "$archive" | tar -C work/out -xf -; done
+          pixi run package --host ${{ inputs.host }} --revision ${{ inputs.revision }}
+          ls -la work/dist | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist-${{ inputs.host }}
+          path: work/dist/*
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
