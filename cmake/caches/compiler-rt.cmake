@@ -1,5 +1,7 @@
 # compiler-rt beyond the builtins: the profile runtime (-fprofile-*
-# instrumentation, and xclang's own training). Sanitizers come later.
+# instrumentation, and xclang's own training), and where scripts/runtimes.ts
+# turns them on, AddressSanitizer and UndefinedBehaviorSanitizer on top of
+# libc++.
 set(CMAKE_BUILD_TYPE Release CACHE STRING "")
 set(LLVM_ENABLE_RUNTIMES compiler-rt CACHE STRING "")
 set(LLVM_INCLUDE_TESTS OFF CACHE BOOL "")
@@ -15,3 +17,7 @@ set(COMPILER_RT_BUILD_PROFILE ON CACHE BOOL "")
 foreach(part SANITIZERS XRAY LIBFUZZER MEMPROF ORC CTX_PROFILE GWP_ASAN)
     set(COMPILER_RT_BUILD_${part} OFF CACHE BOOL "")
 endforeach()
+set(COMPILER_RT_SANITIZERS_TO_BUILD "asan;ubsan" CACHE STRING "")
+set(SANITIZER_CXX_ABI libc++ CACHE STRING "")
+set(SANITIZER_USE_STATIC_CXX_ABI ON CACHE BOOL "")
+set(COMPILER_RT_USE_BUILTINS_LIBRARY ON CACHE BOOL "")

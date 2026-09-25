@@ -35,6 +35,9 @@ function cmake(name: string, source: string, args: string[]): void {
   common.run("cmake", ["--build", build, "--target", "install"]);
 }
 
+/// Where AddressSanitizer and UBSan are built (cmake/caches/compiler-rt.cmake).
+const SANITIZERS = ["linux", "darwin"];
+
 /// compiler-rt names its directory after the compiler's target, so that
 /// is the spelling clang's driver looks for: the normalized one.
 function compilerRtTarget(stage: string, t: common.Target): string[] {
@@ -74,6 +77,7 @@ function profile(t: common.Target, stage: string): void {
     ...compilerRtTarget(stage, t),
     "-C", path.join(caches, "compiler-rt.cmake"),
     `-DCOMPILER_RT_INSTALL_PATH=${common.resourceDir(stage)}`,
+    `-DCOMPILER_RT_BUILD_SANITIZERS=${SANITIZERS.includes(t.os) ? "ON" : "OFF"}`,
     ...NO_CONFIG,
   ]);
 }
@@ -92,6 +96,7 @@ function compilerRtDarwin(stage: string): void {
     `-DCMAKE_LIBTOOL=${path.join(bin, "llvm-libtool-darwin")}`,
     "-C", path.join(caches, "compiler-rt.cmake"),
     "-DCOMPILER_RT_BUILD_BUILTINS=ON",
+    "-DCOMPILER_RT_BUILD_SANITIZERS=ON",
     "-DCOMPILER_RT_DEFAULT_TARGET_ONLY=OFF",
     "-DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF",
     ...["IOS", "WATCHOS", "TVOS", "XROS"].map((p) => `-DCOMPILER_RT_ENABLE_${p}=OFF`),
