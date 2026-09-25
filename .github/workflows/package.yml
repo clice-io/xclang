@@ -38,10 +38,12 @@ jobs:
           merge-multiple: true
           run-id: ${{ inputs.runtimes-run }}
           github-token: ${{ github.token }}
+      # The release build and, where there is one, the ASan libclang.
       - uses: actions/download-artifact@v8
         with:
-          name: toolchain-${{ inputs.host }}
+          pattern: toolchain-${{ inputs.host }}*
           path: work/artifacts
+          merge-multiple: true
           run-id: ${{ inputs.toolchain-run }}
           github-token: ${{ github.token }}
       - name: Package

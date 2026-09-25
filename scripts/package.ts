@@ -3,6 +3,7 @@
 ///   xclang-<version>-<host>      the toolchain of work/out/toolchain-<host>,
 ///                                with every target of work/out/runtimes-*
 ///   libclang-<version>-<host>    work/out/libclang-<host>
+///   libclang-<version>-<host>-asan  work/out/libclang-<host>-asan, if built
 ///
 /// .tar.xz, or .zip for the Windows hosts, where tar cannot be relied on
 /// for xz. zip has no symlinks, so a Windows archive keeps the names that
@@ -67,12 +68,13 @@ if (host.os === "mingw") {
 }
 archive(tree, `xclang-${version}-${host.triple}`);
 
-const libclang = path.join(out, `libclang-${host.triple}`);
-if (fs.existsSync(libclang)) {
-  const dir = path.join(common.WORK, "package", host.triple, "libclang");
+for (const variant of ["", "-asan"]) {
+  const libclang = path.join(out, `libclang-${host.triple}${variant}`);
+  if (!fs.existsSync(libclang)) continue;
+  const dir = path.join(common.WORK, "package", host.triple, `libclang${variant}`);
   fs.rmSync(dir, { recursive: true, force: true });
   common.copyTree(libclang, dir);
-  archive(dir, `libclang-${version}-${host.triple}`);
+  archive(dir, `libclang-${version}-${host.triple}${variant}`);
 }
 
 for (const file of fs.readdirSync(dist)) {

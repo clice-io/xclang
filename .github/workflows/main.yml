@@ -8,6 +8,7 @@ name: main
 #   instrumented   the clang and lld that record the profile (Linux x64)
 #   train          the training run, giving `profile`
 #   toolchain      every host's toolchain and libclang
+#   asan           the ASan libclang of Linux x64 and macOS arm64
 #   package        every host's release archives
 #   test           every host's archive checked on a machine of that host
 #   release        a draft release of everything (needs the profile)
@@ -16,9 +17,9 @@ on:
   workflow_dispatch:
     inputs:
       stages:
-        description: "Comma-separated stages: runtimes, instrumented, train, toolchain, package, test, release"
+        description: "Comma-separated stages: runtimes, instrumented, train, toolchain, asan, package, test, release"
         type: string
-        default: runtimes,instrumented,train,toolchain,package,test
+        default: runtimes,instrumented,train,toolchain,asan,package,test
       runtimes:
         description: JSON list of the runtimes units to build; the others come from reuse-run
         type: string
@@ -82,8 +83,21 @@ jobs:
       runtimes-run: ${{ needs.runtimes.result == 'success' && github.run_id || inputs.reuse-run }}
       profile-run: ${{ needs.train.result == 'success' && github.run_id || inputs.profile-run }}
 
+  asan:
+    needs: runtimes
+    if: ${{ !cancelled() && contains(inputs.stages, 'asan') && needs.runtimes.result != 'failure' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        host: [x86_64-unknown-linux-gnu, aarch64-apple-darwin]
+    uses: ./.github/workflows/toolchain.yml
+    with:
+      host: ${{ matrix.host }}
+      mode: asan
+      runtimes-run: ${{ needs.runtimes.result == 'success' && github.run_id || inputs.reuse-run }}
+
   package:
-    needs: [runtimes, toolchain]
+    needs: [runtimes, toolchain, asan]
     if: ${{ !cancelled() && contains(inputs.stages, 'package') && !contains(needs.*.result, 'failure') }}
     strategy:
       fail-fast: false
