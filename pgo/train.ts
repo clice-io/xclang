@@ -37,11 +37,11 @@ if (!fs.existsSync(path.join(sqlite, "sqlite3.c"))) common.extract(await common.
 const corpus = path.join(common.ROOT, "pgo", "corpus");
 
 /// Every library source of abseil that builds on Linux: no tests,
-/// benchmarks, test helpers or Windows-only files.
+/// benchmarks, test helpers (gtest matchers) or Windows-only files.
 const abseilSources = fs
   .readdirSync(path.join(abseil, "absl"), { recursive: true, encoding: "utf8" })
   .filter((f) => f.endsWith(".cc"))
-  .filter((f) => !/(_test|test_|_benchmark|benchmark|testing|mock|_win|win32|_testutil)/.test(f))
+  .filter((f) => !/(_test|test_|_benchmark|benchmark|testing|mock|matchers|_win|win32|_testutil)/.test(f))
   .map((f) => path.join(abseil, "absl", f))
   .sort();
 

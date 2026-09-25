@@ -34,8 +34,7 @@ jobs:
           github-token: ${{ github.token }}
       - name: Unpack (Windows)
         if: runner.os == 'Windows'
-        shell: pwsh
-        run: Get-ChildItem dist/xclang-*.zip | Expand-Archive -DestinationPath unpacked
+        run: 7z x -y -ounpacked dist/xclang-*.zip > /dev/null && ls unpacked/xclang
       - name: Unpack
         if: runner.os != 'Windows'
         run: mkdir unpacked && tar -C unpacked -xf dist/xclang-*.tar.xz
