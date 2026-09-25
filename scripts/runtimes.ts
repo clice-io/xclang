@@ -38,6 +38,16 @@ function cmake(name: string, source: string, args: string[]): void {
 /// Where AddressSanitizer and UBSan are built (cmake/caches/compiler-rt.cmake).
 const SANITIZERS = ["linux", "darwin"];
 
+/// The shared sanitizer runtimes of Linux are linked without the config
+/// files too: name compiler-rt (its crtbegin) and a static libunwind, and
+/// xclang's libc++abi as the C++ ABI they carry.
+const LINUX_SANITIZERS = [
+  "-DCMAKE_SHARED_LINKER_FLAGS=--rtlib=compiler-rt --unwindlib=libunwind -static-libgcc",
+  "-DSANITIZER_CXX_ABI=libc++",
+  "-DSANITIZER_USE_STATIC_CXX_ABI=ON",
+  "-DCOMPILER_RT_USE_BUILTINS_LIBRARY=ON",
+];
+
 /// compiler-rt names its directory after the compiler's target, so that
 /// is the spelling clang's driver looks for: the normalized one.
 function compilerRtTarget(stage: string, t: common.Target): string[] {
@@ -78,6 +88,7 @@ function profile(t: common.Target, stage: string): void {
     "-C", path.join(caches, "compiler-rt.cmake"),
     `-DCOMPILER_RT_INSTALL_PATH=${common.resourceDir(stage)}`,
     `-DCOMPILER_RT_BUILD_SANITIZERS=${SANITIZERS.includes(t.os) ? "ON" : "OFF"}`,
+    ...(t.os === "linux" ? LINUX_SANITIZERS : []),
     ...NO_CONFIG,
   ]);
 }
