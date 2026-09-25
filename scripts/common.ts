@@ -162,24 +162,40 @@ async function sha256Of(file: string): Promise<string> {
   return hash.digest("hex");
 }
 
-/// Unpack a tarball (gz, xz or zst: tar picks the decompressor) into dest,
-/// dropping the leading directory; `keep` selects members by their path
-/// below it.
+/// Run tar on the decompressed stream of an archive. The decompressor is
+/// explicit: LLVM's .tar.zst releases use a long window that a plain
+/// `zstd -d` (what tar would start) refuses.
+function tarStream(archive: string, args: string[], output: "inherit" | "pipe"): string {
+  const decompress = archive.endsWith(".zst")
+    ? "zstd -dc --long=31"
+    : archive.endsWith(".xz") ? "xz -dc" : "gzip -dc";
+  const script = `set -o pipefail; ${decompress} "$0" | tar -f - "$@"`;
+  console.log(`+ ${decompress} ${archive} | tar ${args.join(" ")}`);
+  const result = spawnSync("bash", ["-c", script, archive, ...args], {
+    encoding: "utf8",
+    maxBuffer: 1 << 30,
+    stdio: ["ignore", output, "inherit"],
+  });
+  if (result.status !== 0) fail(`unpacking ${archive} exited with ${result.status}`);
+  return result.stdout ?? "";
+}
+
+/// Unpack a tarball (gz, xz or zst) into dest, dropping the leading
+/// directory; `keep` selects members by their path below it.
 export function extract(archive: string, dest: string, keep?: (member: string) => boolean): void {
   fs.mkdirSync(dest, { recursive: true });
-  const args = ["-xf", archive, "-C", dest, "--strip-components=1"];
+  const args = ["-x", "-C", dest, "--strip-components=1"];
   if (keep) {
-    const members = capture("tar", ["-tf", archive])
+    const members = tarStream(archive, ["-t"], "pipe")
       .split("\n")
       .filter((m) => m && !m.endsWith("/"))
       .filter((m) => keep(m.slice(m.indexOf("/") + 1)));
     const list = path.join(dest, ".members");
     fs.writeFileSync(list, members.join("\n") + "\n");
-    args.push("-T", list);
-    run("tar", args);
+    tarStream(archive, [...args, "-T", list], "inherit");
     fs.rmSync(list);
   } else {
-    run("tar", args);
+    tarStream(archive, args, "inherit");
   }
 }
 
