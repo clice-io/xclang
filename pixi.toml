@@ -1,0 +1,32 @@
+[workspace]
+name = "xclang"
+description = "A self-contained clang toolchain"
+authors = ["ykiko <ykiko@clice.io>"]
+license = "Apache-2.0"
+channels = ["conda-forge"]
+# The machines that build: Linux x64 for the Linux and Windows hosts and
+# targets, macOS arm64 for the macOS ones.
+platforms = ["linux-64", "osx-arm64"]
+
+# Build tools only. The compiler is never a conda one: every build uses the
+# bootstrap clang (scripts/bootstrap.ts) or a toolchain built here.
+[dependencies]
+nodejs = ">=24"
+cmake = ">=3.31,<5"
+ninja = "*"
+zstd = "*"
+xz = "*"
+
+[target.linux-64.dependencies]
+make = "*"
+# glibc 2.17 headers and startup files of the two Linux targets.
+sysroot_linux-64 = "2.17.*"
+sysroot_linux-aarch64 = "2.17.*"
+
+[tasks]
+bootstrap = "node scripts/bootstrap.ts"
+runtimes = "node scripts/runtimes.ts"
+toolchain = "node scripts/toolchain.ts"
+train = "node pgo/train.ts"
+package = "node scripts/package.ts"
+smoke = "node tests/smoke.ts"

@@ -1,0 +1,19 @@
+name: setup
+description: The pixi environment and the bootstrap compiler of this machine, in work/bootstrap.
+
+runs:
+  using: composite
+  steps:
+    - uses: prefix-dev/setup-pixi@v0.10.2
+      with:
+        pixi-version: v0.71.1
+        cache: false
+        locked: true
+    - name: Cache downloads
+      uses: actions/cache@v6
+      with:
+        path: work/downloads
+        key: downloads-${{ runner.os }}-${{ hashFiles('scripts/common.ts') }}
+    - name: Bootstrap compiler
+      shell: bash
+      run: pixi run bootstrap

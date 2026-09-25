@@ -1,0 +1,22 @@
+name: main
+
+# The whole release pipeline, started by hand. Each stage is a reusable
+# workflow; `stages` picks which run, and the *-run inputs take a stage's
+# artifacts from an earlier run instead of building them again.
+
+on:
+  workflow_dispatch:
+    inputs:
+      stages:
+        description: "Comma-separated stages to run: runtimes"
+        type: string
+        default: runtimes
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  runtimes:
+    if: contains(inputs.stages, 'runtimes')
+    uses: ./.github/workflows/runtimes.yml
