@@ -39,10 +39,10 @@ function cmake(name: string, source: string, args: string[]): void {
 const SANITIZERS = ["linux", "darwin"];
 
 /// The shared sanitizer runtimes of Linux are linked without the config
-/// files too: name compiler-rt (its crtbegin) and a static libunwind, and
-/// xclang's libc++abi as the C++ ABI they carry.
+/// files too: name compiler-rt (its crtbegin), and xclang's libc++abi as
+/// the C++ ABI they carry.
 const LINUX_SANITIZERS = [
-  "-DCMAKE_SHARED_LINKER_FLAGS=--rtlib=compiler-rt --unwindlib=libunwind -static-libgcc",
+  "-DCMAKE_SHARED_LINKER_FLAGS=--rtlib=compiler-rt",
   "-DSANITIZER_CXX_ABI=libc++",
   "-DSANITIZER_USE_STATIC_CXX_ABI=ON",
   "-DCOMPILER_RT_USE_BUILTINS_LIBRARY=ON",

@@ -8,6 +8,9 @@ set(CMAKE_CXX_COMPILER_WORKS ON CACHE BOOL "")
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY CACHE STRING "")
 set(LLVM_INCLUDE_TESTS OFF CACHE BOOL "")
 set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR OFF CACHE BOOL "")
+# Position-independent, so shared libraries can carry them statically too
+# (the sanitizer runtimes do, and so may anyone's plugin).
+set(CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "")
 
 set(LIBUNWIND_ENABLE_SHARED OFF CACHE BOOL "")
 set(LIBUNWIND_ENABLE_STATIC ON CACHE BOOL "")
