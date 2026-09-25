@@ -36,7 +36,7 @@ jobs:
           SRC
           lib=$X/aarch64-apple-darwin/lib
           inc=$X/aarch64-apple-darwin/include/c++/v1
-          try() { name=$1; shift; echo "=== $name: $*"; "$X/bin/clang++" "$@" t.cpp -o "$name" && ./"$name"; echo "exit $?"; }
+          try() { name=$1; shift; echo "=== $name: $*"; set +e; "$X/bin/clang++" "$@" t.cpp -o "$name" && ./"$name"; echo "exit $?"; set -e; }
           try cfg-O2 -O2
           try cfg-thin -O2 -flto=thin
           try cfg-full -O2 -flto=full
