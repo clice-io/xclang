@@ -46,28 +46,29 @@ permissions:
   actions: read
 
 jobs:
+  # Always runs: without the runtimes stage it copies every unit from
+  # reuse-run, so the later stages find the runtimes in this run.
   runtimes:
-    if: contains(inputs.stages, 'runtimes')
     uses: ./.github/workflows/runtimes.yml
     with:
-      build: ${{ inputs.runtimes }}
+      build: ${{ contains(inputs.stages, 'runtimes') && inputs.runtimes || '[]' }}
       reuse-run: ${{ inputs.reuse-run }}
 
   instrumented:
     needs: runtimes
-    if: ${{ !cancelled() && contains(inputs.stages, 'instrumented') && needs.runtimes.result != 'failure' }}
+    if: ${{ !cancelled() && contains(inputs.stages, 'instrumented') && needs.runtimes.result == 'success' }}
     uses: ./.github/workflows/toolchain.yml
     with:
       host: x86_64-unknown-linux-gnu
       mode: instrumented
-      runtimes-run: ${{ needs.runtimes.result == 'success' && github.run_id || inputs.reuse-run }}
+      runtimes-run: ${{ github.run_id }}
 
   train:
     needs: [runtimes, instrumented]
     if: ${{ !cancelled() && contains(inputs.stages, 'train') && !contains(needs.*.result, 'failure') }}
     uses: ./.github/workflows/train.yml
     with:
-      runtimes-run: ${{ needs.runtimes.result == 'success' && github.run_id || inputs.reuse-run }}
+      runtimes-run: ${{ github.run_id }}
       instrumented-run: ${{ needs.instrumented.result == 'success' && github.run_id || inputs.reuse-run }}
 
   toolchain:
@@ -80,12 +81,12 @@ jobs:
     uses: ./.github/workflows/toolchain.yml
     with:
       host: ${{ matrix.host }}
-      runtimes-run: ${{ needs.runtimes.result == 'success' && github.run_id || inputs.reuse-run }}
+      runtimes-run: ${{ github.run_id }}
       profile-run: ${{ needs.train.result == 'success' && github.run_id || inputs.profile-run }}
 
   asan:
     needs: runtimes
-    if: ${{ !cancelled() && contains(inputs.stages, 'asan') && needs.runtimes.result != 'failure' }}
+    if: ${{ !cancelled() && contains(inputs.stages, 'asan') && needs.runtimes.result == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -94,7 +95,7 @@ jobs:
     with:
       host: ${{ matrix.host }}
       mode: asan
-      runtimes-run: ${{ needs.runtimes.result == 'success' && github.run_id || inputs.reuse-run }}
+      runtimes-run: ${{ github.run_id }}
 
   package:
     needs: [runtimes, toolchain, asan]
@@ -107,7 +108,7 @@ jobs:
     with:
       host: ${{ matrix.host }}
       revision: ${{ inputs.revision }}
-      runtimes-run: ${{ needs.runtimes.result == 'success' && github.run_id || inputs.reuse-run }}
+      runtimes-run: ${{ github.run_id }}
       toolchain-run: ${{ needs.toolchain.result == 'success' && github.run_id || inputs.reuse-run }}
 
   test:

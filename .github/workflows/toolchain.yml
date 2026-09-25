@@ -55,6 +55,7 @@ jobs:
           pixi run toolchain --host ${{ inputs.host }} --mode ${{ inputs.mode }} "${profile[@]}"
           echo "${{ inputs.host }} ${{ inputs.mode }}: $(( (SECONDS - start) / 60 )) min" | tee -a "$GITHUB_STEP_SUMMARY"
           cd work/out
+          shopt -s nullglob
           for dir in toolchain-* libclang-*; do
             du -sh "$dir" | tee -a "$GITHUB_STEP_SUMMARY"
             tar -cf - "$dir" | zstd -T0 -6 -o "../../$dir.tar.zst"
