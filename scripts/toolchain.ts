@@ -119,6 +119,7 @@ if (mode !== "instrumented") {
   install("install-development-distribution", dest);
   /// clice reaches into Sema's private headers.
   const sema = path.join(dest, "include", "clang", "Sema");
+  fs.mkdirSync(sema, { recursive: true });
   for (const header of ["CoroutineStmtBuilder.h", "TypeLocBuilder.h", "TreeTransform.h"]) {
     fs.copyFileSync(path.join(src, "clang", "lib", "Sema", header), path.join(sema, header));
   }
