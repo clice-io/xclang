@@ -32,6 +32,10 @@ on:
         description: Run whose artifacts stand in for the stages not run
         type: string
         default: ""
+      runtimes-run:
+        description: Run to copy the runtimes from instead of reuse-run
+        type: string
+        default: ""
       profile-run:
         description: Run holding the profile when train does not run; none builds without PGO
         type: string
@@ -52,7 +56,7 @@ jobs:
     uses: ./.github/workflows/runtimes.yml
     with:
       build: ${{ contains(inputs.stages, 'runtimes') && inputs.runtimes || '[]' }}
-      reuse-run: ${{ inputs.reuse-run }}
+      reuse-run: ${{ inputs.runtimes-run || inputs.reuse-run }}
 
   instrumented:
     needs: runtimes
