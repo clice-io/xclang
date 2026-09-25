@@ -2,13 +2,23 @@ name: runtimes
 
 # The runtimes of every target, built once with the bootstrap compiler:
 # one artifact runtimes-<triple> per Linux and Windows target, one
-# runtimes-darwin for both macOS targets.
+# runtimes-darwin for both macOS targets. Units not in `build` are copied
+# from the run `reuse-run`, so every run carries the full set.
 
 on:
   workflow_call:
+    inputs:
+      build:
+        description: JSON list of the units to build
+        type: string
+        required: true
+      reuse-run:
+        description: Run to copy the other units from
+        type: string
+        default: ""
 
 jobs:
-  build:
+  unit:
     strategy:
       fail-fast: false
       matrix:
@@ -23,17 +33,29 @@ jobs:
             os: ubuntu-24.04
           - name: darwin
             os: macos-15
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ contains(fromJSON(inputs.build), matrix.name) && matrix.os || 'ubuntu-24.04' }}
     timeout-minutes: 120
+    env:
+      BUILD: ${{ contains(fromJSON(inputs.build), matrix.name) }}
     steps:
       - uses: actions/checkout@v7
+        if: env.BUILD == 'true'
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
+        if: env.BUILD == 'true'
       - name: Runtimes
-        run: pixi run runtimes --target ${{ matrix.name }}
-      - name: Pack
-        run: tar -C work/out -cf - runtimes-${{ matrix.name }} | zstd -T0 -3 -o runtimes-${{ matrix.name }}.tar.zst
+        if: env.BUILD == 'true'
+        run: |
+          pixi run runtimes --target ${{ matrix.name }}
+          tar -C work/out -cf - runtimes-${{ matrix.name }} | zstd -T0 -3 -o runtimes-${{ matrix.name }}.tar.zst
+      - name: Reuse
+        if: env.BUILD != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ -n "${{ inputs.reuse-run }}" ]] || { echo "::error::${{ matrix.name }} is neither built nor reused"; exit 1; }
+          gh run download "${{ inputs.reuse-run }}" -R "$GITHUB_REPOSITORY" -n runtimes-${{ matrix.name }}
       - uses: actions/upload-artifact@v7
         with:
           name: runtimes-${{ matrix.name }}

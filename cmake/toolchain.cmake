@@ -6,6 +6,9 @@
 #   -DXCLANG_ROOT=<tree> -DXCLANG_TARGET=<triple>
 #   -DXCLANG_TARGET_OS=linux|mingw|darwin -DXCLANG_TARGET_ARCH=x86_64|aarch64
 #   -DXCLANG_MACOS_MIN=<version>
+#   -DXCLANG_COMPILER_TARGET=<spelling of the triple for --target>, when it
+#     should differ from the directory name (compiler-rt names its output
+#     directory after it)
 
 foreach(var XCLANG_ROOT XCLANG_TARGET XCLANG_TARGET_OS XCLANG_TARGET_ARCH)
     if(NOT ${var})
@@ -14,7 +17,8 @@ foreach(var XCLANG_ROOT XCLANG_TARGET XCLANG_TARGET_OS XCLANG_TARGET_ARCH)
 endforeach()
 # try_compile projects see the toolchain file again, not the cache.
 list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES
-    XCLANG_ROOT XCLANG_TARGET XCLANG_TARGET_OS XCLANG_TARGET_ARCH XCLANG_MACOS_MIN)
+    XCLANG_ROOT XCLANG_TARGET XCLANG_TARGET_OS XCLANG_TARGET_ARCH XCLANG_MACOS_MIN
+    XCLANG_COMPILER_TARGET)
 
 set(_bin "${XCLANG_ROOT}/bin")
 if(CMAKE_HOST_WIN32)
@@ -24,8 +28,11 @@ endif()
 set(CMAKE_C_COMPILER "${_bin}/clang${_exe}")
 set(CMAKE_CXX_COMPILER "${_bin}/clang++${_exe}")
 set(CMAKE_ASM_COMPILER "${_bin}/clang${_exe}")
+if(NOT XCLANG_COMPILER_TARGET)
+    set(XCLANG_COMPILER_TARGET "${XCLANG_TARGET}")
+endif()
 foreach(lang C CXX ASM)
-    set(CMAKE_${lang}_COMPILER_TARGET "${XCLANG_TARGET}")
+    set(CMAKE_${lang}_COMPILER_TARGET "${XCLANG_COMPILER_TARGET}")
 endforeach()
 
 set(CMAKE_AR "${_bin}/llvm-ar${_exe}")
@@ -78,10 +85,6 @@ elseif(NOT XCLANG_TARGET_OS STREQUAL _host_os OR NOT XCLANG_TARGET_ARCH STREQUAL
         set(CMAKE_SYSTEM_NAME Linux)
         set(CMAKE_SYSTEM_PROCESSOR "${XCLANG_TARGET_ARCH}")
     endif()
-    set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
-    set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
-    set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
-    set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 endif()
 
 if(XCLANG_TARGET_OS STREQUAL "mingw")
@@ -90,6 +93,12 @@ if(XCLANG_TARGET_OS STREQUAL "mingw")
 endif()
 
 if(NOT XCLANG_TARGET_OS STREQUAL "darwin")
-    # The sysroot the config file names, so that find_* look inside it.
+    # The sysroot the config file names. Libraries, headers and packages
+    # are looked for in it only, even natively: the pixi environment on
+    # this machine is not part of what is being built.
     set(CMAKE_SYSROOT "${XCLANG_ROOT}/${XCLANG_TARGET}")
+    set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+    set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+    set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+    set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 endif()

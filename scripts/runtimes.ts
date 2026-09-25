@@ -35,11 +35,16 @@ function cmake(name: string, source: string, args: string[]): void {
   common.run("cmake", ["--build", build, "--target", "install"]);
 }
 
+/// compiler-rt names its directory after the compiler's target, so that
+/// is the spelling clang's driver looks for: the normalized one.
+function compilerRtTarget(stage: string, t: common.Target): string[] {
+  return [...common.cmakeToolchainArgs(stage, t), `-DXCLANG_COMPILER_TARGET=${common.normalized(t)}`];
+}
+
 function builtins(t: common.Target, stage: string): void {
   cmake(`builtins-${t.triple}`, path.join(src, "compiler-rt", "lib", "builtins"), [
-    ...common.cmakeToolchainArgs(stage, t),
+    ...compilerRtTarget(stage, t),
     "-C", path.join(caches, "builtins.cmake"),
-    `-DCOMPILER_RT_DEFAULT_TARGET_TRIPLE=${common.normalized(t)}`,
     `-DCOMPILER_RT_INSTALL_PATH=${common.resourceDir(stage)}`,
     `-DCOMPILER_RT_BUILD_CRT=${t.os === "linux" ? "ON" : "OFF"}`,
     ...NO_CONFIG,
@@ -66,10 +71,8 @@ function cxx(t: common.Target, stage: string): void {
 
 function profile(t: common.Target, stage: string): void {
   cmake(`compiler-rt-${t.triple}`, path.join(src, "runtimes"), [
-    ...common.cmakeToolchainArgs(stage, t),
+    ...compilerRtTarget(stage, t),
     "-C", path.join(caches, "compiler-rt.cmake"),
-    `-DCOMPILER_RT_DEFAULT_TARGET_TRIPLE=${common.normalized(t)}`,
-    `-DLLVM_DEFAULT_TARGET_TRIPLE=${common.normalized(t)}`,
     `-DCOMPILER_RT_INSTALL_PATH=${common.resourceDir(stage)}`,
     ...NO_CONFIG,
   ]);
