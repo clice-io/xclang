@@ -1,0 +1,51 @@
+name: train
+
+# The training run on Linux x64: the instrumented clang and lld build the
+# corpus of pgo/train.ts, and their counters become the `profile` artifact.
+
+on:
+  workflow_call:
+    inputs:
+      runtimes-run:
+        type: string
+        required: true
+      instrumented-run:
+        description: Run holding toolchain-x86_64-unknown-linux-gnu-instrumented
+        type: string
+        required: true
+
+jobs:
+  train:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: runtimes-*
+          path: work/artifacts
+          merge-multiple: true
+          run-id: ${{ inputs.runtimes-run }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: toolchain-x86_64-unknown-linux-gnu-instrumented
+          path: work/artifacts
+          run-id: ${{ inputs.instrumented-run }}
+          github-token: ${{ github.token }}
+      - name: Train
+        run: |
+          mkdir -p work/out
+          for archive in work/artifacts/*.tar.zst; do zstd -dc "$archive" | tar -C work/out -xf -; done
+          start=$SECONDS
+          pixi run train
+          echo "training: $(( (SECONDS - start) / 60 )) min" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: profile
+          path: work/out/profile/profile.profdata
+          retention-days: 30
+          if-no-files-found: error

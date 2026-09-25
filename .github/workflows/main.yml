@@ -54,9 +54,17 @@ jobs:
       mode: instrumented
       runtimes-run: ${{ needs.runtimes.result == 'success' && github.run_id || inputs.reuse-run }}
 
+  train:
+    needs: [runtimes, instrumented]
+    if: ${{ !cancelled() && contains(inputs.stages, 'train') && !contains(needs.*.result, 'failure') }}
+    uses: ./.github/workflows/train.yml
+    with:
+      runtimes-run: ${{ needs.runtimes.result == 'success' && github.run_id || inputs.reuse-run }}
+      instrumented-run: ${{ needs.instrumented.result == 'success' && github.run_id || inputs.reuse-run }}
+
   toolchain:
-    needs: runtimes
-    if: ${{ !cancelled() && contains(inputs.stages, 'toolchain') && needs.runtimes.result != 'failure' }}
+    needs: [runtimes, train]
+    if: ${{ !cancelled() && contains(inputs.stages, 'toolchain') && !contains(needs.*.result, 'failure') }}
     strategy:
       fail-fast: false
       matrix:
@@ -65,4 +73,4 @@ jobs:
     with:
       host: ${{ matrix.host }}
       runtimes-run: ${{ needs.runtimes.result == 'success' && github.run_id || inputs.reuse-run }}
-      profile-run: ${{ inputs.profile-run }}
+      profile-run: ${{ needs.train.result == 'success' && github.run_id || inputs.profile-run }}

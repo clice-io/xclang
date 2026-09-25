@@ -37,6 +37,15 @@ export const SOURCES = {
     url: `${LLVM}/LLVM-${LLVM_VERSION}-macOS-ARM64.tar.zst`,
     sha256: "3da0e91b5dfe3a5ec795ad2be79b3f5e6f28c8b23edcd3847fad7742b25e0507",
   },
+  /// The training corpus (pgo/train.ts).
+  "abseil": {
+    url: `${GH}/abseil/abseil-cpp/archive/refs/tags/20250814.1.tar.gz`,
+    sha256: "1692f77d1739bacf3f94337188b78583cf09bab7e420d2dc6c5605a4f86785a1",
+  },
+  "sqlite": {
+    url: "https://www.sqlite.org/2025/sqlite-autoconf-3500400.tar.gz",
+    sha256: "a3db587a1b92ee5ddac2f66b3edb41b26f9c867275782d46c3a088977d6a5b18",
+  },
   "mingw-w64": {
     url: `${GH}/mingw-w64/mingw-w64/archive/refs/tags/v${MINGW_VERSION}.tar.gz`,
     sha256: "d71cc644cd5a37c337f2719f3e0c79d89e8d8d5fb9e2952a62d3fa23623dc137",
