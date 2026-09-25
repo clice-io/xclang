@@ -4,8 +4,8 @@
 # links xclang's own libc++, statically.
 #
 # Two distributions come out of it:
-#   Toolchain    clang, lld and the binary tools    install-toolchain-stripped
-#   Development  libclang: libraries and headers    install-development
+#   Toolchain    clang, lld and the binary tools    install-toolchain-distribution-stripped
+#   Development  libclang: libraries and headers    install-development-distribution
 
 set(CMAKE_BUILD_TYPE Release CACHE STRING "")
 set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG -gline-tables-only" CACHE STRING "")

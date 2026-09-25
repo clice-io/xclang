@@ -107,10 +107,10 @@ function install(target: string, dest: string): void {
 }
 
 const out = path.join(common.WORK, "out");
-if (mode !== "asan") install("install-toolchain-stripped", path.join(out, `toolchain-${name}`));
+if (mode !== "asan") install("install-toolchain-distribution-stripped", path.join(out, `toolchain-${name}`));
 if (mode !== "instrumented") {
   const dest = path.join(out, `libclang-${name}`);
-  install("install-development", dest);
+  install("install-development-distribution", dest);
   /// clice reaches into Sema's private headers.
   const sema = path.join(dest, "include", "clang", "Sema");
   for (const header of ["CoroutineStmtBuilder.h", "TypeLocBuilder.h", "TreeTransform.h"]) {
