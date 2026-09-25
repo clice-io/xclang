@@ -44,7 +44,11 @@ set(CMAKE_READELF "${_bin}/llvm-readelf${_exe}")
 set(CMAKE_STRIP "${_bin}/llvm-strip${_exe}")
 set(CMAKE_ADDR2LINE "${_bin}/llvm-addr2line${_exe}")
 set(CMAKE_DLLTOOL "${_bin}/llvm-dlltool${_exe}")
-set(CMAKE_LINKER_TYPE LLD)
+# lld, except for macOS: the system's ld there, with the tree's libLTO.dylib
+# (config/darwin.cfg).
+if(NOT XCLANG_TARGET_OS STREQUAL "darwin")
+    set(CMAKE_LINKER_TYPE LLD)
+endif()
 
 # Cross-compiling means another OS or another architecture than this machine.
 if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64|ARM64)$")

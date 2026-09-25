@@ -73,8 +73,10 @@ int main() {
 
 /// 1. The toolchain's own programs.
 run(tool("clang"), ["--version"]);
-for (const program of ["clang", "ld.lld", "llvm-ar"]) {
-  const file = tool(program);
+const programs = [tool("clang"), tool("ld.lld"), tool("llvm-ar")];
+if (process.platform === "darwin") programs.push(path.join(tree, "lib", "libLTO.dylib"));
+for (const file of programs) {
+  const program = path.basename(file);
   if (!fs.existsSync(file)) {
     failures.push(`missing ${file}`);
     continue;
@@ -142,7 +144,10 @@ run(tool("clang++"), [`--target=${native}`, "-x", "c++-header", header, "-o", pa
 run(tool("clang++"), [`--target=${native}`, "-include-pch", path.join(work, "common.hpp.pch"), pchUser, "-o", path.join(work, `pch${exe}`)]);
 
 const lto = path.join(work, `lto${exe}`);
-if (run(tool("clang++"), [`--target=${native}`, "-O2", "-flto=thin", helloCxx, "-o", lto]) !== undefined) run(lto, []);
+if (run(tool("clang++"), [`--target=${native}`, "-O2", "-flto=thin", helloCxx, "-o", lto]) !== undefined) {
+  const output = run(lto, []);
+  if (output !== undefined && !output.includes("hello c++")) failures.push(`${lto} printed ${JSON.stringify(output)}`);
+}
 
 if (failures.length) fail(`${failures.length} checks failed:\n  ${failures.join("\n  ")}`);
 console.log("all checks passed");

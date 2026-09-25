@@ -77,6 +77,9 @@ fs.rmSync(build, { recursive: true, force: true });
 const args = [
   "-G", "Ninja", "-S", path.join(src, "llvm"), "-B", build,
   ...common.cmakeToolchainArgs(stage, host),
+  /// macOS links with the system's ld, which does LTO through xclang's
+  /// libLTO.dylib (config/darwin.cfg); read by clang.cmake.
+  ...(host.os === "darwin" ? ["-DXCLANG_EXTRA_TOOLCHAIN_COMPONENTS=LTO"] : []),
   "-C", path.join(caches, "clang.cmake"),
   ...(mode === "release" ? [] : ["-C", path.join(caches, `${mode}.cmake`)]),
   /// Installed with DESTDIR, then moved out of it (install() below); "/"
@@ -88,8 +91,9 @@ if (cross) args.push(`-DLLVM_HOST_TRIPLE=${host.triple}`);
 if (cross && host.os !== "darwin") args.push(`-DLLVM_NATIVE_TOOL_DIR=${nativeTools()}`);
 /// clice and its tests expect backslash-preferred paths on Windows.
 if (host.os === "mingw") args.push("-DLLVM_WINDOWS_PREFER_FORWARD_SLASH=OFF");
-/// Find the SDK the way Apple's clang does, with no -isysroot or SDKROOT.
-if (host.os === "darwin") args.push("-DCLANG_USE_XCSELECT=ON");
+/// Find the SDK the way Apple's clang does, with no -isysroot or SDKROOT,
+/// and link with the system's ld like it (see config/darwin.cfg).
+if (host.os === "darwin") args.push("-DCLANG_USE_XCSELECT=ON", "-DCLANG_DEFAULT_LINKER=");
 if (profile) {
   const flags = [
     `-fprofile-remapping-file=${path.join(common.ROOT, "pgo", "remap.txt")}`,

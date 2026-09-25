@@ -69,6 +69,7 @@ set(LLVM_Toolchain_DISTRIBUTION_COMPONENTS
     llvm-symbolizer llvm-addr2line
     llvm-dwarfdump
     llvm-libtool-darwin llvm-lipo
+    ${XCLANG_EXTRA_TOOLCHAIN_COMPONENTS}
     CACHE STRING "")
 
 # What a tool built on clang links, clice's closure: the clang, clang-tidy
