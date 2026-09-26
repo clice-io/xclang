@@ -199,3 +199,33 @@ jobs:
         if: ${{ !cancelled() }}
         working-directory: catter
         run: lit ./tests/integration -sav -j 1
+
+  # catter's PR branch on macOS, where `xmake config` hangs: its output and
+  # the process tree every minute.
+  catter-macos:
+    if: contains(github.event.head_commit.message, '[catter-macos]')
+    runs-on: macos-15
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: clice-io/catter
+          ref: feat/xclang
+          persist-credentials: false
+      - uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: v3.0.8
+      - uses: prefix-dev/setup-pixi@v0.9.6
+        with:
+          pixi-version: v0.71.1
+          environments: dev
+          activate-environment: false
+          locked: true
+      - name: Configure
+        run: |
+          pixi run -e dev npm-install
+          ( for i in $(seq 1 25); do sleep 60; echo "=== $i min"; ps -axww -o pid,ppid,etime,command | grep -vE "ps -ax|sleep 60|Runner.|hosted-compute|/System/|/usr/libexec|/usr/sbin|launchd" | tail -25; done ) &
+          timeout 1500 pixi run -e dev xmake config --clean --yes --test=y --mode=release --toolchain=clang -vD 2>&1 | tail -300
