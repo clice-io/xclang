@@ -38,7 +38,7 @@ function cmake(name: string, source: string, args: string[]): void {
   common.run("cmake", ["--build", build, "--target", "install"]);
 }
 
-/// Where AddressSanitizer and UBSan are built (cmake/caches/compiler-rt.cmake).
+/// Where the sanitizers and libFuzzer are built (cmake/caches/compiler-rt.cmake).
 const SANITIZERS = ["linux", "darwin"];
 
 /// The sanitizer runtimes of Linux carry xclang's libc++abi as their C++ ABI.
@@ -104,6 +104,7 @@ function profile(t: common.Target, stage: string): void {
     "-C", path.join(caches, "compiler-rt.cmake"),
     `-DCOMPILER_RT_INSTALL_PATH=${common.resourceDir(stage)}`,
     `-DCOMPILER_RT_BUILD_SANITIZERS=${SANITIZERS.includes(t.os) ? "ON" : "OFF"}`,
+    `-DCOMPILER_RT_BUILD_LIBFUZZER=${SANITIZERS.includes(t.os) ? "ON" : "OFF"}`,
     ...(t.os === "linux" ? LINUX_SANITIZERS : []),
   ]);
 }
@@ -124,6 +125,7 @@ function compilerRtDarwin(stage: string): void {
     "-DCOMPILER_RT_BUILD_BUILTINS=ON",
     "-DCOMPILER_RT_EXCLUDE_ATOMIC_BUILTIN=OFF",
     "-DCOMPILER_RT_BUILD_SANITIZERS=ON",
+    "-DCOMPILER_RT_BUILD_LIBFUZZER=ON",
     "-DCOMPILER_RT_DEFAULT_TARGET_ONLY=OFF",
     "-DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF",
     ...["IOS", "WATCHOS", "TVOS", "XROS"].map((p) => `-DCOMPILER_RT_ENABLE_${p}=OFF`),

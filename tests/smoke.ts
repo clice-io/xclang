@@ -189,7 +189,38 @@ for (const gz of ["zlib", "zstd"]) {
   run(tool("clang"), ["--target=x86_64-unknown-linux-gnu", "-g", `-gz=${gz}`, helloC, "-o", path.join(work, `gz-${gz}`)]);
 }
 
-/// 3. Native: import std, a precompiled header, ThinLTO.
+/// 3. Native: the sanitizers and libFuzzer (Linux, macOS), import std, a
+/// precompiled header, ThinLTO.
+function expectReport(label: string, program: string, args: string[], text: string): void {
+  console.log(`+ ${program} ${args.join(" ")}`);
+  const result = spawnSync(program, args, { encoding: "utf8", cwd: work });
+  const output = (result.stdout ?? "") + (result.stderr ?? "");
+  process.stdout.write(output.slice(-3000));
+  if (!output.includes(text)) failures.push(`${label}: no "${text}" in its output`);
+}
+if (!windows) {
+  const sanitized: [string, string, string, string][] = [
+    ["address", `int main(int argc, char**) { int* p = new int[4]; int r = p[argc + 4]; delete[] p; return r; }
+`, "heap-buffer-overflow", ""],
+    ["thread", `#include <thread>
+int shared;
+int main() { std::thread t([] { shared++; }); shared++; t.join(); return shared == 2 ? 0 : 1; }
+`, "ThreadSanitizer: data race", ""],
+    ["fuzzer", `#include <cstddef>
+#include <cstdint>
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
+  if (size > 2 && data[0] == 'x') { volatile int sum = data[1] + data[2]; (void)sum; }
+  return 0;
+}
+`, "Done 1000 runs", "-runs=1000"],
+  ];
+  for (const [sanitizer, source, report, arg] of sanitized) {
+    const out = path.join(work, `sanitize-${sanitizer}`);
+    if (run(tool("clang++"), [`--target=${native}`, `-fsanitize=${sanitizer}`, "-g", "-O1", write(`sanitize-${sanitizer}.cpp`, source), "-o", out]) === undefined) continue;
+    expectReport(`-fsanitize=${sanitizer}`, out, arg ? [arg] : [], report);
+  }
+}
+
 const manifest = run(tool("clang++"), [`--target=${native}`, "-print-library-module-manifest-path"])?.trim();
 if (manifest && fs.existsSync(manifest)) {
   const std = JSON.parse(fs.readFileSync(manifest, "utf8")).modules.find((m: { "logical-name": string }) => m["logical-name"] === "std");
