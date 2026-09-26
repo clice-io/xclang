@@ -1,0 +1,179 @@
+name: acceptance
+
+# Temporary, on exp/acceptance only, not for main: clice built with an
+# xclang dist (its toolchain and its libclang) on every host, and catter on
+# Linux and Windows (MinGW), their tests run. What they need changed is
+# acceptance/clice.patch and acceptance/catter.patch.
+
+on:
+  push:
+    branches: [exp/acceptance]
+
+env:
+  DIST_RUN: "36227776265"
+  CLICE_REF: fd95eb3f692050c4b183a96abcaadde16c0d2c6b
+  CATTER_REF: cf187c0b14d382f9c938dc04a6ab60ba0b62d006
+
+jobs:
+  clice:
+    strategy:
+      fail-fast: false
+      matrix:
+        host:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - x86_64-w64-mingw32
+          - aarch64-w64-mingw32
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm","aarch64-apple-darwin":"macos-15","x86_64-apple-darwin":"macos-15-intel"}')[matrix.host] }}
+    timeout-minutes: 240
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: clice-io/clice
+          ref: ${{ env.CLICE_REF }}
+          path: clice
+          fetch-depth: 0
+          persist-credentials: false
+      - run: git -C clice apply "$PWD/acceptance/clice.patch"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: python -m pip install cmake ninja
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist-${{ matrix.host }}
+          path: dist
+          run-id: ${{ env.DIST_RUN }}
+          github-token: ${{ github.token }}
+      - name: Unpack (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory unpacked | Out-Null
+          foreach ($a in Get-Item dist/xclang-*.tar.xz, dist/libclang-*-${{ matrix.host }}.tar.xz) {
+            C:\Windows\System32\tar.exe -xf $a.FullName -C unpacked
+          }
+      - name: Unpack
+        if: runner.os != 'Windows'
+        run: |
+          mkdir unpacked
+          for a in dist/xclang-*.tar.xz dist/libclang-*-${{ matrix.host }}.tar.xz; do tar -C unpacked -xf "$a"; done
+      - name: Configure
+        run: |
+          root="$PWD"; [[ "$RUNNER_OS" == Windows ]] && root="$(cygpath -m "$PWD")"
+          echo "$root/unpacked/xclang/bin" >> "$GITHUB_PATH"
+          export PATH="$PWD/unpacked/xclang/bin:$PATH"
+          clang++ --version
+          cmake -S clice -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_TOOLCHAIN_FILE="$root/clice/cmake/toolchain.cmake" \
+            -DCLICE_XCLANG=ON \
+            -DLLVM_INSTALL_PATH="$root/unpacked/libclang" \
+            -DCLICE_ENABLE_TEST=ON \
+            -DCLICE_CI_ENVIRONMENT=ON \
+            -DCMAKE_JOB_POOLS="link=2" -DCMAKE_JOB_POOL_LINK=link
+      - name: Build
+        run: |
+          start=$SECONDS
+          cmake --build build
+          echo "${{ matrix.host }}: build $(( (SECONDS - start) / 60 )) min" | tee -a "$GITHUB_STEP_SUMMARY"
+          ls -la build/bin | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Unit tests
+        working-directory: clice
+        run: CLICE_TEST_DATA_DIR="$PWD/tests/data" ../build/bin/unit_tests --verbose
+      - name: Integration tests
+        if: ${{ !cancelled() }}
+        working-directory: clice
+        run: |
+          npm install
+          npm run check
+          CLICE_EXECUTABLE="$PWD/../build/bin/clice" npm test --workspace tests
+      - name: Smoke tests
+        if: ${{ !cancelled() }}
+        working-directory: clice
+        run: node tools/replay.ts tests/smoke/*.jsonl --clice=../build/bin/clice
+
+  catter:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { host: x86_64-unknown-linux-gnu, os: ubuntu-24.04, plat: linux }
+          - { host: x86_64-w64-mingw32, os: windows-2025, plat: mingw }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: clice-io/catter
+          ref: ${{ env.CATTER_REF }}
+          path: catter
+          persist-credentials: false
+      - run: git -C catter apply "$PWD/acceptance/catter.patch"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: python -m pip install lit && npm install -g pnpm@10.14.0
+      - uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: v3.0.8
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist-${{ matrix.host }}
+          path: dist
+          run-id: ${{ env.DIST_RUN }}
+          github-token: ${{ github.token }}
+      - name: Unpack (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory unpacked | Out-Null
+          foreach ($a in Get-Item dist/xclang-*.tar.xz, dist/libclang-*-${{ matrix.host }}.tar.xz) {
+            C:\Windows\System32\tar.exe -xf $a.FullName -C unpacked
+          }
+      - name: Unpack
+        if: runner.os != 'Windows'
+        run: |
+          mkdir unpacked
+          for a in dist/xclang-*.tar.xz dist/libclang-*-${{ matrix.host }}.tar.xz; do tar -C unpacked -xf "$a"; done
+      # catter reads the option tables from $CONDA_PREFIX/include.
+      - name: Configure
+        working-directory: catter
+        run: |
+          root="$(cd .. && pwd)"; [[ "$RUNNER_OS" == Windows ]] && root="$(cygpath -m "$root")"
+          mkdir -p ../options/include && cp -r ../unpacked/libclang/include/llvm-options-td ../options/include/
+          echo "CONDA_PREFIX=$root/options" >> "$GITHUB_ENV"
+          echo "$root/unpacked/xclang/bin" >> "$GITHUB_PATH"
+          export CONDA_PREFIX="$root/options" PATH="$PWD/../unpacked/xclang/bin:$PATH"
+          pnpm install
+          xmake f -y --clean -p ${{ matrix.plat }} -a x86_64 -m release --test=y --toolchain=llvm --sdk="$root/unpacked/xclang"
+      - name: Build
+        working-directory: catter
+        run: xmake -y --verbose
+      - name: Unit tests
+        working-directory: catter
+        run: xmake test --verbose
+      - name: Integration tests
+        if: ${{ !cancelled() }}
+        working-directory: catter
+        run: lit ./tests/integration -sav -j 1

@@ -1,0 +1,365 @@
+diff --git a/patches/kotatsu-mingw.patch b/patches/kotatsu-mingw.patch
+new file mode 100644
+index 0000000..2487c70
+--- /dev/null
++++ b/patches/kotatsu-mingw.patch
+@@ -0,0 +1,30 @@
++diff --git a/xmake.lua b/xmake.lua
++--- a/xmake.lua
+++++ b/xmake.lua
++@@ -1,7 +1,7 @@
++ set_project("kotatsu")
++ 
++ add_rules("mode.debug", "mode.release", "mode.releasedbg")
++-set_allowedplats("windows", "linux", "macosx")
+++set_allowedplats("windows", "mingw", "linux", "macosx")
++ 
++ option("dev", { default = true })
++ option("test", { default = true })
++@@ -60,7 +60,7 @@
++ 
++ set_languages("c++23")
++ 
++-if is_plat("windows") then
+++if is_plat("windows", "mingw") then
++ 	add_defines("NOMINMAX", "WIN32_LEAN_AND_MEAN")
++ end
++ 
++@@ -82,7 +82,7 @@
++ if has_config("codec") and has_config("codec_toml") then
++ 	add_requires("toml++ v3.4.0")
++ end
++-if has_config("test") and is_plat("windows") then
+++if has_config("test") and is_plat("windows", "mingw") then
++ 	add_requires("unistd_h")
++ end
++ 
+diff --git a/src/common/option/clang.cc b/src/common/option/clang.cc
+index 530f711..2454137 100644
+--- a/src/common/option/clang.cc
++++ b/src/common/option/clang.cc
+@@ -118,7 +118,7 @@ constexpr auto OptionInfos = std::array<kota_opt::Option, OptionCount>{
+                HELP,                                                                               \
+                HELP_TEXTS,                                                                         \
+                META_VAR,                                                                           \
+-               VALUES)                                                                             \
++               VALUES, SUBCOMMANDIDS_OFFSET)                                                                             \
+     kota_opt::Option{                                                                              \
+         .prefixes = prefixes(PREFIXES_OFFSET),                                                     \
+         .prefixed_name = str_at(NAME_OFFSET),                                                      \
+diff --git a/src/common/option/clang.h b/src/common/option/clang.h
+index d981806..7bfd99d 100644
+--- a/src/common/option/clang.h
++++ b/src/common/option/clang.h
+@@ -20,7 +20,7 @@ enum ID : unsigned {
+                HELP,                                                                               \
+                HELP_TEXTS,                                                                         \
+                META_VAR,                                                                           \
+-               VALUES)                                                                             \
++               VALUES, SUBCOMMANDIDS_OFFSET)                                                                             \
+     ID_##ID,
+ #include <llvm-options-td/clang-Driver-Options.inc>
+ #undef OPTION
+diff --git a/src/common/option/lld_coff.cc b/src/common/option/lld_coff.cc
+index 014d8d6..9305cf9 100644
+--- a/src/common/option/lld_coff.cc
++++ b/src/common/option/lld_coff.cc
+@@ -61,7 +61,7 @@ constexpr auto OptionInfos = std::array<kota_opt::Option, OptionCount>{
+                HELP,                                                                               \
+                HELP_TEXTS,                                                                         \
+                META_VAR,                                                                           \
+-               VALUES)                                                                             \
++               VALUES, SUBCOMMANDIDS_OFFSET)                                                                             \
+     kota_opt::Option{                                                                              \
+         .prefixes = prefixes(PREFIXES_OFFSET),                                                     \
+         .prefixed_name = str_at(OptionStrTableStorage, NAME_OFFSET),                               \
+diff --git a/src/common/option/lld_coff.h b/src/common/option/lld_coff.h
+index dec2ecb..60ecedc 100644
+--- a/src/common/option/lld_coff.h
++++ b/src/common/option/lld_coff.h
+@@ -20,7 +20,7 @@ enum ID : unsigned {
+                HELP,                                                                               \
+                HELP_TEXTS,                                                                         \
+                META_VAR,                                                                           \
+-               VALUES)                                                                             \
++               VALUES, SUBCOMMANDIDS_OFFSET)                                                                             \
+     ID_##ID,
+ #include <llvm-options-td/lld-COFF-Options.inc>
+ #undef OPTION
+diff --git a/src/common/option/lld_elf.cc b/src/common/option/lld_elf.cc
+index d404120..bf99158 100644
+--- a/src/common/option/lld_elf.cc
++++ b/src/common/option/lld_elf.cc
+@@ -61,7 +61,7 @@ constexpr auto OptionInfos = std::array<kota_opt::Option, OptionCount>{
+                HELP,                                                                               \
+                HELP_TEXTS,                                                                         \
+                META_VAR,                                                                           \
+-               VALUES)                                                                             \
++               VALUES, SUBCOMMANDIDS_OFFSET)                                                                             \
+     kota_opt::Option{                                                                              \
+         .prefixes = prefixes(PREFIXES_OFFSET),                                                     \
+         .prefixed_name = str_at(OptionStrTableStorage, NAME_OFFSET),                               \
+diff --git a/src/common/option/lld_elf.h b/src/common/option/lld_elf.h
+index ad215fd..b79c425 100644
+--- a/src/common/option/lld_elf.h
++++ b/src/common/option/lld_elf.h
+@@ -20,7 +20,7 @@ enum ID : unsigned {
+                HELP,                                                                               \
+                HELP_TEXTS,                                                                         \
+                META_VAR,                                                                           \
+-               VALUES)                                                                             \
++               VALUES, SUBCOMMANDIDS_OFFSET)                                                                             \
+     ID_##ID,
+ #include <llvm-options-td/lld-ELF-Options.inc>
+ #undef OPTION
+diff --git a/src/common/option/lld_macho.cc b/src/common/option/lld_macho.cc
+index 1c60f05..822a964 100644
+--- a/src/common/option/lld_macho.cc
++++ b/src/common/option/lld_macho.cc
+@@ -58,7 +58,7 @@ constexpr auto OptionInfos = std::array<kota_opt::Option, OptionCount>{
+                HELP,                                                                               \
+                HELP_TEXTS,                                                                         \
+                META_VAR,                                                                           \
+-               VALUES)                                                                             \
++               VALUES, SUBCOMMANDIDS_OFFSET)                                                                             \
+     kota_opt::Option{                                                                              \
+         .prefixes = prefixes(PREFIXES_OFFSET),                                                     \
+         .prefixed_name = str_at(OptionStrTableStorage, NAME_OFFSET),                               \
+diff --git a/src/common/option/lld_macho.h b/src/common/option/lld_macho.h
+index 7341cef..35e3f39 100644
+--- a/src/common/option/lld_macho.h
++++ b/src/common/option/lld_macho.h
+@@ -20,7 +20,7 @@ enum ID : unsigned {
+                HELP,                                                                               \
+                HELP_TEXTS,                                                                         \
+                META_VAR,                                                                           \
+-               VALUES)                                                                             \
++               VALUES, SUBCOMMANDIDS_OFFSET)                                                                             \
+     ID_##ID,
+ #include <llvm-options-td/lld-MachO-Options.inc>
+ #undef OPTION
+diff --git a/src/common/option/lld_mingw.cc b/src/common/option/lld_mingw.cc
+index db7e22b..1eadaca 100644
+--- a/src/common/option/lld_mingw.cc
++++ b/src/common/option/lld_mingw.cc
+@@ -58,7 +58,7 @@ constexpr auto OptionInfos = std::array<kota_opt::Option, OptionCount>{
+                HELP,                                                                               \
+                HELP_TEXTS,                                                                         \
+                META_VAR,                                                                           \
+-               VALUES)                                                                             \
++               VALUES, SUBCOMMANDIDS_OFFSET)                                                                             \
+     kota_opt::Option{                                                                              \
+         .prefixes = prefixes(PREFIXES_OFFSET),                                                     \
+         .prefixed_name = str_at(OptionStrTableStorage, NAME_OFFSET),                               \
+diff --git a/src/common/option/lld_mingw.h b/src/common/option/lld_mingw.h
+index 8bf0c8c..797cf21 100644
+--- a/src/common/option/lld_mingw.h
++++ b/src/common/option/lld_mingw.h
+@@ -20,7 +20,7 @@ enum ID : unsigned {
+                HELP,                                                                               \
+                HELP_TEXTS,                                                                         \
+                META_VAR,                                                                           \
+-               VALUES)                                                                             \
++               VALUES, SUBCOMMANDIDS_OFFSET)                                                                             \
+     ID_##ID,
+ #include <llvm-options-td/lld-MinGW-Options.inc>
+ #undef OPTION
+diff --git a/src/common/option/lld_wasm.cc b/src/common/option/lld_wasm.cc
+index 550c42e..3b37fb1 100644
+--- a/src/common/option/lld_wasm.cc
++++ b/src/common/option/lld_wasm.cc
+@@ -58,7 +58,7 @@ constexpr auto OptionInfos = std::array<kota_opt::Option, OptionCount>{
+                HELP,                                                                               \
+                HELP_TEXTS,                                                                         \
+                META_VAR,                                                                           \
+-               VALUES)                                                                             \
++               VALUES, SUBCOMMANDIDS_OFFSET)                                                                             \
+     kota_opt::Option{                                                                              \
+         .prefixes = prefixes(PREFIXES_OFFSET),                                                     \
+         .prefixed_name = str_at(OptionStrTableStorage, NAME_OFFSET),                               \
+diff --git a/src/common/option/lld_wasm.h b/src/common/option/lld_wasm.h
+index 2be1deb..0de5912 100644
+--- a/src/common/option/lld_wasm.h
++++ b/src/common/option/lld_wasm.h
+@@ -20,7 +20,7 @@ enum ID : unsigned {
+                HELP,                                                                               \
+                HELP_TEXTS,                                                                         \
+                META_VAR,                                                                           \
+-               VALUES)                                                                             \
++               VALUES, SUBCOMMANDIDS_OFFSET)                                                                             \
+     ID_##ID,
+ #include <llvm-options-td/lld-wasm-Options.inc>
+ #undef OPTION
+diff --git a/src/common/option/llvm_dlltool.cc b/src/common/option/llvm_dlltool.cc
+index 2669a09..42ded19 100644
+--- a/src/common/option/llvm_dlltool.cc
++++ b/src/common/option/llvm_dlltool.cc
+@@ -55,7 +55,7 @@ constexpr auto OptionInfos = std::array<kota_opt::Option, OptionCount>{
+                HELP,                                                                               \
+                HELP_TEXTS,                                                                         \
+                META_VAR,                                                                           \
+-               VALUES)                                                                             \
++               VALUES, SUBCOMMANDIDS_OFFSET)                                                                             \
+     kota_opt::Option{                                                                              \
+         .prefixes = prefixes(PREFIXES_OFFSET),                                                     \
+         .prefixed_name = str_at(OptionStrTableStorage, NAME_OFFSET),                               \
+diff --git a/src/common/option/llvm_dlltool.h b/src/common/option/llvm_dlltool.h
+index aaea753..41193e8 100644
+--- a/src/common/option/llvm_dlltool.h
++++ b/src/common/option/llvm_dlltool.h
+@@ -20,7 +20,7 @@ enum ID : unsigned {
+                HELP,                                                                               \
+                HELP_TEXTS,                                                                         \
+                META_VAR,                                                                           \
+-               VALUES)                                                                             \
++               VALUES, SUBCOMMANDIDS_OFFSET)                                                                             \
+     ID_##ID,
+ #include <llvm-options-td/llvm-dlltool-Options.inc>
+ #undef OPTION
+diff --git a/src/common/option/llvm_lib.cc b/src/common/option/llvm_lib.cc
+index 33e26cc..25a36c0 100644
+--- a/src/common/option/llvm_lib.cc
++++ b/src/common/option/llvm_lib.cc
+@@ -59,7 +59,7 @@ constexpr auto OptionInfos = std::array<kota_opt::Option, OptionCount>{
+                HELP,                                                                               \
+                HELP_TEXTS,                                                                         \
+                META_VAR,                                                                           \
+-               VALUES)                                                                             \
++               VALUES, SUBCOMMANDIDS_OFFSET)                                                                             \
+     kota_opt::Option{                                                                              \
+         .prefixes = prefixes(PREFIXES_OFFSET),                                                     \
+         .prefixed_name = str_at(OptionStrTableStorage, NAME_OFFSET),                               \
+diff --git a/src/common/option/llvm_lib.h b/src/common/option/llvm_lib.h
+index bd1474b..47f877b 100644
+--- a/src/common/option/llvm_lib.h
++++ b/src/common/option/llvm_lib.h
+@@ -20,7 +20,7 @@ enum ID : unsigned {
+                HELP,                                                                               \
+                HELP_TEXTS,                                                                         \
+                META_VAR,                                                                           \
+-               VALUES)                                                                             \
++               VALUES, SUBCOMMANDIDS_OFFSET)                                                                             \
+     ID_##ID,
+ #include <llvm-options-td/llvm-lib-Options.inc>
+ #undef OPTION
+diff --git a/xmake.lua b/xmake.lua
+index 64a089e..696f927 100644
+--- a/xmake.lua
++++ b/xmake.lua
+@@ -2,7 +2,7 @@ set_version("0.1.0")
+ set_project("catter")
+ 
+ add_rules("mode.debug", "mode.release", "mode.releasedbg")
+-set_allowedplats("windows", "linux", "macosx")
++set_allowedplats("windows", "mingw", "linux", "macosx")
+ 
+ set_languages("c++23")
+ 
+@@ -107,7 +107,7 @@ if is_plat("linux") then
+     add_defines("CATTER_LINUX")
+ elseif is_plat("macosx") then
+     add_defines("CATTER_MAC")
+-elseif is_plat("windows") then
++elseif is_plat("windows", "mingw") then
+     add_defines("CATTER_WINDOWS")
+     add_defines("WIN32_LEAN_AND_MEAN", "NOMINMAX")
+     add_requires("minhook", {version = "v1.3.4"})
+@@ -147,7 +147,7 @@ target("common-config")
+     add_packages("kotatsu", {public = true})
+ 
+ target("common-winapi")
+-    set_default(is_plat("windows"))
++    set_default(is_plat("windows", "mingw"))
+     set_kind("static")
+     add_includedirs("src/common", {public = true})
+     add_files("src/common/winapi/**.cc")
+@@ -157,13 +157,13 @@ target("common-resolver")
+     set_kind("static")
+     add_local_prefix_includedirs()
+     add_includedirs("src/common", {public = true})
+-    if is_plat("windows") then
++    if is_plat("windows", "mingw") then
+         add_files("src/common/resolver/win.cc")
+     else
+         add_files("src/common/resolver/unix.cc")
+     end
+ 
+-    if is_plat("windows") then
++    if is_plat("windows", "mingw") then
+         add_deps("common-winapi", {public = true})
+     end
+ 
+@@ -171,7 +171,7 @@ target("common")
+     set_kind("static")
+     add_includedirs("src/common", {public = true})
+ 
+-    if is_plat("windows") then
++    if is_plat("windows", "mingw") then
+         add_deps("common-winapi", {public = true})
+     end
+ 
+@@ -298,7 +298,7 @@ target("catter")
+ 
+ 
+ target("catter-hook-win64")
+-    set_default(is_plat("windows"))
++    set_default(is_plat("windows", "mingw"))
+     set_kind("shared")
+     add_local_prefix_includedirs()
+     add_includedirs("src/catter-hook/")
+@@ -309,6 +309,10 @@ target("catter-hook-win64")
+     if toolchain == "msvc" or toolchain == "clang-cl" then
+         add_cxxflags("/GR-")
+         add_shflags("/DEF:src/catter-hook/win/payload/exports.def")
++    elseif is_plat("mingw") then
++        add_cxxflags("-fno-exceptions", "-fno-rtti")
++        -- exports.def exports nothing; MinGW links would export everything.
++        add_shflags("-Wl,--exclude-all-symbols")
+     else
+         add_cxxflags("-fno-exceptions", "-fno-rtti")
+         add_shflags("-Wl,/DEF:src/catter-hook/win/payload/exports.def")
+@@ -362,7 +366,7 @@ target("catter-hook")
+     add_local_prefix_includedirs()
+     add_includedirs("src/catter-hook/", {public = true})
+     add_deps("common")
+-    if is_plat("windows") then
++    if is_plat("windows", "mingw") then
+         add_files("src/catter-hook/win/*.cc")
+     elseif is_plat("linux", "macosx") then
+         add_files("src/catter-hook/unix/impl.cc")
+@@ -430,7 +434,7 @@ target("ut-catter-hook-unix")
+     end
+ 
+ target("ut-catter-hook-win64")
+-    set_default(has_config("test") and is_plat("windows"))
++    set_default(has_config("test") and is_plat("windows", "mingw"))
+     set_kind("binary")
+     add_rules("ut-base")
+ 
+@@ -441,7 +445,7 @@ target("ut-catter-hook-win64")
+ 
+     add_deps("common")
+ 
+-    if is_plat("windows") then
++    if is_plat("windows", "mingw") then
+         add_tests("default")
+     end
+ 
+@@ -627,6 +631,8 @@ package("kotatsu")
+     set_urls("https://github.com/clice-io/kotatsu.git")
+     -- version from `git rev-list --count HEAD`
+     add_versions("170", "c516e3ae0ca3c7d7fb35fdcfdc7c6a111adef764")
++    add_patches("170", path.join(os.scriptdir(), "patches", "kotatsu-mingw.patch"),
++        "f4dc8f6a37aa3314d458924777877c4cf1eee1c2658ba3a710020cebdfcea91f")
+ 
+     add_deps("libuv v1.52.0")
+     add_deps("cpptrace v1.0.4")
+@@ -732,7 +738,7 @@ xpack("catter")
+     end)
+ 
+     add_targets("catter", "catter-proxy")
+-    if is_plat("windows") then
++    if is_plat("windows", "mingw") then
+         add_targets("catter-hook-win64")
+     elseif is_plat("linux", "macosx") then
+         add_targets("catter-hook-unix")

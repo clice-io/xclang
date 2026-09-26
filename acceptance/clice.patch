@@ -1,0 +1,126 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index e059c35d..1eac4944 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -28,7 +28,7 @@ endif()
+ # Keyed on the target OS, not the compiler frontend: CI links Windows with
+ # GNU-driver clang++ + lld-link, where the frontend variant is "GNU" but the
+ # linker still speaks MSVC-style /OPT flags (see the Debug /OPT:NOICF below).
+-if(WIN32)
++if(WIN32 AND NOT MINGW)
+     string(APPEND CMAKE_EXE_LINKER_FLAGS " -Wl,/OPT:REF")
+     string(APPEND CMAKE_SHARED_LINKER_FLAGS " -Wl,/OPT:REF")
+ elseif(APPLE)
+@@ -56,7 +56,7 @@ endif()
+ # friendly flags below instead. icf=safe (not =all) so address-taken
+ # functions keep C++ pointer identity.
+ if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+-    if(WIN32)
++    if(WIN32 AND NOT MINGW)
+         # SAFEICF, not ICF: plain /OPT:ICF folds address-taken functions.
+         set(CLICE_LINK_OPT_FLAGS "-Wl,/OPT:SAFEICF")
+     elseif(APPLE)
+@@ -107,7 +107,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+         string(APPEND CMAKE_SHARED_LINKER_FLAGS " -fsanitize=address")
+     endif()
+ 
+-    if(WIN32)
++    if(WIN32 AND NOT MINGW)
+         # Disable Identical COMDAT Folding in Debug to avoid ASan ODR false positives.
+         string(APPEND CMAKE_EXE_LINKER_FLAGS " -Wl,/OPT:NOICF")
+         string(APPEND CMAKE_SHARED_LINKER_FLAGS " -Wl,/OPT:NOICF")
+diff --git a/cmake/llvm.cmake b/cmake/llvm.cmake
+index faf6416c..24f0226b 100644
+--- a/cmake/llvm.cmake
++++ b/cmake/llvm.cmake
+@@ -17,7 +17,9 @@ function(clice_target_triple OUT_VAR)
+         message(FATAL_ERROR "Unsupported processor: ${CMAKE_SYSTEM_PROCESSOR}")
+     endif()
+ 
+-    if(WIN32)
++    if(MINGW)
++        set(${OUT_VAR} "${_ARCH}-w64-mingw32" PARENT_SCOPE)
++    elseif(WIN32)
+         set(${OUT_VAR} "${_ARCH}-pc-windows-msvc" PARENT_SCOPE)
+     elseif(APPLE)
+         set(${OUT_VAR} "${_ARCH}-apple-darwin" PARENT_SCOPE)
+@@ -103,11 +105,29 @@ function(setup_llvm LLVM_VERSION)
+ 
+     set(LLVM_INSTALL_PATH "${LLVM_INSTALL_PATH}" CACHE PATH "LLVM install" FORCE)
+ 
++    # An xclang libclang: its toolchain brings libc++, and the archive the
++    # static zlib and zstd LLVMConfig.cmake looks for.
++    set(_xclang "${LLVM_INSTALL_PATH}/lib/cmake/xclang/libclang.cmake")
++    if(EXISTS "${_xclang}")
++        include("${_xclang}")
++        list(PREPEND CMAKE_PREFIX_PATH "${LLVM_INSTALL_PATH}")
++    endif()
++
+     find_package(LLVM REQUIRED CONFIG
+         PATHS "${LLVM_INSTALL_PATH}/lib/cmake/llvm" NO_DEFAULT_PATH)
+     find_package(Clang REQUIRED CONFIG
+         PATHS "${LLVM_INSTALL_PATH}/lib/cmake/clang" NO_DEFAULT_PATH)
+ 
++    if(EXISTS "${_xclang}")
++        clice_target_triple(_triple)
++        if(NOT XCLANG_TARGET_TRIPLE STREQUAL _triple)
++            message(FATAL_ERROR "xclang libclang for ${XCLANG_TARGET_TRIPLE}, this build ${_triple}")
++        endif()
++        _llvm_link_libs()
++        message(STATUS "xclang libclang ${XCLANG_LLVM_VERSION} (${XCLANG_BUILD_TYPE}) at ${LLVM_INSTALL_PATH}")
++        return()
++    endif()
++
+     _check_llvm_manifest("${LLVM_INSTALL_PATH}")
+ 
+     # The package's libc++ is the standard library of everything in this
+@@ -127,6 +147,12 @@ function(setup_llvm LLVM_VERSION)
+     list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES CMAKE_CXX_STANDARD_LIBRARIES)
+     set(CMAKE_TRY_COMPILE_PLATFORM_VARIABLES "${CMAKE_TRY_COMPILE_PLATFORM_VARIABLES}" PARENT_SCOPE)
+ 
++    _llvm_link_libs()
++
++    message(STATUS "LLVM ${LLVM_VERSION} at ${LLVM_INSTALL_PATH}")
++endfunction()
++
++macro(_llvm_link_libs)
+     llvm_map_components_to_libnames(LLVM_RESOLVED
+         support frontendopenmp option targetparser)
+ 
+@@ -156,9 +182,7 @@ function(setup_llvm LLVM_VERSION)
+     target_include_directories(llvm-libs SYSTEM INTERFACE
+         "${LLVM_INSTALL_PATH}/include")
+     target_compile_definitions(llvm-libs INTERFACE CLANG_BUILD_STATIC=1)
+-
+-    message(STATUS "LLVM ${LLVM_VERSION} at ${LLVM_INSTALL_PATH}")
+-endfunction()
++endmacro()
+ 
+ # The archive records the toolchain it was built with. Every field checked
+ # here is one where a mismatch still links and then fails at runtime.
+diff --git a/cmake/toolchain.cmake b/cmake/toolchain.cmake
+index 33770c80..c24d8dfa 100644
+--- a/cmake/toolchain.cmake
++++ b/cmake/toolchain.cmake
+@@ -97,7 +97,10 @@ foreach(lang C CXX)
+         CACHE STRING "" FORCE)
+ endforeach()
+ 
+-if(WIN32)
++# An xclang toolchain (CLICE_XCLANG) picks the linker, the standard library
++# and the sysroot through its own config files: nothing to add here.
++if(CLICE_XCLANG)
++elseif(WIN32)
+     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded" CACHE STRING "")
+     set(CMAKE_EXE_LINKER_FLAGS_INIT "-fuse-ld=lld-link")
+     set(CMAKE_SHARED_LINKER_FLAGS_INIT "-fuse-ld=lld-link")
+@@ -110,6 +113,9 @@ endif()
+ 
+ if(APPLE)
+     set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0" CACHE STRING "")
++endif()
++
++if(APPLE AND NOT CLICE_XCLANG)
+ 
+     # conda-forge clang's bundled config files (<triple>-clang++.cfg)
+     # inject -L/-rpath pointing into the conda env at link time, binding
