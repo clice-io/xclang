@@ -9,13 +9,16 @@ on:
   push:
     branches: [exp/acceptance]
 
+# A push runs the jobs its commit message names: [clice], [catter].
 env:
-  DIST_RUN: "36229179405"
+  CLICE_DIST_RUN: "36238500847"
+  CATTER_DIST_RUN: "36229179405"
   CLICE_REF: fd95eb3f692050c4b183a96abcaadde16c0d2c6b
   CATTER_REF: cf187c0b14d382f9c938dc04a6ab60ba0b62d006
 
 jobs:
   clice:
+    if: contains(github.event.head_commit.message, '[clice]')
     strategy:
       fail-fast: false
       matrix:
@@ -54,7 +57,7 @@ jobs:
         with:
           name: dist-${{ matrix.host }}
           path: dist
-          run-id: ${{ env.DIST_RUN }}
+          run-id: ${{ env.CLICE_DIST_RUN }}
           github-token: ${{ github.token }}
       - name: Unpack (Windows)
         if: runner.os == 'Windows'
@@ -105,6 +108,7 @@ jobs:
         run: node tools/replay.ts tests/smoke/*.jsonl --clice=../build/bin/clice
 
   catter:
+    if: contains(github.event.head_commit.message, '[catter]')
     strategy:
       fail-fast: false
       matrix:
@@ -141,7 +145,7 @@ jobs:
         with:
           name: dist-${{ matrix.host }}
           path: dist
-          run-id: ${{ env.DIST_RUN }}
+          run-id: ${{ env.CATTER_DIST_RUN }}
           github-token: ${{ github.token }}
       - name: Unpack (Windows)
         if: runner.os == 'Windows'
@@ -156,12 +160,25 @@ jobs:
         run: |
           mkdir unpacked
           for a in dist/xclang-*.tar.xz dist/libclang-*-${{ matrix.host }}.tar.xz; do tar -C unpacked -xf "$a"; done
-      # catter reads the option tables from $CONDA_PREFIX/include.
+      # catter reads the option tables from $CONDA_PREFIX/include; its code
+      # is written against LLVM 20.1.8's (the conda-channel package), so
+      # those, not LLVM 23's, isolate what the toolchain changes.
+      - name: Option tables
+        run: |
+          python -m pip install zstandard
+          curl -fsSL -o options.conda https://clice-io.github.io/conda-channel/linux-64/llvm-option-inc-20.1.8-hbbc2723_0.conda
+          python - <<'PY'
+          import io, tarfile, zipfile, zstandard
+          with zipfile.ZipFile("options.conda") as z:
+              inner = next(n for n in z.namelist() if n.startswith("pkg-") and n.endswith(".tar.zst"))
+              data = zstandard.ZstdDecompressor().stream_reader(io.BytesIO(z.read(inner)))
+              tarfile.open(fileobj=data, mode="r|").extractall("options")
+          PY
+          ls options/include/llvm-options-td
       - name: Configure
         working-directory: catter
         run: |
           root="$(cd .. && pwd)"; [[ "$RUNNER_OS" == Windows ]] && root="$(cygpath -m "$root")"
-          mkdir -p ../options/include && cp -r ../unpacked/libclang/include/llvm-options-td ../options/include/
           echo "CONDA_PREFIX=$root/options" >> "$GITHUB_ENV"
           echo "$root/unpacked/xclang/bin" >> "$GITHUB_PATH"
           export CONDA_PREFIX="$root/options" PATH="$PWD/../unpacked/xclang/bin:$PATH"

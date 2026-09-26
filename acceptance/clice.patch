@@ -99,10 +99,20 @@ index faf6416c..24f0226b 100644
  # The archive records the toolchain it was built with. Every field checked
  # here is one where a mismatch still links and then fails at runtime.
 diff --git a/cmake/toolchain.cmake b/cmake/toolchain.cmake
-index 33770c80..c24d8dfa 100644
+index 33770c80..b3374c51 100644
 --- a/cmake/toolchain.cmake
 +++ b/cmake/toolchain.cmake
-@@ -97,7 +97,10 @@ foreach(lang C CXX)
+@@ -24,6 +24,9 @@ if(DEFINED CLICE_TARGET_TRIPLE)
+     endif()
+ endif()
+ 
++# try_compile reads this file too, without the cache: pass CLICE_XCLANG on.
++list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES CLICE_XCLANG)
++
+ set(CMAKE_C_COMPILER clang CACHE STRING "")
+ set(CMAKE_CXX_COMPILER clang++ CACHE STRING "")
+ 
+@@ -97,7 +100,10 @@ foreach(lang C CXX)
          CACHE STRING "" FORCE)
  endforeach()
  
@@ -114,7 +124,7 @@ index 33770c80..c24d8dfa 100644
      set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded" CACHE STRING "")
      set(CMAKE_EXE_LINKER_FLAGS_INIT "-fuse-ld=lld-link")
      set(CMAKE_SHARED_LINKER_FLAGS_INIT "-fuse-ld=lld-link")
-@@ -110,6 +113,9 @@ endif()
+@@ -110,6 +116,9 @@ endif()
  
  if(APPLE)
      set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0" CACHE STRING "")
