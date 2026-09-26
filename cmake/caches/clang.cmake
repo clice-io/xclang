@@ -122,4 +122,7 @@ set(LLVM_Development_DISTRIBUTION_COMPONENTS
     LLVMX86Info LLVMX86Desc LLVMX86AsmParser LLVMCodeGenTypes LLVMMCDisassembler
     llvm-headers clang-headers clang-tidy-headers clang-resource-headers
     development-cmake-exports clang-development-cmake-exports
+    # LLVMConfig.cmake and ClangConfig.cmake, with the modules they load
+    # (Findzstd.cmake, AddLLVM.cmake, ...): what find_package reads.
+    cmake-exports clang-cmake-exports
     CACHE STRING "")
