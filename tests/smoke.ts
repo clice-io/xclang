@@ -189,6 +189,14 @@ for (const gz of ["zlib", "zstd"]) {
   run(tool("clang"), ["--target=x86_64-unknown-linux-gnu", "-g", `-gz=${gz}`, helloC, "-o", path.join(work, `gz-${gz}`)]);
 }
 
+/// Past the config files, upstream clang's defaults: libclang's driver has
+/// the same ones, and clice runs it to stand in for g++ (libstdc++).
+{
+  const args = ["--no-default-config", "--target=x86_64-unknown-linux-gnu", "-###", helloC];
+  const result = spawnSync(tool("clang++"), args, { encoding: "utf8", cwd: work });
+  if (!(result.stderr ?? "").includes('"-lstdc++"')) failures.push(`clang++ ${args.join(" ")} links no libstdc++`);
+}
+
 /// 3. Native: the sanitizers and libFuzzer (Linux, macOS), import std, a
 /// precompiled header, ThinLTO.
 function expectReport(label: string, program: string, args: string[], text: string): void {

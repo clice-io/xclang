@@ -145,9 +145,8 @@ if (cross) args.push(`-DLLVM_HOST_TRIPLE=${host.triple}`);
 if (cross && host.os !== "darwin") args.push(`-DLLVM_NATIVE_TOOL_DIR=${nativeTools()}`);
 /// clice and its tests expect backslash-preferred paths on Windows.
 if (host.os === "mingw") args.push("-DLLVM_WINDOWS_PREFER_FORWARD_SLASH=OFF");
-/// Find the SDK the way Apple's clang does, with no -isysroot or SDKROOT,
-/// and link with the system's ld like it (see config/darwin.cfg).
-if (host.os === "darwin") args.push("-DCLANG_USE_XCSELECT=ON", "-DCLANG_DEFAULT_LINKER=");
+/// Find the SDK the way Apple's clang does, with no -isysroot or SDKROOT.
+if (host.os === "darwin") args.push("-DCLANG_USE_XCSELECT=ON");
 /// Past LLVM's own -ffunction-sections and --gc-sections, as clice links:
 /// lld folds identical functions whose address nothing compares, and
 /// merges string tails. (The macOS linker deduplicates on its own.)

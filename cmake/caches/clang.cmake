@@ -41,10 +41,10 @@ set(LLVM_INCLUDE_EXAMPLES OFF CACHE BOOL "")
 set(LLVM_INCLUDE_BENCHMARKS OFF CACHE BOOL "")
 set(LLVM_INCLUDE_DOCS OFF CACHE BOOL "")
 
-set(CLANG_DEFAULT_CXX_STDLIB libc++ CACHE STRING "")
-set(CLANG_DEFAULT_RTLIB compiler-rt CACHE STRING "")
-set(CLANG_DEFAULT_UNWINDLIB libunwind CACHE STRING "")
-set(CLANG_DEFAULT_LINKER lld CACHE STRING "")
+# No CLANG_DEFAULT_CXX_STDLIB, _RTLIB, _UNWINDLIB or _LINKER: the config
+# files (config/*.cfg) choose xclang's runtimes and lld. Defaults built in
+# would reach libclang's driver as well, which clice runs to stand in for
+# other compilers: a g++ command then got libc++'s headers.
 set(CLANG_DEFAULT_OBJCOPY llvm-objcopy CACHE STRING "")
 set(CLANG_LINK_CLANG_DYLIB OFF CACHE BOOL "")
 set(CLANG_PLUGIN_SUPPORT OFF CACHE BOOL "")
