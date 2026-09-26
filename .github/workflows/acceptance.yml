@@ -10,7 +10,7 @@ on:
     branches: [exp/acceptance]
 
 env:
-  DIST_RUN: "36227776265"
+  DIST_RUN: "36229179405"
   CLICE_REF: fd95eb3f692050c4b183a96abcaadde16c0d2c6b
   CATTER_REF: cf187c0b14d382f9c938dc04a6ab60ba0b62d006
 
