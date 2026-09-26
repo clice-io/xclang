@@ -76,6 +76,7 @@ jobs:
         run: |
           root="$PWD"; [[ "$RUNNER_OS" == Windows ]] && root="$(cygpath -m "$PWD")"
           echo "$root/unpacked/xclang/bin" >> "$GITHUB_PATH"
+          echo "CLICE_XCLANG=ON" >> "$GITHUB_ENV"
           export PATH="$PWD/unpacked/xclang/bin:$PATH"
           clang++ --version
           cmake -S clice -B build -G Ninja \
