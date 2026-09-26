@@ -164,10 +164,18 @@ function check(t: common.Target, stage: string): void {
   common.run(path.join(stage, "bin", tool[0]), [tool[1], exe]);
 }
 
+/// compiler-rt's headers, which its builds install into the resource
+/// directory next to clang's own: <sanitizer/asan_interface.h>,
+/// <fuzzer/FuzzedDataProvider.h>, ...
+const COMPILER_RT_HEADERS = ["sanitizer", "fuzzer", "profile", "xray", "orc"];
+
 function collect(stage: string, name: string, dirs: string[]): void {
   const out = path.join(common.WORK, "out", `runtimes-${name}`);
   fs.rmSync(out, { recursive: true, force: true });
-  for (const dir of dirs) common.copyTree(path.join(stage, dir), path.join(out, dir));
+  const headers = COMPILER_RT_HEADERS.map((d) => path.join(resource, "include", d));
+  for (const dir of [...dirs, ...headers.filter((d) => fs.existsSync(path.join(stage, d)))]) {
+    common.copyTree(path.join(stage, dir), path.join(out, dir));
+  }
   console.log(`runtimes in ${out}`);
   const listing = spawnSync("du", ["-sh", ...dirs], { cwd: out, encoding: "utf8" });
   console.log(listing.stdout);
@@ -175,6 +183,9 @@ function collect(stage: string, name: string, dirs: string[]): void {
 
 const stage = common.makeTree(path.join(common.WORK, "stage", `runtimes-${values.target}`), bootstrap);
 const resource = path.relative(stage, common.resourceDir(stage));
+/// The bootstrap's compiler-rt headers go: the ones collected are those
+/// the builds here install.
+for (const d of COMPILER_RT_HEADERS) fs.rmSync(path.join(stage, resource, "include", d), { recursive: true, force: true });
 
 if (values.target === "darwin") {
   if (common.machine() !== "macos") common.fail("the macOS runtimes are built on macOS");

@@ -200,16 +200,20 @@ function expectReport(label: string, program: string, args: string[], text: stri
 }
 if (!windows) {
   const sanitized: [string, string, string, string][] = [
-    ["address", `int main(int argc, char**) { int* p = new int[4]; int r = p[argc + 4]; delete[] p; return r; }
+    ["address", `#include <sanitizer/asan_interface.h>
+int main(int argc, char**) { int* p = new int[4]; int r = p[argc + 4]; delete[] p; return r; }
 `, "heap-buffer-overflow", ""],
-    ["thread", `#include <thread>
+    ["thread", `#include <sanitizer/tsan_interface.h>
+#include <thread>
 int shared;
 int main() { std::thread t([] { shared++; }); shared++; t.join(); return shared == 2 ? 0 : 1; }
 `, "ThreadSanitizer: data race", ""],
     ["fuzzer", `#include <cstddef>
 #include <cstdint>
+#include <fuzzer/FuzzedDataProvider.h>
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
-  if (size > 2 && data[0] == 'x') { volatile int sum = data[1] + data[2]; (void)sum; }
+  FuzzedDataProvider input(data, size);
+  if (input.ConsumeIntegral<char>() == 'x') { volatile int sum = input.ConsumeIntegral<int>(); (void)sum; }
   return 0;
 }
 `, "Done 1000 runs", "-runs=1000"],
