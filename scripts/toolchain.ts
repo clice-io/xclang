@@ -174,43 +174,23 @@ function install(target: string, dest: string): void {
   console.log(`${target}: ${Math.round((Date.now() - start) / 60000)} min`);
 }
 
-/// On Windows every alias (a symlink in the install tree) becomes a copy of
-/// windows/alias.c, which starts the program it stands for; clang-23 gives
-/// way to clang itself.
+/// On Windows every name of llvm.exe (a symlink in the install tree)
+/// becomes a copy of windows/alias.c, which starts it.
 function windowsAliases(dir: string): void {
   const bin = path.join(dir, "bin");
-  const stem = (file: string) => path.basename(file, ".exe");
-  const versioned = path.join(bin, `clang-${common.LLVM_MAJOR}.exe`);
-  if (fs.lstatSync(path.join(bin, "clang.exe")).isSymbolicLink() && fs.existsSync(versioned)) {
-    fs.rmSync(path.join(bin, "clang.exe"));
-    fs.renameSync(versioned, path.join(bin, "clang.exe"));
-    fs.symlinkSync("clang.exe", versioned);
-  }
-  const aliases: [string, string][] = [];
-  for (const file of fs.readdirSync(bin)) {
-    const full = path.join(bin, file);
-    if (!fs.lstatSync(full).isSymbolicLink()) continue;
-    const real = fs.existsSync(full) ? stem(fs.realpathSync(full)) : undefined;
-    aliases.push([stem(file), real === stem(versioned) ? "clang" : real ?? ""]);
-  }
-  const broken = aliases.filter(([, real]) => !real);
-  if (broken.length) common.fail(`dangling aliases: ${broken.map(([a]) => a).join(", ")}`);
-  const work = path.join(common.WORK, "build", `alias-${host.triple}`);
-  fs.rmSync(work, { recursive: true, force: true });
-  fs.mkdirSync(work, { recursive: true });
-  fs.writeFileSync(path.join(work, "aliases.h"),
-    "static const wchar_t *const ALIASES[][2] = {\n" +
-    aliases.map(([a, r]) => `  {L"${a}", L"${r}"},\n`).join("") + "};\n");
-  const exe = path.join(work, "alias.exe");
+  const links = fs.readdirSync(bin).filter((f) => fs.lstatSync(path.join(bin, f)).isSymbolicLink());
+  const strays = links.filter((f) => !fs.existsSync(path.join(bin, f)) || path.basename(fs.realpathSync(path.join(bin, f))) !== "llvm.exe");
+  if (strays.length) common.fail(`links to something other than llvm.exe: ${strays.join(", ")}`);
+  const exe = path.join(common.WORK, "build", `alias-${host.triple}`, "alias.exe");
+  fs.mkdirSync(path.dirname(exe), { recursive: true });
   common.run(path.join(stage, "bin", "clang"), [
-    `--target=${host.triple}`, "-Os", "-municode", "-s", `-I${work}`,
-    path.join(common.ROOT, "windows", "alias.c"), "-o", exe,
+    `--target=${host.triple}`, "-Os", "-municode", "-s", path.join(common.ROOT, "windows", "alias.c"), "-o", exe,
   ]);
-  for (const [alias] of aliases) {
-    fs.rmSync(path.join(bin, `${alias}.exe`));
-    fs.copyFileSync(exe, path.join(bin, `${alias}.exe`));
+  for (const link of links) {
+    fs.rmSync(path.join(bin, link));
+    fs.copyFileSync(exe, path.join(bin, link));
   }
-  console.log(`${aliases.length} aliases: ${aliases.map(([a, r]) => `${a} -> ${r}`).join(", ")}`);
+  console.log(`${links.length} aliases of llvm.exe: ${links.map((f) => path.basename(f, ".exe")).join(", ")}`);
 }
 
 const out = path.join(common.WORK, "out");

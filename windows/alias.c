@@ -1,19 +1,16 @@
-/// The programs a Windows toolchain names twice (clang++ for clang, ld.lld
-/// for lld, llvm-ranlib for llvm-ar, ...), without a second copy of each:
-/// Windows makes symlinks only with extra rights, and conda packages
-/// cannot carry hard links. Every alias is a copy of this small program,
-/// which starts the real one with the command line it was given, argv[0]
-/// included. LLVM's tools tell what they are asked to be from argv[0]
-/// (clang++ is the g++ driver, ld.lld the ELF linker), and find their
-/// installation from their own module path, so the real program behaves
-/// exactly as if it had been started under the alias's name.
+/// The names a Windows toolchain gives its one program, llvm.exe (clang,
+/// clang++, ld.lld, llvm-ar, llvm-ranlib, ...), without a copy of it for
+/// each: Windows makes links only with extra rights, and conda packages
+/// cannot carry hard links. Every name is a copy of this small program,
+/// which starts llvm.exe next to it as `llvm <name> <arguments>`.
 ///
-/// ALIASES (aliases.h, written by scripts/toolchain.ts) pairs each alias
-/// with the program it stands for, both without .exe.
+/// The name goes in as a subcommand, not as argv[0]: on Windows, LLVM
+/// replaces the file name in argv[0] with its own module's (llvm.exe)
+/// before anything reads it. As a subcommand it reaches the tool as its
+/// argv[0], which is what the tools tell their mode from (clang++ is the
+/// g++ driver, ld.lld the ELF linker, llvm-ranlib is ranlib).
 
 #include <windows.h>
-
-#include "aliases.h"
 
 static void fail(const char *what) {
   DWORD written;
@@ -21,31 +18,41 @@ static void fail(const char *what) {
   ExitProcess(127);
 }
 
-int wmain(void) {
-  wchar_t self[MAX_PATH * 4];
-  DWORD length = GetModuleFileNameW(NULL, self, sizeof(self) / sizeof(self[0]));
-  if (length == 0 || length >= sizeof(self) / sizeof(self[0])) fail("xclang alias: cannot find itself\n");
+/// The command line after its first argument, which Windows ends at the
+/// closing quote when it starts with one, else at the first blank.
+static const wchar_t *after_program(const wchar_t *line) {
+  if (*line == L'"') {
+    for (++line; *line && *line != L'"'; ++line) {}
+    return *line ? line + 1 : line;
+  }
+  while (*line && *line != L' ' && *line != L'\t') ++line;
+  return line;
+}
 
-  /// self = <dir>\<name>.exe; the table is looked up by <name>.
+int wmain(void) {
+  enum { CAPACITY = 32768 };
+  static wchar_t self[CAPACITY], program[CAPACITY], line[CAPACITY];
+  DWORD length = GetModuleFileNameW(NULL, self, CAPACITY);
+  if (length == 0 || length >= CAPACITY) fail("xclang alias: cannot find itself\n");
+
+  /// self = <dir>\<name>.exe
   wchar_t *name = self;
   for (wchar_t *p = self; *p; ++p)
     if (*p == L'\\' || *p == L'/') name = p + 1;
   wchar_t *dot = NULL;
   for (wchar_t *p = name; *p; ++p)
     if (*p == L'.') dot = p;
-  if (dot) *dot = 0;
+  if (dot && lstrcmpiW(dot, L".exe") == 0) *dot = 0;
 
-  const wchar_t *target = NULL;
-  for (size_t i = 0; i < sizeof(ALIASES) / sizeof(ALIASES[0]); ++i)
-    if (lstrcmpiW(name, ALIASES[i][0]) == 0) target = ALIASES[i][1];
-  if (!target) fail("xclang alias: not an alias of anything\n");
-
-  wchar_t program[MAX_PATH * 4];
+  const wchar_t *rest = after_program(GetCommandLineW());
+  if ((name - self) + lstrlenW(name) + lstrlenW(rest) + 16 >= CAPACITY) fail("xclang alias: command line too long\n");
   lstrcpynW(program, self, (int)(name - self) + 1);
-  if (lstrlenW(program) + lstrlenW(target) + 5 > (int)(sizeof(program) / sizeof(program[0])))
-    fail("xclang alias: path too long\n");
-  lstrcatW(program, target);
-  lstrcatW(program, L".exe");
+  lstrcatW(program, L"llvm.exe");
+  lstrcpyW(line, L"\"");
+  lstrcatW(line, program);
+  lstrcatW(line, L"\" ");
+  lstrcatW(line, name);
+  lstrcatW(line, rest);
 
   /// The child dies with this process: a build tool that kills the alias
   /// on a timeout kills the compiler too.
@@ -62,9 +69,8 @@ int wmain(void) {
   STARTUPINFOW startup = {0};
   startup.cb = sizeof(startup);
   PROCESS_INFORMATION process;
-  if (!CreateProcessW(program, GetCommandLineW(), NULL, NULL, TRUE, CREATE_SUSPENDED, NULL, NULL,
-                      &startup, &process))
-    fail("xclang alias: cannot start the program it stands for\n");
+  if (!CreateProcessW(program, line, NULL, NULL, TRUE, CREATE_SUSPENDED, NULL, NULL, &startup, &process))
+    fail("xclang alias: cannot start llvm.exe\n");
   if (job) AssignProcessToJobObject(job, process.hProcess);
   ResumeThread(process.hThread);
   CloseHandle(process.hThread);
