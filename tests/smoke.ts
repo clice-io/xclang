@@ -163,6 +163,26 @@ for (const t of targets) {
   }
 }
 
+/// A version resource through windres, as CMake compiles a MinGW
+/// project's .rc files.
+const rc = write("version.rc", `#include <winver.h>
+1 VERSIONINFO FILEVERSION 1,2,3,4
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904b0"
+    BEGIN
+      VALUE "ProductName", "xclang smoke"
+    END
+  END
+END
+`);
+for (const t of targets.filter((t) => t.endsWith("mingw32"))) {
+  const res = path.join(work, `version-${t}.o`);
+  if (run(tool("windres"), [`--target=${t}`, rc, "-O", "coff", "-o", res]) === undefined) continue;
+  run(tool("clang"), [`--target=${t}`, helloC, res, "-o", path.join(work, `resource-${t}.exe`)]);
+}
+
 /// Compressed debug sections (zlib and zstd in clang and lld), on an ELF
 /// target, which every host carries.
 for (const gz of ["zlib", "zstd"]) {

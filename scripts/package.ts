@@ -43,6 +43,12 @@ const toolchain = path.join(out, `toolchain-${host.triple}`);
 if (!fs.existsSync(path.join(toolchain, "bin"))) common.fail(`missing ${toolchain}`);
 const tree = common.makeTree(path.join(common.WORK, "package", host.triple, "xclang"), toolchain, runtimes);
 fs.copyFileSync(path.join(common.ROOT, "LICENSE"), path.join(tree, "LICENSE"));
+/// windres, the name CMake looks for to compile a MinGW project's .rc
+/// files (Modules/Platform/Windows-GNU.cmake), is llvm-windres: on Windows
+/// a copy of its launcher, which passes on the name it runs under.
+const bin = path.join(tree, "bin");
+if (host.os === "mingw") fs.copyFileSync(path.join(bin, "llvm-windres.exe"), path.join(bin, "windres.exe"));
+else fs.symlinkSync("llvm", path.join(bin, "windres"));
 const files = fs.readdirSync(tree, { recursive: true }) as string[];
 if (host.os === "mingw") {
   const links = files.filter((f) => fs.lstatSync(path.join(tree, f)).isSymbolicLink());
