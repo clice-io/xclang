@@ -228,4 +228,4 @@ jobs:
         run: |
           pixi run -e dev npm-install
           ( for i in $(seq 1 25); do sleep 60; echo "=== $i min"; ps -axww -o pid,ppid,etime,command | grep -vE "ps -ax|sleep 60|Runner.|hosted-compute|/System/|/usr/libexec|/usr/sbin|launchd" | tail -25; done ) &
-          timeout 1500 pixi run -e dev xmake config --clean --yes --test=y --mode=release --toolchain=clang -vD 2>&1 | tail -300
+          perl -e 'alarm shift; exec @ARGV' 1500 pixi run -e dev xmake config --clean --yes --test=y --mode=release --toolchain=clang -vD
