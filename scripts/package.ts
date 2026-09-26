@@ -6,7 +6,8 @@
 ///   libclang-<version>-<host>-asan  work/out/libclang-<host>-asan, if built
 ///
 /// A Windows toolchain has no links at all: its aliases are small programs
-/// (windows/alias.c, put there by scripts/toolchain.ts).
+/// (windows/alias.c, put there by scripts/toolchain.ts), and the Linux
+/// sysroots have none (scripts/sysroot.ts).
 
 import fs from "node:fs";
 import path from "node:path";
@@ -40,7 +41,8 @@ if (!fs.existsSync(path.join(toolchain, "bin"))) common.fail(`missing ${toolchai
 const tree = common.makeTree(path.join(common.WORK, "package", host.triple, "xclang"), toolchain, runtimes);
 fs.copyFileSync(path.join(common.ROOT, "LICENSE"), path.join(tree, "LICENSE"));
 if (host.os === "mingw") {
-  const links = fs.readdirSync(path.join(tree, "bin")).filter((f) => fs.lstatSync(path.join(tree, "bin", f)).isSymbolicLink());
+  const links = (fs.readdirSync(tree, { recursive: true }) as string[])
+    .filter((f) => fs.lstatSync(path.join(tree, f)).isSymbolicLink());
   if (links.length) common.fail(`symlinks in a Windows toolchain: ${links.join(", ")}`);
 }
 archive(tree, `xclang-${version}-${host.triple}`);

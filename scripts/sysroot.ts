@@ -12,6 +12,11 @@ import * as common from "./common.ts";
 
 const WIN32_WINNT = "0x0A00"; /// Windows 10
 
+/// What compiling and linking for the target never reads: programs,
+/// configuration, locales (a 100 MB locale archive) and gconv modules.
+const GLIBC_DROP = ["etc", "var", "sbin", "usr/bin", "usr/sbin", "usr/libexec", "usr/share",
+  "usr/lib64/locale", "usr/lib64/gconv", "usr/lib64/audit"];
+
 function glibc(t: common.Target, dest: string): void {
   const prefix = process.env.CONDA_PREFIX;
   if (!prefix) common.fail("the glibc sysroots come from the pixi environment (CONDA_PREFIX is unset)");
@@ -21,9 +26,62 @@ function glibc(t: common.Target, dest: string): void {
   fs.cpSync(src, dest, {
     recursive: true,
     verbatimSymlinks: true,
-    filter: (file) => path.basename(file) !== "share",
+    filter: (file) => !GLIBC_DROP.includes(path.relative(src, file).split(path.sep).join("/")),
   });
+  withoutLinks(dest);
   console.log(`glibc sysroot of ${t.triple} in ${dest}`);
+}
+
+/// Every host's toolchain carries the Linux sysroots, and Windows makes
+/// links only with extra rights (conda packages for Windows carry none),
+/// so the sysroot has none:
+///
+/// - a directory link (lib -> lib64) goes, once the linker scripts that
+///   go through it name the real directory;
+/// - a shared library's soname link (libc.so.6 -> libc-2.17.so) takes the
+///   file's place;
+/// - a development link (usr/lib64/libm.so -> ../../lib64/libm.so.6)
+///   becomes a linker script naming the file, as glibc's libc.so does;
+/// - any other link becomes a copy.
+function withoutLinks(root: string): void {
+  const links = (): string[] => (fs.readdirSync(root, { recursive: true }) as string[])
+    .map((f) => path.join(root, f)).filter((f) => fs.lstatSync(f).isSymbolicLink())
+    .filter((f) => fs.existsSync(f) || (fs.rmSync(f), console.log(`dangling ${f} dropped`), false));
+  const inSysroot = (file: string) => "/" + path.relative(root, file).split(path.sep).join("/");
+  const target = (link: string) => path.resolve(path.dirname(link), fs.readlinkSync(link));
+
+  const dirs = links().filter((l) => fs.statSync(l).isDirectory());
+  for (const file of (fs.readdirSync(root, { recursive: true }) as string[]).map((f) => path.join(root, f))) {
+    if (dirs.some((d) => file.startsWith(d + path.sep))) continue;
+    const stat = fs.lstatSync(file);
+    if (!stat.isFile() || stat.size > 4096 || !/\.so$/.test(file)) continue;
+    let script = fs.readFileSync(file, "latin1");
+    if (!/\b(GROUP|INPUT)\s*\(/.test(script)) continue;
+    for (const d of dirs) {
+      const [from, to] = [inSysroot(d), inSysroot(target(d))];
+      script = script.replace(new RegExp(`(^|[\\s(])${from}/`, "g"), `$1${to}/`);
+    }
+    fs.writeFileSync(file, script, "latin1");
+  }
+  for (const d of dirs) fs.rmSync(d);
+
+  for (let left = links(); left.length; left = links()) {
+    const targets = new Map(left.map((l) => [l, target(l)]));
+    const ready = left.filter((l) => !fs.lstatSync(targets.get(l)!).isSymbolicLink());
+    if (!ready.length) common.fail(`links in a cycle: ${left.join(", ")}`);
+    for (const link of ready) {
+      const real = targets.get(link)!;
+      const shared = left.filter((l) => targets.get(l) === real).length > 1;
+      fs.rmSync(link);
+      if (/\.so\.\d+$/.test(link) && path.dirname(real) === path.dirname(link) && !shared) {
+        fs.renameSync(real, link);
+      } else if (/\.so$/.test(link)) {
+        fs.writeFileSync(link, `/* ${path.basename(link)}, for -l${path.basename(link, ".so").slice(3)} */\nINPUT ( ${inSysroot(real)} )\n`);
+      } else {
+        fs.copyFileSync(real, link);
+      }
+    }
+  }
 }
 
 async function mingw(t: common.Target, tree: string, dest: string): Promise<void> {
@@ -47,7 +105,7 @@ async function mingw(t: common.Target, tree: string, dest: string): Promise<void
   };
 
   const headers = configure("headers", path.join(src, "mingw-w64-headers"), [
-    "--enable-idl", "--without-widl",
+    "--without-widl",
     `--with-default-win32-winnt=${WIN32_WINNT}`, "--with-default-msvcrt=ucrt",
   ]);
   common.run("make", ["install"], { cwd: headers });
