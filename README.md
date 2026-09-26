@@ -100,7 +100,9 @@ host.
 The Linux sysroots hold what compiling and linking read (headers, startup
 files, libraries), not glibc's programs, locales or gconv modules, and no
 symlinks: their soname links are the files themselves, their `libfoo.so`
-links are linker scripts naming them, as glibc's own `libc.so` is.
+links are linker scripts naming them, as glibc's own `libc.so` is. Eight
+netfilter headers named like another but for case (`xt_DSCP.h` next to
+`xt_dscp.h`) are left out, so the sysroots unpack on Windows and macOS.
 
 On macOS the linker is the system's `ld`, with xclang's `libLTO.dylib` for
 LTO, as Apple's own toolchain does: ld64.lld's ThinLTO loses exception

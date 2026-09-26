@@ -29,7 +29,27 @@ function glibc(t: common.Target, dest: string): void {
     filter: (file) => !GLIBC_DROP.includes(path.relative(src, file).split(path.sep).join("/")),
   });
   withoutLinks(dest);
+  withoutCaseClashes(dest);
   console.log(`glibc sysroot of ${t.triple} in ${dest}`);
+}
+
+/// The kernel headers name a few netfilter targets and matches alike but
+/// for case (xt_DSCP.h, xt_dscp.h), which cannot both exist where Windows
+/// and macOS unpack the Linux sysroots: the lowercase one stays.
+function withoutCaseClashes(root: string): void {
+  const byLowercase = new Map<string, string[]>();
+  for (const file of fs.readdirSync(root, { recursive: true }) as string[]) {
+    const key = file.toLowerCase();
+    byLowercase.set(key, [...(byLowercase.get(key) ?? []), file]);
+  }
+  for (const [key, files] of byLowercase) {
+    if (files.length < 2) continue;
+    const keep = files.includes(key) ? key : files.sort()[0];
+    for (const file of files.filter((f) => f !== keep)) {
+      fs.rmSync(path.join(root, file), { recursive: true });
+      console.log(`${file} dropped: it clashes with ${keep} but for case`);
+    }
+  }
 }
 
 /// Every host's toolchain carries the Linux sysroots, and Windows makes

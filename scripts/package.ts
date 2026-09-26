@@ -7,7 +7,8 @@
 ///
 /// A Windows toolchain has no links at all: its aliases are small programs
 /// (windows/alias.c, put there by scripts/toolchain.ts), and the Linux
-/// sysroots have none (scripts/sysroot.ts).
+/// sysroots have none (scripts/sysroot.ts). No two paths differ only in
+/// case.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -40,11 +41,16 @@ const toolchain = path.join(out, `toolchain-${host.triple}`);
 if (!fs.existsSync(path.join(toolchain, "bin"))) common.fail(`missing ${toolchain}`);
 const tree = common.makeTree(path.join(common.WORK, "package", host.triple, "xclang"), toolchain, runtimes);
 fs.copyFileSync(path.join(common.ROOT, "LICENSE"), path.join(tree, "LICENSE"));
+const files = fs.readdirSync(tree, { recursive: true }) as string[];
 if (host.os === "mingw") {
-  const links = (fs.readdirSync(tree, { recursive: true }) as string[])
-    .filter((f) => fs.lstatSync(path.join(tree, f)).isSymbolicLink());
+  const links = files.filter((f) => fs.lstatSync(path.join(tree, f)).isSymbolicLink());
   if (links.length) common.fail(`symlinks in a Windows toolchain: ${links.join(", ")}`);
 }
+/// Every archive unpacks on case-insensitive file systems too: Windows and
+/// macOS hosts, and conda packages of the targets shared by all hosts.
+const seen = new Map<string, string>();
+const clashes = files.filter((f) => seen.get(f.toLowerCase()) !== undefined || !seen.set(f.toLowerCase(), f));
+if (clashes.length) common.fail(`paths alike but for case: ${clashes.map((f) => `${f} (${seen.get(f.toLowerCase())})`).join(", ")}`);
 archive(tree, `xclang-${version}-${host.triple}`);
 
 for (const variant of ["", "-asan"]) {
