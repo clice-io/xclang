@@ -116,8 +116,48 @@ function install(target: string, dest: string): void {
   console.log(`${target}: ${Math.round((Date.now() - start) / 60000)} min`);
 }
 
+/// On Windows every alias (a symlink in the install tree) becomes a copy of
+/// windows/alias.c, which starts the program it stands for; clang-23 gives
+/// way to clang itself.
+function windowsAliases(dir: string): void {
+  const bin = path.join(dir, "bin");
+  const stem = (file: string) => path.basename(file, ".exe");
+  const versioned = path.join(bin, `clang-${common.LLVM_MAJOR}.exe`);
+  if (fs.lstatSync(path.join(bin, "clang.exe")).isSymbolicLink() && fs.existsSync(versioned)) {
+    fs.rmSync(path.join(bin, "clang.exe"));
+    fs.renameSync(versioned, path.join(bin, "clang.exe"));
+    fs.symlinkSync("clang.exe", versioned);
+  }
+  const aliases: [string, string][] = [];
+  for (const file of fs.readdirSync(bin)) {
+    const full = path.join(bin, file);
+    if (!fs.lstatSync(full).isSymbolicLink()) continue;
+    const real = fs.existsSync(full) ? stem(fs.realpathSync(full)) : undefined;
+    aliases.push([stem(file), real === stem(versioned) ? "clang" : real ?? ""]);
+  }
+  const broken = aliases.filter(([, real]) => !real);
+  if (broken.length) common.fail(`dangling aliases: ${broken.map(([a]) => a).join(", ")}`);
+  const work = path.join(common.WORK, "build", `alias-${host.triple}`);
+  fs.rmSync(work, { recursive: true, force: true });
+  fs.mkdirSync(work, { recursive: true });
+  fs.writeFileSync(path.join(work, "aliases.h"),
+    "static const wchar_t *const ALIASES[][2] = {\n" +
+    aliases.map(([a, r]) => `  {L"${a}", L"${r}"},\n`).join("") + "};\n");
+  const exe = path.join(work, "alias.exe");
+  common.run(path.join(stage, "bin", "clang"), [
+    `--target=${host.triple}`, "-Os", "-municode", "-s", `-I${work}`,
+    path.join(common.ROOT, "windows", "alias.c"), "-o", exe,
+  ]);
+  for (const [alias] of aliases) {
+    fs.rmSync(path.join(bin, `${alias}.exe`));
+    fs.copyFileSync(exe, path.join(bin, `${alias}.exe`));
+  }
+  console.log(`${aliases.length} aliases: ${aliases.map(([a, r]) => `${a} -> ${r}`).join(", ")}`);
+}
+
 const out = path.join(common.WORK, "out");
 if (mode !== "asan") install("install-toolchain-distribution-stripped", path.join(out, `toolchain-${name}`));
+if (host.os === "mingw" && mode !== "asan") windowsAliases(path.join(out, `toolchain-${name}`));
 if (mode !== "instrumented") {
   const dest = path.join(out, `libclang-${name}`);
   install("install-development-distribution", dest);

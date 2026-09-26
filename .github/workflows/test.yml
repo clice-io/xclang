@@ -32,9 +32,13 @@ jobs:
           path: dist
           run-id: ${{ inputs.dist-run }}
           github-token: ${{ github.token }}
+      # Windows' own tar (bsdtar), the way a user unpacks it.
       - name: Unpack (Windows)
         if: runner.os == 'Windows'
-        run: 7z x -y -ounpacked dist/xclang-*.zip > /dev/null && ls unpacked/xclang
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory unpacked | Out-Null
+          C:\Windows\System32\tar.exe -xf (Get-Item dist/xclang-*.tar.xz).FullName -C unpacked
       - name: Unpack
         if: runner.os != 'Windows'
         run: mkdir unpacked && tar -C unpacked -xf dist/xclang-*.tar.xz
