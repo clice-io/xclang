@@ -79,7 +79,11 @@ jobs:
           echo "CLICE_XCLANG=ON" >> "$GITHUB_ENV"
           export PATH="$PWD/unpacked/xclang/bin:$PATH"
           clang++ --version
-          cmake -S clice -B build -G Ninja \
+          # clice's kotatsu (0cbb8d4) links stdc++exp on every MinGW, GCC's
+          # home of <print>; later kotatsu checks for libstdc++ first.
+          mkdir -p stubs && printf '!<arch>\n' > stubs/libstdc++exp.a
+          linker=(); [[ "$RUNNER_OS" == Windows ]] && linker=(-DCMAKE_EXE_LINKER_FLAGS="-L$root/stubs")
+          cmake -S clice -B build -G Ninja "${linker[@]}" \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_TOOLCHAIN_FILE="$root/clice/cmake/toolchain.cmake" \
             -DCLICE_XCLANG=ON \
