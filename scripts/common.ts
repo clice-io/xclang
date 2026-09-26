@@ -229,11 +229,13 @@ async function sha256Of(file: string): Promise<string> {
 /// explicit: LLVM's .tar.zst releases use a long window that a plain
 /// `zstd -d` (what tar would start) refuses.
 function tarStream(archive: string, args: string[], output: "inherit" | "pipe"): string {
-  const decompress = archive.endsWith(".zst")
-    ? "zstd -dc --long=31"
-    : archive.endsWith(".xz") ? "xz -dc" : "gzip -dc";
-  const script = `set -o pipefail; ${decompress} "$0" | tar -f - "$@"`;
-  console.log(`+ ${decompress} ${archive} | tar ${args.join(" ")}`);
+  /// tar reads xz and gzip itself; LLVM's .tar.zst needs zstd's long
+  /// window, so zstd streams it. (Streamed xz dies of SIGPIPE on macOS,
+  /// whose tar stops reading at the end-of-archive marker.)
+  const script = archive.endsWith(".zst")
+    ? `set -o pipefail; zstd -dc --long=31 "$0" | tar -f - "$@"`
+    : `tar -f "$0" "$@"`;
+  console.log(`+ ${archive.endsWith(".zst") ? `zstd -dc --long=31 ${archive} | tar` : `tar -f ${archive}`} ${args.join(" ")}`);
   const result = spawnSync("bash", ["-c", script, archive, ...args], {
     encoding: "utf8",
     maxBuffer: 1 << 30,
