@@ -44,7 +44,7 @@ jobs:
         include:
           - host: x86_64-unknown-linux-gnu
             os: ubuntu-24.04
-            official: bootstrap-linux
+            official: llvm-linux-x64
           - host: aarch64-unknown-linux-gnu
             os: ubuntu-24.04-arm
             official: llvm-linux-arm64
@@ -56,7 +56,7 @@ jobs:
             official: llvm-windows-arm64
           - host: aarch64-apple-darwin
             os: macos-15
-            official: bootstrap-macos
+            official: llvm-macos-arm64
           - host: x86_64-apple-darwin
             os: macos-15-intel
             official: ""

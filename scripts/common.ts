@@ -20,6 +20,7 @@ export const MACOS_MIN = "13.0";
 
 const GH = "https://github.com";
 const LLVM = `${GH}/llvm/llvm-project/releases/download/llvmorg-${LLVM_VERSION}`;
+const XCLANG = `${GH}/clice-io/xclang/releases/download`;
 
 /// Nothing is downloaded without a pinned digest.
 export const SOURCES = {
@@ -27,15 +28,16 @@ export const SOURCES = {
     url: `${LLVM}/llvm-project-${LLVM_VERSION}.src.tar.xz`,
     sha256: "c98bbef08a2b4c2613cd50e9aa9ae7b69b1fe6c16b2c40373bc0ab6116fdf78a",
   },
-  /// LLVM's own release builds (clang/cmake/caches/Release.cmake: PGO and
-  /// ThinLTO), the bootstrap compiler until there is an xclang release.
+  /// The bootstrap compiler: the previous xclang release, whose Linux x64
+  /// and macOS arm64 toolchains build the next one. (23.1.2.1 itself was
+  /// built by LLVM's own release builds, llvm-linux-x64 and llvm-macos-arm64.)
   "bootstrap-linux": {
-    url: `${LLVM}/LLVM-${LLVM_VERSION}-Linux-X64.tar.zst`,
-    sha256: "6382de1c1a210ce5a5cc49d18bc8444d137742e7cbf9b19f4ae602bb1ab52534",
+    url: `${XCLANG}/23.1.2.1/xclang-23.1.2.1-x86_64-unknown-linux-gnu.tar.xz`,
+    sha256: "581f0673dc9a847c37616dd8256eed53355ea0c5cd321d13292087f0a39e34d6",
   },
   "bootstrap-macos": {
-    url: `${LLVM}/LLVM-${LLVM_VERSION}-macOS-ARM64.tar.zst`,
-    sha256: "3da0e91b5dfe3a5ec795ad2be79b3f5e6f28c8b23edcd3847fad7742b25e0507",
+    url: `${XCLANG}/23.1.2.1/xclang-23.1.2.1-aarch64-apple-darwin.tar.xz`,
+    sha256: "ec64a3feb039a3cb7afcfe0d8cdeea1f952cf40fc1786b06afa93229e460cbd7",
   },
   /// Compression for the toolchain (compressed debug sections, profiles),
   /// linked statically.
@@ -69,7 +71,7 @@ export const SOURCES = {
     sha256: "70270d10bf2c1e074a06ee37a50b75d332993d1b80a1d9526eeed2da6d82ed22",
   },
   /// The benchmark (tests/bench.ts): code the training never saw, and
-  /// LLVM's own builds of the hosts the bootstrap entries do not cover.
+  /// LLVM's own builds of every host, the benchmark's reference.
   "fmt": {
     url: `${GH}/fmtlib/fmt/archive/refs/tags/11.2.0.tar.gz`,
     sha256: "bc23066d87ab3168f27cef3e97d545fa63314f5c79df5ea444d41d56f962c6af",
@@ -77,6 +79,14 @@ export const SOURCES = {
   "lua": {
     url: "https://www.lua.org/ftp/lua-5.4.7.tar.gz",
     sha256: "9fbf5e28ef86c69858f6d3d34eccc32e911c1a28b4120ff3e84aaa70cfbf1e30",
+  },
+  "llvm-linux-x64": {
+    url: `${LLVM}/LLVM-${LLVM_VERSION}-Linux-X64.tar.zst`,
+    sha256: "6382de1c1a210ce5a5cc49d18bc8444d137742e7cbf9b19f4ae602bb1ab52534",
+  },
+  "llvm-macos-arm64": {
+    url: `${LLVM}/LLVM-${LLVM_VERSION}-macOS-ARM64.tar.zst`,
+    sha256: "3da0e91b5dfe3a5ec795ad2be79b3f5e6f28c8b23edcd3847fad7742b25e0507",
   },
   "llvm-linux-arm64": {
     url: `${LLVM}/LLVM-${LLVM_VERSION}-Linux-ARM64.tar.zst`,

@@ -1,10 +1,9 @@
-/// Unpack the bootstrap compiler of this machine into work/bootstrap.
-///
-/// Until there is an xclang release to bootstrap from, that is LLVM's own
-/// release build. Only the programs the builds run are kept, with the
-/// resource directory and the shared libraries they may load; libc++
-/// headers and everything else stay out, so the tree behaves like an xclang
-/// tree once targets are added to it.
+/// Unpack the bootstrap compiler of this machine into work/bootstrap: the
+/// previous xclang release (the first one was built by LLVM's own release
+/// build). Only the programs the builds run are kept, with the resource
+/// directory and the shared libraries they may load; the config files, the
+/// target directories and everything else stay out, so the tree behaves
+/// like an xclang tree once this build's targets are added to it.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -35,9 +34,10 @@ const resource = `lib/clang/${common.LLVM_MAJOR}/`;
 common.extract(archive, dest, (member) => {
   if (wanted.has(member) || member.startsWith(resource)) return true;
   const name = member.slice(member.lastIndexOf("/") + 1);
-  /// clang and lld are links to versioned programs (clang-23), and the
-  /// release may link its programs against libLLVM / libclang-cpp.
-  if (member.startsWith("bin/")) return name.startsWith("clang-2");
+  /// The programs are names of llvm (xclang) or links to versioned ones
+  /// (LLVM's clang-23), and LLVM's release may link its programs against
+  /// libLLVM / libclang-cpp.
+  if (member.startsWith("bin/")) return name === "llvm" || name.startsWith("clang-2");
   return member.split("/").length === 2 && member.startsWith("lib/") &&
     (name.includes(".so") || name.endsWith(".dylib"));
 });
