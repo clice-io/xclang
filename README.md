@@ -203,7 +203,7 @@ themselves need CI-sized machines.
 | ASan libclang (Linux x64, macOS arm64) | done |
 | per-host smoke tests, libclang consumer test | done |
 | catter built with xclang (Linux, Windows) | done, with its tests |
-| draft GitHub release | done |
+| [23.1.2.1](https://github.com/clice-io/xclang/releases/tag/23.1.2.1) | published |
 | patch series against LLVM | later |
 | conda packages on [conda.clice.io](https://conda.clice.io) | later |
 

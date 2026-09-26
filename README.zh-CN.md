@@ -129,7 +129,7 @@ tests/                  smoke.ts 和 libclang.ts，各主机平台的检查；be
 | ASan 版 libclang（Linux x64、macOS arm64） | 完成 |
 | 各主机平台的冒烟测试、libclang 使用测试 | 完成 |
 | 用 xclang 构建 catter（Linux、Windows） | 完成，测试全部通过 |
-| GitHub 草稿 release | 完成 |
+| [23.1.2.1](https://github.com/clice-io/xclang/releases/tag/23.1.2.1) | 已发布 |
 | 针对 LLVM 的补丁集 | 以后 |
 | [conda.clice.io](https://conda.clice.io) 上的 conda 包 | 以后 |
 
