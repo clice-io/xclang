@@ -16,6 +16,8 @@
 ///                       sees the same headers as xclang
 ///     [--system name]   that compiler as it comes, with its own headers
 ///                       (Apple's clang); it skips the std module
+///     [--prefix name=arg]  run that compiler as `<path> arg ...` (llvm.exe
+///                       clang++, the program behind a Windows launcher)
 ///     [--rounds n] [--out results.json]
 
 import { spawnSync } from "node:child_process";
@@ -31,6 +33,7 @@ const { values } = parseArgs({
     compiler: { type: "string", multiple: true, default: [] },
     config: { type: "string", multiple: true, default: [] },
     system: { type: "string", multiple: true, default: [] },
+    prefix: { type: "string", multiple: true, default: [] },
     rounds: { type: "string", default: "3" },
     out: { type: "string", default: "bench.json" },
   },
@@ -50,7 +53,8 @@ const compilers: Compiler[] = values.compiler.map((spec) => {
   const system = values.system.includes(name);
   /// Every LLVM 23 compiler compiles for the same explicit target; the
   /// Windows release build of LLVM would otherwise target MSVC.
-  const args = system ? [] : [`--target=${native}`,
+  const prefix = values.prefix.filter((p) => p.startsWith(`${name}=`)).map((p) => p.slice(name.length + 1));
+  const args = system ? [] : [...prefix, `--target=${native}`,
     ...(values.config.includes(name) ? ["--no-default-config", `--config=${cfg}`] : [])];
   return { name, path: file, args, system };
 });

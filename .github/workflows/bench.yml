@@ -25,6 +25,10 @@ on:
         description: JSON list, one job per host and entry
         type: string
         default: "[1, 2, 3]"
+      hosts:
+        description: JSON list of the hosts to run on
+        type: string
+        default: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin"]'
 
 permissions:
   contents: read
@@ -35,7 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        host: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, x86_64-w64-mingw32, aarch64-w64-mingw32, aarch64-apple-darwin, x86_64-apple-darwin]
+        host: ${{ fromJSON(inputs.hosts) }}
         shard: ${{ fromJSON(inputs.shards) }}
         include:
           - host: x86_64-unknown-linux-gnu
@@ -86,8 +90,10 @@ jobs:
           for kind in pgo nopgo; do
             [[ -d dist/$kind ]] || continue
             mkdir -p "$kind"
-            if [[ "$RUNNER_OS" == Windows ]]; then
+            if compgen -G "dist/$kind/xclang-*.zip" > /dev/null; then
               7z x -y "-o$kind" dist/$kind/xclang-*.zip > /dev/null
+            elif [[ "$RUNNER_OS" == Windows ]]; then
+              /c/Windows/System32/tar.exe -C "$kind" -xf dist/$kind/xclang-*.tar.xz
             else
               tar -C "$kind" -xf dist/$kind/xclang-*.tar.xz
             fi
@@ -119,6 +125,8 @@ jobs:
           args=(--tree "$here/pgo/xclang" --rounds "${{ inputs.rounds }}" --out bench-${{ matrix.host }}-${{ matrix.shard }}.json)
           [[ -d official ]] && args+=(--compiler "official=$here/official/bin/clang++$exe" --config official)
           args+=(--compiler "xclang-pgo=$here/pgo/xclang/bin/clang++$exe")
+          # On Windows clang++.exe is a launcher of llvm.exe: its cost, apart.
+          [[ "$RUNNER_OS" == Windows ]] && args+=(--compiler "xclang-llvm=$here/pgo/xclang/bin/llvm.exe" --prefix xclang-llvm=clang++)
           [[ -d nopgo ]] && args+=(--compiler "xclang-nopgo=$here/nopgo/xclang/bin/clang++$exe")
           [[ "$RUNNER_OS" == macOS ]] && args+=(--compiler "apple=$(xcrun -f clang++)" --system apple)
           node tests/bench.ts "${args[@]}"
