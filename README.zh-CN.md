@@ -23,7 +23,7 @@ xclang/bin/clang++ --target=aarch64-w64-mingw32 main.cpp -o main.exe
 
 ## 发布内容
 
-- **工具链**，每个主机平台一个包，75 到 110 MB：clang、lld、LLVM 二进制工具（`llvm-ar`、`llvm-nm`、`llvm-objcopy`、`llvm-rc`、`llvm-profdata` 等），以及给 lit 测试用的 FileCheck。启用了 LLVM 的全部目标平台。不含 clang-tools-extra，也不含 clang-format。
+- **工具链**，每个主机平台一个包，80 到 120 MB：clang、lld、LLVM 二进制工具（`llvm-ar`、`llvm-nm`、`llvm-objcopy`、`llvm-rc`、`llvm-profdata` 等），以及给 lit 测试用的 FileCheck。启用了 LLVM 的全部目标平台。不含 clang-tools-extra，也不含 clang-format。
 - **libclang**，每个主机平台一个包：clang 和 LLVM 的静态库及头文件，给 clice 这类基于 clang 的工具用。它们就是该平台 clang 链接时用的那些库，出自同一次构建，只去掉了工具用不到的部分。这些库是 PGO 和 ThinLTO 的 bitcode，所以需要同一版本的 lld 来链接。旁边另附一个带断言的 ASan 版本，用于调试。
 - **选项表**（`llvm-option-inc`）：clang、lld、llvm-lib 和 llvm-dlltool 的选项表，由同一次构建里的 TableGen 生成，给 catter 这类不链接 LLVM、但要解析这些命令行的工具用。
 - **PGO profile**：构建这次发布所用的 profile。

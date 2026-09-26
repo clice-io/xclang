@@ -37,7 +37,7 @@ integrate with `run_exports`; xclang deliberately does neither.
 
 ## What a release holds
 
-- **The toolchain**, one archive per host, 75 to 110 MB: clang, lld and the
+- **The toolchain**, one archive per host, 80 to 120 MB: clang, lld and the
   LLVM binary tools (`llvm-ar`, `llvm-nm`, `llvm-objcopy`, `llvm-rc`,
   `llvm-profdata`, ...), and FileCheck for lit tests. Every LLVM target
   is enabled. No clang-tools-extra, no clang-format.
