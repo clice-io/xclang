@@ -114,8 +114,9 @@ jobs:
           pixi run clang++ --version
           pixi run clang++ -O2 hello.cpp -o hello$exe
           pixi run ./hello$exe | grep 'hello from conda xclang'
-          pixi run clang++ --target=${{ matrix.target }} -O2 hello.cpp -o hello-cross
-          pixi run llvm-readobj --file-headers hello-cross | grep -m1 Format
+          # An extension of its own: MinGW links would add .exe to a bare name.
+          pixi run clang++ --target=${{ matrix.target }} -O2 hello.cpp -o hello-cross.out
+          pixi run llvm-readobj --file-headers hello-cross.out | grep -m1 Format
           test -f .pixi/envs/default/include/llvm-options-td/clang-Driver-Options.inc
 
   publish:
