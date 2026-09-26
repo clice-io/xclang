@@ -196,9 +196,33 @@ function windowsAliases(dir: string): void {
 const out = path.join(common.WORK, "out");
 if (mode !== "asan") install("install-toolchain-distribution-stripped", path.join(out, `toolchain-${name}`));
 if (host.os === "mingw" && mode !== "asan") windowsAliases(path.join(out, `toolchain-${name}`));
+/// The option tables of clang, lld, llvm-lib and llvm-dlltool, TableGen's
+/// output in this build, for tools that parse those command lines without
+/// linking LLVM (catter). Named as in the llvm-option-inc package they
+/// replace; clang's has since moved from Driver/ to Options/.
+const OPTION_TABLES: Record<string, [string, string]> = {
+  "clang-Driver-Options.inc": ["ClangDriverOptions", "tools/clang/include/clang/Options/Options.inc"],
+  "lld-ELF-Options.inc": ["ELFOptionsTableGen", "tools/lld/ELF/Options.inc"],
+  "lld-COFF-Options.inc": ["COFFOptionsTableGen", "tools/lld/COFF/Options.inc"],
+  "lld-MachO-Options.inc": ["MachOOptionsTableGen", "tools/lld/MachO/Options.inc"],
+  "lld-MinGW-Options.inc": ["MinGWOptionsTableGen", "tools/lld/MinGW/Options.inc"],
+  "lld-wasm-Options.inc": ["WasmOptionsTableGen", "tools/lld/wasm/Options.inc"],
+  "llvm-lib-Options.inc": ["LibOptionsTableGen", "lib/ToolDrivers/llvm-lib/Options.inc"],
+  "llvm-dlltool-Options.inc": ["DllOptionsTableGen", "lib/ToolDrivers/llvm-dlltool/Options.inc"],
+};
+
 if (mode !== "instrumented") {
   const dest = path.join(out, `libclang-${name}`);
   install("install-development-distribution", dest);
+  if (mode === "release") {
+    const tables = Object.values(OPTION_TABLES);
+    common.run("cmake", ["--build", build, "--target", ...tables.map(([target]) => target)]);
+    const dir = path.join(dest, "include", "llvm-options-td");
+    fs.mkdirSync(dir, { recursive: true });
+    for (const [file, [, generated]] of Object.entries(OPTION_TABLES)) {
+      fs.copyFileSync(path.join(build, ...generated.split("/")), path.join(dir, file));
+    }
+  }
   /// The compression libraries the LLVM libraries link, with their
   /// headers: LLVMConfig.cmake looks for them (FindZLIB, LLVM's
   /// Findzstd), and finds them with the libclang directory in

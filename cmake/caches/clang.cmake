@@ -56,6 +56,9 @@ set(CLANG_TIDY_ENABLE_STATIC_ANALYZER OFF CACHE BOOL "")
 set(CLANG_TIDY_ENABLE_QUERY_BASED_CUSTOM_CHECKS OFF CACHE BOOL "")
 
 set(LLVM_DISTRIBUTIONS "Toolchain;Development" CACHE STRING "")
+# FileCheck, for the lit tests of projects built with xclang (catter):
+# utilities have install targets only with this.
+set(LLVM_INSTALL_UTILS ON CACHE BOOL "")
 
 # One program, llvm, is clang, lld and every tool that can be built into
 # it; their names are links to it (on Windows, small programs that start
@@ -79,6 +82,7 @@ set(LLVM_Toolchain_DISTRIBUTION_COMPONENTS
     llvm-symbolizer llvm-addr2line
     llvm-dwarfdump
     llvm-libtool-darwin llvm-lipo
+    FileCheck
     ${XCLANG_EXTRA_TOOLCHAIN_COMPONENTS}
     CACHE STRING "")
 

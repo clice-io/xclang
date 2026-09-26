@@ -73,7 +73,9 @@ int main() {
 
 /// 1. The toolchain's own programs.
 run(tool("clang"), ["--version"]);
-const programs = [tool("clang"), tool("ld.lld"), tool("llvm-ar")];
+/// llvm is clang, lld and most tools; elsewhere they are its names (on
+/// Windows, programs that start it). FileCheck stands alone.
+const programs = [tool("llvm"), tool("clang"), tool("ld.lld"), tool("llvm-ar"), tool("FileCheck")];
 if (process.platform === "darwin") programs.push(path.join(tree, "lib", "libLTO.dylib"));
 for (const file of programs) {
   const program = path.basename(file);
@@ -96,6 +98,9 @@ for (const file of programs) {
     }
   }
 }
+
+run(tool("FileCheck"), [write("check.txt", "CHECK: hello\nCHECK-NEXT: world\n"),
+  `--input-file=${write("input.txt", "hello\nworld\n")}`]);
 
 /// 2. Every target this machine can build for.
 const targets = [

@@ -37,14 +37,17 @@ integrate with `run_exports`; xclang deliberately does neither.
 
 - **The toolchain**, one archive per host, 75 to 110 MB: clang, lld and the
   LLVM binary tools (`llvm-ar`, `llvm-nm`, `llvm-objcopy`, `llvm-rc`,
-  `llvm-profdata`, ...). Every LLVM target is enabled. No
-  clang-tools-extra, no clang-format.
+  `llvm-profdata`, ...), and FileCheck for lit tests. Every LLVM target
+  is enabled. No clang-tools-extra, no clang-format.
 - **libclang**, one archive per host: the clang and LLVM static libraries
   and headers, for tools built on clang such as clice. They are the
   libraries that host's clang was linked from, taken from the same build
   without the parts a tool does not link: PGO and ThinLTO bitcode, so they
   need an lld of the same release. An ASan build with assertions is
   published next to it for debugging.
+- **The option tables** of clang, lld, llvm-lib and llvm-dlltool
+  (`llvm-option-inc`), TableGen's output from the same build, for tools
+  that parse those command lines without linking LLVM, such as catter.
 - **The PGO profile** the release was built with.
 
 A release is tagged `<llvm version>.<revision>`, `23.1.2.1` for the first

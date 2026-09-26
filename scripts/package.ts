@@ -4,6 +4,8 @@
 ///                                with every target of work/out/runtimes-*
 ///   libclang-<version>-<host>    work/out/libclang-<host>
 ///   libclang-<version>-<host>-asan  work/out/libclang-<host>-asan, if built
+///   llvm-option-inc-<version>    Linux x64 only: clang's, lld's, llvm-lib's
+///                                and llvm-dlltool's option tables
 ///
 /// A Windows toolchain has no links at all: its aliases are small programs
 /// (windows/alias.c, put there by scripts/toolchain.ts), and the Linux
@@ -52,6 +54,17 @@ const seen = new Map<string, string>();
 const clashes = files.filter((f) => seen.get(f.toLowerCase()) !== undefined || !seen.set(f.toLowerCase(), f));
 if (clashes.length) common.fail(`paths alike but for case: ${clashes.map((f) => `${f} (${seen.get(f.toLowerCase())})`).join(", ")}`);
 archive(tree, `xclang-${version}-${host.triple}`);
+
+/// The option tables (scripts/toolchain.ts), the same from every host:
+/// Linux x64's are published, the source of a noarch package.
+if (host.triple === "x86_64-unknown-linux-gnu") {
+  const tables = path.join(out, `libclang-${host.triple}`, "include", "llvm-options-td");
+  if (!fs.existsSync(tables)) common.fail(`missing ${tables}`);
+  const dir = path.join(common.WORK, "package", host.triple, "llvm-option-inc");
+  fs.rmSync(dir, { recursive: true, force: true });
+  common.copyTree(tables, path.join(dir, "include", "llvm-options-td"));
+  archive(dir, `llvm-option-inc-${version}`);
+}
 
 for (const variant of ["", "-asan"]) {
   const libclang = path.join(out, `libclang-${host.triple}${variant}`);
