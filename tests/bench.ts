@@ -48,7 +48,10 @@ interface Compiler { name: string; path: string; args: string[]; system: boolean
 const compilers: Compiler[] = values.compiler.map((spec) => {
   const [name, file] = [spec.slice(0, spec.indexOf("=")), spec.slice(spec.indexOf("=") + 1)];
   const system = values.system.includes(name);
-  const args = values.config.includes(name) ? ["--no-default-config", `--config=${cfg}`] : [];
+  /// Every LLVM 23 compiler compiles for the same explicit target; the
+  /// Windows release build of LLVM would otherwise target MSVC.
+  const args = system ? [] : [`--target=${native}`,
+    ...(values.config.includes(name) ? ["--no-default-config", `--config=${cfg}`] : [])];
   return { name, path: file, args, system };
 });
 
@@ -64,6 +67,10 @@ function unpack(name: "fmt" | "lua"): Promise<string> {
     return dest;
   });
 }
+/// LLVM's release build finds the macOS SDK only through SDKROOT.
+if (process.platform === "darwin") {
+  process.env.SDKROOT ??= spawnSync("xcrun", ["--show-sdk-path"], { encoding: "utf8" }).stdout.trim();
+}
 const fmt = await unpack("fmt");
 const lua = await unpack("lua");
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "xclang-bench-"));
@@ -75,14 +82,17 @@ for (const test of ["args", "chrono", "color", "compile", "format", "ostream", "
   items.push({
     suite: "fmt",
     file: path.join(fmt, "test", `${test}-test.cc`),
-    args: ["-std=c++20", `-I${path.join(fmt, "include")}`, `-I${path.join(fmt, "test")}`, `-I${path.join(fmt, "test", "gtest")}`],
+    /// fmt 11.2 uses malloc without including <cstdlib>, which libc++ no
+    /// longer brings in on its own.
+    args: ["-std=c++20", "-include", "cstdlib", `-I${path.join(fmt, "include")}`, `-I${path.join(fmt, "test")}`,
+      `-I${path.join(fmt, "test", "gtest")}`],
   });
 }
 for (const file of fs.readdirSync(path.join(lua, "src")).filter((f) => f.endsWith(".c")).sort()) {
   items.push({ suite: "lua", file: path.join(lua, "src", file), args: ["-std=gnu99", "-x", "c"] });
 }
-const xclang = compilers.find((c) => !c.system && !c.args.length) ?? compilers[0];
-const manifest = spawnSync(xclang.path, ["-print-library-module-manifest-path"], { encoding: "utf8" }).stdout.trim();
+const xclang = compilers.find((c) => !c.system && c.args.length === 1) ?? compilers[0];
+const manifest = spawnSync(xclang.path, [...xclang.args, "-print-library-module-manifest-path"], { encoding: "utf8" }).stdout.trim();
 if (fs.existsSync(manifest)) {
   const std = JSON.parse(fs.readFileSync(manifest, "utf8")).modules.find((m: { "logical-name": string }) => m["logical-name"] === "std");
   items.push({

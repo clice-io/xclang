@@ -103,7 +103,11 @@ async function compression(): Promise<{ prefix: string; args: string[] }> {
   await build("zstd", path.join("build", "cmake"), [
     "-DZSTD_BUILD_SHARED=OFF", "-DZSTD_BUILD_STATIC=ON", "-DZSTD_BUILD_PROGRAMS=OFF", "-DZSTD_BUILD_TESTS=OFF",
   ]);
-  args.push(`-Dzstd_DIR=${path.join(prefix, "lib", "cmake", "zstd")}`);
+  /// LLVM finds zstd with its own Findzstd.cmake, which reads these.
+  const zstd = fs.readdirSync(path.join(prefix, "lib")).find((f) => /^libzstd.*\.a$/.test(f));
+  if (!zstd) common.fail(`no static zstd in ${prefix}/lib`);
+  const zstdLib = path.join(prefix, "lib", zstd);
+  args.push(`-Dzstd_INCLUDE_DIR=${path.join(prefix, "include")}`, `-Dzstd_LIBRARY=${zstdLib}`, `-Dzstd_STATIC_LIBRARY=${zstdLib}`);
   return { prefix, args };
 }
 const compressionLibs = await compression();
@@ -201,8 +205,9 @@ if (mode !== "instrumented") {
   const dest = path.join(out, `libclang-${name}`);
   install("install-development-distribution", dest);
   /// The compression libraries the LLVM libraries link, with their
-  /// headers and zstd's CMake package: a consumer finds them with the
-  /// libclang directory in CMAKE_PREFIX_PATH.
+  /// headers: LLVMConfig.cmake looks for them (FindZLIB, LLVM's
+  /// Findzstd), and finds them with the libclang directory in
+  /// CMAKE_PREFIX_PATH.
   common.copyTree(compressionLibs.prefix, dest);
   /// clice reaches into Sema's private headers.
   const sema = path.join(dest, "include", "clang", "Sema");
