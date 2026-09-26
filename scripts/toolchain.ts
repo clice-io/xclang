@@ -76,7 +76,7 @@ async function compression(): Promise<{ prefix: string; args: string[] }> {
   const work = path.join(common.WORK, "build", `compression-${host.triple}`);
   const prefix = path.join(work, "prefix");
   fs.rmSync(work, { recursive: true, force: true });
-  const build = async (name: "zlib" | "zstd", subdir: string, extra: string[]) => {
+  const build = async (name: "zlib" | "zstd", subdir: string, extra: string[], target = "install") => {
     const source = path.join(common.WORK, "src", name);
     if (!fs.existsSync(source)) common.extract(await common.fetchSource(name), source);
     const dir = path.join(work, name);
@@ -86,28 +86,39 @@ async function compression(): Promise<{ prefix: string; args: string[] }> {
       "-DCMAKE_BUILD_TYPE=Release", `-DCMAKE_INSTALL_PREFIX=${prefix}`,
       "-DCMAKE_POSITION_INDEPENDENT_CODE=ON", ...extra,
     ]);
-    common.run("cmake", ["--build", dir, "--target", "install"]);
+    common.run("cmake", ["--build", dir, "--target", target]);
     /// Static only: whatever shared library the install put in goes.
-    for (const file of fs.readFileSync(path.join(dir, "install_manifest.txt"), "utf8").split("\n")) {
+    const manifest = path.join(dir, "install_manifest.txt");
+    for (const file of fs.existsSync(manifest) ? fs.readFileSync(manifest, "utf8").split("\n") : []) {
       if (/\.(so(\.\d+)*|dll|dll\.a|dylib)$/.test(file)) fs.rmSync(file, { force: true });
     }
+    return { source, dir };
   };
   const args: string[] = [];
+  const lib = path.join(prefix, "lib");
+  const include = path.join(prefix, "include");
   if (host.os !== "darwin") {
-    await build("zlib", ".", ["-DZLIB_BUILD_EXAMPLES=OFF"]);
-    /// zlib names its static library zlibstatic on Windows.
-    const lib = path.join(prefix, "lib");
-    for (const file of fs.readdirSync(lib)) if (/^lib(zlibstatic|zlib)\.a$/.test(file)) fs.renameSync(path.join(lib, file), path.join(lib, "libz.a"));
-    args.push(`-DZLIB_INCLUDE_DIR=${path.join(prefix, "include")}`, `-DZLIB_LIBRARY=${path.join(lib, "libz.a")}`);
+    /// zlib's install wants its DLL too, whose resource script it gives to
+    /// windres without --target; only the static library is built, and
+    /// put in by hand (zlibstatic is its name on Windows).
+    const zlib = await build("zlib", ".", ["-DZLIB_BUILD_EXAMPLES=OFF"], "zlibstatic");
+    fs.mkdirSync(lib, { recursive: true });
+    fs.mkdirSync(include, { recursive: true });
+    fs.copyFileSync(path.join(zlib.source, "zlib.h"), path.join(include, "zlib.h"));
+    fs.copyFileSync(path.join(zlib.dir, "zconf.h"), path.join(include, "zconf.h"));
+    const archive = ["libz.a", "libzlibstatic.a"].map((f) => path.join(zlib.dir, f)).find((f) => fs.existsSync(f));
+    if (!archive) common.fail(`no static zlib in ${zlib.dir}`);
+    fs.copyFileSync(archive, path.join(lib, "libz.a"));
+    args.push(`-DZLIB_INCLUDE_DIR=${include}`, `-DZLIB_LIBRARY=${path.join(lib, "libz.a")}`);
   }
   await build("zstd", path.join("build", "cmake"), [
     "-DZSTD_BUILD_SHARED=OFF", "-DZSTD_BUILD_STATIC=ON", "-DZSTD_BUILD_PROGRAMS=OFF", "-DZSTD_BUILD_TESTS=OFF",
   ]);
   /// LLVM finds zstd with its own Findzstd.cmake, which reads these.
-  const zstd = fs.readdirSync(path.join(prefix, "lib")).find((f) => /^libzstd.*\.a$/.test(f));
-  if (!zstd) common.fail(`no static zstd in ${prefix}/lib`);
-  const zstdLib = path.join(prefix, "lib", zstd);
-  args.push(`-Dzstd_INCLUDE_DIR=${path.join(prefix, "include")}`, `-Dzstd_LIBRARY=${zstdLib}`, `-Dzstd_STATIC_LIBRARY=${zstdLib}`);
+  const zstd = fs.readdirSync(lib).find((f) => /^libzstd.*\.a$/.test(f));
+  if (!zstd) common.fail(`no static zstd in ${lib}`);
+  const zstdLib = path.join(lib, zstd);
+  args.push(`-Dzstd_INCLUDE_DIR=${include}`, `-Dzstd_LIBRARY=${zstdLib}`, `-Dzstd_STATIC_LIBRARY=${zstdLib}`);
   return { prefix, args };
 }
 const compressionLibs = await compression();
