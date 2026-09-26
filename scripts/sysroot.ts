@@ -156,6 +156,10 @@ async function mingw(t: common.Target, tree: string, dest: string): Promise<void
     "--enable-static", "--disable-shared", "--enable-silent-rules", "--disable-dependency-tracking",
     "CFLAGS=-O2",
   ], env), env);
+  /// libtool's notes name the directory it was built in.
+  for (const file of fs.readdirSync(path.join(dest, "lib")).filter((f) => f.endsWith(".la"))) {
+    fs.rmSync(path.join(dest, "lib", file));
+  }
   console.log(`mingw-w64 sysroot of ${t.triple} in ${dest}`);
 }
 

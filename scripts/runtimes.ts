@@ -87,10 +87,16 @@ function cxx(t: common.Target, stage: string): void {
     `-DCMAKE_EXE_LINKER_FLAGS=${darwin ? "-nostdlib++" : "--rtlib=compiler-rt --unwindlib=none -nostdlib++"}`,
     ...NO_CONFIG,
   ]);
-  /// -latomic, which build scripts written for GCC pass, finds an empty
-  /// archive: the functions are compiler-rt's (cmake/caches/builtins.cmake).
-  if (!darwin) fs.writeFileSync(path.join(prefix, "lib", "libatomic.a"), "!<arch>\n");
+  /// GCC's runtime libraries, which build scripts written for GCC name
+  /// (-latomic, -lgcc_s, and on Windows -lssp, which clang's MinGW driver
+  /// adds for -fstack-protector), are empty archives: what they hold comes
+  /// from compiler-rt (atomics too: cmake/caches/builtins.cmake), libunwind
+  /// and, for the stack protector, mingw-w64's libmingwex.
+  const stubs = { linux: GCC_STUBS, mingw: [...GCC_STUBS, "ssp", "ssp_nonshared"], darwin: [] }[t.os];
+  for (const name of stubs) fs.writeFileSync(path.join(prefix, "lib", `lib${name}.a`), "!<arch>\n");
 }
+
+const GCC_STUBS = ["atomic", "gcc", "gcc_eh", "gcc_s"];
 
 function profile(t: common.Target, stage: string): void {
   cmake(`compiler-rt-${t.triple}`, path.join(src, "runtimes"), [

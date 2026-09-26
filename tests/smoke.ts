@@ -147,6 +147,22 @@ for (const t of targets) {
   if (output !== undefined && !output.includes("atomics 4 42")) failures.push(`${out} printed ${JSON.stringify(output)}`);
 }
 
+/// Hardening flags, GCC's runtime libraries named explicitly, and fully
+/// static Linux programs.
+for (const t of targets) {
+  const out = path.join(work, `hardened-${t}${t.endsWith("mingw32") ? ".exe" : ""}`);
+  const gcc = t.includes("apple") ? [] : ["-lgcc", "-lgcc_eh", "-lgcc_s"];
+  if (run(tool("clang"), [`--target=${t}`, "-O2", "-D_FORTIFY_SOURCE=2", "-fstack-protector-strong", helloC, "-o", out, ...gcc]) !== undefined && runnable(t)) {
+    run(out, []);
+  }
+  if (!t.includes("linux")) continue;
+  const staticOut = path.join(work, `static-${t}`);
+  if (run(tool("clang++"), [`--target=${t}`, "-static", "-O2", helloCxx, "-o", staticOut]) !== undefined && runnable(t)) {
+    const output = run(staticOut, []);
+    if (output !== undefined && !output.includes("hello c++")) failures.push(`${staticOut} printed ${JSON.stringify(output)}`);
+  }
+}
+
 /// Compressed debug sections (zlib and zstd in clang and lld), on an ELF
 /// target, which every host carries.
 for (const gz of ["zlib", "zstd"]) {
