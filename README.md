@@ -76,10 +76,28 @@ macro, so a debug build opts in with `-D_LIBCPP_HARDENING_MODE=...`.
 xclang/
   bin/                     clang, clang++, ld.lld, lld-link, llvm-ar, ..., <triple>.cfg
   lib/clang/<ver>/         resource headers, compiler-rt for every target
-  <triple>/                one directory per target
-    include/               C runtime headers, c++/v1
-    lib/                   startup files, libc, libc++, libunwind
+  lib/libLTO.dylib         macOS hosts: LTO for the system's ld
+  <triple>/                one directory per target: its sysroot with libc++
+                           in it (Linux: usr/include, usr/lib64; Windows and
+                           macOS: include/, lib/)
 ```
+
+The config files apply to native builds too, so a plain `clang++ main.cpp`
+on Linux compiles against glibc 2.17 and links everything but glibc
+statically. `--no-default-config` gives the bare compiler, for building
+against the system's own headers and libraries.
+
+compiler-rt carries the builtins, the profile runtime, and for Linux and
+macOS targets AddressSanitizer and UBSan.
+
+On macOS the linker is the system's `ld`, with xclang's `libLTO.dylib` for
+LTO, as Apple's own toolchain does: ld64.lld's ThinLTO loses exception
+handling on arm64 in LLVM 23.1.2 (a program built with it cannot catch
+what it throws). ld64.lld is still there, behind `-fuse-ld=lld`.
+
+The Windows archives are zip files, which have no symlinks: `clang++.exe`,
+`ld.lld.exe`, `lld-link.exe` and the other names that matter are copies,
+the rest (`clang-cl.exe`, `ld64.lld.exe`, `wasm-ld.exe`) are left out.
 
 ## How it is built
 
@@ -88,9 +106,10 @@ xclang/
    release; until there is one, it is LLVM's own release build, which is
    PGO and ThinLTO optimized too.
 2. The instrumented toolchain compiles a fixed training set on Linux x64:
-   C and C++ sources, PCH and C++20 modules (`import std`), code completion
-   requests, at `-O0 -g` and `-O2`, for x86_64 and aarch64, linked with lld
-   (ELF, COFF, ThinLTO). This gives one profile per release.
+   C and C++ sources (abseil, sqlite), a PCH and C++20 modules
+   (`import std`), code completion requests, at `-O0 -g` and `-O2`, for
+   x86_64 and aarch64, linked with lld (ELF, COFF, ThinLTO). This gives
+   one profile per release.
 3. Every host's clang, lld and tools are built with that profile and
    ThinLTO; the same build tree gives that host's libclang archive. The
    profile comes from frontend instrumentation, whose function hashes
@@ -98,31 +117,39 @@ xclang/
    every host; a remapping file matches names whose mangling differs
    (`unsigned long` against `unsigned long long`).
 4. Each host's archive is tested on that host before the release is
-   published.
+   published: its own programs load no C++ runtime (and need glibc 2.17
+   at most), C and C++ programs build for every target and run where they
+   can, and `import std`, a PCH and ThinLTO work natively.
 
-The first releases skip the instrumented build and the training: they use
-the profile recorded in clice's CI, where an instrumented clang built clice.
+## Repository
+
+```
+cmake/caches/      what each build is: runtimes, the host toolchain, the
+                   instrumented one, the ASan libclang
+cmake/toolchain.cmake   building for a target with an xclang tree
+config/            the per-target clang config files
+scripts/           TypeScript, run by Node: bootstrap, runtimes (with the
+                   sysroots), toolchain, package
+pgo/               the training (train.ts, its corpus) and remap.txt
+tests/smoke.ts     the per-host checks
+.github/workflows/ main.yml runs the stages above, by hand
+```
+
+`pixi run <task>` runs each stage the way CI does (pixi.toml); the builds
+themselves need CI-sized machines.
 
 ## Status
 
 | piece | state |
 |---|---|
-| mingw-w64 sysroots for `x86_64-w64-mingw32` and `aarch64-w64-mingw32`, built with clang (`recipes/xclang-bootstrap`) | done; CI runs a linked exe on Windows x64 and arm64 |
-| PGO recipe: frontend profile from one Linux host, remapping file, ThinLTO | measured in clice's CI; being moved here |
-| release pipeline: bootstrap, training, per-host builds, tests | in progress |
-| runtimes and sysroots for every target | planned |
-| libclang archives (from the toolchain builds) and the ASan builds | planned |
+| runtimes and sysroots of all six targets | done |
+| PGO training on Linux x64 | done: 18 min, about 220k functions with counts |
+| PGO + ThinLTO toolchain and libclang of all six hosts | done: about 2 h per host |
+| ASan libclang (Linux x64, macOS arm64) | done |
+| per-host smoke tests | done |
+| draft GitHub release | done |
+| patch series against LLVM | later |
 | conda packages on [conda.clice.io](https://conda.clice.io) | later |
-
-## Building locally
-
-```sh
-rattler-build build --recipe recipes/xclang-bootstrap/recipe.yaml --channel conda-forge
-```
-
-CI does the same on Linux, then installs the packages with pixi on
-`windows-2025` and `windows-11-arm` and runs a program linked against them.
-The toolchain itself is built in CI only.
 
 xclang is developed for [clice](https://github.com/clice-io/clice), whose
 release builds are its first user.

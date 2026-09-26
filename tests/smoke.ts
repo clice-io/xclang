@@ -104,7 +104,8 @@ const targets = [
 ];
 /// What runs here: the native target, x86_64 macOS on arm64 macOS
 /// (Rosetta) and x86_64 Windows on arm64 Windows (emulation).
-const runnable = (t: string) => t === native || (native.endsWith("-apple-darwin") && t.endsWith("-apple-darwin")) ||
+const runnable = (t: string) => t === native ||
+  (native === "aarch64-apple-darwin" && t === "x86_64-apple-darwin") ||
   (native === "aarch64-w64-mingw32" && t === "x86_64-w64-mingw32");
 for (const t of targets) {
   const suffix = t.endsWith("mingw32") ? ".exe" : "";
