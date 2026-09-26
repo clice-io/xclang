@@ -26,6 +26,8 @@ that run wherever they are copied:
 - **Fast.** clang and lld are built with PGO and ThinLTO, and linked
   statically against xclang's own libc++ on every host, macOS included:
   the system's libc++.dylib is never used.
+- **Small.** clang, lld and most tools are one program, `llvm`, which the
+  other names start; they would otherwise each carry LLVM in full.
 
 It is not a compiler for building conda-forge packages. conda-forge's own
 `clang`/`gcc` stacks link dynamically against packaged runtimes and
@@ -33,9 +35,10 @@ integrate with `run_exports`; xclang deliberately does neither.
 
 ## What a release holds
 
-- **The toolchain**, one archive per host: clang, lld and the LLVM binary
-  tools (`llvm-ar`, `llvm-nm`, `llvm-objcopy`, `llvm-rc`, `llvm-profdata`,
-  ...). Every LLVM target is enabled. No clang-tools-extra, no clang-format.
+- **The toolchain**, one archive per host, 75 to 110 MB: clang, lld and the
+  LLVM binary tools (`llvm-ar`, `llvm-nm`, `llvm-objcopy`, `llvm-rc`,
+  `llvm-profdata`, ...). Every LLVM target is enabled. No
+  clang-tools-extra, no clang-format.
 - **libclang**, one archive per host: the clang and LLVM static libraries
   and headers, for tools built on clang such as clice. They are the
   libraries that host's clang was linked from, taken from the same build
@@ -74,7 +77,9 @@ macro, so a debug build opts in with `-D_LIBCPP_HARDENING_MODE=...`.
 
 ```
 xclang/
-  bin/                     clang, clang++, ld.lld, lld-link, llvm-ar, ..., <triple>.cfg
+  bin/                     llvm and its names (clang, clang++, ld.lld, lld-link,
+                           llvm-ar, ...), the tools outside it (llvm-profdata,
+                           llvm-cov, llvm-dwarfdump, llvm-strings), <triple>.cfg
   lib/clang/<ver>/         resource headers, compiler-rt for every target
   lib/libLTO.dylib         macOS hosts: LTO for the system's ld
   <triple>/                one directory per target: its sysroot with libc++
@@ -88,16 +93,26 @@ statically. `--no-default-config` gives the bare compiler, for building
 against the system's own headers and libraries.
 
 compiler-rt carries the builtins, the profile runtime, and for Linux and
-macOS targets AddressSanitizer and UBSan.
+macOS targets AddressSanitizer and UBSan. zlib and zstd are linked in
+statically: `-gz=zlib`, `-gz=zstd` and compressed profiles work on every
+host.
+
+The Linux sysroots hold what compiling and linking read (headers, startup
+files, libraries), not glibc's programs, locales or gconv modules, and no
+symlinks: their soname links are the files themselves, their `libfoo.so`
+links are linker scripts naming them, as glibc's own `libc.so` is.
 
 On macOS the linker is the system's `ld`, with xclang's `libLTO.dylib` for
 LTO, as Apple's own toolchain does: ld64.lld's ThinLTO loses exception
 handling on arm64 in LLVM 23.1.2 (a program built with it cannot catch
 what it throws). ld64.lld is still there, behind `-fuse-ld=lld`.
 
-The Windows archives are zip files, which have no symlinks: `clang++.exe`,
-`ld.lld.exe`, `lld-link.exe` and the other names that matter are copies,
-the rest (`clang-cl.exe`, `ld64.lld.exe`, `wasm-ld.exe`) are left out.
+Every archive is a `.tar.xz`, and a Windows one holds no symlinks at all,
+so it unpacks without extra rights and packs into conda: the names of
+`llvm.exe` (`clang++.exe`, `ld.lld.exe`, ...) are a small program
+(`windows/alias.c`) that starts `llvm.exe <name> <arguments>`. The name
+goes in as a subcommand because LLVM on Windows replaces the file name in
+`argv[0]` with its own before reading it.
 
 ## How it is built
 
@@ -105,11 +120,15 @@ the rest (`clang-cl.exe`, `ld64.lld.exe`, `wasm-ld.exe`) are left out.
    instrumented clang and lld. The bootstrap clang is the previous xclang
    release; until there is one, it is LLVM's own release build, which is
    PGO and ThinLTO optimized too.
-2. The instrumented toolchain compiles a fixed training set on Linux x64:
-   C and C++ sources (abseil, sqlite), a PCH and C++20 modules
-   (`import std`), code completion requests, at `-O0 -g` and `-O2`, for
-   x86_64 and aarch64, linked with lld (ELF, COFF, ThinLTO). This gives
-   one profile per release.
+2. The instrumented toolchain compiles a fixed training set on Linux x64,
+   at `-O0 -g` and `-O2`, for x86_64 and aarch64, linked with lld (ELF,
+   COFF, ThinLTO): C and C++ sources (abseil, sqlite); precompiled
+   headers, a shared one and a preamble per abseil source, parsed and
+   completed on as an editor does; C++20 modules (libc++'s `std` and
+   `std.compat`, magic_enum's, Vulkan-Hpp's, a wrapped nlohmann/json, a
+   module of partitions) and their importers, two-phase and one-phase
+   with reduced BMIs; P1689 scans by clang-scan-deps; code completion
+   requests. This gives one profile per release.
 3. Every host's clang, lld and tools are built with that profile and
    ThinLTO; the same build tree gives that host's libclang archive. The
    profile comes from frontend instrumentation, whose function hashes
@@ -143,7 +162,7 @@ themselves need CI-sized machines.
 | piece | state |
 |---|---|
 | runtimes and sysroots of all six targets | done |
-| PGO training on Linux x64 | done: 18 min, about 220k functions with counts |
+| PGO training on Linux x64 | done: 23 min, about 1700 compiler runs |
 | PGO + ThinLTO toolchain and libclang of all six hosts | done: about 2 h per host |
 | ASan libclang (Linux x64, macOS arm64) | done |
 | per-host smoke tests | done |
