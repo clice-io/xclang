@@ -34,15 +34,14 @@ jobs:
           done
           echo "=== unwind info"
           for lto in thin full; do echo "--- $lto"; "$B/llvm-objdump" --macho --unwind-info $lto/a.out | head -n 40; done
-          echo "=== LSDA / eh_frame of the LTO objects"
-          for lto in thin full; do
-            for o in $lto/*.o; do echo "--- $o"; "$B/llvm-objdump" -h "$o" | grep -E 'compact|eh_frame|gcc_except'; "$B/llvm-objdump" -r --section=__compact_unwind "$o" | head -n 20; done
-          done
-          echo "=== relink the ThinLTO object without LTO"
-          obj=$(ls thin/*.o | head -n 1)
-          "$B/clang++" -fuse-ld=lld "$obj" -o relink-lld; ./relink-lld; echo "relink ld64.lld exit $?"
-          clang++ "$obj" -o relink-ld64 2>&1 | tail -n 3; ./relink-ld64; echo "relink Apple ld exit $?"
-          echo "=== thin with one backend thread, and without compact unwind"
-          "$B/clang++" -O2 -flto=thin -fuse-ld=lld -Wl,--thinlto-jobs=1 ../t.cpp -o jobs1 2>&1; ./jobs1; echo "jobs1 exit $?"
-          "$B/clang++" -O2 -flto=thin -fuse-ld=lld -Wl,-no_compact_unwind ../t.cpp -o nocu 2>&1; ./nocu; echo "no_compact_unwind exit $?"
-          "$B/clang++" -O2 -flto=thin -fuse-ld=lld -Wl,-mllvm,-emit-dwarf-unwind=always ../t.cpp -o dwarf 2>&1; ./dwarf; echo "dwarf unwind exit $?"
+          echo "=== the LTO objects"
+          for o in thin/a.out.lto.o thin/a.out1.lto.o; do echo "--- $o"; "$B/llvm-objdump" -h -t "$o"; done
+          echo "=== both LTO objects relinked without LTO"
+          "$B/clang++" -fuse-ld=lld thin/a.out.lto.o thin/a.out1.lto.o -o order1; ./order1; echo "empty first exit $?"
+          "$B/llvm-objdump" --macho --unwind-info order1 | grep -E 'function offset' | head
+          "$B/clang++" -fuse-ld=lld thin/a.out1.lto.o thin/a.out.lto.o -o order2; ./order2; echo "empty last exit $?"
+          "$B/clang++" -fuse-ld=lld thin/a.out1.lto.o -o alone; ./alone; echo "without the empty object exit $?"
+          echo "=== workarounds"
+          "$B/clang++" -O2 -flto=thin -fuse-ld=lld -Wl,--thinlto-jobs=1 t.cpp -o jobs1; ./jobs1; echo "jobs1 exit $?"
+          "$B/clang++" -O2 -flto=thin -fuse-ld=lld -Wl,-no_compact_unwind t.cpp -o nocu; ./nocu; echo "no_compact_unwind exit $?"
+          "$B/clang++" -O2 -flto=thin -fuse-ld=lld -Wl,-dead_strip t.cpp -o dead; ./dead; echo "dead_strip exit $?"
