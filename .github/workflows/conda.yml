@@ -1,0 +1,133 @@
+name: conda
+
+# The conda packages of a release (scripts/conda.ts), installed with pixi
+# and used on a machine of every host, then, if asked, published to the
+# clice conda channel (https://conda.clice.io) through clice-io/conda's
+# action.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release to package, e.g. 23.1.2.1
+        type: string
+        required: true
+      build:
+        description: Build number (counts packaging fixes of one release)
+        type: string
+        default: "0"
+      publish:
+        description: Publish to conda.clice.io once every host passed
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  RATTLER_BUILD: v0.76.1
+  RATTLER_BUILD_SHA256: 38359a75f4a880442432923d6e984d349bb4134d330edd712eb1cfb2fa80581a
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: rattler-build
+        run: |
+          curl -fsSL -o rattler-build "https://github.com/prefix-dev/rattler-build/releases/download/$RATTLER_BUILD/rattler-build-x86_64-unknown-linux-musl"
+          echo "$RATTLER_BUILD_SHA256  rattler-build" | sha256sum -c
+          chmod +x rattler-build
+      - name: Release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "${{ inputs.tag }}" -R "$GITHUB_REPOSITORY" -D dist -p 'xclang-*.tar.xz' -p 'llvm-option-inc-*.tar.xz'
+      - name: Package
+        run: |
+          node scripts/conda.ts --dist dist --version "${{ inputs.tag }}" --build "${{ inputs.build }}" \
+            --rattler-build ./rattler-build --out channel > conda.log 2>&1 || { tail -n 200 conda.log; exit 1; }
+          grep ' MB  ' conda.log | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: conda-channel
+          path: |
+            channel/*/*.conda
+            channel/*/repodata.json
+          compression-level: 0
+          retention-days: 14
+
+  test:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { host: x86_64-unknown-linux-gnu, os: ubuntu-24.04, subdir: linux-64, cross: xclang-x86_64-w64-mingw32, target: x86_64-w64-mingw32 }
+          - { host: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm, subdir: linux-aarch64, cross: xclang-x86_64-w64-mingw32, target: x86_64-w64-mingw32 }
+          - { host: x86_64-w64-mingw32, os: windows-2025, subdir: win-64, cross: xclang-x86_64-unknown-linux-gnu, target: x86_64-unknown-linux-gnu }
+          - { host: aarch64-w64-mingw32, os: windows-11-arm, subdir: win-arm64, cross: xclang-x86_64-unknown-linux-gnu, target: x86_64-unknown-linux-gnu }
+          - { host: aarch64-apple-darwin, os: macos-15, subdir: osx-arm64, cross: xclang-x86_64-unknown-linux-gnu, target: x86_64-unknown-linux-gnu }
+          - { host: x86_64-apple-darwin, os: macos-15-intel, subdir: osx-64, cross: xclang-x86_64-unknown-linux-gnu, target: x86_64-unknown-linux-gnu }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: conda-channel
+          path: channel
+      - uses: prefix-dev/setup-pixi@v0.10.2
+        with:
+          pixi-version: v0.71.1
+          run-install: false
+      # A workspace on the local channel, as a user's would be on
+      # conda.clice.io: xclang, which brings its own target, and one more.
+      - name: Install
+        run: |
+          channel="$PWD/channel"; [[ "$RUNNER_OS" == Windows ]] && channel="/$(cygpath -m "$PWD/channel")"
+          mkdir ws && cd ws
+          cat > pixi.toml <<TOML
+          [workspace]
+          name = "xclang-check"
+          channels = ["file://$channel"]
+          platforms = ["${{ matrix.subdir }}"]
+
+          [dependencies]
+          xclang = "==${{ inputs.tag }}"
+          ${{ matrix.cross }} = "*"
+          llvm-option-inc = "*"
+          TOML
+          pixi install
+      - name: Use
+        working-directory: ws
+        run: |
+          exe=""; [[ "$RUNNER_OS" == Windows ]] && exe=.exe
+          printf '#include <iostream>\nint main() { std::cout << "hello from conda xclang\\n"; }\n' > hello.cpp
+          pixi run clang++ --version
+          pixi run clang++ -O2 hello.cpp -o hello$exe
+          pixi run ./hello$exe | grep 'hello from conda xclang'
+          pixi run clang++ --target=${{ matrix.target }} -O2 hello.cpp -o hello-cross
+          pixi run llvm-readobj --file-headers hello-cross | grep -m1 Format
+          test -f .pixi/envs/default/include/llvm-options-td/clang-Driver-Options.inc
+
+  publish:
+    needs: [build, test]
+    if: ${{ inputs.publish }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: conda-channel
+          path: channel
+      - uses: clice-io/conda@main
+        with:
+          packages: channel/*/*.conda
+          token: ${{ secrets.UPLOAD_CONDA }}
