@@ -15,6 +15,29 @@ which clang reads for that target, points it at `xclang/aarch64-w64-mingw32/`,
 and it links the libc++, libunwind and compiler-rt built for that exact
 target. Think `zig cc`, with stock clang.
 
+## Install
+
+From the [clice conda channel](https://conda.clice.io), with pixi:
+
+```toml
+[workspace]
+channels = ["conda-forge", "https://conda.clice.io"]
+platforms = ["linux-64", "osx-arm64", "win-64"]
+
+[dependencies]
+xclang = "23.1.2.1.*"
+# more targets than the host's own, as needed
+xclang-x86_64-w64-mingw32 = "*"
+```
+
+`xclang` brings its own platform's target; `xclang-<triple>` (and
+`xclang-apple-darwin` for both macOS targets) adds another. Everything
+installs under `$PREFIX/opt/xclang`, whose `bin/` the environment's
+activation puts first in `PATH`; nothing goes to `$PREFIX/bin`, so
+conda-forge's compilers stay as they are. `llvm-option-inc` holds the option
+tables. Or take the archives from the GitHub release and unpack them
+anywhere.
+
 ## Who it is for
 
 People who want a toolchain they can pin, ship and reproduce, and binaries
@@ -187,6 +210,8 @@ pgo/               the training (train.ts, its corpus) and remap.txt
 windows/alias.c    the launcher behind every name of llvm.exe
 tests/             smoke.ts and libclang.ts, the per-host checks; bench.ts,
                    compile speed against other compilers
+conda/             activation scripts; scripts/conda.ts makes the packages,
+                   conda.yml tests and publishes them
 .github/workflows/ main.yml runs the stages above, by hand
 ```
 
@@ -205,7 +230,7 @@ themselves need CI-sized machines.
 | catter built with xclang (Linux, Windows) | done, with its tests |
 | [23.1.2.1](https://github.com/clice-io/xclang/releases/tag/23.1.2.1) | published |
 | patch series against LLVM | later |
-| conda packages on [conda.clice.io](https://conda.clice.io) | later |
+| conda packages on [conda.clice.io](https://conda.clice.io) | done: tested with pixi on every host |
 
 xclang is developed for [clice](https://github.com/clice-io/clice), whose
 release builds are its first user.

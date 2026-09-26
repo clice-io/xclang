@@ -10,6 +10,23 @@ xclang/bin/clang++ --target=aarch64-w64-mingw32 main.cpp -o main.exe
 
 不用 `--sysroot`，不用 `-L`，也不用装 SDK：clang 针对这个目标会读取 `bin/aarch64-w64-mingw32.cfg`，它把 clang 指向 `xclang/aarch64-w64-mingw32/`，链接的是专为这个目标编译的 libc++、libunwind 和 compiler-rt。可以理解为用原版 clang 做的 `zig cc`。
 
+## 安装
+
+从 [clice 的 conda 频道](https://conda.clice.io) 用 pixi 安装：
+
+```toml
+[workspace]
+channels = ["conda-forge", "https://conda.clice.io"]
+platforms = ["linux-64", "osx-arm64", "win-64"]
+
+[dependencies]
+xclang = "23.1.2.1.*"
+# 需要主机平台以外的目标时再加
+xclang-x86_64-w64-mingw32 = "*"
+```
+
+`xclang` 会带上本机平台对应的目标包；`xclang-<triple>`（macOS 两个目标合在 `xclang-apple-darwin` 里）用来加装其它目标。所有文件都装在 `$PREFIX/opt/xclang`，环境激活时把它的 `bin/` 放到 `PATH` 最前面；`$PREFIX/bin` 里不放任何东西，不影响 conda-forge 的编译器。`llvm-option-inc` 是选项表。也可以直接从 GitHub release 下载压缩包，解压到任意位置使用。
+
 ## 适合谁
 
 想要一套可以锁定版本、随项目分发、可复现的工具链，并且希望编出来的程序拷到哪都能跑的人：
@@ -114,6 +131,7 @@ pgo/                    训练脚本（train.ts 及其语料）和 remap.txt
 windows/alias.c         llvm.exe 每个名字背后的启动器
 tests/                  smoke.ts 和 libclang.ts，各主机平台的检查；bench.ts，
                         和其它编译器比较编译速度
+conda/                  激活脚本；scripts/conda.ts 打 conda 包，conda.yml 测试并发布
 .github/workflows/      main.yml 按上面的阶段运行，手动触发
 ```
 
@@ -131,6 +149,6 @@ tests/                  smoke.ts 和 libclang.ts，各主机平台的检查；be
 | 用 xclang 构建 catter（Linux、Windows） | 完成，测试全部通过 |
 | [23.1.2.1](https://github.com/clice-io/xclang/releases/tag/23.1.2.1) | 已发布 |
 | 针对 LLVM 的补丁集 | 以后 |
-| [conda.clice.io](https://conda.clice.io) 上的 conda 包 | 以后 |
+| [conda.clice.io](https://conda.clice.io) 上的 conda 包 | 完成：每个主机平台都用 pixi 测试过 |
 
 xclang 是为 [clice](https://github.com/clice-io/clice) 开发的，clice 的发布构建是它的第一个用户。
