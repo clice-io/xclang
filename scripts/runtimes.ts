@@ -23,11 +23,12 @@ if (!fs.existsSync(path.join(bootstrap, "bin", "clang"))) common.fail("run scrip
 const src = await common.llvmSource();
 const caches = path.join(common.ROOT, "cmake", "caches");
 
-/// The builtins and the C++ runtimes are built without the config files:
-/// those link the very libraries being built, so CMake only compiles its
-/// checks there. CMAKE_SYSROOT (cmake/toolchain.cmake) still names the
-/// sysroot. The rest of compiler-rt comes after them, and is built with
-/// the config files and real checks.
+/// The builtins and the C++ runtimes are built without the config files,
+/// which link the very libraries being built; CMAKE_SYSROOT
+/// (cmake/toolchain.cmake) still names the sysroot. The builtins come first
+/// and nothing can be linked yet, so their checks only compile; the C++
+/// runtimes' checks link against the C runtime and the builtins. The rest
+/// of compiler-rt comes last, built with the config files.
 const NO_CONFIG = ["C", "CXX", "ASM"].map((lang) => `-DCMAKE_${lang}_FLAGS=--no-default-config`);
 
 function cmake(name: string, source: string, args: string[]): void {
@@ -75,12 +76,15 @@ function cxx(t: common.Target, stage: string): void {
     `-DLLVM_ENABLE_RUNTIMES=${darwin ? "libcxxabi;libcxx" : "libunwind;libcxxabi;libcxx"}`,
     /// macOS unwinds with the system's libunwind, part of libSystem.
     `-DLIBCXXABI_USE_LLVM_UNWINDER=${darwin ? "OFF" : "ON"}`,
-    /// glibc 2.17 predates __cxa_thread_atexit_impl; libc++abi then refers
-    /// to it weakly and uses it where the C library has it. (The checks
-    /// only compile here, so they would find it.)
+    /// glibc 2.17 predates __cxa_thread_atexit_impl, the floor xclang holds
+    /// to; libc++abi then refers to it weakly and uses it where the C
+    /// library has it.
     ...(t.os === "linux" ? ["-DLIBCXXABI_HAS_CXA_THREAD_ATEXIT_IMPL=OFF"] : []),
     `-DLLVM_DEFAULT_TARGET_TRIPLE=${common.normalized(t)}`,
     `-DCMAKE_INSTALL_PREFIX=${prefix}`,
+    /// The checks' programs link the C runtime and compiler-rt, and no C++
+    /// library or unwinder: those are what is being built.
+    `-DCMAKE_EXE_LINKER_FLAGS=${darwin ? "-nostdlib++" : "--rtlib=compiler-rt --unwindlib=none -nostdlib++"}`,
     ...NO_CONFIG,
   ]);
 }

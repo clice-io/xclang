@@ -2,10 +2,8 @@
 # (their symbols stay inside the program that links them), libc++abi merged
 # into libc++.a, compiler-rt instead of libgcc, no hardening by default.
 set(CMAKE_BUILD_TYPE Release CACHE STRING "")
-# Nothing can be linked before these libraries exist.
-set(CMAKE_C_COMPILER_WORKS ON CACHE BOOL "")
-set(CMAKE_CXX_COMPILER_WORKS ON CACHE BOOL "")
-set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY CACHE STRING "")
+# CMake's checks link for real: the builtins and the C runtime exist by
+# now, and scripts/runtimes.ts links them without any C++ library.
 set(LLVM_INCLUDE_TESTS OFF CACHE BOOL "")
 set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR OFF CACHE BOOL "")
 # Position-independent, so shared libraries can carry them statically too

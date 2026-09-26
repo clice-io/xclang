@@ -120,6 +120,12 @@ for (const t of targets) {
   }
 }
 
+/// Compressed debug sections (zlib and zstd in clang and lld), on an ELF
+/// target, which every host carries.
+for (const gz of ["zlib", "zstd"]) {
+  run(tool("clang"), ["--target=x86_64-unknown-linux-gnu", "-g", `-gz=${gz}`, helloC, "-o", path.join(work, `gz-${gz}`)]);
+}
+
 /// 3. Native: import std, a precompiled header, ThinLTO.
 const manifest = run(tool("clang++"), [`--target=${native}`, "-print-library-module-manifest-path"])?.trim();
 if (manifest && fs.existsSync(manifest)) {

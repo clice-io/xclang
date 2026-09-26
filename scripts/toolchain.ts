@@ -70,6 +70,44 @@ function nativeTools(): string {
   return bin;
 }
 
+/// Static zlib and zstd for the host, in a prefix of their own; macOS has
+/// zlib in the system. libclang carries them too (its libraries need them).
+async function compression(): Promise<{ prefix: string; args: string[] }> {
+  const work = path.join(common.WORK, "build", `compression-${host.triple}`);
+  const prefix = path.join(work, "prefix");
+  fs.rmSync(work, { recursive: true, force: true });
+  const build = async (name: "zlib" | "zstd", subdir: string, extra: string[]) => {
+    const source = path.join(common.WORK, "src", name);
+    if (!fs.existsSync(source)) common.extract(await common.fetchSource(name), source);
+    const dir = path.join(work, name);
+    common.run("cmake", [
+      "-G", "Ninja", "-S", path.join(source, subdir), "-B", dir,
+      ...common.cmakeToolchainArgs(stage, host),
+      "-DCMAKE_BUILD_TYPE=Release", `-DCMAKE_INSTALL_PREFIX=${prefix}`,
+      "-DCMAKE_POSITION_INDEPENDENT_CODE=ON", ...extra,
+    ]);
+    common.run("cmake", ["--build", dir, "--target", "install"]);
+    /// Static only: whatever shared library the install put in goes.
+    for (const file of fs.readFileSync(path.join(dir, "install_manifest.txt"), "utf8").split("\n")) {
+      if (/\.(so(\.\d+)*|dll|dll\.a|dylib)$/.test(file)) fs.rmSync(file, { force: true });
+    }
+  };
+  const args: string[] = [];
+  if (host.os !== "darwin") {
+    await build("zlib", ".", ["-DZLIB_BUILD_EXAMPLES=OFF"]);
+    /// zlib names its static library zlibstatic on Windows.
+    const lib = path.join(prefix, "lib");
+    for (const file of fs.readdirSync(lib)) if (/^lib(zlibstatic|zlib)\.a$/.test(file)) fs.renameSync(path.join(lib, file), path.join(lib, "libz.a"));
+    args.push(`-DZLIB_INCLUDE_DIR=${path.join(prefix, "include")}`, `-DZLIB_LIBRARY=${path.join(lib, "libz.a")}`);
+  }
+  await build("zstd", path.join("build", "cmake"), [
+    "-DZSTD_BUILD_SHARED=OFF", "-DZSTD_BUILD_STATIC=ON", "-DZSTD_BUILD_PROGRAMS=OFF", "-DZSTD_BUILD_TESTS=OFF",
+  ]);
+  args.push(`-Dzstd_DIR=${path.join(prefix, "lib", "cmake", "zstd")}`);
+  return { prefix, args };
+}
+const compressionLibs = await compression();
+
 const name = mode === "release" ? host.triple : `${host.triple}-${mode}`;
 const build = path.join(common.WORK, "build", `toolchain-${name}`);
 fs.rmSync(build, { recursive: true, force: true });
@@ -86,6 +124,7 @@ const args = [
   /// itself would make GNUInstallDirs put everything under usr/.
   "-DCMAKE_INSTALL_PREFIX=/xclang",
   `-DLLVM_DEFAULT_TARGET_TRIPLE=${host.triple}`,
+  ...compressionLibs.args,
 ];
 if (cross) args.push(`-DLLVM_HOST_TRIPLE=${host.triple}`);
 if (cross && host.os !== "darwin") args.push(`-DLLVM_NATIVE_TOOL_DIR=${nativeTools()}`);
@@ -161,6 +200,10 @@ if (host.os === "mingw" && mode !== "asan") windowsAliases(path.join(out, `toolc
 if (mode !== "instrumented") {
   const dest = path.join(out, `libclang-${name}`);
   install("install-development-distribution", dest);
+  /// The compression libraries the LLVM libraries link, with their
+  /// headers and zstd's CMake package: a consumer finds them with the
+  /// libclang directory in CMAKE_PREFIX_PATH.
+  common.copyTree(compressionLibs.prefix, dest);
   /// clice reaches into Sema's private headers.
   const sema = path.join(dest, "include", "clang", "Sema");
   fs.mkdirSync(sema, { recursive: true });

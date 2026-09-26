@@ -37,6 +37,16 @@ export const SOURCES = {
     url: `${LLVM}/LLVM-${LLVM_VERSION}-macOS-ARM64.tar.zst`,
     sha256: "3da0e91b5dfe3a5ec795ad2be79b3f5e6f28c8b23edcd3847fad7742b25e0507",
   },
+  /// Compression for the toolchain (compressed debug sections, profiles),
+  /// linked statically.
+  "zlib": {
+    url: `${GH}/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.xz`,
+    sha256: "38ef96b8dfe510d42707d9c781877914792541133e1870841463bfa73f883e32",
+  },
+  "zstd": {
+    url: `${GH}/facebook/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz`,
+    sha256: "eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3",
+  },
   /// The training corpus (pgo/train.ts).
   "abseil": {
     url: `${GH}/abseil/abseil-cpp/archive/refs/tags/20250814.1.tar.gz`,
