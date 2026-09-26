@@ -46,6 +46,28 @@ export const SOURCES = {
     url: "https://www.sqlite.org/2025/sqlite-autoconf-3500400.tar.gz",
     sha256: "a3db587a1b92ee5ddac2f66b3edb41b26f9c867275782d46c3a088977d6a5b18",
   },
+  /// The benchmark (tests/bench.ts): code the training never saw, and
+  /// LLVM's own builds of the hosts the bootstrap entries do not cover.
+  "fmt": {
+    url: `${GH}/fmtlib/fmt/archive/refs/tags/11.2.0.tar.gz`,
+    sha256: "bc23066d87ab3168f27cef3e97d545fa63314f5c79df5ea444d41d56f962c6af",
+  },
+  "lua": {
+    url: "https://www.lua.org/ftp/lua-5.4.7.tar.gz",
+    sha256: "9fbf5e28ef86c69858f6d3d34eccc32e911c1a28b4120ff3e84aaa70cfbf1e30",
+  },
+  "llvm-linux-arm64": {
+    url: `${LLVM}/LLVM-${LLVM_VERSION}-Linux-ARM64.tar.zst`,
+    sha256: "143308c82f8e21707be7fdc135d5e0ddd9a46a377ca9f38befc716fd842cb59b",
+  },
+  "llvm-windows-x64": {
+    url: `${LLVM}/clang+llvm-${LLVM_VERSION}-x86_64-pc-windows-msvc.tar.xz`,
+    sha256: "8fb91cdc44fcbbdcf6b3ffd0a1f9859abd14a3c3aae4423c2b6d4a4f90bf0095",
+  },
+  "llvm-windows-arm64": {
+    url: `${LLVM}/clang+llvm-${LLVM_VERSION}-aarch64-pc-windows-msvc.tar.xz`,
+    sha256: "9703cceafb5a0efd6c8720c9b6d35a0d0858079cd2175229e7fa4b922f3d8822",
+  },
   "mingw-w64": {
     url: `${GH}/mingw-w64/mingw-w64/archive/refs/tags/v${MINGW_VERSION}.tar.gz`,
     sha256: "d71cc644cd5a37c337f2719f3e0c79d89e8d8d5fb9e2952a62d3fa23623dc137",
@@ -141,7 +163,7 @@ export async function fetchSource(name: Source): Promise<string> {
   const dest = path.join(WORK, "downloads", url.slice(url.lastIndexOf("/") + 1));
   if (fs.existsSync(dest) && (await sha256Of(dest)) === sha256) return dest;
   fs.mkdirSync(path.dirname(dest), { recursive: true });
-  console.log(`downloading ${url}`);
+  console.error(`downloading ${url}`);
   const response = await fetch(url);
   if (!response.ok || !response.body) fail(`${url}: HTTP ${response.status}`);
   const partial = `${dest}.part`;

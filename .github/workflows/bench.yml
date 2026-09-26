@@ -1,0 +1,111 @@
+name: bench
+
+# Compile speed of xclang against LLVM's own 23.1.2 build (and Apple's
+# clang on macOS), each host on a machine of that host (tests/bench.ts).
+
+on:
+  workflow_dispatch:
+    inputs:
+      pgo-run:
+        description: Run holding the dist-* artifacts of the PGO build
+        type: string
+        required: true
+      nopgo-run:
+        description: Run holding dist-* artifacts built without PGO (optional)
+        type: string
+        default: ""
+      rounds:
+        type: string
+        default: "3"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  bench:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - host: x86_64-unknown-linux-gnu
+            os: ubuntu-24.04
+            official: bootstrap-linux
+          - host: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+            official: llvm-linux-arm64
+          - host: x86_64-w64-mingw32
+            os: windows-2025
+            official: llvm-windows-x64
+          - host: aarch64-w64-mingw32
+            os: windows-11-arm
+            official: llvm-windows-arm64
+          - host: aarch64-apple-darwin
+            os: macos-15
+            official: bootstrap-macos
+          - host: x86_64-apple-darwin
+            os: macos-15-intel
+            official: ""
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 240
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist-${{ matrix.host }}
+          path: dist/pgo
+          run-id: ${{ inputs.pgo-run }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v8
+        if: inputs.nopgo-run != ''
+        with:
+          name: dist-${{ matrix.host }}
+          path: dist/nopgo
+          run-id: ${{ inputs.nopgo-run }}
+          github-token: ${{ github.token }}
+      - name: Unpack
+        run: |
+          for kind in pgo nopgo; do
+            [[ -d dist/$kind ]] || continue
+            mkdir -p "$kind"
+            if [[ "$RUNNER_OS" == Windows ]]; then
+              7z x -y "-o$kind" dist/$kind/xclang-*.zip > /dev/null
+            else
+              tar -C "$kind" -xf dist/$kind/xclang-*.tar.xz
+            fi
+          done
+          if [[ -n "${{ matrix.official }}" ]]; then
+            archive=$(node scripts/fetch.ts ${{ matrix.official }})
+            mkdir -p official
+            if [[ "$RUNNER_OS" == Windows ]]; then
+              7z x -so "$archive" | 7z x -si -ttar -y -oofficial-raw > /dev/null
+              mv official-raw/*/* official/
+            else
+              command -v zstd || brew install zstd
+              zstd -dc --long=31 "$archive" | tar -C official -xf - --strip-components=1
+            fi
+          fi
+          ls pgo/xclang/bin | head -n 5
+      - name: Benchmark
+        run: |
+          exe=""; [[ "$RUNNER_OS" == Windows ]] && exe=.exe
+          here="$PWD"; [[ "$RUNNER_OS" == Windows ]] && here="$(cygpath -m "$PWD")"
+          args=(--tree "$here/pgo/xclang" --rounds "${{ inputs.rounds }}" --out bench-${{ matrix.host }}.json)
+          [[ -d official ]] && args+=(--compiler "official=$here/official/bin/clang++$exe" --config official)
+          args+=(--compiler "xclang-pgo=$here/pgo/xclang/bin/clang++$exe")
+          [[ -d nopgo ]] && args+=(--compiler "xclang-nopgo=$here/nopgo/xclang/bin/clang++$exe")
+          [[ "$RUNNER_OS" == macOS ]] && args+=(--compiler "apple=$(xcrun -f clang++)" --system apple)
+          node tests/bench.ts "${args[@]}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bench-${{ matrix.host }}
+          path: bench-${{ matrix.host }}.json
+          retention-days: 30
