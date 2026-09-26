@@ -57,7 +57,14 @@ set(CLANG_TIDY_ENABLE_QUERY_BASED_CUSTOM_CHECKS OFF CACHE BOOL "")
 
 set(LLVM_DISTRIBUTIONS "Toolchain;Development" CACHE STRING "")
 
+# One program, llvm, is clang, lld and every tool that can be built into
+# it; their names are links to it (on Windows, small programs that start
+# it: scripts/toolchain.ts). The tools share most of LLVM, which each one
+# would otherwise carry in full.
+set(LLVM_TOOL_LLVM_DRIVER_BUILD ON CACHE BOOL "")
+
 set(LLVM_Toolchain_DISTRIBUTION_COMPONENTS
+    llvm-driver
     clang
     clang-resource-headers
     clang-scan-deps
