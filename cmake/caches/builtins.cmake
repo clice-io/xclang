@@ -5,5 +5,9 @@ set(CMAKE_BUILD_TYPE Release CACHE STRING "")
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY CACHE STRING "")
 set(COMPILER_RT_DEFAULT_TARGET_ONLY ON CACHE BOOL "")
 set(COMPILER_RT_BUILD_BUILTINS ON CACHE BOOL "")
+# The __atomic_* functions of atomics too wide to be lock-free
+# (std::atomic<__int128> without cx16, of a struct), which GCC's
+# toolchains take from libatomic; there is none in the sysroots.
+set(COMPILER_RT_EXCLUDE_ATOMIC_BUILTIN OFF CACHE BOOL "")
 set(COMPILER_RT_INCLUDE_TESTS OFF CACHE BOOL "")
 set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR ON CACHE BOOL "")

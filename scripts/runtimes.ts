@@ -87,6 +87,9 @@ function cxx(t: common.Target, stage: string): void {
     `-DCMAKE_EXE_LINKER_FLAGS=${darwin ? "-nostdlib++" : "--rtlib=compiler-rt --unwindlib=none -nostdlib++"}`,
     ...NO_CONFIG,
   ]);
+  /// -latomic, which build scripts written for GCC pass, finds an empty
+  /// archive: the functions are compiler-rt's (cmake/caches/builtins.cmake).
+  if (!darwin) fs.writeFileSync(path.join(prefix, "lib", "libatomic.a"), "!<arch>\n");
 }
 
 function profile(t: common.Target, stage: string): void {
@@ -113,6 +116,7 @@ function compilerRtDarwin(stage: string): void {
     `-DCMAKE_LIBTOOL=${path.join(bin, "llvm-libtool-darwin")}`,
     "-C", path.join(caches, "compiler-rt.cmake"),
     "-DCOMPILER_RT_BUILD_BUILTINS=ON",
+    "-DCOMPILER_RT_EXCLUDE_ATOMIC_BUILTIN=OFF",
     "-DCOMPILER_RT_BUILD_SANITIZERS=ON",
     "-DCOMPILER_RT_DEFAULT_TARGET_ONLY=OFF",
     "-DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF",

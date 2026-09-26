@@ -125,6 +125,28 @@ for (const t of targets) {
   }
 }
 
+/// Atomics too wide to be lock-free, from compiler-rt; -latomic as GCC's
+/// toolchains want it.
+const atomics = write("atomics.cpp", `#include <atomic>
+#include <cstdio>
+struct Big { long a, b, c; };
+std::atomic<Big> big{Big{1, 2, 3}};
+std::atomic<__int128> wide{41};
+int main() {
+  Big b = big.load();
+  big.store({b.a, b.b, b.c + 1});
+  wide.fetch_add(1);
+  std::printf("atomics %ld %d\\n", big.load().c, static_cast<int>(wide.load()));
+}
+`);
+for (const t of targets) {
+  const out = path.join(work, `atomics-${t}${t.endsWith("mingw32") ? ".exe" : ""}`);
+  const latomic = t.includes("apple") ? [] : ["-latomic"];
+  if (run(tool("clang++"), [`--target=${t}`, "-O2", atomics, "-o", out, ...latomic]) === undefined || !runnable(t)) continue;
+  const output = run(out, []);
+  if (output !== undefined && !output.includes("atomics 4 42")) failures.push(`${out} printed ${JSON.stringify(output)}`);
+}
+
 /// Compressed debug sections (zlib and zstd in clang and lld), on an ELF
 /// target, which every host carries.
 for (const gz of ["zlib", "zstd"]) {
