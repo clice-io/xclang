@@ -75,6 +75,9 @@ if (host.triple === "x86_64-unknown-linux-gnu") {
 for (const variant of ["", "-asan"]) {
   const libclang = path.join(out, `libclang-${host.triple}${variant}`);
   if (!fs.existsSync(libclang)) continue;
+  for (const config of ["lib/cmake/llvm/LLVMConfig.cmake", "lib/cmake/clang/ClangConfig.cmake"]) {
+    if (!fs.existsSync(path.join(libclang, config))) common.fail(`no ${config} in ${libclang}`);
+  }
   const dir = path.join(common.WORK, "package", host.triple, `libclang${variant}`);
   fs.rmSync(dir, { recursive: true, force: true });
   common.copyTree(libclang, dir);
