@@ -30,6 +30,17 @@ function glibc(t: common.Target, dest: string): void {
   });
   withoutLinks(dest);
   withoutCaseClashes(dest);
+  /// glibc 2.17's libpthread.a is one object that redefines some of
+  /// libc.a's (__libc_sigaction, the cancellation points), so a static link
+  /// has to see it first, or both get pulled in; libunwind names it only
+  /// through its dependent-library note, after libc. libc.a becomes a linker
+  /// script that puts libpthread.a ahead of the archive itself. (A config
+  /// file option cannot: clang adds its link-only ones to a PCH build too.)
+  const lib = path.join(dest, "usr", "lib64");
+  fs.renameSync(path.join(lib, "libc.a"), path.join(lib, "libglibc.a"));
+  fs.writeFileSync(path.join(lib, "libc.a"),
+    "/* xclang: libpthread.a ahead of glibc's archive, for -static (scripts/sysroot.ts) */\n" +
+    "GROUP ( /usr/lib64/libpthread.a /usr/lib64/libglibc.a )\n");
   console.log(`glibc sysroot of ${t.triple} in ${dest}`);
 }
 
