@@ -1,0 +1,48 @@
+name: diag
+
+# Temporary: where ld64.lld's ThinLTO loses exception handling (LLVM's own
+# 23.1.2, macOS arm64).
+
+on:
+  workflow_dispatch:
+
+jobs:
+  mac:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - name: Diagnose
+        run: |
+          set +e
+          export SDKROOT=$(xcrun --show-sdk-path)
+          B=$PWD/work/bootstrap/bin
+          mkdir d && cd d
+          cat > t.cpp <<'SRC'
+          #include <cstdio>
+          #include <stdexcept>
+          int main() {
+            try { throw std::runtime_error("caught"); }
+            catch (const std::exception& e) { std::puts(e.what()); return 0; }
+            return 1;
+          }
+          SRC
+          for lto in thin full; do
+            mkdir $lto && (cd $lto && "$B/clang++" -O2 -flto=$lto -fuse-ld=lld -Wl,-save-temps ../t.cpp -o a.out; ./a.out; echo "$lto exit $?"; ls)
+          done
+          echo "=== unwind info"
+          for lto in thin full; do echo "--- $lto"; "$B/llvm-objdump" --macho --unwind-info $lto/a.out | head -n 40; done
+          echo "=== LSDA / eh_frame of the LTO objects"
+          for lto in thin full; do
+            for o in $lto/*.o; do echo "--- $o"; "$B/llvm-objdump" -h "$o" | grep -E 'compact|eh_frame|gcc_except'; "$B/llvm-objdump" -r --section=__compact_unwind "$o" | head -n 20; done
+          done
+          echo "=== relink the ThinLTO object without LTO"
+          obj=$(ls thin/*.o | head -n 1)
+          "$B/clang++" -fuse-ld=lld "$obj" -o relink-lld; ./relink-lld; echo "relink ld64.lld exit $?"
+          clang++ "$obj" -o relink-ld64 2>&1 | tail -n 3; ./relink-ld64; echo "relink Apple ld exit $?"
+          echo "=== thin with one backend thread, and without compact unwind"
+          "$B/clang++" -O2 -flto=thin -fuse-ld=lld -Wl,--thinlto-jobs=1 ../t.cpp -o jobs1 2>&1; ./jobs1; echo "jobs1 exit $?"
+          "$B/clang++" -O2 -flto=thin -fuse-ld=lld -Wl,-no_compact_unwind ../t.cpp -o nocu 2>&1; ./nocu; echo "no_compact_unwind exit $?"
+          "$B/clang++" -O2 -flto=thin -fuse-ld=lld -Wl,-mllvm,-emit-dwarf-unwind=always ../t.cpp -o dwarf 2>&1; ./dwarf; echo "dwarf unwind exit $?"
