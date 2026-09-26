@@ -26,17 +26,13 @@ platforms = ["linux-64", "osx-arm64", "win-64"]
 
 [dependencies]
 xclang = "23.1.2.1.*"
-# more targets than the host's own, as needed
-xclang-x86_64-w64-mingw32 = "*"
 ```
 
-`xclang` brings its own platform's target; `xclang-<triple>` (and
-`xclang-apple-darwin` for both macOS targets) adds another. Everything
-installs under `$PREFIX/opt/xclang`, whose `bin/` the environment's
-activation puts first in `PATH`; nothing goes to `$PREFIX/bin`, so
-conda-forge's compilers stay as they are. `llvm-option-inc` holds the option
-tables. Or take the archives from the GitHub release and unpack them
-anywhere.
+The package is the host's archive, every target included, under
+`$PREFIX/opt/xclang`, whose `bin/` the environment's activation puts first in
+`PATH`; nothing goes to `$PREFIX/bin`, so conda-forge's compilers stay as
+they are. `llvm-option-inc` holds the option tables. Or take the archives
+from the GitHub release and unpack them anywhere.
 
 ## Who it is for
 

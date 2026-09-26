@@ -21,11 +21,9 @@ platforms = ["linux-64", "osx-arm64", "win-64"]
 
 [dependencies]
 xclang = "23.1.2.1.*"
-# 需要主机平台以外的目标时再加
-xclang-x86_64-w64-mingw32 = "*"
 ```
 
-`xclang` 会带上本机平台对应的目标包；`xclang-<triple>`（macOS 两个目标合在 `xclang-apple-darwin` 里）用来加装其它目标。所有文件都装在 `$PREFIX/opt/xclang`，环境激活时把它的 `bin/` 放到 `PATH` 最前面；`$PREFIX/bin` 里不放任何东西，不影响 conda-forge 的编译器。`llvm-option-inc` 是选项表。也可以直接从 GitHub release 下载压缩包，解压到任意位置使用。
+这个包就是该主机平台的发布包，包含全部目标平台，装在 `$PREFIX/opt/xclang`，环境激活时把它的 `bin/` 放到 `PATH` 最前面；`$PREFIX/bin` 里不放任何东西，不影响 conda-forge 的编译器。`llvm-option-inc` 是选项表。也可以直接从 GitHub release 下载压缩包，解压到任意位置使用。
 
 ## 适合谁
 

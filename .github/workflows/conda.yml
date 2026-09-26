@@ -29,7 +29,11 @@ env:
   RATTLER_BUILD_SHA256: 38359a75f4a880442432923d6e984d349bb4134d330edd712eb1cfb2fa80581a
 
 jobs:
+  # One machine per host: zstd at level 22 takes minutes per package.
   build:
+    strategy:
+      matrix:
+        host: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, x86_64-w64-mingw32, aarch64-w64-mingw32, aarch64-apple-darwin, x86_64-apple-darwin]
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -47,15 +51,19 @@ jobs:
       - name: Release assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release download "${{ inputs.tag }}" -R "$GITHUB_REPOSITORY" -D dist -p 'xclang-*.tar.xz' -p 'llvm-option-inc-*.tar.xz'
+        run: gh release download "${{ inputs.tag }}" -R "$GITHUB_REPOSITORY" -D dist -p "xclang-*-${{ matrix.host }}.tar.xz" -p 'llvm-option-inc-*.tar.xz'
+      # llvm-option-inc (noarch) comes with Linux x64's package.
       - name: Package
         run: |
+          extra=(); [[ "${{ matrix.host }}" == x86_64-unknown-linux-gnu ]] && extra=(--option-inc)
           node scripts/conda.ts --dist dist --version "${{ inputs.tag }}" --build "${{ inputs.build }}" \
-            --rattler-build ./rattler-build --out channel > conda.log 2>&1 || { tail -n 200 conda.log; exit 1; }
+            --hosts "${{ matrix.host }}" "${extra[@]}" --rattler-build ./rattler-build --out channel > conda.log 2>&1 \
+            || { tail -n 200 conda.log; exit 1; }
           grep ' MB  ' conda.log | tee -a "$GITHUB_STEP_SUMMARY"
+          [[ -n "${extra[*]}" ]] || rm -rf channel/noarch
       - uses: actions/upload-artifact@v7
         with:
-          name: conda-channel
+          name: conda-${{ matrix.host }}
           path: |
             channel/*/*.conda
             channel/*/repodata.json
@@ -68,12 +76,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { host: x86_64-unknown-linux-gnu, os: ubuntu-24.04, subdir: linux-64, cross: xclang-x86_64-w64-mingw32, target: x86_64-w64-mingw32 }
-          - { host: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm, subdir: linux-aarch64, cross: xclang-x86_64-w64-mingw32, target: x86_64-w64-mingw32 }
-          - { host: x86_64-w64-mingw32, os: windows-2025, subdir: win-64, cross: xclang-x86_64-unknown-linux-gnu, target: x86_64-unknown-linux-gnu }
-          - { host: aarch64-w64-mingw32, os: windows-11-arm, subdir: win-arm64, cross: xclang-x86_64-unknown-linux-gnu, target: x86_64-unknown-linux-gnu }
-          - { host: aarch64-apple-darwin, os: macos-15, subdir: osx-arm64, cross: xclang-x86_64-unknown-linux-gnu, target: x86_64-unknown-linux-gnu }
-          - { host: x86_64-apple-darwin, os: macos-15-intel, subdir: osx-64, cross: xclang-x86_64-unknown-linux-gnu, target: x86_64-unknown-linux-gnu }
+          - { host: x86_64-unknown-linux-gnu, os: ubuntu-24.04, subdir: linux-64, target: x86_64-w64-mingw32 }
+          - { host: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm, subdir: linux-aarch64, target: x86_64-w64-mingw32 }
+          - { host: x86_64-w64-mingw32, os: windows-2025, subdir: win-64, target: x86_64-unknown-linux-gnu }
+          - { host: aarch64-w64-mingw32, os: windows-11-arm, subdir: win-arm64, target: x86_64-unknown-linux-gnu }
+          - { host: aarch64-apple-darwin, os: macos-15, subdir: osx-arm64, target: x86_64-unknown-linux-gnu }
+          - { host: x86_64-apple-darwin, os: macos-15-intel, subdir: osx-64, target: x86_64-unknown-linux-gnu }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     defaults:
@@ -82,14 +90,15 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: conda-channel
+          pattern: conda-*
+          merge-multiple: true
           path: channel
       - uses: prefix-dev/setup-pixi@v0.10.2
         with:
           pixi-version: v0.71.1
           run-install: false
       # A workspace on the local channel, as a user's would be on
-      # conda.clice.io: xclang, which brings its own target, and one more.
+      # conda.clice.io.
       - name: Install
         run: |
           channel="$PWD/channel"; [[ "$RUNNER_OS" == Windows ]] && channel="/$(cygpath -m "$PWD/channel")"
@@ -102,7 +111,6 @@ jobs:
 
           [dependencies]
           xclang = "==${{ inputs.tag }}"
-          ${{ matrix.cross }} = "*"
           llvm-option-inc = "*"
           TOML
           pixi install
@@ -126,7 +134,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: conda-channel
+          pattern: conda-*
+          merge-multiple: true
           path: channel
       - uses: clice-io/conda@main
         with:
