@@ -56,6 +56,18 @@ export const SOURCES = {
     url: "https://www.sqlite.org/2025/sqlite-autoconf-3500400.tar.gz",
     sha256: "a3db587a1b92ee5ddac2f66b3edb41b26f9c867275782d46c3a088977d6a5b18",
   },
+  "magic_enum": {
+    url: `${GH}/Neargye/magic_enum/archive/refs/tags/v0.9.7.tar.gz`,
+    sha256: "b403d3dad4ef542fdc3024fa37d3a6cedb4ad33c72e31b6d9bab89dcaf69edf7",
+  },
+  "json": {
+    url: `${GH}/nlohmann/json/releases/download/v3.12.0/json.tar.xz`,
+    sha256: "42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa",
+  },
+  "vulkan-headers": {
+    url: `${GH}/KhronosGroup/Vulkan-Headers/archive/refs/tags/vulkan-sdk-1.4.350.0.tar.gz`,
+    sha256: "70270d10bf2c1e074a06ee37a50b75d332993d1b80a1d9526eeed2da6d82ed22",
+  },
   /// The benchmark (tests/bench.ts): code the training never saw, and
   /// LLVM's own builds of the hosts the bootstrap entries do not cover.
   "fmt": {
