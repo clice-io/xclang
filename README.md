@@ -1,5 +1,7 @@
 # xclang
 
+[中文](README.zh-CN.md)
+
 A self-contained clang toolchain. One directory holds the compiler, the
 linker, the binary tools and, for every target it serves, the sysroot and
 the runtimes, so cross-compiling is a `--target` flag and nothing else:
@@ -81,13 +83,15 @@ macro, so a debug build opts in with `-D_LIBCPP_HARDENING_MODE=...`.
 ```
 xclang/
   bin/                     llvm and its names (clang, clang++, ld.lld, lld-link,
-                           llvm-ar, ...), the tools outside it (llvm-profdata,
-                           llvm-cov, llvm-dwarfdump, llvm-strings), <triple>.cfg
+                           llvm-ar, windres, ...), the tools outside it
+                           (llvm-profdata, llvm-cov, llvm-dwarfdump,
+                           llvm-strings, FileCheck), <triple>.cfg
   lib/clang/<ver>/         resource headers, compiler-rt for every target
   lib/libLTO.dylib         macOS hosts: LTO for the system's ld
   <triple>/                one directory per target: its sysroot with libc++
-                           in it (Linux: usr/include, usr/lib64; Windows and
-                           macOS: include/, lib/)
+                           in it (Linux: usr/include, usr/lib, and glibc in
+                           lib64 and usr/lib64; Windows and macOS: include/,
+                           lib/)
 ```
 
 The config files apply to native builds too, so a plain `clang++ main.cpp`
@@ -95,10 +99,18 @@ on Linux compiles against glibc 2.17 and links everything but glibc
 statically. `--no-default-config` gives the bare compiler, for building
 against the system's own headers and libraries.
 
-compiler-rt carries the builtins, the profile runtime, and for Linux and
-macOS targets AddressSanitizer and UBSan. zlib and zstd are linked in
-statically: `-gz=zlib`, `-gz=zstd` and compressed profiles work on every
-host.
+compiler-rt carries the builtins (with the `__atomic_*` functions of
+atomics too wide to be lock-free), the profile runtime, and for Linux and
+macOS targets AddressSanitizer, ThreadSanitizer, LeakSanitizer, UBSan and
+libFuzzer. zlib and zstd are linked in statically: `-gz=zlib`, `-gz=zstd`
+and compressed profiles work on every host.
+
+Build scripts written for GCC keep working: `-latomic`, `-lgcc`,
+`-lgcc_eh`, `-lgcc_s` (and on Windows `-lssp`, which `-fstack-protector`
+asks for) find empty archives, the functions being in compiler-rt,
+libunwind and mingw-w64; `-lstdc++` means libc++. `-static` links fully
+static Linux programs. `windres`, the name CMake looks for to compile a
+MinGW project's `.rc` files, is `llvm-windres`.
 
 The Linux sysroots hold what compiling and linking read (headers, startup
 files, libraries), not glibc's programs, locales or gconv modules, and no
@@ -140,10 +152,27 @@ goes in as a subcommand because LLVM on Windows replaces the file name in
    depend only on the source, so the profile recorded on Linux applies to
    every host; a remapping file matches names whose mangling differs
    (`unsigned long` against `unsigned long long`).
-4. Each host's archive is tested on that host before the release is
+4. Each host's archives are tested on that host before the release is
    published: its own programs load no C++ runtime (and need glibc 2.17
-   at most), C and C++ programs build for every target and run where they
-   can, and `import std`, a PCH and ThinLTO work natively.
+   at most); C and C++ programs build for every target and run where they
+   can, with wide atomics, hardening flags, GCC's library names, a version
+   resource, and `-static` on Linux; `import std`, a PCH, ThinLTO, ASan,
+   TSan and libFuzzer work natively; and a small tool on libclang, found
+   through `find_package(Clang)`, builds and runs.
+
+## Limits
+
+- Linux: glibc 2.17 has no `rcrt1.o`, so no `-static-pie`, and its
+  `gcrt1.o` is not position-independent, so `-pg` needs `-no-pie`.
+  `libquadmath` is GCC's own: `__float128` arithmetic works, `quadmath.h`
+  does not exist.
+- No OpenMP runtime (`-fopenmp`), no sanitizers for Windows targets, no
+  MemorySanitizer.
+- libc++ is linked into every program and shared library on its own and
+  hidden, so on Linux and macOS a standard exception thrown by one shared
+  library is caught by type in another only as `catch (...)`: each has its
+  own `std::exception` type information. Windows compares it by name.
+- No clang-format, clang-tidy or clangd binaries.
 
 ## Repository
 
@@ -155,7 +184,9 @@ config/            the per-target clang config files
 scripts/           TypeScript, run by Node: bootstrap, runtimes (with the
                    sysroots), toolchain, package
 pgo/               the training (train.ts, its corpus) and remap.txt
-tests/smoke.ts     the per-host checks
+windows/alias.c    the launcher behind every name of llvm.exe
+tests/             smoke.ts and libclang.ts, the per-host checks; bench.ts,
+                   compile speed against other compilers
 .github/workflows/ main.yml runs the stages above, by hand
 ```
 
@@ -170,7 +201,8 @@ themselves need CI-sized machines.
 | PGO training on Linux x64 | done: 23 min, about 1700 compiler runs |
 | PGO + ThinLTO toolchain and libclang of all six hosts | done: about 2 h per host |
 | ASan libclang (Linux x64, macOS arm64) | done |
-| per-host smoke tests | done |
+| per-host smoke tests, libclang consumer test | done |
+| catter built with xclang (Linux, Windows) | done, with its tests |
 | draft GitHub release | done |
 | patch series against LLVM | later |
 | conda packages on [conda.clice.io](https://conda.clice.io) | later |
