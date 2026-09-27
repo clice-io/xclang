@@ -229,3 +229,45 @@ jobs:
           pixi run -e dev npm-install
           ( for i in $(seq 1 25); do sleep 60; echo "=== $i min"; ps -axww -o pid,ppid,etime,command | grep -vE "ps -ax|sleep 60|Runner.|hosted-compute|/System/|/usr/libexec|/usr/sbin|launchd" | tail -25; done ) &
           perl -e 'alarm shift; exec @ARGV' 1500 pixi run -e dev xmake config --clean --yes --test=y --mode=release --toolchain=clang -vD
+
+  # Visual Studio lookup through the Setup API (LLVM's
+  # findVCToolChainViaSetupConfig) built for MinGW, next to what clang finds
+  # today: xclang's MinGW-built clang and the runner's MSVC-built LLVM,
+  # neither with a Visual Studio environment.
+  setupapi:
+    if: contains(github.event.head_commit.message, '[setupapi]')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-2025, host: x86_64-w64-mingw32 }
+          - { os: windows-11-arm, host: aarch64-w64-mingw32 }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: xclang
+        run: |
+          curl -fsSL -o x.tar.xz https://github.com/clice-io/xclang/releases/download/23.1.2.2/xclang-23.1.2.2-${{ matrix.host }}.tar.xz
+          /c/Windows/System32/tar.exe -xf x.tar.xz
+          env | grep -iE '^(VCToolsInstallDir|VCINSTALLDIR|INCLUDE)=' || echo "no Visual Studio environment"
+          command -v cl.exe || echo "no cl.exe in PATH"
+      - name: Setup API, MinGW build
+        run: |
+          xclang/bin/clang++ -std=c++17 -fno-exceptions -fno-rtti -O2 -Iacceptance/setupapi \
+            acceptance/setupapi/setup_test.cpp -o setup_test.exe -lole32 -loleaut32
+          ./setup_test.exe
+      - name: MSVC headers clang finds
+        if: ${{ !cancelled() }}
+        run: |
+          echo 'int main() {}' > t.cpp
+          arch=${{ startsWith(matrix.host, 'aarch64') && 'aarch64' || 'x86_64' }}
+          for clang in xclang/bin/clang++ "/c/Program Files/LLVM/bin/clang++"; do
+            echo "== $clang"
+            "$clang" --version | head -1 || continue
+            "$clang" --target=$arch-pc-windows-msvc -### -c t.cpp 2>&1 | grep -o '"-internal-isystem" "[^"]*"' || true
+          done
