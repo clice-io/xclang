@@ -110,6 +110,17 @@ macOS 上的链接器是系统的 `ld`，LTO 用 xclang 自带的 `libLTO.dylib`
    - 本机上 `import std`、PCH、ThinLTO、ASan、TSan 和 libFuzzer 都能用；
    - 一个通过 `find_package(Clang)` 找到 libclang 的小工具能编译并运行。
 
+## 补丁
+
+xclang 用 LLVM 发布版的源码，加上 `patches/` 里的修改来构建。每个补丁一个目录：补丁本身，以及一个 README，写明改了什么、为什么改、上游的状态。补丁在源码解包后按目录名的顺序打上，所以在某个 tag 上重新运行 workflow，构建出的就是同样的东西；libclang 的清单里列出了用到的补丁（`XCLANG_PATCHES`）。
+
+| | |
+|---|---|
+| `0001-sema-partial-ordering-depth` | 模板偏序在模板自己的深度上推导：在类模板里做代码补全不再让 clang 崩溃（[clice#701](https://github.com/clice-io/clice/issues/701)） |
+| `0002-completion-unresolved-member-base` | Sema 找不到成员访问的基类时，补全仍然交出成员访问的上下文 |
+| `0003-completion-context-base-expr` | `CodeCompletionContext::getBaseExpr`，即写出来的成员访问基表达式 |
+| `0004-windows-driver-setup-api-mingw` | MinGW 构建的 clang 也通过 Setup API 找到 Visual Studio 2017 及以后的版本，和 MSVC 构建的一样（[clice#714](https://github.com/clice-io/clice/issues/714)） |
+
 ## 限制
 
 - Linux：glibc 2.17 没有 `rcrt1.o`，所以不支持 `-static-pie`；它的 `gcrt1.o` 不是位置无关代码，所以 `-pg` 要加 `-no-pie`。`libquadmath` 是 GCC 独有的：`__float128` 运算可以用，但没有 `quadmath.h`。
@@ -127,6 +138,7 @@ scripts/                TypeScript，用 Node 运行：bootstrap、runtimes（�
                         toolchain、package
 pgo/                    训练脚本（train.ts 及其语料）和 remap.txt
 windows/alias.c         llvm.exe 每个名字背后的启动器
+patches/                对 LLVM 的修改，每个一个目录和一个 README
 tests/                  smoke.ts 和 libclang.ts，各主机平台的检查；bench.ts，
                         和其它编译器比较编译速度
 conda/                  激活脚本；scripts/conda.ts 打 conda 包，conda.yml 测试并发布
@@ -147,7 +159,7 @@ conda/                  激活脚本；scripts/conda.ts 打 conda 包，conda.ym
 | 用 xclang 构建 clice 和 catter | 完成：[clice#712](https://github.com/clice-io/clice/pull/712)、[catter#154](https://github.com/clice-io/catter/pull/154) |
 | [23.1.2.1](https://github.com/clice-io/xclang/releases/tag/23.1.2.1) | 已发布 |
 | [23.1.2.2](https://github.com/clice-io/xclang/releases/tag/23.1.2.2) | 已发布：由 23.1.2.1 构建 |
-| 针对 LLVM 的补丁集 | 以后 |
+| 针对 LLVM 的补丁集 | 已开始：`patches/`，自 23.1.2.3 起 |
 | [conda.clice.io](https://conda.clice.io) 上的 conda 包 | 完成：每个主机平台都用 pixi 测试过 |
 
 xclang 是为 [clice](https://github.com/clice-io/clice) 开发的，clice 的发布构建是它的第一个用户。

@@ -244,6 +244,8 @@ if (mode !== "instrumented") {
     RTTI: "OFF",
     STDLIB: "libc++",
     LIBCXX_HARDENING_MODE: "none",
+    /// patches/ applied to LLVM, in order.
+    PATCHES: common.patches().map((p) => p.name).join(";"),
     OSX_DEPLOYMENT_TARGET: host.os === "darwin" ? common.MACOS_MIN : "",
   };
   const file = path.join(dest, "lib", "cmake", "xclang", "libclang.cmake");

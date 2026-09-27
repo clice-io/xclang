@@ -179,6 +179,21 @@ goes in as a subcommand because LLVM on Windows replaces the file name in
    TSan and libFuzzer work natively; and a small tool on libclang, found
    through `find_package(Clang)`, builds and runs.
 
+## Patches
+
+xclang builds LLVM's release source with the changes in `patches/`, one
+directory each: the patch and a README on what it changes, why, and its
+state upstream. They are applied in the order of the directories right
+after the source is unpacked, so a tag's workflow, run again, builds the
+same thing; libclang's manifest lists them (`XCLANG_PATCHES`).
+
+| | |
+|---|---|
+| `0001-sema-partial-ordering-depth` | partial ordering deduces at the templates' own depth: code completion in a class template no longer crashes clang ([clice#701](https://github.com/clice-io/clice/issues/701)) |
+| `0002-completion-unresolved-member-base` | member-access completion reports its context when Sema finds no class for the base |
+| `0003-completion-context-base-expr` | `CodeCompletionContext::getBaseExpr`, the member base as written |
+| `0004-windows-driver-setup-api-mingw` | the MinGW-built clang finds Visual Studio 2017 and later through the Setup API, like the MSVC-built one ([clice#714](https://github.com/clice-io/clice/issues/714)) |
+
 ## Limits
 
 - Linux: glibc 2.17 has no `rcrt1.o`, so no `-static-pie`, and its
@@ -204,6 +219,7 @@ scripts/           TypeScript, run by Node: bootstrap, runtimes (with the
                    sysroots), toolchain, package
 pgo/               the training (train.ts, its corpus) and remap.txt
 windows/alias.c    the launcher behind every name of llvm.exe
+patches/           changes to LLVM, a directory and a README each
 tests/             smoke.ts and libclang.ts, the per-host checks; bench.ts,
                    compile speed against other compilers
 conda/             activation scripts; scripts/conda.ts makes the packages,
@@ -226,7 +242,7 @@ themselves need CI-sized machines.
 | clice and catter built with xclang | done: [clice#712](https://github.com/clice-io/clice/pull/712), [catter#154](https://github.com/clice-io/catter/pull/154) |
 | [23.1.2.1](https://github.com/clice-io/xclang/releases/tag/23.1.2.1) | published |
 | [23.1.2.2](https://github.com/clice-io/xclang/releases/tag/23.1.2.2) | published: built by 23.1.2.1 |
-| patch series against LLVM | later |
+| patch series against LLVM | started: `patches/`, from 23.1.2.3 |
 | conda packages on [conda.clice.io](https://conda.clice.io) | done: tested with pixi on every host |
 
 xclang is developed for [clice](https://github.com/clice-io/clice), whose

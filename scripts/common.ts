@@ -32,12 +32,12 @@ export const SOURCES = {
   /// and macOS arm64 toolchains build the next one. (23.1.2.1 itself was
   /// built by LLVM's own release builds, llvm-linux-x64 and llvm-macos-arm64.)
   "bootstrap-linux": {
-    url: `${XCLANG}/23.1.2.1/xclang-23.1.2.1-x86_64-unknown-linux-gnu.tar.xz`,
-    sha256: "581f0673dc9a847c37616dd8256eed53355ea0c5cd321d13292087f0a39e34d6",
+    url: `${XCLANG}/23.1.2.2/xclang-23.1.2.2-x86_64-unknown-linux-gnu.tar.xz`,
+    sha256: "75bfb56269434b8442f0c801cbc20f5005538335b47216972d9cc673e5a35628",
   },
   "bootstrap-macos": {
-    url: `${XCLANG}/23.1.2.1/xclang-23.1.2.1-aarch64-apple-darwin.tar.xz`,
-    sha256: "ec64a3feb039a3cb7afcfe0d8cdeea1f952cf40fc1786b06afa93229e460cbd7",
+    url: `${XCLANG}/23.1.2.2/xclang-23.1.2.2-aarch64-apple-darwin.tar.xz`,
+    sha256: "ebe7c218fff7553d39cc9259b50867518b61ad223c1a1b46441a014d3750eaf4",
   },
   /// Compression for the toolchain (compressed debug sections, profiles),
   /// linked statically.
@@ -264,11 +264,37 @@ export function extract(archive: string, dest: string, keep?: (member: string) =
   }
 }
 
-/// The llvm-project source tree, unpacked once.
+/// The patches of patches/, in the order of their directories: each
+/// directory holds one .patch against llvm-project and its README.
+export function patches(): { name: string; file: string }[] {
+  const dir = path.join(ROOT, "patches");
+  return fs.readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort()
+    .map((name) => {
+      const files = fs.readdirSync(path.join(dir, name)).filter((f) => f.endsWith(".patch"));
+      if (files.length !== 1) fail(`patches/${name} holds ${files.length} .patch files, not one`);
+      return { name, file: path.join(dir, name, files[0]) };
+    });
+}
+
+/// The llvm-project source tree with the patches applied, unpacked once.
+/// A tree patched by another series (its .xclang-patches differs) is
+/// unpacked again.
 export async function llvmSource(): Promise<string> {
   const src = path.join(WORK, "src", `llvm-project-${LLVM_VERSION}`);
-  if (!fs.existsSync(path.join(src, "llvm", "CMakeLists.txt"))) {
+  const series = patches()
+    .map((p) => `${p.name} ${createHash("sha256").update(fs.readFileSync(p.file)).digest("hex")}\n`)
+    .join("");
+  const stamp = path.join(src, ".xclang-patches");
+  const current = fs.existsSync(stamp) ? fs.readFileSync(stamp, "utf8") : undefined;
+  if (current !== series || !fs.existsSync(path.join(src, "llvm", "CMakeLists.txt"))) {
+    fs.rmSync(src, { recursive: true, force: true });
     extract(await fetchSource("llvm-project"), src);
+    /// No fuzz: a patch applies where it was made or fails.
+    for (const p of patches()) run("patch", ["-p1", "-F0", "--forward", "--silent", "-i", p.file], { cwd: src });
+    fs.writeFileSync(stamp, series);
   }
   return src;
 }

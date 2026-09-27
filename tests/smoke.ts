@@ -197,6 +197,17 @@ for (const gz of ["zlib", "zstd"]) {
   if (!(result.stderr ?? "").includes('"-lstdc++"')) failures.push(`clang++ ${args.join(" ")} links no libstdc++`);
 }
 
+/// Visual Studio through its Setup API (patches/0004), with none of a
+/// Developer Command Prompt's variables, on a Windows host that has it.
+const vswhere = path.join(process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)", "Microsoft Visual Studio", "Installer", "vswhere.exe");
+if (windows && fs.existsSync(vswhere)) {
+  const env = { ...process.env };
+  for (const name of ["VCToolsInstallDir", "VCINSTALLDIR", "INCLUDE"]) delete env[name];
+  const args = [`--target=${arch}-pc-windows-msvc`, "-###", "-c", helloC];
+  const result = spawnSync(tool("clang++"), args, { encoding: "utf8", cwd: work, env });
+  if (!/VC\\\\Tools\\\\MSVC\\\\/.test(result.stderr ?? "")) failures.push(`clang++ ${args.join(" ")} finds no Visual Studio: ${result.stderr}`);
+}
+
 /// 3. Native: the sanitizers and libFuzzer (Linux, macOS), import std, a
 /// precompiled header, ThinLTO.
 function expectReport(label: string, program: string, args: string[], text: string): void {
