@@ -120,6 +120,7 @@ xclang 用 LLVM 发布版的源码，加上 `patches/` 里的修改来构建。�
 | `0002-completion-unresolved-member-base` | Sema 找不到成员访问的基类时，补全仍然交出成员访问的上下文 |
 | `0003-completion-context-base-expr` | `CodeCompletionContext::getBaseExpr`，即写出来的成员访问基表达式 |
 | `0004-windows-driver-setup-api-mingw` | MinGW 构建的 clang 也通过 Setup API 找到 Visual Studio 2017 及以后的版本，和 MSVC 构建的一样（[clice#714](https://github.com/clice-io/clice/issues/714)） |
+| `0005-libcxx-asan-odr-signature` | 开了 ASan 的程序不再和未插桩的 libc++.a 共用 libc++ 的内部函数；两者混用会误报 container-overflow |
 
 ## 限制
 

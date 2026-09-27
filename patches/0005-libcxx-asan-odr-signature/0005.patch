@@ -1,0 +1,26 @@
+diff --git a/libcxx/include/__configuration/attributes.h b/libcxx/include/__configuration/attributes.h
+index a49bedd1b874..0670fdccf2d8 100644
+--- a/libcxx/include/__configuration/attributes.h
++++ b/libcxx/include/__configuration/attributes.h
+@@ -150,9 +150,20 @@
+ #  define _LIBCPP_EXCEPTIONS_SIG e
+ #endif
+ 
++// With ASan's container annotations (__debug_utils/sanitizers.h), functions
++// of the same name differ as well: an instrumented program must not get the
++// uninstrumented copies of the built library, or the other way around.
++#if __has_feature(address_sanitizer) && !defined(__SANITIZER_DISABLE_CONTAINER_OVERFLOW__)
++#  define _LIBCPP_ASAN_SIG a
++#else
++#  define _LIBCPP_ASAN_SIG
++#endif
++
+ #define _LIBCPP_ODR_SIGNATURE                                                                                          \
+   _LIBCPP_CONCAT(                                                                                                      \
+-      _LIBCPP_CONCAT(_LIBCPP_CONCAT(_LIBCPP_HARDENING_SIG, _LIBCPP_ASSERTION_SEMANTIC_SIG), _LIBCPP_EXCEPTIONS_SIG),   \
++      _LIBCPP_CONCAT(                                                                                                  \
++          _LIBCPP_CONCAT(_LIBCPP_CONCAT(_LIBCPP_HARDENING_SIG, _LIBCPP_ASSERTION_SEMANTIC_SIG), _LIBCPP_EXCEPTIONS_SIG), \
++          _LIBCPP_ASAN_SIG),                                                                                           \
+       _LIBCPP_VERSION)
+ 
+ // This macro marks a symbol as being hidden from libc++'s ABI. This is achieved

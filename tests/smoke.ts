@@ -244,6 +244,29 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   }
 }
 
+/// An ASan program sharing an instantiation with the uninstrumented libc++.a
+/// (patches/0005): no false container overflow.
+if (!windows) {
+  const source = write("sanitize-libcxx.cpp", `#include <cstdio>
+#include <filesystem>
+#include <string_view>
+#include <vector>
+int main(int argc, char**) {
+  std::vector<std::string_view> parts;
+  for (int i = 0; i < argc * 9; ++i) parts.push_back(std::string_view("x"));
+  auto path = std::filesystem::weakly_canonical("/nonexistent/a/b/c/d/e/f/g/h/i/j/k/l/m/n");
+  std::printf("%zu %s\\n", parts.size(), path.c_str());
+}
+`);
+  const out = path.join(work, "sanitize-libcxx");
+  if (run(tool("clang++"), [`--target=${native}`, "-std=c++23", "-fsanitize=address", "-g", "-O0", source, "-o", out]) !== undefined) {
+    const result = spawnSync(out, [], { encoding: "utf8", cwd: work });
+    if (result.status !== 0 || /AddressSanitizer/.test(result.stderr ?? "")) {
+      failures.push(`libc++ under ASan: ${(result.stderr ?? "").slice(0, 2000)}`);
+    }
+  }
+}
+
 const manifest = run(tool("clang++"), [`--target=${native}`, "-print-library-module-manifest-path"])?.trim();
 if (manifest && fs.existsSync(manifest)) {
   const std = JSON.parse(fs.readFileSync(manifest, "utf8")).modules.find((m: { "logical-name": string }) => m["logical-name"] === "std");

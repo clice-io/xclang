@@ -193,6 +193,7 @@ same thing; libclang's manifest lists them (`XCLANG_PATCHES`).
 | `0002-completion-unresolved-member-base` | member-access completion reports its context when Sema finds no class for the base |
 | `0003-completion-context-base-expr` | `CodeCompletionContext::getBaseExpr`, the member base as written |
 | `0004-windows-driver-setup-api-mingw` | the MinGW-built clang finds Visual Studio 2017 and later through the Setup API, like the MSVC-built one ([clice#714](https://github.com/clice-io/clice/issues/714)) |
+| `0005-libcxx-asan-odr-signature` | ASan programs no longer share libc++'s internal functions with the uninstrumented libc++.a, whose mix gave false container-overflow reports |
 
 ## Limits
 
