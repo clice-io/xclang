@@ -29,7 +29,8 @@ still produce a false report (ASan's documented limitation, not libc++'s);
 an `import std` built without `-fsanitize=address` gives an ASan program
 no container checks at all, so build the module with the same flags.
 
-- Upstream: not submitted; a candidate, with a test modelled on
+- Upstream: [#226789](https://github.com/llvm/llvm-project/issues/226789);
+  the patch is a candidate fix, with a test modelled on
   `odr_signature.*.sh.cpp`.
 - Checked: a program calling `std::filesystem::weakly_canonical` and
   `relative` after its own `vector<string_view>::push_back`, at `-O0` with
