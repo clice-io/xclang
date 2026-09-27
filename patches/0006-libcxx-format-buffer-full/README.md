@@ -24,7 +24,8 @@ leaves exactly one free slot, could be left full. The `__transform` hunk
 is defensive: its only caller, integer `{:X}`, writes a few dozen code
 units at most.
 
-- Upstream: #154670, open; this is a candidate fix for it.
+- Upstream: #154670; fix in [#226791](https://github.com/llvm/llvm-project/pull/226791),
+  with a regression test, to be backported to 23.x once merged.
 - Checked: `format_to` of a 256-code-unit argument and a literal into a
   `back_inserter(std::string)` is a stack-buffer-overflow under ASan with
   xclang 23.1.2.2's headers and correct with the patched ones; for every
