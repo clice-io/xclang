@@ -12,27 +12,26 @@ index 4747df5..dbe00ae 100644
    MSVCPaths.cpp
  
 diff --git a/llvm/lib/WindowsDriver/MSVCPaths.cpp b/llvm/lib/WindowsDriver/MSVCPaths.cpp
-index 09468da..b7f818f 100644
+index 09468da..d8190ad 100644
 --- a/llvm/lib/WindowsDriver/MSVCPaths.cpp
 +++ b/llvm/lib/WindowsDriver/MSVCPaths.cpp
-@@ -35,8 +35,8 @@
+@@ -35,8 +35,7 @@
  #include <windows.h>
  #endif
  
 -#ifdef _MSC_VER
 -// Don't support SetupApi on MinGW.
 +#if defined(_MSC_VER) || defined(__MINGW32__)
-+// mingw-w64 has the COM support classes of comdef.h too.
  #define USE_MSVC_SETUP_API
  
  // Make sure this comes before MSVCSetupApi.h
-@@ -51,6 +51,24 @@
+@@ -51,6 +50,24 @@
  #ifdef __clang__
  #pragma clang diagnostic pop
  #endif
 +#ifdef __MINGW32__
-+// mingw-w64's __uuidof (without -fms-extensions) takes the IDs from these
-+// declarations, not from DECLSPEC_UUID.
++// mingw-w64 emulates __uuidof, which takes the IIDs from __CRT_UUID_DECL
++// rather than from the DECLSPEC_UUID in MSVCSetupApi.h.
 +__CRT_UUID_DECL(ISetupInstance, 0xB41463C3, 0x8866, 0x43B5, 0xBC, 0x33, 0x2B,
 +                0x06, 0x76, 0xF7, 0xF4, 0x2E)
 +__CRT_UUID_DECL(ISetupInstance2, 0x89143C9A, 0x05AF, 0x49B0, 0xB7, 0x17, 0x72,

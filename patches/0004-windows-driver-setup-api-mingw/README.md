@@ -11,7 +11,7 @@ Developer Command Prompt set `VCToolsInstallDir` or put `cl.exe` in PATH
 
 mingw-w64 has the COM support classes the lookup uses (comdef.h, comip.h,
 comutil.h, also without exceptions). What it lacks is the interface IDs:
-its `__uuidof` (without `-fms-extensions`) takes them from
+its `__uuidof` is emulated (always, unless `_MSC_VER`) and takes them from
 `__CRT_UUID_DECL`, not from `DECLSPEC_UUID`. The patch enables the lookup
 on MinGW, declares the IDs, and links LLVMWindowsDriver with ole32 and
 oleaut32.
@@ -22,15 +22,15 @@ is looked up only once the VC tools are found, with code that is the same
 on MinGW; without them a MinGW-built clang also fell back to a hard-coded
 list of Visual Studio 2010 to 2005 directories (clang's MSVC.cpp).
 
-- Upstream: not submitted yet; a candidate. For it: say that the 2017
-  change lacked the interface IDs of mingw-w64's `__uuidof` (inferred; its
-  message gives no reason), add a GCC `-Wnon-virtual-dtor` pragma next to
-  clang's, and note that ole32 already comes with LLVMSupport. Separately,
+- Upstream: [#226794](https://github.com/llvm/llvm-project/pull/226794),
+  this patch as sent. GCC needs no pragma of its own: LLVM turns on
+  `-Wnon-virtual-dtor` only for clang. Separately, not reported:
   `sys::InitializeCOMRAII` calls `CoUninitialize` even when
   `CoInitializeEx` failed (a thread already in another apartment), which
   releases the caller's reference; the same in MSVC builds.
-- Checked: MSVCPaths.cpp compiles for x86_64 and aarch64 MinGW, with and
-  without `-fms-extensions`, and every `__uuidof` resolves. The lookup,
+- Checked: MSVCPaths.cpp compiles without warnings for x86_64 and aarch64
+  MinGW, with and without `-fms-extensions`, every `__uuidof` resolves, and
+  the seven IDs match MSVCSetupApi.h's `DECLSPEC_UUID`s. The lookup,
   built for MinGW with xclang, found Visual Studio 18 on windows-2025 and
   Visual Studio 2022 on windows-11-arm with no Visual Studio environment,
   as LLVM's MSVC-built clang does, where xclang 23.1.2.2's clang found
