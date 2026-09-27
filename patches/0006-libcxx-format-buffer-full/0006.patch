@@ -1,0 +1,40 @@
+diff --git a/libcxx/include/__format/buffer.h b/libcxx/include/__format/buffer.h
+index e7454f08f45d..c6fedf8a042e 100644
+--- a/libcxx/include/__format/buffer.h
++++ b/libcxx/include/__format/buffer.h
+@@ -250,6 +250,11 @@ public:
+       __first += __chunk;
+       __n -= __chunk;
+     } while (__n);
++
++    // Like push_back: a full buffer is made room in right away, since
++    // push_back writes before it checks.
++    if (__size_ == __capacity_)
++      __prepare_write(0);
+   }
+ 
+   /// A std::transform wrapper.
+@@ -276,6 +281,11 @@ public:
+       __first += __chunk;
+       __n -= __chunk;
+     } while (__n);
++
++    // Like push_back: a full buffer is made room in right away, since
++    // push_back writes before it checks.
++    if (__size_ == __capacity_)
++      __prepare_write(0);
+   }
+ 
+   /// A \c fill_n wrapper.
+@@ -293,6 +303,11 @@ public:
+       __size_ += __chunk;
+       __n -= __chunk;
+     } while (__n);
++
++    // Like push_back: a full buffer is made room in right away, since
++    // push_back writes before it checks.
++    if (__size_ == __capacity_)
++      __prepare_write(0);
+   }
+ 
+   [[nodiscard]] _LIBCPP_HIDE_FROM_ABI size_t __capacity() const { return __capacity_; }

@@ -121,6 +121,7 @@ xclang 用 LLVM 发布版的源码，加上 `patches/` 里的修改来构建。�
 | `0003-completion-context-base-expr` | `CodeCompletionContext::getBaseExpr`，即写出来的成员访问基表达式 |
 | `0004-windows-driver-setup-api-mingw` | MinGW 构建的 clang 也通过 Setup API 找到 Visual Studio 2017 及以后的版本，和 MSVC 构建的一样（[clice#714](https://github.com/clice-io/clice/issues/714)） |
 | `0005-libcxx-asan-odr-signature` | 开了 ASan 的程序不再和未插桩的 libc++.a 共用 libc++ 的内部函数；两者混用会误报 container-overflow |
+| `0006-libcxx-format-buffer-full` | `std::format_to` 写入容器时，参数长度为 256 的倍数不再导致写出 256 字节的栈上缓冲区 |
 
 ## 限制
 

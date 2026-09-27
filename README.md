@@ -194,6 +194,7 @@ same thing; libclang's manifest lists them (`XCLANG_PATCHES`).
 | `0003-completion-context-base-expr` | `CodeCompletionContext::getBaseExpr`, the member base as written |
 | `0004-windows-driver-setup-api-mingw` | the MinGW-built clang finds Visual Studio 2017 and later through the Setup API, like the MSVC-built one ([clice#714](https://github.com/clice-io/clice/issues/714)) |
 | `0005-libcxx-asan-odr-signature` | ASan programs no longer share libc++'s internal functions with the uninstrumented libc++.a, whose mix gave false container-overflow reports |
+| `0006-libcxx-format-buffer-full` | `std::format_to` into a container no longer writes past its 256-code-unit stack buffer after an argument whose length is a multiple of 256 |
 
 ## Limits
 

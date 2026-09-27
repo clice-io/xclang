@@ -267,6 +267,27 @@ int main(int argc, char**) {
   }
 }
 
+/// format_to into a container after an argument of 256 code units
+/// (patches/0006): no write past libc++'s stack buffer.
+if (!windows) {
+  const source = write("format-256.cpp", `#include <cstdio>
+#include <format>
+#include <iterator>
+#include <string>
+int main() {
+  std::string out;
+  std::format_to(std::back_inserter(out), "{}!", std::string(256, 'a'));
+  std::printf("%zu\\n", out.size());
+  return out.size() == 257 ? 0 : 1;
+}
+`);
+  const out = path.join(work, "format-256");
+  if (run(tool("clang++"), [`--target=${native}`, "-std=c++23", "-fsanitize=address", "-g", "-O0", source, "-o", out]) !== undefined) {
+    const result = spawnSync(out, [], { encoding: "utf8", cwd: work });
+    if (result.status !== 0) failures.push(`format_to after 256 code units: ${(result.stderr ?? "").slice(0, 2000)}`);
+  }
+}
+
 const manifest = run(tool("clang++"), [`--target=${native}`, "-print-library-module-manifest-path"])?.trim();
 if (manifest && fs.existsSync(manifest)) {
   const std = JSON.parse(fs.readFileSync(manifest, "utf8")).modules.find((m: { "logical-name": string }) => m["logical-name"] === "std");
