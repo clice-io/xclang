@@ -271,3 +271,35 @@ jobs:
             "$clang" --version | head -1 || continue
             "$clang" --target=$arch-pc-windows-msvc -### -c t.cpp 2>&1 | grep -o '"-internal-isystem" "[^"]*"' || true
           done
+
+  # lld's Mach-O port gives the zero-length __text of an empty object an
+  # __unwind_info entry with encoding 0 at the next function's address,
+  # after that function's own: the program's exceptions then terminate.
+  # LLVM's own 23.1.2 release, against Apple's ld.
+  unwind:
+    if: contains(github.event.head_commit.message, '[unwind]')
+    runs-on: macos-15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: LLVM 23.1.2
+        run: |
+          curl -fsSL -o llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.2/LLVM-23.1.2-macOS-ARM64.tar.xz
+          mkdir llvm && tar -C llvm --strip-components=1 -xf llvm.tar.xz
+          llvm/bin/clang --version | head -1
+      - name: Reproduce
+        run: |
+          export SDKROOT=$(xcrun --show-sdk-path)
+          B=$PWD/llvm/bin
+          : > empty.c
+          printf '%s\n' 'extern "C" int puts(const char *);' 'int main() {' '  try { throw 42; } catch (int) { puts("caught"); }' '}' > main.cpp
+          $B/clang -c empty.c -o empty.o
+          $B/clang++ -O1 -c main.cpp -o main.o
+          for link in "lld:main.o" "lld:empty.o main.o" "ld:empty.o main.o"; do
+            ld=${link%%:*}; objs=${link#*:}
+            flags=(); [ "$ld" = lld ] && flags=(-fuse-ld=lld)
+            $B/clang++ "${flags[@]}" $objs -o prog
+            echo "== $ld $objs: $(./prog 2>&1; echo "exit $?")"
+            $B/llvm-objdump --unwind-info prog | grep -E '\[[0-9]+\]: function offset=.*encoding' || true
+          done
