@@ -20,7 +20,7 @@ channels = ["conda-forge", "https://conda.clice.io"]
 platforms = ["linux-64", "osx-arm64", "win-64"]
 
 [dependencies]
-xclang = "23.1.2.1.*"
+xclang = "23.1.2.2.*"
 ```
 
 这个包就是该主机平台的发布包，包含全部目标平台，装在 `$PREFIX/opt/xclang`，环境激活时把它的 `bin/` 放到 `PATH` 最前面；`$PREFIX/bin` 里不放任何东西，不影响 conda-forge 的编译器。`llvm-option-inc` 是选项表。也可以直接从 GitHub release 下载压缩包，解压到任意位置使用。
@@ -144,8 +144,9 @@ conda/                  激活脚本；scripts/conda.ts 打 conda 包，conda.ym
 | 全部六个主机平台的 PGO + ThinLTO 工具链和 libclang | 完成：每个平台约 2 小时 |
 | ASan 版 libclang（Linux x64、macOS arm64） | 完成 |
 | 各主机平台的冒烟测试、libclang 使用测试 | 完成 |
-| 用 xclang 构建 catter（Linux、Windows） | 完成，测试全部通过 |
+| 用 xclang 构建 clice 和 catter | 评审中：[clice#712](https://github.com/clice-io/clice/pull/712)、[catter#154](https://github.com/clice-io/catter/pull/154) |
 | [23.1.2.1](https://github.com/clice-io/xclang/releases/tag/23.1.2.1) | 已发布 |
+| [23.1.2.2](https://github.com/clice-io/xclang/releases/tag/23.1.2.2) | 已发布：由 23.1.2.1 构建 |
 | 针对 LLVM 的补丁集 | 以后 |
 | [conda.clice.io](https://conda.clice.io) 上的 conda 包 | 完成：每个主机平台都用 pixi 测试过 |
 

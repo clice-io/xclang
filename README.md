@@ -25,7 +25,7 @@ channels = ["conda-forge", "https://conda.clice.io"]
 platforms = ["linux-64", "osx-arm64", "win-64"]
 
 [dependencies]
-xclang = "23.1.2.1.*"
+xclang = "23.1.2.2.*"
 ```
 
 The package is the host's archive, every target included, under
@@ -223,8 +223,9 @@ themselves need CI-sized machines.
 | PGO + ThinLTO toolchain and libclang of all six hosts | done: about 2 h per host |
 | ASan libclang (Linux x64, macOS arm64) | done |
 | per-host smoke tests, libclang consumer test | done |
-| catter built with xclang (Linux, Windows) | done, with its tests |
+| clice and catter built with xclang | in review: [clice#712](https://github.com/clice-io/clice/pull/712), [catter#154](https://github.com/clice-io/catter/pull/154) |
 | [23.1.2.1](https://github.com/clice-io/xclang/releases/tag/23.1.2.1) | published |
+| [23.1.2.2](https://github.com/clice-io/xclang/releases/tag/23.1.2.2) | published: built by 23.1.2.1 |
 | patch series against LLVM | later |
 | conda packages on [conda.clice.io](https://conda.clice.io) | done: tested with pixi on every host |
 
