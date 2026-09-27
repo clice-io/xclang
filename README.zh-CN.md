@@ -144,7 +144,7 @@ conda/                  激活脚本；scripts/conda.ts 打 conda 包，conda.ym
 | 全部六个主机平台的 PGO + ThinLTO 工具链和 libclang | 完成：每个平台约 2 小时 |
 | ASan 版 libclang（Linux x64、macOS arm64） | 完成 |
 | 各主机平台的冒烟测试、libclang 使用测试 | 完成 |
-| 用 xclang 构建 clice 和 catter | 评审中：[clice#712](https://github.com/clice-io/clice/pull/712)、[catter#154](https://github.com/clice-io/catter/pull/154) |
+| 用 xclang 构建 clice 和 catter | 完成：[clice#712](https://github.com/clice-io/clice/pull/712)、[catter#154](https://github.com/clice-io/catter/pull/154) |
 | [23.1.2.1](https://github.com/clice-io/xclang/releases/tag/23.1.2.1) | 已发布 |
 | [23.1.2.2](https://github.com/clice-io/xclang/releases/tag/23.1.2.2) | 已发布：由 23.1.2.1 构建 |
 | 针对 LLVM 的补丁集 | 以后 |
