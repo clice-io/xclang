@@ -25,7 +25,7 @@ channels = ["conda-forge", "https://conda.clice.io"]
 platforms = ["linux-64", "osx-arm64", "win-64"]
 
 [dependencies]
-xclang = "23.1.2.2.*"
+xclang = "23.1.2.3.*"
 ```
 
 The package is the host's archive, every target included, under
@@ -244,7 +244,7 @@ themselves need CI-sized machines.
 | clice and catter built with xclang | done: [clice#712](https://github.com/clice-io/clice/pull/712), [catter#154](https://github.com/clice-io/catter/pull/154) |
 | [23.1.2.1](https://github.com/clice-io/xclang/releases/tag/23.1.2.1) | published |
 | [23.1.2.2](https://github.com/clice-io/xclang/releases/tag/23.1.2.2) | published: built by 23.1.2.1 |
-| patch series against LLVM | started: `patches/`, from 23.1.2.3 |
+| [23.1.2.3](https://github.com/clice-io/xclang/releases/tag/23.1.2.3) | published: built by 23.1.2.2, the first with `patches/` (0001–0006) |
 | conda packages on [conda.clice.io](https://conda.clice.io) | done: tested with pixi on every host |
 
 xclang is developed for [clice](https://github.com/clice-io/clice), whose
