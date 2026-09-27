@@ -17,9 +17,20 @@ tests on macOS; on Linux at `-O0`).
 
 The patch adds `a` to the signature when the container checks are on, so
 an ASan program's copies (`[abi:nqea230102]`) stay apart from the
-library's; programs without ASan keep the same names.
+library's; programs without ASan keep the same names. Upstream's rule for
+the signature is any property that makes a function's code differ
+(bc792a284362); the checks are one it misses. The condition that turns
+them on moves next to the signature, and `__debug_utils/sanitizers.h` uses
+it from there, so the two cannot drift apart. libc++ as a shared library
+does not show the bug: its copies stay hidden inside it.
 
-- Upstream: not submitted; a candidate.
+Limits: code built without ASan that grows a container an ASan TU owns can
+still produce a false report (ASan's documented limitation, not libc++'s);
+an `import std` built without `-fsanitize=address` gives an ASan program
+no container checks at all, so build the module with the same flags.
+
+- Upstream: not submitted; a candidate, with a test modelled on
+  `odr_signature.*.sh.cpp`.
 - Checked: a program calling `std::filesystem::weakly_canonical` and
   `relative` after its own `vector<string_view>::push_back`, at `-O0` with
   `-fsanitize=address`, reports a container overflow with xclang

@@ -149,9 +149,11 @@ export function cfgNames(t: Target): string[] {
   if (t.os === "mingw") return [`${t.arch}-w64-windows-gnu`, `${t.arch}-pc-windows-gnu`];
   if (t.os === "darwin") {
     const archs = t.arch === "aarch64" ? ["arm64", "aarch64"] : ["x86_64"];
-    return archs.flatMap((a) => [`${a}-apple-darwin`, `${a}-apple-macos`]);
+    /// macosx: clang's name for a versioned macos triple (macos14.0).
+    return archs.flatMap((a) => [`${a}-apple-darwin`, `${a}-apple-macos`, `${a}-apple-macosx`]);
   }
-  return [t.triple];
+  /// pc: the vendor of GCC's triple on some distributions (Gentoo).
+  return [t.triple, `${t.arch}-pc-linux-gnu`];
 }
 
 export function machine(): Machine {
@@ -313,7 +315,7 @@ export function copyTree(src: string, dest: string): void {
 /// compiler-rt of every tree in `parts`, and the config files. The
 /// programs' own compiler-rt is left out, so every runtime in the tree is
 /// one built here.
-export function makeTree(dest: string, programs: string, parts: string[] = []): string {
+export function makeTree(dest: string, programs: string, parts: string[] = [], host: Os = machineTarget().os): string {
   fs.rmSync(dest, { recursive: true, force: true });
   copyTree(path.join(programs, "bin"), path.join(dest, "bin"));
   fs.mkdirSync(path.join(dest, "lib"), { recursive: true });
@@ -322,22 +324,31 @@ export function makeTree(dest: string, programs: string, parts: string[] = []): 
   }
   copyTree(path.join(resourceDir(programs), "include"), path.join(resourceDir(dest), "include"));
   for (const part of parts) copyTree(part, dest);
-  writeConfigs(dest);
+  writeConfigs(dest, host);
   return dest;
 }
 
-/// Install the per-target clang config files (config/) into tree/bin.
-/// clang reads bin/<triple>.cfg for the target it compiles for, so every
-/// target directory of the tree works with a bare --target.
-export function writeConfigs(tree: string): void {
+/// Install the per-target clang config files (config/) into tree/bin, for
+/// a tree that runs on `host`. clang reads bin/<triple>.cfg for the target
+/// it compiles for, so every target directory of the tree works with a bare
+/// --target.
+export function writeConfigs(tree: string, host: Os = machineTarget().os): void {
   const bin = path.join(tree, "bin");
   fs.mkdirSync(bin, { recursive: true });
   for (const t of TARGETS) {
-    const text = fs
+    let text = fs
       .readFileSync(path.join(ROOT, "config", `${t.os}.cfg`), "utf8")
       .replaceAll("@TRIPLE@", t.triple)
       .replaceAll("@MACOS_MIN@", MACOS_MIN);
-    for (const name of cfgNames(t)) fs.writeFileSync(path.join(bin, `${name}.cfg`), text);
+    /// A macOS target elsewhere than on macOS has no system ld64 to use.
+    if (t.os === "darwin" && host !== "darwin") text += "# Not on macOS: no system ld64 here.\n-fuse-ld=lld\n";
+    for (const name of cfgNames(t)) {
+      fs.writeFileSync(path.join(bin, `${name}.cfg`), text);
+      /// clang-cl looks for <default target>-clang-cl.cfg first, then
+      /// <default target>.cfg, before it turns to the MSVC target: this
+      /// empty one keeps the host target's options out of it.
+      fs.writeFileSync(path.join(bin, `${name}-clang-cl.cfg`), "# clang-cl targets MSVC; the options of the host target's config file are not for it.\n");
+    }
   }
 }
 

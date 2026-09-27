@@ -1,17 +1,21 @@
 diff --git a/libcxx/include/__configuration/attributes.h b/libcxx/include/__configuration/attributes.h
-index a49bedd1b874..0670fdccf2d8 100644
+index a49bedd1b874..285b31936a0e 100644
 --- a/libcxx/include/__configuration/attributes.h
 +++ b/libcxx/include/__configuration/attributes.h
-@@ -150,9 +150,20 @@
+@@ -150,9 +150,24 @@
  #  define _LIBCPP_EXCEPTIONS_SIG e
  #endif
  
-+// With ASan's container annotations (__debug_utils/sanitizers.h), functions
-+// of the same name differ as well: an instrumented program must not get the
-+// uninstrumented copies of the built library, or the other way around.
++// Whether the containers annotate themselves for ASan's container-overflow
++// checks (__debug_utils/sanitizers.h has the details). Those annotations
++// make functions of the same name differ, so the setting is part of the
++// signature too: an instrumented program must not get the uninstrumented
++// copies of the built library, or the other way around.
 +#if __has_feature(address_sanitizer) && !defined(__SANITIZER_DISABLE_CONTAINER_OVERFLOW__)
++#  define _LIBCPP_ENABLE_ASAN_CONTAINER_CHECKS 1
 +#  define _LIBCPP_ASAN_SIG a
 +#else
++#  define _LIBCPP_ENABLE_ASAN_CONTAINER_CHECKS 0
 +#  define _LIBCPP_ASAN_SIG
 +#endif
 +
@@ -24,3 +28,21 @@ index a49bedd1b874..0670fdccf2d8 100644
        _LIBCPP_VERSION)
  
  // This macro marks a symbol as being hidden from libc++'s ABI. This is achieved
+diff --git a/libcxx/include/__debug_utils/sanitizers.h b/libcxx/include/__debug_utils/sanitizers.h
+index e35812cc440d..d8bd68ac49ae 100644
+--- a/libcxx/include/__debug_utils/sanitizers.h
++++ b/libcxx/include/__debug_utils/sanitizers.h
+@@ -32,11 +32,8 @@
+ //   with -fsanitize=address. If a container is compiled separately like std::string, it can't provide
+ //   container checks unless the separately compiled code was built with container checks enabled. These
+ //   containers need to also conditionalize whether they provide overflow checks on `_LIBCPP_INSTRUMENTED_WITH_ASAN`.
+-#if __has_feature(address_sanitizer) && !defined(__SANITIZER_DISABLE_CONTAINER_OVERFLOW__)
+-#  define _LIBCPP_ENABLE_ASAN_CONTAINER_CHECKS 1
+-#else
+-#  define _LIBCPP_ENABLE_ASAN_CONTAINER_CHECKS 0
+-#endif
++// _LIBCPP_ENABLE_ASAN_CONTAINER_CHECKS itself is defined in <__configuration/attributes.h>, next to the ODR signature
++// it is part of.
+ 
+ #if _LIBCPP_INSTRUMENTED_WITH_ASAN && !_LIBCPP_ENABLE_ASAN_CONTAINER_CHECKS
+ #  error "We can't disable ASAN container checks when libc++ has been built with ASAN container checks enabled"

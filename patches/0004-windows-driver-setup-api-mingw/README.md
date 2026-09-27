@@ -16,7 +16,19 @@ its `__uuidof` (without `-fms-extensions`) takes them from
 on MinGW, declares the IDs, and links LLVMWindowsDriver with ole32 and
 oleaut32.
 
-- Upstream: not submitted yet; a candidate.
+Everything else of the MSVC environment (the Windows SDK, the UCRT,
+ATL/MFC, lld-link's library paths, `_MSC_VER` from `cl.exe`'s version)
+is looked up only once the VC tools are found, with code that is the same
+on MinGW; without them a MinGW-built clang also fell back to a hard-coded
+list of Visual Studio 2010 to 2005 directories (clang's MSVC.cpp).
+
+- Upstream: not submitted yet; a candidate. For it: say that the 2017
+  change lacked the interface IDs of mingw-w64's `__uuidof` (inferred; its
+  message gives no reason), add a GCC `-Wnon-virtual-dtor` pragma next to
+  clang's, and note that ole32 already comes with LLVMSupport. Separately,
+  `sys::InitializeCOMRAII` calls `CoUninitialize` even when
+  `CoInitializeEx` failed (a thread already in another apartment), which
+  releases the caller's reference; the same in MSVC builds.
 - Checked: MSVCPaths.cpp compiles for x86_64 and aarch64 MinGW, with and
   without `-fms-extensions`, and every `__uuidof` resolves. The lookup,
   built for MinGW with xclang, found Visual Studio 18 on windows-2025 and

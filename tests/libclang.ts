@@ -18,6 +18,14 @@ const tree = path.resolve(values.tree);
 const libclang = path.resolve(values.libclang);
 const build = fs.mkdtempSync(path.join(os.tmpdir(), "xclang-libclang-"));
 
+/// The resource directory a tool on libclang hands to every compiler it
+/// stands in for carries compiler-rt's headers, as the toolchain's does.
+for (const header of ["sanitizer/asan_interface.h", "fuzzer/FuzzedDataProvider.h"]) {
+  if (!fs.existsSync(path.join(common.resourceDir(libclang), "include", header))) {
+    common.fail(`libclang has no ${header} in its resource directory`);
+  }
+}
+
 common.run("cmake", [
   "-G", "Ninja", "-S", path.join(common.ROOT, "tests", "libclang"), "-B", build,
   "-DCMAKE_BUILD_TYPE=Release",

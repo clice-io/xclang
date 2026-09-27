@@ -41,7 +41,7 @@ function archive(dir: string, name: string): void {
 
 const toolchain = path.join(out, `toolchain-${host.triple}`);
 if (!fs.existsSync(path.join(toolchain, "bin"))) common.fail(`missing ${toolchain}`);
-const tree = common.makeTree(path.join(common.WORK, "package", host.triple, "xclang"), toolchain, runtimes);
+const tree = common.makeTree(path.join(common.WORK, "package", host.triple, "xclang"), toolchain, runtimes, host.os);
 fs.copyFileSync(path.join(common.ROOT, "LICENSE"), path.join(tree, "LICENSE"));
 /// windres, the name CMake looks for to compile a MinGW project's .rc
 /// files (Modules/Platform/Windows-GNU.cmake), is llvm-windres: on Windows

@@ -227,6 +227,13 @@ if (mode !== "instrumented") {
   /// Findzstd), and finds them with the libclang directory in
   /// CMAKE_PREFIX_PATH.
   common.copyTree(compressionLibs.prefix, dest);
+  /// compiler-rt's headers (<sanitizer/asan_interface.h>, ...) next to
+  /// clang's own in the resource directory, as in the toolchain: a tool on
+  /// libclang uses this one for every compiler it stands in for.
+  for (const dir of ["sanitizer", "fuzzer", "profile", "xray", "orc"]) {
+    const from = path.join(common.resourceDir(stage), "include", dir);
+    if (fs.existsSync(from)) common.copyTree(from, path.join(common.resourceDir(dest), "include", dir));
+  }
   /// clice reaches into Sema's private headers.
   const sema = path.join(dest, "include", "clang", "Sema");
   fs.mkdirSync(sema, { recursive: true });

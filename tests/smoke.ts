@@ -197,6 +197,21 @@ for (const gz of ["zlib", "zstd"]) {
   if (!(result.stderr ?? "").includes('"-lstdc++"')) failures.push(`clang++ ${args.join(" ")} links no libstdc++`);
 }
 
+/// A macOS target off macOS links with ld64.lld: there is no system ld64.
+if (process.platform !== "darwin") {
+  const args = ["--target=arm64-apple-macos", "-###", helloC];
+  const result = spawnSync(tool("clang"), args, { encoding: "utf8", cwd: work });
+  if (!/ld64\.lld/.test(result.stderr ?? "")) failures.push(`clang ${args.join(" ")} does not link with ld64.lld`);
+}
+
+/// clang-cl takes none of the host target's config file (empty
+/// <target>-clang-cl.cfg files): no unknown-argument warnings.
+{
+  const args = ["/WX", "-###", "/c", helloC];
+  const result = spawnSync(tool("clang-cl"), args, { encoding: "utf8", cwd: work });
+  if (result.status !== 0 || /warning:/.test(result.stderr ?? "")) failures.push(`clang-cl ${args.join(" ")}: ${result.stderr}`);
+}
+
 /// Visual Studio through its Setup API (patches/0004), with none of a
 /// Developer Command Prompt's variables, on a Windows host that has it.
 const vswhere = path.join(process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)", "Microsoft Visual Studio", "Installer", "vswhere.exe");
@@ -275,14 +290,18 @@ if (!windows) {
 #include <iterator>
 #include <string>
 int main() {
-  std::string out;
+  std::string out, cut;
   std::format_to(std::back_inserter(out), "{}!", std::string(256, 'a'));
-  std::printf("%zu\\n", out.size());
-  return out.size() == 257 ? 0 : 1;
+  std::format_to_n(std::back_inserter(cut), 300, "{}!", std::string(256, 'a'));
+  std::printf("%zu %zu\\n", out.size(), cut.size());
+  return out.size() == 257 && cut.size() == 257 ? 0 : 1;
 }
 `);
   const out = path.join(work, "format-256");
-  if (run(tool("clang++"), [`--target=${native}`, "-std=c++23", "-fsanitize=address", "-g", "-O0", source, "-o", out]) !== undefined) {
+  /// Debug hardening too: through format_to_n the stray write lands inside
+  /// the buffer object, where ASan does not look.
+  const flags = ["-std=c++23", "-fsanitize=address", "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG", "-g", "-O0"];
+  if (run(tool("clang++"), [`--target=${native}`, ...flags, source, "-o", out]) !== undefined) {
     const result = spawnSync(out, [], { encoding: "utf8", cwd: work });
     if (result.status !== 0) failures.push(`format_to after 256 code units: ${(result.stderr ?? "").slice(0, 2000)}`);
   }
