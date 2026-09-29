@@ -55,24 +55,40 @@ int wmain(void) {
   lstrcatW(line, rest);
 
   /// The child dies with this process: a build tool that kills the alias
-  /// on a timeout kills the compiler too.
+  /// on a timeout kills the compiler too. It is born in the job: a child
+  /// made suspended and assigned afterwards stays suspended forever,
+  /// outside any job, when a kill lands in between. Where the job cannot
+  /// be had (no job list before Windows 10, a job the kernel will not nest
+  /// in), the child starts without it.
   HANDLE job = CreateJobObjectW(NULL, NULL);
+  LPPROC_THREAD_ATTRIBUTE_LIST attributes = NULL;
   if (job) {
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits = {0};
     limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
     SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof(limits));
+    SIZE_T size = 0;
+    InitializeProcThreadAttributeList(NULL, 1, 0, &size);
+    attributes = HeapAlloc(GetProcessHeap(), 0, size);
+    if (attributes && !(InitializeProcThreadAttributeList(attributes, 1, 0, &size) &&
+                        UpdateProcThreadAttribute(attributes, 0, PROC_THREAD_ATTRIBUTE_JOB_LIST, &job,
+                                                  sizeof(job), NULL, NULL)))
+      attributes = NULL;
   }
   /// Ctrl-C reaches the child through the shared console; this process
   /// only waits for it.
   SetConsoleCtrlHandler(NULL, TRUE);
 
-  STARTUPINFOW startup = {0};
-  startup.cb = sizeof(startup);
+  STARTUPINFOEXW startup = {0};
+  startup.StartupInfo.cb = sizeof(startup);
+  startup.lpAttributeList = attributes;
   PROCESS_INFORMATION process;
-  if (!CreateProcessW(program, line, NULL, NULL, TRUE, CREATE_SUSPENDED, NULL, NULL, &startup, &process))
-    fail("xclang alias: cannot start llvm.exe\n");
-  if (job) AssignProcessToJobObject(job, process.hProcess);
-  ResumeThread(process.hThread);
+  BOOL started = attributes && CreateProcessW(program, line, NULL, NULL, TRUE, EXTENDED_STARTUPINFO_PRESENT,
+                                              NULL, NULL, &startup.StartupInfo, &process);
+  if (!started) {
+    startup.StartupInfo.cb = sizeof(startup.StartupInfo);
+    started = CreateProcessW(program, line, NULL, NULL, TRUE, 0, NULL, NULL, &startup.StartupInfo, &process);
+  }
+  if (!started) fail("xclang alias: cannot start llvm.exe\n");
   CloseHandle(process.hThread);
 
   WaitForSingleObject(process.hProcess, INFINITE);
