@@ -1,0 +1,127 @@
+## Experiment: does llvm/llvm-project#225055 fix llvm/llvm-project#226786?
+## Builds ld64.lld at the PR's head, links the issue's reproducer, then
+## rebuilds with the PR's change to UnwindInfoSection.cpp reverted (same tree)
+## and links again. Linux checks __unwind_info; macOS also runs the programs.
+name: lld-225055
+
+on:
+  push:
+    branches: [exp/lld-225055]
+
+jobs:
+  objects:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Compile the reproducer for arm64 macOS
+        run: |
+          clang --version
+          mkdir objs && cd objs
+          : > empty.c
+          cat > main.cpp <<'CPP'
+          extern "C" int puts(const char *);
+          int main() {
+            try { throw 42; } catch (int) { puts("caught"); }
+          }
+          CPP
+          clang --target=arm64-apple-macos14 -c empty.c -o empty.o
+          clang++ --target=arm64-apple-macos14 -O1 -c main.cpp -o main.o
+          clang++ --target=arm64-apple-macos14 -O1 -flto=thin -c main.cpp -o main.thin.o
+          ls -l
+      - uses: actions/upload-artifact@v4
+        with:
+          name: objs
+          path: objs
+
+  lld:
+    needs: objects
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: llvm/llvm-project
+          ref: refs/pull/225055/head
+          fetch-depth: 2
+          path: llvm-project
+          sparse-checkout: |
+            cmake
+            llvm
+            lld
+            libunwind
+            third-party
+      - uses: actions/download-artifact@v4
+        with:
+          name: objs
+          path: objs
+      - name: Install ninja
+        run: |
+          if [ "$RUNNER_OS" = macOS ]; then brew install ninja; else sudo apt-get install -y ninja-build; fi
+      - name: Build lld at the PR head
+        run: |
+          git -C llvm-project log --oneline -2
+          git -C llvm-project diff --stat HEAD~1 HEAD
+          extra=()
+          if [ "$RUNNER_OS" = Linux ]; then
+            extra+=(-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++)
+            command -v ld.lld && extra+=(-DLLVM_USE_LINKER=lld)
+          fi
+          cmake -G Ninja -S llvm-project/llvm -B build "${extra[@]}" \
+            -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON \
+            -DLLVM_ENABLE_PROJECTS=lld -DLLVM_TARGETS_TO_BUILD=AArch64 \
+            -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF \
+            -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_INCLUDE_DOCS=OFF \
+            -DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_ZSTD=OFF \
+            -DLLVM_ENABLE_LIBXML2=OFF -DLLVM_ENABLE_LIBEDIT=OFF
+          time ninja -C build lld llvm-objdump
+      - name: Write the check script
+        run: |
+          cat > check.sh <<'SH'
+          #!/bin/bash
+          ## check.sh <label>: link the reproducer with build/bin/lld and report.
+          set -u
+          label=$1
+          lld=(build/bin/lld -flavor darwin -arch arm64 -platform_version macos 14.0 14.0)
+          if [ "$RUNNER_OS" = macOS ]; then
+            lld+=(-syslibroot "$(xcrun --show-sdk-path)" -lSystem -lc++)
+          else
+            lld+=(-undefined dynamic_lookup)
+          fi
+          {
+            echo "### $label"
+            echo '```'
+          } >> summary.md
+          for link in "main.o" "empty.o main.o" "main.thin.o"; do
+            out="a-$label-${link// /-}"
+            args=()
+            for o in $link; do args+=("objs/$o"); done
+            "${lld[@]}" -o "$out" "${args[@]}"
+            entries=$(build/bin/llvm-objdump --unwind-info "$out" | grep -E 'function offset=0x[0-9a-f]+, encoding')
+            dups=$(echo "$entries" | grep -o 'function offset=0x[0-9a-f]*' | sort | uniq -d | wc -l)
+            line="$link: $(echo "$entries" | wc -l) entries, $dups duplicated address(es)"
+            if [ "$RUNNER_OS" = macOS ]; then
+              run=$("./$out" 2>&1); line="$line; runs: ${run} (exit $?)"
+            fi
+            echo "$line" | tee -a summary.md
+            echo "$entries"
+          done
+          echo '```' >> summary.md
+          SH
+          chmod +x check.sh
+          build/bin/llvm-objdump --syms objs/empty.o
+      - name: Check with the PR
+        run: ./check.sh with-pr
+      - name: Rebuild without the PR's change and check
+        run: |
+          git -C llvm-project diff HEAD~1 HEAD -- lld/MachO/UnwindInfoSection.cpp | git -C llvm-project apply -R
+          git -C llvm-project diff --stat
+          ninja -C build lld
+          ./check.sh without-pr
+      - name: Summary
+        if: always()
+        run: |
+          { echo "## ${{ matrix.os }}"; cat summary.md; } >> "$GITHUB_STEP_SUMMARY"
+          cat summary.md
