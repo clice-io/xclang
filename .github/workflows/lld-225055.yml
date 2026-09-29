@@ -95,19 +95,25 @@ jobs:
             echo "### $label"
             echo '```'
           } >> summary.md
-          for link in "main.o" "empty.o main.o" "main.thin.o"; do
-            out="a-$label-${link// /-}"
-            args=()
-            for o in $link; do args+=("objs/$o"); done
-            "${lld[@]}" -o "$out" "${args[@]}"
+          run_case() {
+            name=$1; shift
+            out="a-$label-$name"
+            "${lld[@]}" -o "$out" "$@"
             entries=$(build/bin/llvm-objdump --unwind-info "$out" | grep -E 'function offset=0x[0-9a-f]+, encoding')
             dups=$(echo "$entries" | grep -o 'function offset=0x[0-9a-f]*' | sort | uniq -d | wc -l)
-            line="$link: $(echo "$entries" | wc -l) entries, $dups duplicated address(es)"
+            line="$name: $(echo "$entries" | wc -l) entries, $dups duplicated address(es)"
             if [ "$RUNNER_OS" = macOS ]; then
               run=$("./$out" 2>&1); line="$line; runs: ${run} (exit $?)"
             fi
             echo "$line" | tee -a summary.md
             echo "$entries"
+          }
+          run_case main objs/main.o
+          run_case empty+main objs/empty.o objs/main.o
+          run_case thin objs/main.thin.o
+          run_case thin+object_path_lto -object_path_lto "lto-$label" objs/main.thin.o
+          for o in "lto-$label"/*; do
+            echo "--- $o"; build/bin/llvm-objdump -h --syms "$o" | grep -E '__text|ltmp|_main'
           done
           echo '```' >> summary.md
           SH
