@@ -49,6 +49,7 @@ jobs:
           path: llvm-project
           sparse-checkout: |
             cmake
+            libc
             llvm
             lld
             libunwind
@@ -123,5 +124,6 @@ jobs:
       - name: Summary
         if: always()
         run: |
+          [ -f summary.md ] || exit 0
           { echo "## ${{ matrix.os }}"; cat summary.md; } >> "$GITHUB_STEP_SUMMARY"
           cat summary.md
