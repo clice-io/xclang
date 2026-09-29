@@ -32,12 +32,12 @@ export const SOURCES = {
   /// and macOS arm64 toolchains build the next one. (23.1.2.1 itself was
   /// built by LLVM's own release builds, llvm-linux-x64 and llvm-macos-arm64.)
   "bootstrap-linux": {
-    url: `${XCLANG}/23.1.2.2/xclang-23.1.2.2-x86_64-unknown-linux-gnu.tar.xz`,
-    sha256: "75bfb56269434b8442f0c801cbc20f5005538335b47216972d9cc673e5a35628",
+    url: `${XCLANG}/23.1.2.3/xclang-23.1.2.3-x86_64-unknown-linux-gnu.tar.xz`,
+    sha256: "bd648cfd6c4484435f1855614f35854148c55ad898b03aeda6ed9ecc72694bd6",
   },
   "bootstrap-macos": {
-    url: `${XCLANG}/23.1.2.2/xclang-23.1.2.2-aarch64-apple-darwin.tar.xz`,
-    sha256: "ebe7c218fff7553d39cc9259b50867518b61ad223c1a1b46441a014d3750eaf4",
+    url: `${XCLANG}/23.1.2.3/xclang-23.1.2.3-aarch64-apple-darwin.tar.xz`,
+    sha256: "745351169a32200215acd2bc4f2573ed3627ed4dc27d93c1fd978badc39186b8",
   },
   /// Compression for the toolchain (compressed debug sections, profiles),
   /// linked statically.
