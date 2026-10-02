@@ -72,9 +72,9 @@ Bazel 本身建议通过 bazelisk 运行（`npm install -g @bazel/bazelisk`，�
 - 优化构建在 Linux 上用 lld 的 `--gc-sections` 链接（`gc_sections` feature），Windows 上默认不用：那里它会丢掉 COMDAT 段里的静态初始化。不依赖这些初始化的目标可以用 `--features=gc_sections` 或 `features = ["gc_sections"]` 打开，`-gc_sections` 关掉。
 - **C++20 模块**：`module_interfaces` 加 `features = ["cpp_modules"]`，由 clang-scan-deps 扫描依赖；模块文件里的路径相对于执行根目录，在哪构建都一样。`import std` 和 `import std.compat` 来自 `@xclang//bazel:std`：为目标平台构建的 libc++ 模块，作为一个库依赖即可。它用整个构建的选项（`--cxxopt`）编译：语言选项（`-std`、`-fno-exceptions`、`-fno-rtti` 等）不同的模块文件 clang 拒绝导入，所以导入它的目标的语言选项要写在那里，而不是各自的 `copts`；宏、头文件路径、优化级别和 sanitizer 可以不同。
 - 其它仓库的头文件作为系统头文件（`-isystem`），它们的警告不算本项目的；`__DATE__`、`__TIME__` 被替换掉。
-- **Sanitizer** 用 feature 打开：`features = ["asan"]`（或 `tsan`、`ubsan`、`lsan`；整个构建用 `--features=asan`）。macOS 上它们的运行库是共享库，这些 feature 会把工具链里运行库的绝对路径链接进去：只有这些链接依赖检出目录。
+- **Sanitizer** 用 feature 打开，对整个构建：`--features=asan`（或 `tsan`、`ubsan`、`lsan`）。asan 用 libc++ 的 ASan 版本编译和链接，程序里的每个库都必须一样。macOS 上 sanitizer 的运行库是共享库，这些 feature 会把工具链里运行库的绝对路径链接进去：只有这些链接依赖检出目录。
 
-`@libclang//:clangBasic`、`:clangLex`、`:LLVMSupport` 等每个库都带着 LLVM 和 clang 的 CMake 包给出的链接接口（系统库、zlib、zstd），目标只需写自己用到的库；另有 `:headers` 和 `:resource_dir`。用它的代码要和 LLVM 一样以 `-fno-rtti` 编译，ThinLTO bitcode 由同一 release 的工具链链接。`@libclang_asan` 是 ASan 版本（Linux x64 和 macOS arm64），配合 `features = ["asan"]` 使用。`@llvm_option_inc` 是选项表：`#include <llvm-options-td/clang-Driver-Options.inc>`。
+`@libclang//:clangBasic`、`:clangLex`、`:LLVMSupport` 等每个库都带着 LLVM 和 clang 的 CMake 包给出的链接接口（系统库、zlib、zstd），目标只需写自己用到的库；另有 `:headers` 和 `:resource_dir`。用它的代码要和 LLVM 一样以 `-fno-rtti` 编译，ThinLTO bitcode 由同一 release 的工具链链接。`@libclang_asan` 是 ASan 版本（Linux x64 和 macOS arm64），配合 `--features=asan` 使用。`@llvm_option_inc` 是选项表：`#include <llvm-options-td/clang-Driver-Options.inc>`。
 
 未发布的构建可以从解压的位置使用：工具链用 `--repo_env=XCLANG_ROOT=<xclang>`，libclang 用 `XCLANG_LIBCLANG_ROOT`（`XCLANG_LIBCLANG_ASAN_ROOT`）。
 
@@ -130,12 +130,22 @@ xclang/
   lib/libLTO.dylib         macOS 主机：给系统 ld 做 LTO 用（-fuse-ld=ld）
   <triple>/                每个目标平台一个目录：它的 sysroot，libc++ 也在里面
                            （Linux：usr/include、usr/lib，glibc 在 lib64 和
-                           usr/lib64；Windows 和 macOS：include/、lib/）
+                           usr/lib64；Windows 和 macOS：include/、lib/），
+                           以及 lib/asan 里 libc++ 的 ASan 版本（Linux 和 macOS）
 ```
 
 配置文件对本机构建同样生效，所以在 Linux 上直接 `clang++ main.cpp`，用的是 glibc 2.17 的头文件，除 glibc 外全部静态链接。`--no-default-config` 得到不带配置的裸编译器，用来针对系统自己的头文件和库构建。
 
 compiler-rt 包含 builtins（包括无法无锁实现的宽原子操作所需的 `__atomic_*` 函数）、profile 运行库，Linux 和 macOS 目标上还有 AddressSanitizer、ThreadSanitizer、LeakSanitizer、UBSan 和 libFuzzer。zlib 和 zstd 静态链接进工具链：每个主机平台上 `-gz=zlib`、`-gz=zstd` 和压缩的 profile 都能用。
+
+这些目标平台还带着 libc++ 的 ASan 版本，记作 `<asan>`：目标平台目录下的 `lib/asan`（Linux 上是 `usr/lib/asan`）。ASan 构建要整体用它编译和链接，库也一样：
+
+```
+编译   -fsanitize=address -isystem <asan>/include
+链接   -fsanitize=address -nostdlib++ <asan>/libc++.a
+```
+
+它的 `__config_site` 打开 `std::string` 的容器检查，它的 `libc++.a` 和调用它的代码一样经过插桩：和另一个版本混用的程序会误报 container-overflow。其它 sanitizer 不需要这样做。
 
 照着 GCC 写的构建脚本照样能用：`-latomic`、`-lgcc`、`-lgcc_eh`、`-lgcc_s`（Windows 上还有 `-fstack-protector` 会要求的 `-lssp`）都能找到空的静态库，实际函数在 compiler-rt、libunwind 和 mingw-w64 里；`-lstdc++` 会被当作 libc++。`-static` 可以链接出完全静态的 Linux 程序。`windres` 是 CMake 编译 MinGW 项目 `.rc` 文件时找的名字，它就是 `llvm-windres`。
 
@@ -174,7 +184,6 @@ xclang 用 LLVM 发布版的源码，加上 `patches/` 里的修改来构建。�
 | `0002-completion-unresolved-member-base` | Sema 找不到成员访问的基类时，补全仍然交出成员访问的上下文 |
 | `0003-completion-context-base-expr` | `CodeCompletionContext::getBaseExpr`，即写出来的成员访问基表达式 |
 | `0004-windows-driver-setup-api-mingw` | MinGW 构建的 clang 也通过 Setup API 找到 Visual Studio 2017 及以后的版本，和 MSVC 构建的一样（[clice#714](https://github.com/clice-io/clice/issues/714)） |
-| `0005-libcxx-asan-odr-signature` | 开了 ASan 的程序不再和未插桩的 libc++.a 共用 libc++ 的内部函数；两者混用会误报 container-overflow |
 | `0006-libcxx-format-buffer-full` | `std::format_to` 写入容器时，参数长度为 256 的倍数不再导致写出 256 字节的栈上缓冲区 |
 | `0007-lld-macho-empty-section-unwind` | 空 section 的符号和函数地址相同时，ld64.lld 不再丢掉该函数的 unwind 信息：一条 clang 命令编译并链接的 ThinLTO 程序在 arm64 macOS 上能接住自己抛出的异常 |
 

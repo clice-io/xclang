@@ -2,7 +2,8 @@
 /// --target darwin) with the bootstrap compiler, into
 /// work/out/runtimes-<name>:
 ///
-///   <triple>/                  sysroot, libunwind, libc++abi, libc++
+///   <triple>/                  sysroot, libunwind, libc++abi, libc++ (and
+///                              where there are sanitizers its ASan build)
 ///   lib/clang/<ver>/lib/...    compiler-rt: builtins, crt objects, profile
 ///
 /// Every toolchain tree gets these files as they are, so each target is
@@ -64,13 +65,16 @@ function builtins(t: common.Target, stage: string): void {
   ]);
 }
 
-function cxx(t: common.Target, stage: string): void {
-  /// Linux keeps the usual sysroot layout (usr/include, usr/lib), where
-  /// clang's Linux driver looks; mingw and macOS use the top of the target
-  /// directory, as the mingw driver and the config files expect.
-  const prefix = t.os === "linux" ? path.join(stage, t.triple, "usr") : path.join(stage, t.triple);
+/// Linux keeps the usual sysroot layout (usr/include, usr/lib), where
+/// clang's Linux driver looks; mingw and macOS use the top of the target
+/// directory, as the mingw driver and the config files expect.
+function cxxPrefix(t: common.Target, stage: string): string {
+  return t.os === "linux" ? path.join(stage, t.triple, "usr") : path.join(stage, t.triple);
+}
+
+function cxxArgs(t: common.Target, stage: string, prefix: string): string[] {
   const darwin = t.os === "darwin";
-  cmake(`cxx-${t.triple}`, path.join(src, "runtimes"), [
+  return [
     ...common.cmakeToolchainArgs(stage, t),
     "-C", path.join(caches, "cxx.cmake"),
     `-DLLVM_ENABLE_RUNTIMES=${darwin ? "libcxxabi;libcxx" : "libunwind;libcxxabi;libcxx"}`,
@@ -86,7 +90,12 @@ function cxx(t: common.Target, stage: string): void {
     /// library or unwinder: those are what is being built.
     `-DCMAKE_EXE_LINKER_FLAGS=${darwin ? "-nostdlib++" : "--rtlib=compiler-rt --unwindlib=none -nostdlib++"}`,
     ...NO_CONFIG,
-  ]);
+  ];
+}
+
+function cxx(t: common.Target, stage: string): void {
+  const prefix = cxxPrefix(t, stage);
+  cmake(`cxx-${t.triple}`, path.join(src, "runtimes"), cxxArgs(t, stage, prefix));
   /// GCC's runtime libraries, which build scripts written for GCC name
   /// (-latomic, -lgcc_s, and on Windows -lssp, which clang's MinGW driver
   /// adds for -fstack-protector), are empty archives: what they hold comes
@@ -94,6 +103,33 @@ function cxx(t: common.Target, stage: string): void {
   /// and, for the stack protector, mingw-w64's libmingwex.
   const stubs = { linux: GCC_STUBS, mingw: [...GCC_STUBS, "ssp", "ssp_nonshared"], darwin: [] }[t.os];
   for (const name of stubs) fs.writeFileSync(path.join(prefix, "lib", `lib${name}.a`), "!<arch>\n");
+}
+
+/// libc++'s ASan build, for the targets with sanitizers, in
+/// <prefix>/lib/asan: its libc++.a (libc++abi in it), instrumented like
+/// the ASan programs that link it, and its include/__config_site, which
+/// turns on std::string's container checks. An ASan build takes both:
+/// -isystem <prefix>/lib/asan/include, -nostdlib++ <prefix>/lib/asan/libc++.a.
+/// Built after compiler-rt, whose ASan runtime its checks link.
+function cxxAsan(t: common.Target, stage: string): void {
+  const install = path.join(common.WORK, "build", `cxx-asan-${t.triple}-install`);
+  fs.rmSync(install, { recursive: true, force: true });
+  cmake(`cxx-asan-${t.triple}`, path.join(src, "runtimes"), [...cxxArgs(t, stage, install), "-DLLVM_USE_SANITIZER=Address"]);
+  const dest = path.join(cxxPrefix(t, stage), "lib", "asan");
+  fs.rmSync(dest, { recursive: true, force: true });
+  fs.mkdirSync(path.join(dest, "include"), { recursive: true });
+  for (const lib of fs.readdirSync(path.join(install, "lib")).filter((f) => /^libc\+\+.*\.a$/.test(f))) {
+    fs.copyFileSync(path.join(install, "lib", lib), path.join(dest, lib));
+  }
+  /// Its __config_site differs from the other only in saying so.
+  const configSite = (prefix: string) => fs.readFileSync(path.join(prefix, "include", "c++", "v1", "__config_site"), "utf8");
+  const [plain, asan] = [configSite(cxxPrefix(t, stage)), configSite(install)];
+  const flag = "#define _LIBCPP_INSTRUMENTED_WITH_ASAN";
+  if (asan !== plain.replace(`${flag} 0`, `${flag} 1`) || asan === plain) {
+    common.fail(`the ASan build's __config_site of ${t.triple} differs from the other in more than ${flag}`);
+  }
+  fs.writeFileSync(path.join(dest, "include", "__config_site"), asan);
+  fs.rmSync(install, { recursive: true, force: true });
 }
 
 const GCC_STUBS = ["atomic", "gcc", "gcc_eh", "gcc_s"];
@@ -162,6 +198,15 @@ function check(t: common.Target, stage: string): void {
   if (runnable) common.run(exe, []);
   const tool = t.os === "darwin" ? ["llvm-otool", "-L"] : ["llvm-readobj", "--needed-libs"];
   common.run(path.join(stage, "bin", tool[0]), [tool[1], exe]);
+  /// The same with ASan and libc++'s ASan build (cxxAsan), run natively.
+  if (!SANITIZERS.includes(t.os)) return;
+  const asan = path.join(cxxPrefix(t, stage), "lib", "asan");
+  const asanExe = path.join(dir, "hello-asan");
+  common.run(path.join(stage, "bin", "clang++"), [
+    `--target=${t.triple}`, "-O1", "-fsanitize=address", "-isystem", path.join(asan, "include"),
+    "-nostdlib++", path.join(asan, "libc++.a"), source, "-o", asanExe,
+  ]);
+  if (t.os === native.os && t.arch === native.arch) common.run(asanExe, []);
 }
 
 /// compiler-rt's headers, which its builds install into the resource
@@ -196,6 +241,7 @@ if (values.target === "darwin") {
     cxx(t, stage);
   }
   compilerRtDarwin(stage);
+  for (const t of targets) cxxAsan(t, stage);
   for (const t of targets) check(t, stage);
   collect(stage, "darwin", [...targets.map((t) => t.triple), path.join(resource, "lib", "darwin")]);
 } else {
@@ -205,6 +251,7 @@ if (values.target === "darwin") {
   builtins(t, stage);
   cxx(t, stage);
   profile(t, stage);
+  if (SANITIZERS.includes(t.os)) cxxAsan(t, stage);
   check(t, stage);
   collect(stage, t.triple, [t.triple, path.join(resource, "lib", common.normalized(t))]);
 }

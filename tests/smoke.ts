@@ -259,10 +259,25 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   }
 }
 
-/// An ASan program sharing an instantiation with the uninstrumented libc++.a
-/// (patches/0005): no false container overflow.
+/// libc++'s ASan build (<target>/lib/asan, usr/lib/asan on Linux), as an
+/// ASan build takes it: std::string's container checks report an overflow,
+/// and a program sharing an instantiation with libc++.a (std::filesystem's
+/// vector<string_view>::push_back) gets no false report.
+const asanLibcxx = path.join(tree, native, process.platform === "darwin" ? "" : "usr", "lib", "asan");
+const asanFlags = ["-fsanitize=address", "-isystem", path.join(asanLibcxx, "include"), "-nostdlib++", path.join(asanLibcxx, "libc++.a")];
 if (!windows) {
-  const source = write("sanitize-libcxx.cpp", `#include <cstdio>
+  const overflow = write("sanitize-string.cpp", `#include <string>
+int main(int argc, char**) {
+  std::string s(40, 'x');
+  s.reserve(100);
+  return s.data()[40 + argc];
+}
+`);
+  const out = path.join(work, "sanitize-string");
+  if (run(tool("clang++"), [`--target=${native}`, ...asanFlags, "-g", "-O0", overflow, "-o", out]) !== undefined) {
+    expectReport("std::string under ASan", out, [], "container-overflow");
+  }
+  const shared = write("sanitize-libcxx.cpp", `#include <cstdio>
 #include <filesystem>
 #include <string_view>
 #include <vector>
@@ -273,9 +288,9 @@ int main(int argc, char**) {
   std::printf("%zu %s\\n", parts.size(), path.c_str());
 }
 `);
-  const out = path.join(work, "sanitize-libcxx");
-  if (run(tool("clang++"), [`--target=${native}`, "-std=c++23", "-fsanitize=address", "-g", "-O0", source, "-o", out]) !== undefined) {
-    const result = spawnSync(out, [], { encoding: "utf8", cwd: work });
+  const program = path.join(work, "sanitize-libcxx");
+  if (run(tool("clang++"), [`--target=${native}`, "-std=c++23", ...asanFlags, "-g", "-O0", shared, "-o", program]) !== undefined) {
+    const result = spawnSync(program, [], { encoding: "utf8", cwd: work });
     if (result.status !== 0 || /AddressSanitizer/.test(result.stderr ?? "")) {
       failures.push(`libc++ under ASan: ${(result.stderr ?? "").slice(0, 2000)}`);
     }
@@ -300,7 +315,7 @@ int main() {
   const out = path.join(work, "format-256");
   /// Debug hardening too: through format_to_n the stray write lands inside
   /// the buffer object, where ASan does not look.
-  const flags = ["-std=c++23", "-fsanitize=address", "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG", "-g", "-O0"];
+  const flags = ["-std=c++23", ...asanFlags, "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG", "-g", "-O0"];
   if (run(tool("clang++"), [`--target=${native}`, ...flags, source, "-o", out]) !== undefined) {
     const result = spawnSync(out, [], { encoding: "utf8", cwd: work });
     if (result.status !== 0) failures.push(`format_to after 256 code units: ${(result.stderr ?? "").slice(0, 2000)}`);

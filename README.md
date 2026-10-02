@@ -114,10 +114,12 @@ What the toolchain does:
   paths, optimization and sanitizers may differ.
 - Other repositories' headers are system headers (`-isystem`), whose
   warnings are not the build's; `__DATE__` and `__TIME__` are redacted.
-- **Sanitizers** are features: `features = ["asan"]` (or `tsan`, `ubsan`,
-  `lsan`; `--features=asan` for a whole build). On macOS, where their
-  runtimes are shared libraries, the feature links in the absolute path of
-  the toolchain's: those links alone depend on the checkout.
+- **Sanitizers** are features: `--features=asan` (or `tsan`, `ubsan`,
+  `lsan`), for the whole build: asan compiles and links with libc++'s ASan
+  build, which every library of the program must share. On macOS, where
+  the sanitizers' runtimes are shared libraries, the feature links in the
+  absolute path of the toolchain's: those links alone depend on the
+  checkout.
 
 `@libclang//:clangBasic`, `:clangLex`, `:LLVMSupport` and every other
 library come with the link interface LLVM's and clang's CMake packages give
@@ -125,7 +127,7 @@ them (system libraries, zlib, zstd), so a target names only what it uses;
 `:headers` and `:resource_dir` are there too. Its code compiles with
 `-fno-rtti`, as LLVM's did, and the toolchain of the same release links the
 ThinLTO bitcode. `@libclang_asan` is the ASan build, for Linux x64 and macOS
-arm64, used with `features = ["asan"]`. `@llvm_option_inc` holds the
+arm64, used with `--features=asan`. `@llvm_option_inc` holds the
 option tables: `#include <llvm-options-td/clang-Driver-Options.inc>`.
 
 An unreleased build is used from where it was unpacked, with
@@ -208,7 +210,8 @@ xclang/
   <triple>/                one directory per target: its sysroot with libc++
                            in it (Linux: usr/include, usr/lib, and glibc in
                            lib64 and usr/lib64; Windows and macOS: include/,
-                           lib/)
+                           lib/), and libc++'s ASan build in lib/asan
+                           (Linux and macOS)
 ```
 
 The config files apply to native builds too, so a plain `clang++ main.cpp`
@@ -221,6 +224,20 @@ atomics too wide to be lock-free), the profile runtime, and for Linux and
 macOS targets AddressSanitizer, ThreadSanitizer, LeakSanitizer, UBSan and
 libFuzzer. zlib and zstd are linked in statically: `-gz=zlib`, `-gz=zstd`
 and compressed profiles work on every host.
+
+Those targets also carry libc++'s ASan build, `<asan>`: `lib/asan` of the
+target directory (`usr/lib/asan` on Linux). An ASan build compiles and
+links with it, all of it, libraries too:
+
+```
+compile   -fsanitize=address -isystem <asan>/include
+link      -fsanitize=address -nostdlib++ <asan>/libc++.a
+```
+
+Its `__config_site` turns on the container checks of `std::string`, and
+its `libc++.a` is instrumented like the code that calls it: a program
+mixing either with the other build gets false container-overflow reports.
+The other sanitizers need nothing of the kind.
 
 Build scripts written for GCC keep working: `-latomic`, `-lgcc`,
 `-lgcc_eh`, `-lgcc_s` (and on Windows `-lssp`, which `-fstack-protector`
@@ -291,7 +308,6 @@ same thing; libclang's manifest lists them (`XCLANG_PATCHES`).
 | `0002-completion-unresolved-member-base` | member-access completion reports its context when Sema finds no class for the base |
 | `0003-completion-context-base-expr` | `CodeCompletionContext::getBaseExpr`, the member base as written |
 | `0004-windows-driver-setup-api-mingw` | the MinGW-built clang finds Visual Studio 2017 and later through the Setup API, like the MSVC-built one ([clice#714](https://github.com/clice-io/clice/issues/714)) |
-| `0005-libcxx-asan-odr-signature` | ASan programs no longer share libc++'s internal functions with the uninstrumented libc++.a, whose mix gave false container-overflow reports |
 | `0006-libcxx-format-buffer-full` | `std::format_to` into a container no longer writes past its 256-code-unit stack buffer after an argument whose length is a multiple of 256 |
 | `0007-lld-macho-empty-section-unwind` | ld64.lld keeps a function's unwind entry when an empty section's symbol shares its address: ThinLTO programs linked by one clang command catch their exceptions on arm64 macOS |
 

@@ -3,8 +3,9 @@ every toolchain a directory per target (README.md, "Layout")."""
 
 # Per target: the name of its config file in bin/ (clang's name of the
 # triple), its platform constraints, the cpu and target_libc of rules_cc's unix
-# toolchain config, compiler-rt's directory under lib/clang/<version>/lib, and
-# what of the target's directory compiling and linking read.
+# toolchain config, compiler-rt's directory under lib/clang/<version>/lib,
+# what of the target's directory compiling and linking read, and where in it
+# the ASan build of libc++ is (none for Windows).
 TARGETS = {
     "x86_64-unknown-linux-gnu": struct(
         cfg = "x86_64-unknown-linux-gnu",
@@ -15,6 +16,7 @@ TARGETS = {
         runtime = "x86_64-unknown-linux-gnu",
         headers = ["usr/include/**"],
         libraries = ["lib64/**", "usr/lib/**", "usr/lib64/**"],
+        asan_libcxx = "usr/lib/asan",
     ),
     "aarch64-unknown-linux-gnu": struct(
         cfg = "aarch64-unknown-linux-gnu",
@@ -25,6 +27,7 @@ TARGETS = {
         runtime = "aarch64-unknown-linux-gnu",
         headers = ["usr/include/**"],
         libraries = ["lib64/**", "usr/lib/**", "usr/lib64/**"],
+        asan_libcxx = "usr/lib/asan",
     ),
     "aarch64-apple-darwin": struct(
         cfg = "aarch64-apple-darwin",
@@ -35,6 +38,7 @@ TARGETS = {
         runtime = "darwin",
         headers = ["include/**"],
         libraries = ["lib/**"],
+        asan_libcxx = "lib/asan",
     ),
     "x86_64-apple-darwin": struct(
         cfg = "x86_64-apple-darwin",
@@ -45,6 +49,7 @@ TARGETS = {
         runtime = "darwin",
         headers = ["include/**"],
         libraries = ["lib/**"],
+        asan_libcxx = "lib/asan",
     ),
     "x86_64-w64-mingw32": struct(
         cfg = "x86_64-w64-windows-gnu",
@@ -55,6 +60,7 @@ TARGETS = {
         runtime = "x86_64-w64-windows-gnu",
         headers = ["include/**"],
         libraries = ["lib/**"],
+        asan_libcxx = None,
     ),
     "aarch64-w64-mingw32": struct(
         cfg = "aarch64-w64-windows-gnu",
@@ -65,6 +71,7 @@ TARGETS = {
         runtime = "aarch64-w64-windows-gnu",
         headers = ["include/**"],
         libraries = ["lib/**"],
+        asan_libcxx = None,
     ),
 }
 

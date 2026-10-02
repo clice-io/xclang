@@ -21,12 +21,16 @@
      )
  
      strip_debug_symbols_feature = feature(
-@@ -1759,7 +1764,7 @@
-         ],
+@@ -1756,10 +1761,10 @@
+         specific_compile_flags = [
+             "-fsanitize=address",
+             "-fno-common",
+-        ],
++        ] + ctx.attr.asan_compile_flags,
          specific_link_flags = [
              "-fsanitize=address",
 -        ],
-+        ] + ctx.attr.sanitizer_link_flags,
++        ] + ctx.attr.sanitizer_link_flags + ctx.attr.asan_link_flags,
      )
  
      lsan_feature = _sanitizer_feature(
@@ -57,12 +61,15 @@
      )
  
      # If you have Xcode + the CLT installed the version defaults can be
-@@ -2152,6 +2157,8 @@
+@@ -2152,6 +2157,11 @@
          "opt_compile_flags": attr.string_list(),
          "opt_link_flags": attr.string_list(),
          "supports_start_end_lib": attr.bool(),
 +        # Linked with every sanitizer feature (macOS: the rpath of the runtimes).
 +        "sanitizer_link_flags": attr.string_list(),
++        # The asan feature's own: the ASan build of libc++.
++        "asan_compile_flags": attr.string_list(),
++        "asan_link_flags": attr.string_list(),
          "target_libc": attr.string(mandatory = True),
          "target_system_name": attr.string(mandatory = True),
          "tool_paths": attr.string_dict(),

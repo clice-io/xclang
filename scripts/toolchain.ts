@@ -151,6 +151,16 @@ if (host.os === "darwin") args.push("-DCLANG_USE_XCSELECT=ON");
 /// lld folds identical functions whose address nothing compares, and
 /// merges string tails. (The macOS linker deduplicates on its own.)
 if (mode === "release" && host.os !== "darwin") args.push("-DCMAKE_EXE_LINKER_FLAGS=-Wl,--icf=safe -Wl,-O2");
+/// The ASan build compiles and links with libc++'s ASan build
+/// (scripts/runtimes.ts), as its users' ASan builds do. Every link has the
+/// ASan runtime the instrumented libc++.a needs, CMake's checks too, which
+/// run before LLVM_USE_SANITIZER instruments anything.
+if (mode === "asan") {
+  const asan = path.join(stage, host.triple, host.os === "linux" ? "usr" : "", "lib", "asan");
+  const link = `-fsanitize=address -nostdlib++ ${path.join(asan, "libc++.a")}`;
+  args.push(`-DCMAKE_CXX_FLAGS=-isystem ${path.join(asan, "include")}`);
+  for (const kind of ["EXE", "SHARED", "MODULE"]) args.push(`-DCMAKE_${kind}_LINKER_FLAGS=${link}`);
+}
 if (profile) {
   const flags = [
     `-fprofile-remapping-file=${path.join(common.ROOT, "pgo", "remap.txt")}`,
