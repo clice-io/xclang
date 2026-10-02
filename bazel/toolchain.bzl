@@ -15,7 +15,7 @@ load("@rules_cc//cc/toolchains:cc_toolchain.bzl", "cc_toolchain")
 load("@xclang_unix_config//cc/private/toolchain:unix_cc_toolchain_config.bzl", "cc_toolchain_config")
 load(":hosts.bzl", "TARGETS")
 
-def xclang_cc_toolchain(name, host, clang_version, root, macos_sdk = None, target = None):
+def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sdk = None, target = None):
     """A cc_toolchain running on host, compiling for target (the host itself if not given).
 
     Args:
@@ -23,6 +23,7 @@ def xclang_cc_toolchain(name, host, clang_version, root, macos_sdk = None, targe
         host: the triple of the toolchain archive in this package.
         clang_version: the directory of lib/clang.
         root: the package's path from the execution root, external/<repository>.
+        absolute_root: the package's path on disk, for what must be absolute.
         macos_sdk: the SDK of a macOS host, from xcrun.
         target: the target triple.
     """
@@ -32,6 +33,9 @@ def xclang_cc_toolchain(name, host, clang_version, root, macos_sdk = None, targe
     t = TARGETS[target]
     windows = TARGETS[host].os == "windows"
     exe = ".exe" if windows else ""
+
+    # Apple's ld, on a macOS host (bazel/repositories.bzl).
+    apple_ld = TARGETS[host].os == "macos" and t.os == "macos"
 
     def tool(n):
         return "bin/%s%s" % (n, exe)
@@ -51,7 +55,8 @@ def xclang_cc_toolchain(name, host, clang_version, root, macos_sdk = None, targe
     )
     native.filegroup(
         name = name + "_linker_files",
-        srcs = [name + "_bin", config] + native.glob([resource + "/lib/" + t.runtime + "/**"]) +
+        srcs = [name + "_bin", config] + (["libexec/ld"] if apple_ld else []) +
+               native.glob([resource + "/lib/" + t.runtime + "/**"]) +
                native.glob([target + "/" + p for p in t.libraries]) +
                # libLTO.dylib, which the system's ld loads on macOS.
                native.glob(["lib/*.dylib"], allow_empty = True),
@@ -81,9 +86,19 @@ def xclang_cc_toolchain(name, host, clang_version, root, macos_sdk = None, targe
     flags = ["--no-default-config", "--config=%s/%s" % (root, config), "--target=" + target]
     builtin_dirs = [resource + "/include"] + [target + "/" + p.removesuffix("/**") for p in t.headers]
 
+    link_flags = flags + ["--driver-mode=g++", "-no-canonical-prefixes"]
+    sanitizer_link_flags = []
+
     # Linux: lld's --gc-sections. Not MinGW's: lld drops the static
     # initializers of COMDAT sections there (test registrations).
     opt_link_flags = ["-Wl,--gc-sections"] if t.os == "linux" else []
+    if apple_ld:
+        link_flags.append("-B%s/libexec" % root)
+
+        # The sanitizers' runtimes are shared libraries on macOS, which the
+        # programs find by an absolute path into the toolchain. (Only the
+        # sanitizer features add it: it makes the link's key the checkout's.)
+        sanitizer_link_flags = ["-Wl,-rpath,%s/%s/lib/darwin" % (absolute_root, resource)]
     if t.os == "macos":
         # The SDK is Xcode's. Its parent directory too: clang reports
         # SDKSettings.json under the versioned SDK name, not the symlink.
@@ -104,9 +119,10 @@ def xclang_cc_toolchain(name, host, clang_version, root, macos_sdk = None, targe
         cxx_builtin_include_directories = builtin_dirs,
         dbg_compile_flags = ["-g"],
         host_system_name = host,
-        link_flags = flags + ["--driver-mode=g++", "-no-canonical-prefixes"],
+        link_flags = link_flags,
         opt_compile_flags = ["-O2", "-DNDEBUG", "-ffunction-sections", "-fdata-sections"],
         opt_link_flags = opt_link_flags,
+        sanitizer_link_flags = sanitizer_link_flags,
         target_libc = t.libc,
         target_system_name = target,
         tool_paths = tool_paths,

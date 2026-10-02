@@ -41,6 +41,27 @@ _SCAN_DEPS_BAT = """\
 "%~dp0bin\\clang-scan-deps.exe" -format=p1689 -- "%~dp0bin\\clang++.exe" %* > "%DEPS_SCANNER_OUTPUT_FILE%"\r
 """
 
+# macOS: Apple's ld, found by clang through -B before the system's. ld loads
+# the -lto_library clang names (xclang's libLTO.dylib, for libclang's ThinLTO
+# bitcode) only by an absolute path, and clang gives it relative to the
+# execution root; ld falls back to Xcode's own libLTO otherwise.
+_LD = """\
+#!/bin/sh
+n=$#
+prev=
+while [ "$n" -gt 0 ]; do
+  arg=$1
+  shift
+  n=$((n - 1))
+  if [ "$prev" = -lto_library ]; then
+    case $arg in /*) ;; *) arg=$PWD/$arg ;; esac
+  fi
+  set -- "$@" "$arg"
+  prev=$arg
+done
+exec /usr/bin/ld "$@"
+"""
+
 def _toolchain_impl(rctx):
     host = rctx.attr.host
     local = rctx.getenv("XCLANG_ROOT")
@@ -56,7 +77,7 @@ def _toolchain_impl(rctx):
     # Each target's config file with the paths relative to the execution root,
     # where the toolchain's actions run: clang makes a config file's
     # directory absolute, which would put the sandbox's path into the
-    # dependency files and the debug information.
+    # dependency files.
     root = "external/" + rctx.name
     for target, t in TARGETS.items():
         text = rctx.read("bin/%s.cfg" % t.cfg).replace("<CFGDIR>/..", root)
@@ -72,8 +93,9 @@ def _toolchain_impl(rctx):
         rctx.file("scan_deps.bat", _SCAN_DEPS_BAT)
     else:
         rctx.file("scan_deps.sh", _SCAN_DEPS_SH, executable = True)
-
     macos = TARGETS[host].os == "macos"
+    if macos:
+        rctx.file("libexec/ld", _LD, executable = True)
     rctx.file("BUILD.bazel", """\
 load({toolchain_bzl}, "xclang_cc_toolchain")
 {sdk_load}
@@ -83,6 +105,7 @@ exports_files(glob(["bin/**"]))
 
 xclang_cc_toolchain(
     name = "cc",
+    absolute_root = {absolute_root},
     clang_version = {clang_version},
     host = {host},
     macos_sdk = {sdk},
@@ -91,6 +114,7 @@ xclang_cc_toolchain(
 """.format(
         toolchain_bzl = json.encode(str(Label("//bazel:toolchain.bzl"))),
         sdk_load = 'load("@xclang_macos_sdk//:sdk.bzl", "SDK")\n' if macos else "",
+        absolute_root = json.encode(str(rctx.path(".")).replace("\\", "/")),
         clang_version = json.encode(clang_version),
         host = json.encode(host),
         sdk = "SDK" if macos else "None",
@@ -171,10 +195,11 @@ xclang_unix_config = repository_rule(
     doc = """rules_cc's unix toolchain config, from the rules_cc of the build, with
 xclang's patches: Windows names for MinGW's executables and DLLs
 (rules_cc-mingw.patch), and xclang's defaults (rules_cc-xclang.patch): static
-linking unless a target asks for the supports_dynamic_linker feature, and
-other repositories' headers as system headers (external_include_paths). Its loads
-are rules_cc's public files, so a copy works from here; no consumer needs an
-override of rules_cc.""",
+linking unless a target asks for the supports_dynamic_linker feature, other
+repositories' headers as system headers (external_include_paths), and the
+sanitizer features' link flags (sanitizer_link_flags). Its loads are rules_cc's
+public files, so a copy works from here; no consumer needs an override of
+rules_cc.""",
 )
 
 def _macos_sdk_impl(rctx):
