@@ -109,11 +109,14 @@ What the toolchain does:
   that code there and a link after the first takes seconds, with the same
   output (the `thinlto_cache` feature; `-thinlto_cache` turns it off). The
   directory is made if missing and is on the links' command lines, so one
-  path for every checkout keeps them shared by a disk cache. Sandboxed links
-  (Linux, macOS) need it writable, and Linux's sandbox replaces `/tmp`:
+  path for every checkout keeps them shared by a disk cache. Linux's sandbox
+  needs it writable (and replaces `/tmp`); macOS's lets `/var/tmp` be
+  written:
   ```
   common:linux --repo_env=XCLANG_THINLTO_CACHE=/var/tmp/xclang-thinlto
   common:linux --sandbox_writable_path=/var/tmp/xclang-thinlto
+  common:macos --repo_env=XCLANG_THINLTO_CACHE=/var/tmp/xclang-thinlto
+  common:windows --repo_env=XCLANG_THINLTO_CACHE=C:/xclang-thinlto
   ```
 - **C++20 modules**: `module_interfaces` with `features = ["cpp_modules"]`,
   scanned by clang-scan-deps; module files hold paths relative to the
