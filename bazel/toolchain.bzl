@@ -35,8 +35,8 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
     windows = TARGETS[host].os == "windows"
     exe = ".exe" if windows else ""
 
-    # Apple's ld, on a macOS host (bazel/repositories.bzl).
-    apple_ld = TARGETS[host].os == "macos" and t.os == "macos"
+    # macOS programs built on macOS, which the sanitizers' runtimes run in.
+    macos_native = TARGETS[host].os == "macos" and t.os == "macos"
 
     def tool(n):
         return "bin/%s%s" % (n, exe)
@@ -56,11 +56,9 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
     )
     native.filegroup(
         name = name + "_linker_files",
-        srcs = [name + "_bin", config] + (["libexec/ld"] if apple_ld else []) +
+        srcs = [name + "_bin", config] +
                native.glob([resource + "/lib/" + t.runtime + "/**"]) +
-               native.glob([target + "/" + p for p in t.libraries]) +
-               # libLTO.dylib, which the system's ld loads on macOS.
-               native.glob(["lib/*.dylib"], allow_empty = True),
+               native.glob([target + "/" + p for p in t.libraries]),
     )
     native.filegroup(
         name = name + "_all_files",
@@ -93,9 +91,7 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
     # lld's --gc-sections, on for Linux and off for Windows (bazel/BUILD.bazel).
     gc_sections = [Label("//bazel:gc_sections")]
     opt_link_flags = []
-    if apple_ld:
-        link_flags.append("-B%s/libexec" % root)
-
+    if macos_native:
         # The sanitizers' runtimes are shared libraries on macOS, which the
         # programs find by an absolute path into the toolchain. (Only the
         # sanitizer features add it: it makes the link's key the checkout's.)

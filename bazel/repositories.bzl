@@ -41,27 +41,6 @@ _SCAN_DEPS_BAT = """\
 "%~dp0bin\\clang-scan-deps.exe" -format=p1689 -- "%~dp0bin\\clang++.exe" %* > "%DEPS_SCANNER_OUTPUT_FILE%"\r
 """
 
-# macOS: Apple's ld, found by clang through -B before the system's. ld loads
-# the -lto_library clang names (xclang's libLTO.dylib, for libclang's ThinLTO
-# bitcode) only by an absolute path, and clang gives it relative to the
-# execution root; ld falls back to Xcode's own libLTO otherwise.
-_LD = """\
-#!/bin/sh
-n=$#
-prev=
-while [ "$n" -gt 0 ]; do
-  arg=$1
-  shift
-  n=$((n - 1))
-  if [ "$prev" = -lto_library ]; then
-    case $arg in /*) ;; *) arg=$PWD/$arg ;; esac
-  fi
-  set -- "$@" "$arg"
-  prev=$arg
-done
-exec /usr/bin/ld "$@"
-"""
-
 def _toolchain_impl(rctx):
     host = rctx.attr.host
     local = rctx.getenv("XCLANG_ROOT")
@@ -94,8 +73,6 @@ def _toolchain_impl(rctx):
     else:
         rctx.file("scan_deps.sh", _SCAN_DEPS_SH, executable = True)
     macos = TARGETS[host].os == "macos"
-    if macos:
-        rctx.file("libexec/ld", _LD, executable = True)
     rctx.file("BUILD.bazel", """\
 load({toolchain_bzl}, "xclang_cc_toolchain", "xclang_std_modules")
 {sdk_load}

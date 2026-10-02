@@ -204,7 +204,7 @@ xclang/
                            (llvm-profdata, llvm-cov, llvm-dwarfdump,
                            llvm-strings, FileCheck), <triple>.cfg
   lib/clang/<ver>/         resource headers, compiler-rt for every target
-  lib/libLTO.dylib         macOS hosts: LTO for the system's ld
+  lib/libLTO.dylib         macOS hosts: LTO for the system's ld (-fuse-ld=ld)
   <triple>/                one directory per target: its sysroot with libc++
                            in it (Linux: usr/include, usr/lib, and glibc in
                            lib64 and usr/lib64; Windows and macOS: include/,
@@ -236,10 +236,9 @@ links are linker scripts naming them, as glibc's own `libc.so` is. Eight
 netfilter headers named like another but for case (`xt_DSCP.h` next to
 `xt_dscp.h`) are left out, so the sysroots unpack on Windows and macOS.
 
-On macOS the linker is the system's `ld`, with xclang's `libLTO.dylib` for
-LTO, as Apple's own toolchain does: ld64.lld's ThinLTO loses exception
-handling on arm64 in LLVM 23.1.2 (a program built with it cannot catch
-what it throws). ld64.lld is still there, behind `-fuse-ld=lld`.
+macOS targets link with ld64.lld, on macOS too. `-fuse-ld=ld` selects the
+system's `ld`, which does LTO with xclang's `libLTO.dylib`, as Apple's own
+toolchain does.
 
 Every archive is a `.tar.xz`, and a Windows one holds no symlinks at all,
 so it unpacks without extra rights and packs into conda: the names of
@@ -294,6 +293,7 @@ same thing; libclang's manifest lists them (`XCLANG_PATCHES`).
 | `0004-windows-driver-setup-api-mingw` | the MinGW-built clang finds Visual Studio 2017 and later through the Setup API, like the MSVC-built one ([clice#714](https://github.com/clice-io/clice/issues/714)) |
 | `0005-libcxx-asan-odr-signature` | ASan programs no longer share libc++'s internal functions with the uninstrumented libc++.a, whose mix gave false container-overflow reports |
 | `0006-libcxx-format-buffer-full` | `std::format_to` into a container no longer writes past its 256-code-unit stack buffer after an argument whose length is a multiple of 256 |
+| `0007-lld-macho-empty-section-unwind` | ld64.lld keeps a function's unwind entry when an empty section's symbol shares its address: ThinLTO programs linked by one clang command catch their exceptions on arm64 macOS |
 
 ## Limits
 

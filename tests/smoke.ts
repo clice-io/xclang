@@ -197,8 +197,8 @@ for (const gz of ["zlib", "zstd"]) {
   if (!(result.stderr ?? "").includes('"-lstdc++"')) failures.push(`clang++ ${args.join(" ")} links no libstdc++`);
 }
 
-/// A macOS target off macOS links with ld64.lld: there is no system ld64.
-if (process.platform !== "darwin") {
+/// A macOS target links with ld64.lld, on macOS too (patches/0007).
+{
   const args = ["--target=arm64-apple-macos", "-###", helloC];
   const result = spawnSync(tool("clang"), args, { encoding: "utf8", cwd: work });
   if (!/ld64\.lld/.test(result.stderr ?? "")) failures.push(`clang ${args.join(" ")} does not link with ld64.lld`);
@@ -330,6 +330,9 @@ const pchUser = write("pch_user.cpp", "int main() { std::map<std::string, std::v
 run(tool("clang++"), [`--target=${native}`, "-x", "c++-header", header, "-o", path.join(work, "common.hpp.pch")]);
 run(tool("clang++"), [`--target=${native}`, "-include-pch", path.join(work, "common.hpp.pch"), pchUser, "-o", path.join(work, `pch${exe}`)]);
 
+/// ThinLTO, compiled and linked by one command: on macOS clang passes
+/// ld64.lld -object_path_lto, whose empty object needs patches/0007 for
+/// the program to catch what it throws.
 const lto = path.join(work, `lto${exe}`);
 if (run(tool("clang++"), [`--target=${native}`, "-O2", "-flto=thin", helloCxx, "-o", lto]) !== undefined) {
   const output = run(lto, []);

@@ -44,9 +44,15 @@ set(CMAKE_READELF "${_bin}/llvm-readelf${_exe}")
 set(CMAKE_STRIP "${_bin}/llvm-strip${_exe}")
 set(CMAKE_ADDR2LINE "${_bin}/llvm-addr2line${_exe}")
 set(CMAKE_DLLTOOL "${_bin}/llvm-dlltool${_exe}")
-# lld, except for macOS: the system's ld there, with the tree's libLTO.dylib
-# (config/darwin.cfg).
-if(NOT XCLANG_TARGET_OS STREQUAL "darwin")
+# lld, except for macOS: xclang's own builds link with the system's ld
+# there, and the tree's libLTO.dylib, as long as the bootstrap's ld64.lld
+# predates patches/0007 (config/darwin.cfg picks ld64.lld).
+if(XCLANG_TARGET_OS STREQUAL "darwin")
+    foreach(lang C CXX)
+        set(CMAKE_${lang}_USING_LINKER_XCLANG_LD64 "-fuse-ld=ld")
+    endforeach()
+    set(CMAKE_LINKER_TYPE XCLANG_LD64)
+else()
     set(CMAKE_LINKER_TYPE LLD)
 endif()
 

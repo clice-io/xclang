@@ -315,7 +315,7 @@ export function copyTree(src: string, dest: string): void {
 /// compiler-rt of every tree in `parts`, and the config files. The
 /// programs' own compiler-rt is left out, so every runtime in the tree is
 /// one built here.
-export function makeTree(dest: string, programs: string, parts: string[] = [], host: Os = machineTarget().os): string {
+export function makeTree(dest: string, programs: string, parts: string[] = []): string {
   fs.rmSync(dest, { recursive: true, force: true });
   copyTree(path.join(programs, "bin"), path.join(dest, "bin"));
   fs.mkdirSync(path.join(dest, "lib"), { recursive: true });
@@ -324,24 +324,21 @@ export function makeTree(dest: string, programs: string, parts: string[] = [], h
   }
   copyTree(path.join(resourceDir(programs), "include"), path.join(resourceDir(dest), "include"));
   for (const part of parts) copyTree(part, dest);
-  writeConfigs(dest, host);
+  writeConfigs(dest);
   return dest;
 }
 
-/// Install the per-target clang config files (config/) into tree/bin, for
-/// a tree that runs on `host`. clang reads bin/<triple>.cfg for the target
-/// it compiles for, so every target directory of the tree works with a bare
-/// --target.
-export function writeConfigs(tree: string, host: Os = machineTarget().os): void {
+/// Install the per-target clang config files (config/) into tree/bin.
+/// clang reads bin/<triple>.cfg for the target it compiles for, so every
+/// target directory of the tree works with a bare --target.
+export function writeConfigs(tree: string): void {
   const bin = path.join(tree, "bin");
   fs.mkdirSync(bin, { recursive: true });
   for (const t of TARGETS) {
-    let text = fs
+    const text = fs
       .readFileSync(path.join(ROOT, "config", `${t.os}.cfg`), "utf8")
       .replaceAll("@TRIPLE@", t.triple)
       .replaceAll("@MACOS_MIN@", MACOS_MIN);
-    /// A macOS target elsewhere than on macOS has no system ld64 to use.
-    if (t.os === "darwin" && host !== "darwin") text += "# Not on macOS: no system ld64 here.\n-fuse-ld=lld\n";
     for (const name of cfgNames(t)) {
       fs.writeFileSync(path.join(bin, `${name}.cfg`), text);
       /// clang-cl looks for <default target>-clang-cl.cfg first, then

@@ -127,7 +127,7 @@ xclang/
                            llvm-cov、llvm-dwarfdump、llvm-strings、FileCheck），
                            <triple>.cfg
   lib/clang/<ver>/         resource 头文件，各目标平台的 compiler-rt
-  lib/libLTO.dylib         macOS 主机：给系统 ld 做 LTO 用
+  lib/libLTO.dylib         macOS 主机：给系统 ld 做 LTO 用（-fuse-ld=ld）
   <triple>/                每个目标平台一个目录：它的 sysroot，libc++ 也在里面
                            （Linux：usr/include、usr/lib，glibc 在 lib64 和
                            usr/lib64；Windows 和 macOS：include/、lib/）
@@ -141,7 +141,7 @@ compiler-rt 包含 builtins（包括无法无锁实现的宽原子操作所需�
 
 Linux sysroot 里只放编译和链接要读的东西（头文件、启动文件、库），不含 glibc 的程序、locale 和 gconv 模块，也没有符号链接：soname 链接直接换成文件本身，`libfoo.so` 链接换成指向它的链接脚本，和 glibc 自己的 `libc.so` 一样。另外去掉了 8 个只差大小写的 netfilter 头文件（比如和 `xt_dscp.h` 并存的 `xt_DSCP.h`），这样 sysroot 在 Windows 和 macOS 上也能正常解包。
 
-macOS 上的链接器是系统的 `ld`，LTO 用 xclang 自带的 `libLTO.dylib`，和 Apple 自己的工具链做法一样：LLVM 23.1.2 里 ld64.lld 的 ThinLTO 在 arm64 上会丢失异常处理（用它编的程序接不住自己抛出的异常）。ld64.lld 仍然在，用 `-fuse-ld=lld` 可以选它。
+macOS 目标平台用 ld64.lld 链接，在 macOS 上也一样。`-fuse-ld=ld` 可以选系统的 `ld`，LTO 用 xclang 自带的 `libLTO.dylib`，和 Apple 自己的工具链做法一样。
 
 所有包都是 `.tar.xz`，Windows 的包里完全没有符号链接，所以解包不需要额外权限，也能打成 conda 包：`llvm.exe` 的各个名字（`clang++.exe`、`ld.lld.exe` 等）是一个小程序（`windows/alias.c`），它以 `llvm.exe <名字> <参数>` 的形式启动 `llvm.exe`。名字要作为子命令传进去，因为 Windows 上的 LLVM 在读取 `argv[0]` 之前会把其中的文件名换成它自己的。
 
@@ -176,6 +176,7 @@ xclang 用 LLVM 发布版的源码，加上 `patches/` 里的修改来构建。�
 | `0004-windows-driver-setup-api-mingw` | MinGW 构建的 clang 也通过 Setup API 找到 Visual Studio 2017 及以后的版本，和 MSVC 构建的一样（[clice#714](https://github.com/clice-io/clice/issues/714)） |
 | `0005-libcxx-asan-odr-signature` | 开了 ASan 的程序不再和未插桩的 libc++.a 共用 libc++ 的内部函数；两者混用会误报 container-overflow |
 | `0006-libcxx-format-buffer-full` | `std::format_to` 写入容器时，参数长度为 256 的倍数不再导致写出 256 字节的栈上缓冲区 |
+| `0007-lld-macho-empty-section-unwind` | 空 section 的符号和函数地址相同时，ld64.lld 不再丢掉该函数的 unwind 信息：一条 clang 命令编译并链接的 ThinLTO 程序在 arm64 macOS 上能接住自己抛出的异常 |
 
 ## 限制
 
