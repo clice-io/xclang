@@ -1,8 +1,7 @@
 name: release
 
-# A draft release <llvm version>.<revision> with every archive, the
-# profile, and the Bazel module with the archives' digests. Drafts create no
-# tag; publishing one is done by hand.
+# A draft release <llvm version>.<revision> with every archive and the
+# profile. Drafts create no tag; publishing one is done by hand.
 
 on:
   workflow_call:
@@ -39,9 +38,6 @@ jobs:
           path: profile
           run-id: ${{ inputs.profile-run }}
           github-token: ${{ github.token }}
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
       - name: Draft
         env:
           GH_TOKEN: ${{ github.token }}
@@ -55,18 +51,7 @@ jobs:
           cp profile/profile.profdata "dist/xclang-$version.profdata"
           (cd dist && sha256sum * > SHA256SUMS)
           cat dist/SHA256SUMS | tee -a "$GITHUB_STEP_SUMMARY"
-          # The Bazel module at this release, holding the digests above: the
-          # source a consumer's archive_override names (README.md, "Bazel").
-          node scripts/bazel.ts archive dist/SHA256SUMS dist | tee bazel.txt
-          integrity=$(sed -n 's/^integrity //p' bazel.txt)
-          if [ ! -f "dist/xclang-bazel-$version.tar.gz" ] || [ -z "$integrity" ]; then
-            echo "::error::no Bazel module for $version"
-            exit 1
-          fi
-          echo "xclang-bazel-$version.tar.gz $integrity" | tee -a "$GITHUB_STEP_SUMMARY"
           gh release create "$version" -R "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" \
             --title "xclang $version" \
-            --notes "LLVM $llvm, build run https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
-
-          Bazel module: xclang-bazel-$version.tar.gz, integrity $integrity" \
+            --notes "LLVM $llvm, build run https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
             dist/*

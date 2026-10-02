@@ -1,13 +1,22 @@
 name: bazel
 
 # The Bazel module (MODULE.bazel, bazel/) on a machine of every host:
-# tests/bazel's tests, then tests/bazel.ts's checks of the actions' keys. On
-# exp/bazel also kotatsu, a consumer, with acceptance/kotatsu.patch.
+# tests/bazel's tests, then tests/bazel.ts's checks of the actions' keys.
+# With a tag, the module of that published release (its tree, with the
+# digests of its SHA256SUMS) is tested and then published to the clice Bazel
+# registry, https://bazel.clice.io (clice-io/bazel's action). On exp/bazel
+# also kotatsu, a consumer, with acceptance/kotatsu.patch, and tests/bazel
+# on the module the registry serves.
 
 on:
   push:
     branches: [exp/bazel]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release whose module to test and publish to bazel.clice.io, e.g. 23.1.2.5
+        type: string
+        default: ""
   workflow_call:
 
 permissions:
@@ -38,11 +47,21 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.tag || github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: 24
       - run: npm install -g @bazel/bazelisk
+      # The tag's tree names the release before it: the digests are known
+      # only once its archives are.
+      - name: Release digests
+        if: ${{ inputs.tag }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "${{ inputs.tag }}" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
+          node scripts/bazel.ts versions "$RUNNER_TEMP/SHA256SUMS"
       - name: Test
         working-directory: tests/bazel
         run: |
@@ -52,6 +71,59 @@ jobs:
           bazel "${startup[@]}" test -c opt //... --disk_cache="$RUNNER_TEMP/disk"
       - name: Cache keys and inputs
         run: node tests/bazel.ts --disk-cache "$RUNNER_TEMP/disk"
+
+  publish:
+    if: ${{ inputs.tag }}
+    needs: module
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Module archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "${{ inputs.tag }}" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
+          node scripts/bazel.ts archive "$RUNNER_TEMP/SHA256SUMS" dist
+      - uses: clice-io/bazel@main
+        with:
+          archives: dist/xclang-bazel-*.tar.gz
+          token: ${{ secrets.UPLOAD_BAZEL }}
+
+  # tests/bazel on xclang from the registry, as a consumer gets it.
+  registry:
+    if: github.ref == 'refs/heads/exp/bazel'
+    name: registry (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm install -g @bazel/bazelisk
+      - name: Test
+        working-directory: tests/bazel
+        run: |
+          node -e 'const fs = require("fs"); const m = fs.readFileSync("MODULE.bazel", "utf8").replace(/local_path_override\([^)]*\)\n/, ""); if (m.includes("local_path_override")) process.exit(1); fs.writeFileSync("MODULE.bazel", m)'
+          printf 'common --registry=https://bazel.clice.io/\ncommon --registry=https://bcr.bazel.build/\n' >> .bazelrc
+          startup=(); [[ "$RUNNER_OS" == Windows ]] && startup=(--output_user_root=C:/b --windows_enable_symlinks)
+          bazel "${startup[@]}" test //...
+          bazel "${startup[@]}" mod graph | grep xclang
 
   kotatsu:
     if: github.ref == 'refs/heads/exp/bazel'

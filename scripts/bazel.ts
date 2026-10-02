@@ -5,12 +5,11 @@
 ///       of its archives
 ///   node scripts/bazel.ts archive <SHA256SUMS> <dir>
 ///       <dir>/xclang-bazel-<version>.tar.gz: the module at that release,
-///       the source a consumer's archive_override names; prints its
-///       integrity
+///       its source archive in the clice Bazel registry (bazel.yml
+///       publishes it); prints its integrity
 ///
 /// The release is tagged before its archives exist, so the module of the
-/// tag cannot hold their digests: the archive made here, an asset of the
-/// release, does.
+/// tag cannot hold their digests: the archive made here does.
 
 import { createHash } from "node:crypto";
 import fs from "node:fs";

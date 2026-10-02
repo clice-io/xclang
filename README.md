@@ -38,18 +38,19 @@ from the GitHub release and unpack them anywhere.
 
 xclang is a Bazel module too (Bazel 9, rules_cc 0.2.25): the C++ toolchain
 of the host, downloaded from the release of the module's version by its
-sha256, with libclang and the option tables as repositories. A release
-carries the module as `xclang-bazel-<version>.tar.gz`, whose integrity its
-notes give (from the release after 23.1.2.4):
+sha256, with libclang and the option tables as repositories. Every release
+is published to the clice Bazel registry,
+[bazel.clice.io](https://github.com/clice-io/bazel):
+
+```
+# .bazelrc
+common --registry=https://bazel.clice.io/
+common --registry=https://bcr.bazel.build/
+```
 
 ```starlark
-bazel_dep(name = "xclang", version = "<version>")
-archive_override(
-    module_name = "xclang",
-    integrity = "sha256-...",
-    strip_prefix = "xclang-bazel-<version>",
-    urls = ["https://github.com/clice-io/xclang/releases/download/<version>/xclang-bazel-<version>.tar.gz"],
-)
+# MODULE.bazel
+bazel_dep(name = "xclang", version = "23.1.2.4")
 
 # Only to link libclang or include the option tables.
 xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
@@ -59,7 +60,7 @@ use_repo(xclang, "libclang", "llvm_option_inc")
 A commit of this repository works too, through `git_override`: its
 `bazel/versions.bzl` names the release it downloads. The module registers
 its toolchains itself, and a library that only builds with xclang makes the
-`bazel_dep` a `dev_dependency`. In `.bazelrc`:
+`bazel_dep` a `dev_dependency`. Also in `.bazelrc`:
 
 ```
 common --enable_platform_specific_config
@@ -314,8 +315,9 @@ tests/             smoke.ts and libclang.ts, the per-host checks; bench.ts,
                    compile speed against other compilers
 conda/             activation scripts; scripts/conda.ts makes the packages,
                    conda.yml tests and publishes them
-MODULE.bazel, bazel/    the Bazel module; scripts/bazel.ts makes its release
-                   archive, tests/bazel tests it as a consumer (bazel.yml)
+MODULE.bazel, bazel/    the Bazel module; scripts/bazel.ts makes a release's
+                   archive of it, which bazel.yml tests (tests/bazel) and
+                   publishes to bazel.clice.io
 .github/workflows/ main.yml runs the stages above, by hand
 ```
 

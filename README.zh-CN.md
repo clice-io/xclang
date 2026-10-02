@@ -27,23 +27,24 @@ xclang = "23.1.2.4.*"
 
 ## Bazel
 
-xclang 也是一个 Bazel 模块（Bazel 9，rules_cc 0.2.25）：提供本机的 C++ 工具链，按模块版本从对应的 release 下载并校验 sha256，libclang 和选项表则作为仓库（repository）提供。每个 release 附带模块本身，即 `xclang-bazel-<版本>.tar.gz`，其 integrity 写在 release 说明里（23.1.2.4 之后的 release 才有）：
+xclang 也是一个 Bazel 模块（Bazel 9，rules_cc 0.2.25）：提供本机的 C++ 工具链，按模块版本从对应的 release 下载并校验 sha256，libclang 和选项表则作为仓库（repository）提供。每个 release 都发布到 clice 的 Bazel 模块仓库 [bazel.clice.io](https://github.com/clice-io/bazel)：
+
+```
+# .bazelrc
+common --registry=https://bazel.clice.io/
+common --registry=https://bcr.bazel.build/
+```
 
 ```starlark
-bazel_dep(name = "xclang", version = "<版本>")
-archive_override(
-    module_name = "xclang",
-    integrity = "sha256-...",
-    strip_prefix = "xclang-bazel-<版本>",
-    urls = ["https://github.com/clice-io/xclang/releases/download/<版本>/xclang-bazel-<版本>.tar.gz"],
-)
+# MODULE.bazel
+bazel_dep(name = "xclang", version = "23.1.2.4")
 
 # 只在链接 libclang 或使用选项表时需要。
 xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
 use_repo(xclang, "libclang", "llvm_option_inc")
 ```
 
-也可以用 `git_override` 指向本仓库的某个提交：它的 `bazel/versions.bzl` 写明下载哪个 release。模块自己注册工具链；只用 xclang 构建的库可以把 `bazel_dep` 设为 `dev_dependency`。`.bazelrc` 里写：
+也可以用 `git_override` 指向本仓库的某个提交：它的 `bazel/versions.bzl` 写明下载哪个 release。模块自己注册工具链；只用 xclang 构建的库可以把 `bazel_dep` 设为 `dev_dependency`。`.bazelrc` 里还要写：
 
 ```
 common --enable_platform_specific_config
@@ -195,8 +196,8 @@ patches/                对 LLVM 的修改，每个一个目录和一个 README
 tests/                  smoke.ts 和 libclang.ts，各主机平台的检查；bench.ts，
                         和其它编译器比较编译速度
 conda/                  激活脚本；scripts/conda.ts 打 conda 包，conda.yml 测试并发布
-MODULE.bazel、bazel/    Bazel 模块；scripts/bazel.ts 打它的 release 包，tests/bazel
-                        以使用者的方式测试它（bazel.yml）
+MODULE.bazel、bazel/    Bazel 模块；scripts/bazel.ts 为某个 release 打包它，bazel.yml
+                        测试（tests/bazel）并发布到 bazel.clice.io
 .github/workflows/      main.yml 按上面的阶段运行，手动触发
 ```
 

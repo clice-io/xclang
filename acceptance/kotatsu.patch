@@ -11,11 +11,15 @@ index 0000000..51f66f9
 +tests/conformance/node_modules
 diff --git a/.bazelrc b/.bazelrc
 new file mode 100644
-index 0000000..553063e
+index 0000000..ef61a72
 --- /dev/null
 +++ b/.bazelrc
-@@ -0,0 +1,31 @@
+@@ -0,0 +1,35 @@
 +common --enable_platform_specific_config
++# xclang comes from the clice Bazel registry, the rest from the Bazel Central
++# Registry.
++common --registry=https://bazel.clice.io/
++common --registry=https://bcr.bazel.build/
 +# The toolchain is xclang's (MODULE.bazel), on every platform; rules_cc's
 +# detection of another is off.
 +common --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
@@ -440,10 +444,10 @@ index 0000000..5ad8896
 +)
 diff --git a/MODULE.bazel b/MODULE.bazel
 new file mode 100644
-index 0000000..89c67c2
+index 0000000..a843da8
 --- /dev/null
 +++ b/MODULE.bazel
-@@ -0,0 +1,30 @@
+@@ -0,0 +1,31 @@
 +module(
 +    name = "kotatsu",
 +    version = "0.1.0",
@@ -470,9 +474,10 @@ index 0000000..89c67c2
 +    "tomlplusplus",
 +)
 +
-+# The C++ toolchain on every platform: xclang's module, which downloads the
-+# release of its version for the host. Development only: a module depending
-+# on kotatsu brings its own toolchain.
++# The C++ toolchain on every platform: xclang's module, from the clice Bazel
++# registry (.bazelrc), which downloads the release of its version for the
++# host. Development only: a module depending on kotatsu brings its own
++# toolchain.
 +bazel_dep(name = "xclang", version = "23.1.2.4", dev_dependency = True)
 diff --git a/README.md b/README.md
 index bcd393d..5e9d7c0 100644
