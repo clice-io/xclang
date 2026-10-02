@@ -9,9 +9,9 @@
 /// 2. The copy at the previous release (bazel/versions.bzl of --previous)
 ///    runs every compile and link again: the toolchain's files are the
 ///    actions' inputs.
-/// 3. On Linux and macOS, the same build without the disk cache, in the
-///    sandbox and outside it, one action at a time: what staging the
-///    toolchain's files as inputs costs.
+/// 3. On Linux and macOS, the programs built without the disk cache, in the
+///    sandbox and outside it, one action at a time, next to as many actions
+///    with no inputs: what staging the toolchain's files costs.
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -29,7 +29,10 @@ const { values } = parseArgs({
 if (!values["disk-cache"]) common.fail("--disk-cache <dir> [--previous <version>]");
 const diskCache = path.resolve(values["disk-cache"]);
 const windows = process.platform === "win32";
-const TARGETS = ["//c:c_test", "//cpp:all", "//modules:all", "//options:all", "//shared:all"];
+/// The programs of tests/bazel; the tool on libclang is checked for its keys,
+/// not timed.
+const PROGRAMS = ["//c:c_test", "//cpp:all", "//modules:all", "//options:all", "//shared:all"];
+const TARGETS = [...PROGRAMS, "//libclang:libclang_test"];
 
 /// Bazel's own summary of a build: "INFO: 12 processes: 4 internal, 8 disk cache hit."
 interface Processes {
@@ -96,15 +99,22 @@ if (!windows) {
   common.run("git", ["-C", common.ROOT, "show", "HEAD:bazel/versions.bzl"], {
     stdio: ["ignore", fs.openSync(path.join(copy, "bazel", "versions.bzl"), "w"), "inherit"],
   });
-  const timed = (strategy: string): Processes => {
+  /// What the sandbox costs any action: as many that read nothing.
+  fs.mkdirSync(path.join(tests, "baseline"));
+  fs.writeFileSync(path.join(tests, "baseline", "BUILD.bazel"),
+    [...Array(40).keys()].map((i) => `genrule(name = "g${i}", outs = ["g${i}.txt"], cmd = "echo ${i} > $@")\n`).join(""));
+  const timed = (strategy: string, targets: string[]): Processes => {
     bazel(tests, ["clean"]);
-    return bazel(tests, ["build", "--jobs=1", `--spawn_strategy=${strategy}`, ...TARGETS]);
+    return bazel(tests, ["build", "--jobs=1", `--spawn_strategy=${strategy}`, ...targets]);
   };
-  const sandboxed = timed("sandboxed");
-  const local = timed("local");
-  const perAction = ((sandboxed.seconds - local.seconds) / Math.max(sandboxed.executed, 1)) * 1000;
-  check(true, `${sandboxed.executed} actions one at a time: ${sandboxed.seconds.toFixed(1)} s in the sandbox, ` +
-    `${local.seconds.toFixed(1)} s outside it, ${perAction.toFixed(0)} ms per action`);
+  const cost = (targets: string[]): string => {
+    const sandboxed = timed("sandboxed", targets);
+    const local = timed("local", targets);
+    const ms = ((sandboxed.seconds - local.seconds) / Math.max(sandboxed.executed, 1)) * 1000;
+    return `${sandboxed.executed} actions, ${sandboxed.seconds.toFixed(1)} s in the sandbox and ` +
+      `${local.seconds.toFixed(1)} s outside it: ${ms.toFixed(0)} ms per action`;
+  };
+  check(true, `one at a time, the programs: ${cost(PROGRAMS)}; actions without inputs: ${cost(["//baseline:all"])}`);
 }
 
 if (process.env.GITHUB_STEP_SUMMARY) {

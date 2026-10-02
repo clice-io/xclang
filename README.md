@@ -34,6 +34,91 @@ The package is the host's archive, every target included, under
 they are. `llvm-option-inc` holds the option tables. Or take the archives
 from the GitHub release and unpack them anywhere.
 
+## Bazel
+
+xclang is a Bazel module too (Bazel 9, rules_cc 0.2.25): the C++ toolchain
+of the host, downloaded from the release of the module's version by its
+sha256, with libclang and the option tables as repositories. A release
+carries the module as `xclang-bazel-<version>.tar.gz`, whose integrity its
+notes give (from the release after 23.1.2.4):
+
+```starlark
+bazel_dep(name = "xclang", version = "<version>")
+archive_override(
+    module_name = "xclang",
+    integrity = "sha256-...",
+    strip_prefix = "xclang-bazel-<version>",
+    urls = ["https://github.com/clice-io/xclang/releases/download/<version>/xclang-bazel-<version>.tar.gz"],
+)
+
+# Only to link libclang or include the option tables.
+xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
+use_repo(xclang, "libclang", "llvm_option_inc")
+```
+
+A commit of this repository works too, through `git_override`: its
+`bazel/versions.bzl` names the release it downloads. The module registers
+its toolchains itself, and a library that only builds with xclang makes the
+`bazel_dep` a `dev_dependency`. In `.bazelrc`:
+
+```
+common --enable_platform_specific_config
+# The C++ toolchain is xclang's; rules_cc's detection of another is off.
+common --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
+# C++20 modules: module_interfaces with features = ["cpp_modules"].
+common --experimental_cpp_modules
+common:windows --enable_runfiles
+```
+
+and on Windows, in `%USERPROFILE%\.bazelrc` (startup options have no
+per-platform form): a short output root, as Bazel's default one is too
+deep for Windows paths, and runfiles as symlinks rather than copies:
+
+```
+startup --output_user_root=C:/b
+startup --windows_enable_symlinks
+```
+
+Bazel itself is best run through bazelisk (`npm install -g
+@bazel/bazelisk`, or as a devDependency and `npx bazelisk`) with the version
+in `.bazelversion`; conda-forge has no bazelisk, and its bazel runs only
+with `--batch`.
+
+What the toolchain does:
+
+- **Hermetic.** Every file of the toolchain an action reads is one of its
+  inputs, so another release builds anew, and no path on a command line is
+  absolute: a disk or remote cache serves every checkout. The one input from
+  the machine is the macOS SDK, which `xcrun` finds; `--macos_minimum_os`
+  sets the deployment target.
+- **Static.** Libraries link into tests and programs statically: libc++ is
+  in every shared object on its own, so memory one shared library allocates
+  another would free. `cc_binary(linkshared = True)` still makes one
+  (`libfoo.so`, `libfoo.dylib`, `foo.dll`); `features =
+  ["supports_dynamic_linker"]` gives a target Bazel's dynamic linking back.
+- **Windows** programs are MinGW ones, named `.exe`, with `.dll` shared
+  libraries; optimized builds there link without `--gc-sections`, with
+  which lld drops static initializers in COMDAT sections.
+- Other repositories' headers are system headers (`-isystem`), whose
+  warnings are not the build's; `__DATE__` and `__TIME__` are redacted.
+- **Sanitizers** are features: `features = ["asan"]` (or `tsan`, `ubsan`,
+  `lsan`; `--features=asan` for a whole build). On macOS, where their
+  runtimes are shared libraries, the feature links in the absolute path of
+  the toolchain's: those links alone depend on the checkout.
+
+`@libclang//:clangBasic`, `:clangLex`, `:LLVMSupport` and every other
+library come with the link interface LLVM's and clang's CMake packages give
+them (system libraries, zlib, zstd), so a target names only what it uses;
+`:headers` and `:resource_dir` are there too. Its code compiles with
+`-fno-rtti`, as LLVM's did, and the toolchain of the same release links the
+ThinLTO bitcode. `@libclang_asan` is the ASan build, for Linux x64 and macOS
+arm64, used with `features = ["asan"]`. `@llvm_option_inc` holds the
+option tables: `#include <llvm-options-td/clang-Driver-Options.inc>`.
+
+An unreleased build is used from where it was unpacked, with
+`--repo_env=XCLANG_ROOT=<xclang>` for the toolchain and
+`XCLANG_LIBCLANG_ROOT` (`XCLANG_LIBCLANG_ASAN_ROOT`) for libclang.
+
 ## Who it is for
 
 People who want a toolchain they can pin, ship and reproduce, and binaries
@@ -226,6 +311,8 @@ tests/             smoke.ts and libclang.ts, the per-host checks; bench.ts,
                    compile speed against other compilers
 conda/             activation scripts; scripts/conda.ts makes the packages,
                    conda.yml tests and publishes them
+MODULE.bazel, bazel/    the Bazel module; scripts/bazel.ts makes its release
+                   archive, tests/bazel tests it as a consumer (bazel.yml)
 .github/workflows/ main.yml runs the stages above, by hand
 ```
 

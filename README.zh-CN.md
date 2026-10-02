@@ -25,6 +25,56 @@ xclang = "23.1.2.4.*"
 
 这个包就是该主机平台的发布包，包含全部目标平台，装在 `$PREFIX/opt/xclang`，环境激活时把它的 `bin/` 放到 `PATH` 最前面；`$PREFIX/bin` 里不放任何东西，不影响 conda-forge 的编译器。`llvm-option-inc` 是选项表。也可以直接从 GitHub release 下载压缩包，解压到任意位置使用。
 
+## Bazel
+
+xclang 也是一个 Bazel 模块（Bazel 9，rules_cc 0.2.25）：提供本机的 C++ 工具链，按模块版本从对应的 release 下载并校验 sha256，libclang 和选项表则作为仓库（repository）提供。每个 release 附带模块本身，即 `xclang-bazel-<版本>.tar.gz`，其 integrity 写在 release 说明里（23.1.2.4 之后的 release 才有）：
+
+```starlark
+bazel_dep(name = "xclang", version = "<版本>")
+archive_override(
+    module_name = "xclang",
+    integrity = "sha256-...",
+    strip_prefix = "xclang-bazel-<版本>",
+    urls = ["https://github.com/clice-io/xclang/releases/download/<版本>/xclang-bazel-<版本>.tar.gz"],
+)
+
+# 只在链接 libclang 或使用选项表时需要。
+xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
+use_repo(xclang, "libclang", "llvm_option_inc")
+```
+
+也可以用 `git_override` 指向本仓库的某个提交：它的 `bazel/versions.bzl` 写明下载哪个 release。模块自己注册工具链；只用 xclang 构建的库可以把 `bazel_dep` 设为 `dev_dependency`。`.bazelrc` 里写：
+
+```
+common --enable_platform_specific_config
+# C++ 工具链用 xclang 的，关掉 rules_cc 对其它编译器的探测。
+common --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
+# C++20 模块：module_interfaces 加 features = ["cpp_modules"]。
+common --experimental_cpp_modules
+common:windows --enable_runfiles
+```
+
+Windows 上另外在 `%USERPROFILE%\.bazelrc` 里写（启动选项没有按平台区分的写法）：Bazel 默认的输出目录对 Windows 路径来说太深，换一个短的；runfiles 用符号链接而不是拷贝：
+
+```
+startup --output_user_root=C:/b
+startup --windows_enable_symlinks
+```
+
+Bazel 本身建议通过 bazelisk 运行（`npm install -g @bazel/bazelisk`，或作为 devDependency 用 `npx bazelisk`），版本写在 `.bazelversion`；conda-forge 没有 bazelisk，它的 bazel 只能以 `--batch` 运行。
+
+工具链的行为：
+
+- **密封。** action 读到的每个工具链文件都是它的输入，换一个 release 就会重新构建；命令行里没有绝对路径，磁盘缓存或远程缓存在不同的检出目录之间通用。唯一来自本机的输入是 macOS SDK，由 `xcrun` 找到；部署目标用 `--macos_minimum_os` 设置。
+- **静态链接。** 库静态链接进测试和程序：每个共享库里都各有一份 libc++，一个共享库分配的内存会被另一个释放。`cc_binary(linkshared = True)` 仍然可以生成共享库（`libfoo.so`、`libfoo.dylib`、`foo.dll`）；`features = ["supports_dynamic_linker"]` 让某个目标恢复 Bazel 的动态链接。
+- **Windows** 上的程序是 MinGW 程序，名为 `.exe`，共享库为 `.dll`；优化构建不加 `--gc-sections`，否则 lld 会丢掉 COMDAT 段里的静态初始化。
+- 其它仓库的头文件作为系统头文件（`-isystem`），它们的警告不算本项目的；`__DATE__`、`__TIME__` 被替换掉。
+- **Sanitizer** 用 feature 打开：`features = ["asan"]`（或 `tsan`、`ubsan`、`lsan`；整个构建用 `--features=asan`）。macOS 上它们的运行库是共享库，这些 feature 会把工具链里运行库的绝对路径链接进去：只有这些链接依赖检出目录。
+
+`@libclang//:clangBasic`、`:clangLex`、`:LLVMSupport` 等每个库都带着 LLVM 和 clang 的 CMake 包给出的链接接口（系统库、zlib、zstd），目标只需写自己用到的库；另有 `:headers` 和 `:resource_dir`。用它的代码要和 LLVM 一样以 `-fno-rtti` 编译，ThinLTO bitcode 由同一 release 的工具链链接。`@libclang_asan` 是 ASan 版本（Linux x64 和 macOS arm64），配合 `features = ["asan"]` 使用。`@llvm_option_inc` 是选项表：`#include <llvm-options-td/clang-Driver-Options.inc>`。
+
+未发布的构建可以从解压的位置使用：工具链用 `--repo_env=XCLANG_ROOT=<xclang>`，libclang 用 `XCLANG_LIBCLANG_ROOT`（`XCLANG_LIBCLANG_ASAN_ROOT`）。
+
 ## 适合谁
 
 想要一套可以锁定版本、随项目分发、可复现的工具链，并且希望编出来的程序拷到哪都能跑的人：
@@ -144,6 +194,8 @@ patches/                对 LLVM 的修改，每个一个目录和一个 README
 tests/                  smoke.ts 和 libclang.ts，各主机平台的检查；bench.ts，
                         和其它编译器比较编译速度
 conda/                  激活脚本；scripts/conda.ts 打 conda 包，conda.yml 测试并发布
+MODULE.bazel、bazel/    Bazel 模块；scripts/bazel.ts 打它的 release 包，tests/bazel
+                        以使用者的方式测试它（bazel.yml）
 .github/workflows/      main.yml 按上面的阶段运行，手动触发
 ```
 
