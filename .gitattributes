@@ -1,0 +1,2 @@
+# Patches apply as they are, from a Windows checkout too.
+*.patch -text
