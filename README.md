@@ -25,7 +25,7 @@ channels = ["conda-forge", "https://conda.clice.io"]
 platforms = ["linux-64", "osx-arm64", "win-64"]
 
 [dependencies]
-xclang = "23.1.2.4.*"
+xclang = "23.1.2.5.*"
 ```
 
 The package is the host's archive, every target included, under
@@ -50,7 +50,7 @@ common --registry=https://bcr.bazel.build/
 
 ```starlark
 # MODULE.bazel
-bazel_dep(name = "xclang", version = "23.1.2.4")
+bazel_dep(name = "xclang", version = "23.1.2.5")
 
 # Only to link libclang or include the option tables.
 xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
@@ -366,6 +366,7 @@ themselves need CI-sized machines.
 | [23.1.2.2](https://github.com/clice-io/xclang/releases/tag/23.1.2.2) | published: built by 23.1.2.1 |
 | [23.1.2.3](https://github.com/clice-io/xclang/releases/tag/23.1.2.3) | published: built by 23.1.2.2, the first with `patches/` (0001–0006) |
 | [23.1.2.4](https://github.com/clice-io/xclang/releases/tag/23.1.2.4) | published: built by 23.1.2.3; Windows launchers start `llvm.exe` inside their job |
+| [23.1.2.5](https://github.com/clice-io/xclang/releases/tag/23.1.2.5) | published: built by 23.1.2.3; macOS targets link with ld64.lld (0007), libc++'s ASan build, `clang -E` raw strings (0008), 0005 dropped; the Bazel module on [bazel.clice.io](https://bazel.clice.io) |
 | conda packages on [conda.clice.io](https://conda.clice.io) | done: tested with pixi on every host |
 
 xclang is developed for [clice](https://github.com/clice-io/clice), whose

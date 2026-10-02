@@ -20,7 +20,7 @@ channels = ["conda-forge", "https://conda.clice.io"]
 platforms = ["linux-64", "osx-arm64", "win-64"]
 
 [dependencies]
-xclang = "23.1.2.4.*"
+xclang = "23.1.2.5.*"
 ```
 
 这个包就是该主机平台的发布包，包含全部目标平台，装在 `$PREFIX/opt/xclang`，环境激活时把它的 `bin/` 放到 `PATH` 最前面；`$PREFIX/bin` 里不放任何东西，不影响 conda-forge 的编译器。`llvm-option-inc` 是选项表。也可以直接从 GitHub release 下载压缩包，解压到任意位置使用。
@@ -37,7 +37,7 @@ common --registry=https://bcr.bazel.build/
 
 ```starlark
 # MODULE.bazel
-bazel_dep(name = "xclang", version = "23.1.2.4")
+bazel_dep(name = "xclang", version = "23.1.2.5")
 
 # 只在链接 libclang 或使用选项表时需要。
 xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
@@ -230,6 +230,7 @@ MODULE.bazel、bazel/    Bazel 模块；bazel.yml 用每次运行的包测试它
 | [23.1.2.2](https://github.com/clice-io/xclang/releases/tag/23.1.2.2) | 已发布：由 23.1.2.1 构建 |
 | [23.1.2.3](https://github.com/clice-io/xclang/releases/tag/23.1.2.3) | 已发布：由 23.1.2.2 构建，首个带 `patches/`（0001–0006）的版本 |
 | [23.1.2.4](https://github.com/clice-io/xclang/releases/tag/23.1.2.4) | 已发布：由 23.1.2.3 构建；Windows 启动器让 `llvm.exe` 一创建就在自己的 job 里 |
+| [23.1.2.5](https://github.com/clice-io/xclang/releases/tag/23.1.2.5) | 已发布：由 23.1.2.3 构建；macOS 目标平台用 ld64.lld 链接（0007），libc++ 的 ASan 版本，`clang -E` 的原始字符串（0008），去掉 0005；Bazel 模块发布在 [bazel.clice.io](https://bazel.clice.io) |
 | [conda.clice.io](https://conda.clice.io) 上的 conda 包 | 完成：每个主机平台都用 pixi 测试过 |
 
 xclang 是为 [clice](https://github.com/clice-io/clice) 开发的，clice 的发布构建是它的第一个用户。

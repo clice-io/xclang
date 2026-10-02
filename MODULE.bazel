@@ -4,7 +4,7 @@ version (bazel/versions.bzl)."""
 
 module(
     name = "xclang",
-    version = "23.1.2.4",
+    version = "23.1.2.5",
     bazel_compatibility = [">=9.0.0"],
 )
 
