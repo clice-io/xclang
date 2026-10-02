@@ -67,7 +67,8 @@ Bazel 本身建议通过 bazelisk 运行（`npm install -g @bazel/bazelisk`，�
 
 - **密封。** action 读到的每个工具链文件都是它的输入，换一个 release 就会重新构建；命令行里没有绝对路径，磁盘缓存或远程缓存在不同的检出目录之间通用。唯一来自本机的输入是 macOS SDK，由 `xcrun` 找到；部署目标用 `--macos_minimum_os` 设置。
 - **静态链接。** 库静态链接进测试和程序：每个共享库里都各有一份 libc++，一个共享库分配的内存会被另一个释放。`cc_binary(linkshared = True)` 仍然可以生成共享库（`libfoo.so`、`libfoo.dylib`、`foo.dll`）；`features = ["supports_dynamic_linker"]` 让某个目标恢复 Bazel 的动态链接。
-- **Windows** 上的程序是 MinGW 程序，名为 `.exe`，共享库为 `.dll`；优化构建不加 `--gc-sections`，否则 lld 会丢掉 COMDAT 段里的静态初始化。
+- **Windows** 上的程序是 MinGW 程序，名为 `.exe`，共享库为 `.dll`。
+- 优化构建在 Linux 上用 lld 的 `--gc-sections` 链接（`gc_sections` feature），Windows 上默认不用：那里它会丢掉 COMDAT 段里的静态初始化。不依赖这些初始化的目标可以用 `--features=gc_sections` 或 `features = ["gc_sections"]` 打开，`-gc_sections` 关掉。
 - 其它仓库的头文件作为系统头文件（`-isystem`），它们的警告不算本项目的；`__DATE__`、`__TIME__` 被替换掉。
 - **Sanitizer** 用 feature 打开：`features = ["asan"]`（或 `tsan`、`ubsan`、`lsan`；整个构建用 `--features=asan`）。macOS 上它们的运行库是共享库，这些 feature 会把工具链里运行库的绝对路径链接进去：只有这些链接依赖检出目录。
 

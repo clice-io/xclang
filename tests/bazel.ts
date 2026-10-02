@@ -9,7 +9,9 @@
 /// 2. The copy at the previous release (bazel/versions.bzl of --previous)
 ///    runs every compile and link again: the toolchain's files are the
 ///    actions' inputs.
-/// 3. On Linux and macOS, the programs built without the disk cache, in the
+/// 3. lld's --gc-sections in optimized links: on by default for Linux,
+///    off for Windows unless asked for (the gc_sections feature).
+/// 4. On Linux and macOS, the programs built without the disk cache, in the
 ///    sandbox and outside it, one action at a time, next to as many actions
 ///    with no inputs: what staging the toolchain's files costs.
 
@@ -41,10 +43,14 @@ interface Processes {
   seconds: number;
 }
 
-function bazel(cwd: string, args: string[]): Processes {
+function run(cwd: string, args: string[]) {
   const startup = windows ? ["--output_user_root=C:/b", "--windows_enable_symlinks"] : [];
+  return spawnSync("bazel", [...startup, ...args], { cwd, encoding: "utf8", shell: windows, maxBuffer: 1 << 28 });
+}
+
+function bazel(cwd: string, args: string[]): Processes {
   const start = Date.now();
-  const result = spawnSync("bazel", [...startup, ...args], { cwd, encoding: "utf8", shell: windows, maxBuffer: 1 << 28 });
+  const result = run(cwd, args);
   const seconds = (Date.now() - start) / 1000;
   process.stderr.write(result.stderr);
   if (result.status !== 0) common.fail(`bazel ${args.join(" ")} failed in ${cwd}`);
@@ -93,6 +99,18 @@ common.run(process.execPath, [path.join(copy, "scripts", "bazel.ts"), "versions"
 const previous = bazel(tests, ["build", ...cache, ...TARGETS]);
 check(previous.hits === 0 && previous.executed > 0,
   `xclang ${values.previous}: ${previous.executed} actions run, ${previous.hits} from the disk cache`);
+
+/// The link of a program in an optimized build, with and without the feature.
+const gc = (features: string[]): boolean => {
+  const result = run(tests, ["aquery", "-c", "opt", ...features, 'mnemonic("CppLink", //cpp:hello)']);
+  if (result.status !== 0) common.fail(`bazel aquery failed: ${result.stderr}`);
+  return result.stdout.includes("-Wl,--gc-sections");
+};
+if (process.platform === "linux") {
+  check(gc([]) && !gc(["--features=-gc_sections"]), "--gc-sections in optimized links, unless -gc_sections");
+} else if (windows) {
+  check(!gc([]) && gc(["--features=gc_sections"]), "no --gc-sections in optimized links, unless gc_sections");
+}
 
 if (!windows) {
   /// The release of the module again, fetched already: only the actions differ.

@@ -49,6 +49,7 @@ jobs:
           # Windows: a short output root, and runfiles as symlinks.
           startup=(); [[ "$RUNNER_OS" == Windows ]] && startup=(--output_user_root=C:/b --windows_enable_symlinks)
           bazel "${startup[@]}" test //... --disk_cache="$RUNNER_TEMP/disk"
+          bazel "${startup[@]}" test -c opt //... --disk_cache="$RUNNER_TEMP/disk"
       - name: Cache keys and inputs
         run: node tests/bazel.ts --disk-cache "$RUNNER_TEMP/disk"
 

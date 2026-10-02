@@ -97,8 +97,11 @@ What the toolchain does:
   (`libfoo.so`, `libfoo.dylib`, `foo.dll`); `features =
   ["supports_dynamic_linker"]` gives a target Bazel's dynamic linking back.
 - **Windows** programs are MinGW ones, named `.exe`, with `.dll` shared
-  libraries; optimized builds there link without `--gc-sections`, with
-  which lld drops static initializers in COMDAT sections.
+  libraries.
+- Optimized builds link with lld's `--gc-sections` (the `gc_sections`
+  feature) for Linux, not for Windows, where it drops static initializers in
+  COMDAT sections: `--features=gc_sections` or `features = ["gc_sections"]`
+  turns it on where nothing relies on them, `-gc_sections` off.
 - Other repositories' headers are system headers (`-isystem`), whose
   warnings are not the build's; `__DATE__` and `__TIME__` are redacted.
 - **Sanitizers** are features: `features = ["asan"]` (or `tsan`, `ubsan`,

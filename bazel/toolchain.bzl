@@ -89,9 +89,9 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
     link_flags = flags + ["--driver-mode=g++", "-no-canonical-prefixes"]
     sanitizer_link_flags = []
 
-    # Linux: lld's --gc-sections. Not MinGW's: lld drops the static
-    # initializers of COMDAT sections there (test registrations).
-    opt_link_flags = ["-Wl,--gc-sections"] if t.os == "linux" else []
+    # lld's --gc-sections, on for Linux and off for Windows (bazel/BUILD.bazel).
+    gc_sections = [Label("//bazel:gc_sections")]
+    opt_link_flags = []
     if apple_ld:
         link_flags.append("-B%s/libexec" % root)
 
@@ -118,6 +118,8 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
         cpu = t.cpu,
         cxx_builtin_include_directories = builtin_dirs,
         dbg_compile_flags = ["-g"],
+        extra_enabled_features = gc_sections if t.os == "linux" else [],
+        extra_known_features = gc_sections if t.os == "windows" else [],
         host_system_name = host,
         link_flags = link_flags,
         opt_compile_flags = ["-O2", "-DNDEBUG", "-ffunction-sections", "-fdata-sections"],
