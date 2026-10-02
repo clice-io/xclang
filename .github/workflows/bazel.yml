@@ -19,6 +19,7 @@ env:
 
 jobs:
   module:
+    if: ${{ !contains(github.event.head_commit.message, '[lld]') }}
     name: module (${{ matrix.host }})
     strategy:
       fail-fast: false
@@ -53,8 +54,34 @@ jobs:
       - name: Cache keys and inputs
         run: node tests/bazel.ts --disk-cache "$RUNNER_TEMP/disk"
 
+  # exp only, on a commit that says [lld]: macOS links with ld64.lld.
+  lld:
+    if: contains(github.event.head_commit.message, '[lld]')
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: npm install -g @bazel/bazelisk
+      - name: Test with ld64.lld
+        working-directory: tests/bazel
+        run: |
+          bazel test //... --linkopt=-fuse-ld=lld
+          bazel test -c opt //... --linkopt=-fuse-ld=lld
+      - name: ThinLTO with ld64.lld
+        if: ${{ !cancelled() }}
+        working-directory: tests/bazel
+        run: bazel test -c opt //cpp:all //modules:all --copt=-flto=thin --linkopt=-flto=thin --linkopt=-fuse-ld=lld
+
   kotatsu:
-    if: github.ref == 'refs/heads/exp/bazel'
+    if: github.ref == 'refs/heads/exp/bazel' && !contains(github.event.head_commit.message, '[lld]')
     name: kotatsu (${{ matrix.os }})
     strategy:
       fail-fast: false
