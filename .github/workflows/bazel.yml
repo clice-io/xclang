@@ -18,18 +18,7 @@ env:
   KOTATSU_REF: 4f5fc11be4133d6de4525b5c7556a45de59d0be1
 
 jobs:
-  # exp only: acceptance/probe-macos.sh, on a commit that says [probe].
-  probe:
-    if: contains(github.event.head_commit.message, '[probe]')
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - run: acceptance/probe-macos.sh
-
   module:
-    if: ${{ !contains(github.event.head_commit.message, '[probe]') }}
     name: module (${{ matrix.host }})
     strategy:
       fail-fast: false
@@ -64,7 +53,7 @@ jobs:
         run: node tests/bazel.ts --disk-cache "$RUNNER_TEMP/disk"
 
   kotatsu:
-    if: github.ref == 'refs/heads/exp/bazel' && !contains(github.event.head_commit.message, '[probe]')
+    if: github.ref == 'refs/heads/exp/bazel'
     name: kotatsu (${{ matrix.os }})
     strategy:
       fail-fast: false
