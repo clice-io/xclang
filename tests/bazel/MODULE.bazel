@@ -1,0 +1,15 @@
+"""The xclang module's tests: the toolchain, libclang and the option tables
+as a consumer uses them, from the module in this checkout."""
+
+module(name = "xclang_tests")
+
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "rules_cc", version = "0.2.25")
+bazel_dep(name = "xclang", version = "23.1.2.4")
+local_path_override(
+    module_name = "xclang",
+    path = "../..",
+)
+
+xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
+use_repo(xclang, "libclang", "libclang_asan", "llvm_option_inc")

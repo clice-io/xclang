@@ -1,0 +1,47 @@
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+# A tool on libclang, as tests/libclang is for CMake: the libraries it names
+# bring the rest of their link interface (bazel/libclang.bzl). libclang is
+# ThinLTO bitcode, linked by the lld of the same release.
+LIBRARIES = [
+    "clangBasic",
+    "clangLex",
+    "LLVMSupport",
+]
+
+cc_test(
+    name = "libclang_test",
+    srcs = ["main.cpp"],
+    copts = ["-fno-rtti"],
+    deps = ["@libclang//:" + lib for lib in LIBRARIES],
+)
+
+# The ASan build with assertions, published for Linux x64 and macOS arm64.
+cc_test(
+    name = "libclang_asan_test",
+    srcs = ["main.cpp"],
+    copts = ["-fno-rtti"],
+    features = ["asan"],
+    target_compatible_with = select({
+        ":linux_x86_64": [],
+        ":macos_aarch64": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = ["@libclang_asan//:" + lib for lib in LIBRARIES],
+)
+
+config_setting(
+    name = "linux_x86_64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+config_setting(
+    name = "macos_aarch64",
+    constraint_values = [
+        "@platforms//os:macos",
+        "@platforms//cpu:aarch64",
+    ],
+)

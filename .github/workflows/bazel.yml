@@ -1,0 +1,93 @@
+name: bazel
+
+# The Bazel module (MODULE.bazel, bazel/) on a machine of every host:
+# tests/bazel's tests, then tests/bazel.ts's checks of the actions' keys. On
+# exp/bazel also kotatsu, a consumer, with acceptance/kotatsu.patch.
+
+on:
+  push:
+    branches: [exp/bazel]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  # kotatsu's main, to which acceptance/kotatsu.patch applies.
+  KOTATSU_REF: 4f5fc11be4133d6de4525b5c7556a45de59d0be1
+
+jobs:
+  module:
+    name: module (${{ matrix.host }})
+    strategy:
+      fail-fast: false
+      matrix:
+        host:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - x86_64-w64-mingw32
+          - aarch64-w64-mingw32
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm","aarch64-apple-darwin":"macos-15","x86_64-apple-darwin":"macos-15-intel"}')[matrix.host] }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm install -g @bazel/bazelisk
+      - name: Test
+        working-directory: tests/bazel
+        run: |
+          # Windows: a short output root, and runfiles as symlinks.
+          startup=(); [[ "$RUNNER_OS" == Windows ]] && startup=(--output_user_root=C:/b --windows_enable_symlinks)
+          bazel "${startup[@]}" test //... --disk_cache="$RUNNER_TEMP/disk"
+      - name: Cache keys and inputs
+        run: node tests/bazel.ts --disk-cache "$RUNNER_TEMP/disk"
+
+  kotatsu:
+    if: github.ref == 'refs/heads/exp/bazel'
+    name: kotatsu (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: xclang
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: clice-io/kotatsu
+          ref: ${{ env.KOTATSU_REF }}
+          path: kotatsu
+          persist-credentials: false
+      # The module of this checkout in place of a release's.
+      - name: Patch
+        run: |
+          git -C kotatsu apply "$PWD/xclang/acceptance/kotatsu.patch"
+          xclang="$PWD/xclang"; [[ "$RUNNER_OS" == Windows ]] && xclang="$(cygpath -m "$xclang")"
+          printf '\nlocal_path_override(\n    module_name = "xclang",\n    path = "%s",\n)\n' "$xclang" >> kotatsu/MODULE.bazel
+      - uses: prefix-dev/setup-pixi@v0.9.6
+        with:
+          pixi-version: v0.71.1
+          manifest-path: kotatsu/pixi.toml
+          environments: bazel
+          cache: false
+          locked: true
+      - name: Test
+        working-directory: kotatsu
+        run: pixi run -e bazel bazel test //...

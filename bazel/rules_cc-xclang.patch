@@ -1,0 +1,23 @@
+--- a/cc/private/toolchain/unix_cc_toolchain_config.bzl
++++ b/cc/private/toolchain/unix_cc_toolchain_config.bzl
+@@ -677,7 +677,9 @@
+         provides = ["profile"],
+     )
+ 
+-    supports_dynamic_linker_feature = feature(name = "supports_dynamic_linker", enabled = True)
++    # Known but off: a target links its libraries statically unless it asks for
++    # this feature. (xclang links libc++ into every shared object of its own.)
++    supports_dynamic_linker_feature = feature(name = "supports_dynamic_linker", enabled = False)
+ 
+     user_compile_flags_feature = feature(
+         name = "user_compile_flags",
+@@ -1177,6 +1179,9 @@
+                 ],
+             ),
+         ],
++        # On: the headers of other repositories are system headers, whose
++        # warnings are not the build's.
++        enabled = True,
+     )
+ 
+     strip_debug_symbols_feature = feature(

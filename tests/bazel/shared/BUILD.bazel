@@ -1,0 +1,21 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+# A shared library asked for by name, with libc++ inside: libplugin.so,
+# libplugin.dylib, plugin.dll.
+cc_binary(
+    name = "plugin",
+    srcs = ["plugin.cpp"],
+    linkshared = True,
+)
+
+cc_test(
+    name = "shared_test",
+    srcs = ["shared_test.cpp"],
+    args = ["$(rootpath :plugin)"],
+    data = [":plugin"],
+    linkopts = select({
+        "@platforms//os:linux": ["-ldl"],
+        "//conditions:default": [],
+    }),
+)

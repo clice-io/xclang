@@ -1,0 +1,14 @@
+load("//bazel:hosts.bzl", "HOSTS", "constraints")
+
+# The C++ toolchain of every host, compiling for the host. Only the one of the
+# machine is fetched (bazel/toolchain.bzl).
+[
+    toolchain(
+        name = host,
+        exec_compatible_with = constraints(host),
+        target_compatible_with = constraints(host),
+        toolchain = "@xclang_%s//:cc" % host,
+        toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+    )
+    for host in HOSTS
+]

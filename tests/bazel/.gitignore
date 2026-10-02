@@ -1,5 +1,3 @@
-/work/
-.pixi/
-node_modules/
 /bazel-*
 /MODULE.bazel.lock
+/user.bazelrc

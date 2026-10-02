@@ -1,0 +1,7 @@
+# The module is MODULE.bazel and bazel/; the rest builds the release.
+ignore_directories([
+    ".pixi",
+    "node_modules",
+    "tests/bazel",
+    "work",
+])

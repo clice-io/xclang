@@ -1,0 +1,1440 @@
+diff --git a/.bazelignore b/.bazelignore
+new file mode 100644
+index 0000000..51f66f9
+--- /dev/null
++++ b/.bazelignore
+@@ -0,0 +1,5 @@
++.pixi
++build
++node_modules
++temp
++tests/conformance/node_modules
+diff --git a/.bazelrc b/.bazelrc
+new file mode 100644
+index 0000000..553063e
+--- /dev/null
++++ b/.bazelrc
+@@ -0,0 +1,31 @@
++common --enable_platform_specific_config
++# The toolchain is xclang's (MODULE.bazel), on every platform; rules_cc's
++# detection of another is off.
++common --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
++common --cxxopt=-std=c++23 --host_cxxopt=-std=c++23
++# Warnings fail kotatsu's own sources here only: a consumer's build compiles
++# them without -Werror (bazel/defs.bzl).
++common --per_file_copt=^(src|tests|examples)/@-Werror
++# The SDK's availability markings otherwise follow Bazel's default, older
++# than the libc++ features kotatsu uses; clice pins the same.
++common:macos --macos_minimum_os=15.0
++test --test_output=errors
++# node, and cmake for zest's runner check, come from pixi's environment.
++test --test_env=PATH
++# The tests run from their runfiles tree (bazel/command_test.bzl).
++common:windows --enable_runfiles
++
++# The sanitizer builds of CMakePresets.json, compiled at -O1 with line tables
++# as there.
++common:sanitizer --copt=-O1 --copt=-g1 --copt=-fno-omit-frame-pointer --strip=never
++common:asan --config=sanitizer --copt=-fsanitize=address --linkopt=-fsanitize=address
++common:ubsan --config=sanitizer --copt=-fsanitize=undefined --copt=-fno-sanitize-recover=undefined --linkopt=-fsanitize=undefined
++common:tsan --config=sanitizer --copt=-fsanitize=thread --linkopt=-fsanitize=thread
++
++# The flags of a build without exceptions or RTTI, as the no-exceptions and
++# no-exceptions-no-rtti presets.
++common:no-exceptions --//bazel:exceptions=false
++common:no-rtti --//bazel:rtti=false
++
++# A local file of one's own, never committed.
++try-import %workspace%/user.bazelrc
+diff --git a/.bazelversion b/.bazelversion
+new file mode 100644
+index 0000000..deeb3d6
+--- /dev/null
++++ b/.bazelversion
+@@ -0,0 +1 @@
++9.2.0
+diff --git a/.claude/CLAUDE.md b/.claude/CLAUDE.md
+index d5738ea..ea3d2e0 100644
+--- a/.claude/CLAUDE.md
++++ b/.claude/CLAUDE.md
+@@ -16,6 +16,13 @@ CI workflow — never use xmake for local development.
+   never the system compiler.
+ - The main CI matrix is `cmake.yml` (all toolchains, sanitizers,
+   no-exceptions/no-rtti variants), driving the same presets.
++- Bazel (`MODULE.bazel`) is the build clice consumes, kept in step with
++  CMake: a target per module in `BUILD.bazel`, the tests in
++  `tests/BUILD.bazel`, the third-party BUILD files under `bazel/`, the toolchain from
++  xclang's module. `pixi run -e bazel bazel test //...` builds and tests it with
++  xclang (`--config=no-exceptions`, `--config=no-rtti`, `--config=asan`, ...
++  in `.bazelrc`); `bazel.yml` runs it in CI. A source, test or dependency
++  added to CMake is added there too.
+ 
+ ## Testing
+ 
+diff --git a/.claude/skills/test-style/SKILL.md b/.claude/skills/test-style/SKILL.md
+index 8b56d8c..70c9629 100644
+--- a/.claude/skills/test-style/SKILL.md
++++ b/.claude/skills/test-style/SKILL.md
+@@ -36,6 +36,9 @@ tests/<module>/
+                               kota_add_integration_tests(LIBS ... PROGRAMS ...
+                               DEBUG_ONLY ...) if it has integration/; PROGRAMS are
+                               targets built elsewhere
++tests/BUILD.bazel             the same for Bazel: each module's harness library,
++                              its <module>_<level>_tests binaries, its drivers and
++                              its <module>_integration test
+ tests/harness/*.ts            what every module's integration tests share
+ tests/fixtures/               types shared by several modules' tests
+ tests/snapshots/<suite>/      snapshot files
+@@ -43,7 +46,7 @@ tests/snapshots/<suite>/      snapshot files
+ 
+ - The tests of header `<module>/a/b.h` are `unit/a/b_tests.cpp`. A large header's tests split by aspect, into `unit/a/b_<aspect>_tests.cpp` or into a directory `unit/a/b/<aspect>_tests.cpp`.
+ - codec's protocol (`visit/`, `meta::repr`, attrs, config) is tested once, by a kit every backend runs: `codec/harness/visit/kit.h` holds the primitives and `Caps`, and each area (`values.h`, `attrs.h`, `repr.h`, `variants.h`, `probing.h`) registers its cases for a backend. A backend adapts itself in `codec/<backend>/harness/backend.h` and runs each area in `codec/<backend>/unit/visit/<area>_tests.cpp`, one `ZEST_CASE_GROUP` per file. Fixtures only the codec's tests use live in `codec/harness/fixtures/`.
+-- Build options are checked once, where `tests/CMakeLists.txt` (or the parent module's `CMakeLists.txt`) adds the module's directory. `xmake.lua` mirrors the module list.
++- Build options are checked once, where `tests/CMakeLists.txt` (or the parent module's `CMakeLists.txt`) adds the module's directory. `xmake.lua` mirrors the module list; `tests/BUILD.bazel` lists the modules too, building every test binary per module and level, with its snapshots and the files beside its sources as data.
+ 
+ ## Dependencies
+ 
+diff --git a/.github/workflows/bazel.yml b/.github/workflows/bazel.yml
+new file mode 100644
+index 0000000..54f1da5
+--- /dev/null
++++ b/.github/workflows/bazel.yml
+@@ -0,0 +1,86 @@
++name: bazel
++
++on:
++  workflow_call:
++
++env:
++  npm_config_cache: ${{ github.workspace }}/.cache/npm
++  # Where bazelisk keeps the Bazel releases it downloads.
++  BAZELISK_HOME: ${{ github.workspace }}/.cache/bazelisk
++
++jobs:
++  build:
++    name: ${{ matrix.os_label }} | ${{ matrix.config }}
++    runs-on: ${{ matrix.os }}
++    strategy:
++      fail-fast: false
++      # prettier-ignore
++      matrix:
++        include:
++          - { os_label: linux,   os: ubuntu-24.04, config: default }
++          - { os_label: linux,   os: ubuntu-24.04, config: no-exceptions-no-rtti, flags: "--config=no-exceptions --config=no-rtti" }
++          - { os_label: macos,   os: macos-15,     config: default }
++          - { os_label: windows, os: windows-2025, config: default }
++
++    steps:
++      - name: Checkout repository
++        uses: actions/checkout@v4
++
++      - name: Setup Pixi
++        uses: prefix-dev/setup-pixi@v0.9.6
++        with:
++          pixi-version: v0.71.1
++          environments: bazel
++          activate-environment: true
++          cache: false
++          locked: true
++          post-cleanup: false
++
++      - name: Restore npm cache
++        uses: actions/cache@v4
++        with:
++          path: ${{ env.npm_config_cache }}
++          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
++          restore-keys: |
++            npm-${{ runner.os }}-
++
++      # Bazel's disk cache of actions and its repository cache of downloads,
++      # saved by each run under its commit and restored by prefix, as
++      # cmake.yml's compiler cache.
++      - name: Restore Bazel cache
++        id: bazel-cache
++        uses: actions/cache/restore@v4
++        with:
++          path: .cache/bazel
++          key: bazel-${{ runner.os }}-${{ matrix.config }}/${{ github.sha }}
++          restore-keys: bazel-${{ runner.os }}-${{ matrix.config }}/
++
++      - name: Test
++        id: test
++        shell: bash
++        run: |
++          # "Trim Bazel cache" keeps what the build uses from here on, taken a
++          # second early since `date +%s` rounds down.
++          echo "BUILD_STARTED_AT=$(( $(date +%s) - 1 ))" >> "$GITHUB_ENV"
++          cache="${GITHUB_WORKSPACE}/.cache/bazel"
++          pixi run -e bazel bazel test //... \
++            --disk_cache="${cache}/disk" \
++            --repository_cache="${cache}/repos" \
++            ${{ matrix.flags }}
++
++      # Bazel refreshes an entry's mtime when a build uses it; the rest go, so
++      # that a saved entry holds one build. After a failed build nothing goes.
++      - name: Trim Bazel cache
++        if: ${{ !cancelled() && steps.test.outcome == 'success' }}
++        continue-on-error: true
++        shell: bash
++        run: |
++          find .cache/bazel/disk -type f ! -newermt "@${BUILD_STARTED_AT}" -delete
++          du -sh .cache/bazel
++
++      - name: Save Bazel cache
++        if: ${{ !cancelled() && steps.test.outcome != 'skipped' && steps.bazel-cache.outputs.cache-hit != 'true' }}
++        uses: ./.github/actions/replace-cache
++        with:
++          path: .cache/bazel
++          key: ${{ steps.bazel-cache.outputs.cache-primary-key }}
+diff --git a/.github/workflows/main.yml b/.github/workflows/main.yml
+index 9acf4d4..dd8c95a 100644
+--- a/.github/workflows/main.yml
++++ b/.github/workflows/main.yml
+@@ -18,6 +18,7 @@ jobs:
+     outputs:
+       format: ${{ steps.filter.outputs.format }}
+       cmake: ${{ steps.filter.outputs.cmake }}
++      bazel: ${{ steps.filter.outputs.bazel }}
+       xmake: ${{ steps.filter.outputs.xmake }}
+     steps:
+       - name: Checkout repository
+@@ -45,6 +46,21 @@ jobs:
+               - '.github/actions/**'
+               - '.github/workflows/main.yml'
+               - '.github/workflows/cmake.yml'
++            bazel:
++              - 'src/**'
++              - 'include/**'
++              - 'tests/**'
++              - 'examples/**'
++              - 'bazel/**'
++              - '**/BUILD.bazel'
++              - 'MODULE.bazel'
++              - '.bazel*'
++              - 'pixi.toml'
++              - 'pixi.lock'
++              - 'package*.json'
++              - '.github/actions/**'
++              - '.github/workflows/main.yml'
++              - '.github/workflows/bazel.yml'
+             xmake:
+               - 'src/**'
+               - 'include/**'
+@@ -77,6 +93,14 @@ jobs:
+       actions: write
+     uses: ./.github/workflows/cmake.yml
+ 
++  bazel:
++    needs: changes
++    if: ${{ needs.changes.outputs.bazel == 'true' }}
++    permissions:
++      contents: read
++      actions: write
++    uses: ./.github/workflows/bazel.yml
++
+   xmake:
+     needs: changes
+     if: ${{ needs.changes.outputs.xmake == 'true' }}
+@@ -90,11 +114,12 @@ jobs:
+     needs:
+       - format
+       - cmake
++      - bazel
+       - xmake
+     runs-on: ubuntu-latest
+     steps:
+       - name: Check results
+         uses: re-actors/alls-green@release/v1
+         with:
+-          allowed-skips: format,cmake,xmake
++          allowed-skips: format,cmake,bazel,xmake
+           jobs: ${{ toJSON(needs) }}
+diff --git a/.gitignore b/.gitignore
+index b32bacd..1b3cca5 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -68,3 +68,8 @@ openspec/
+ # Profiles of a coverage build's programs run outside ctest, which writes them
+ # to build/coverage/profiles.
+ *.profraw
++
++# Bazel
++/bazel-*
++/user.bazelrc
++MODULE.bazel.lock
+diff --git a/BUILD.bazel b/BUILD.bazel
+new file mode 100644
+index 0000000..5ad8896
+--- /dev/null
++++ b/BUILD.bazel
+@@ -0,0 +1,170 @@
++load("//bazel:defs.bzl", "kota_library")
++
++# For the tests: the npm packages the integration tests import.
++exports_files([
++    "MODULE.bazel",
++    "package-lock.json",
++    "package.json",
++])
++
++# One target per module of include/kota (and per codec backend, each with its
++# third-party library), as CMake's kota::<module> targets. Each owns its
++# headers alone, so that a module can become a C++20 module as it stands.
++# HTTP (libcurl) is CMake's only, for now.
++
++kota_library(
++    name = "support",
++    srcs = ["src/support/glob_pattern.cpp"],
++    hdrs = glob(["include/kota/support/**"]),
++)
++
++kota_library(
++    name = "meta",
++    hdrs = glob(["include/kota/meta/**"]),
++    deps = [":support"],
++)
++
++kota_library(
++    name = "codec",
++    hdrs = ["include/kota/codec/macro.h"] + glob([
++        "include/kota/codec/bincode/**",
++        "include/kota/codec/debug/**",
++        "include/kota/codec/dyn/**",
++        "include/kota/codec/visit/**",
++    ]),
++    deps = [
++        ":meta",
++        ":support",
++    ],
++)
++
++kota_library(
++    name = "codec_json",
++    hdrs = glob(["include/kota/codec/json/**"]),
++    deps = [
++        ":codec",
++        "@simdjson",
++    ],
++)
++
++kota_library(
++    name = "codec_toml",
++    hdrs = glob(["include/kota/codec/toml/**"]),
++    # kota/codec/toml/type.h requires toml++ without exceptions, whatever
++    # kotatsu's own setting.
++    defines = ["TOML_EXCEPTIONS=0"],
++    deps = [
++        ":codec",
++        "@tomlplusplus",
++    ],
++)
++
++kota_library(
++    name = "codec_flatbuffers",
++    hdrs = glob(["include/kota/codec/fbs/**"]),
++    deps = [
++        ":codec",
++        "@flatbuffers",
++    ],
++)
++
++kota_library(
++    name = "option",
++    srcs = glob(["src/deco/option/*.cc"]),
++    hdrs = ["include/kota/deco/option.h"] + glob(["include/kota/deco/option/**"]),
++    deps = [":support"],
++)
++
++kota_library(
++    name = "deco",
++    srcs = glob(["src/deco/facade/*.cc"]),
++    hdrs = [
++        "include/kota/deco/deco.h",
++        "include/kota/deco/macro.h",
++    ] + glob(["include/kota/deco/facade/**"]),
++    deps = [
++        ":meta",
++        ":option",
++        ":support",
++    ],
++)
++
++kota_library(
++    name = "async",
++    srcs = glob([
++        "src/async/**/*.cpp",
++        "src/async/**/*.h",
++    ]),
++    hdrs = glob(["include/kota/async/**"]),
++    deps = [
++        ":support",
++        "@libuv",
++    ],
++)
++
++kota_library(
++    name = "ipc",
++    srcs = [
++        "src/ipc/codec/bincode.cpp",
++        "src/ipc/framing.cpp",
++        "src/ipc/recording_transport.cpp",
++        "src/ipc/transport.cpp",
++    ],
++    hdrs = glob(
++        [
++            "include/kota/ipc/*",
++            "include/kota/ipc/codec/bincode.h",
++        ],
++    ),
++    deps = [
++        ":async",
++        ":codec",
++        ":meta",
++        ":support",
++    ],
++)
++
++# JSON-RPC over ipc, on the JSON codec: CMake builds it into kota::ipc when
++# simdjson is enabled.
++kota_library(
++    name = "ipc_json",
++    srcs = ["src/ipc/codec/json.cpp"],
++    hdrs = ["include/kota/ipc/codec/json.h"],
++    deps = [
++        ":codec",
++        ":codec_json",
++        ":ipc",
++    ],
++)
++
++kota_library(
++    name = "ipc_lsp",
++    srcs = glob(["src/ipc/lsp/*.cpp"]),
++    hdrs = glob(["include/kota/ipc/lsp/**"]),
++    deps = [
++        ":codec",
++        ":ipc",
++        ":meta",
++    ],
++)
++
++kota_library(
++    name = "zest",
++    srcs = glob([
++        "src/zest/*.cpp",
++        "src/zest/*.h",
++    ]),
++    hdrs = glob(["include/kota/zest/**"]),
++    linkopts = select({
++        "@platforms//os:windows": ["-lshell32"],
++        "//conditions:default": [],
++    }),
++    deps = [
++        ":async",
++        ":codec",
++        ":deco",
++        ":meta",
++        ":support",
++        "@cpptrace",
++    ],
++)
+diff --git a/MODULE.bazel b/MODULE.bazel
+new file mode 100644
+index 0000000..89c67c2
+--- /dev/null
++++ b/MODULE.bazel
+@@ -0,0 +1,30 @@
++module(
++    name = "kotatsu",
++    version = "0.1.0",
++)
++
++bazel_dep(name = "bazel_skylib", version = "1.9.0")
++bazel_dep(name = "platforms", version = "1.0.0")
++bazel_dep(name = "rules_cc", version = "0.2.25")
++
++# zest's stack traces (cpptrace) read DWARF on Linux and macOS.
++bazel_dep(name = "libdwarf", version = "2.2.0.bcr.1")
++
++# Every other third-party library comes from its release archive with a BUILD
++# file of kotatsu's (bazel/third_party), at the versions the CMake build pins.
++# They are an extension's repos so that a module depending on kotatsu can
++# use_repo the same ones rather than link a second copy.
++kotatsu_deps = use_extension("//bazel:extensions.bzl", "kotatsu_deps")
++use_repo(
++    kotatsu_deps,
++    "cpptrace",
++    "flatbuffers",
++    "libuv",
++    "simdjson",
++    "tomlplusplus",
++)
++
++# The C++ toolchain on every platform: xclang's module, which downloads the
++# release of its version for the host. Development only: a module depending
++# on kotatsu brings its own toolchain.
++bazel_dep(name = "xclang", version = "23.1.2.4", dev_dependency = True)
+diff --git a/README.md b/README.md
+index bcd393d..5e9d7c0 100644
+--- a/README.md
++++ b/README.md
+@@ -137,6 +137,33 @@ All public APIs live under the `kota::` namespace, public headers under `include
+ - Naming-convention conversion (`naming.h`): identity, lower-snake, lower-camel, upper-camel, upper-snake.
+ - Type-level utilities: `type_list<Ts...>`, `tuple_traits`, `type_traits`, `expected_try`, `comptime` helpers, and miscellaneous `memory` / `ranges` / `functional` adapters.
+ 
++## Using kotatsu from Bazel
++
++kotatsu is a Bazel module (Bazel 9). The targets are one per module:
++`@kotatsu//:support`, `:meta`, `:codec` with the backends `:codec_json`,
++`:codec_toml` and `:codec_flatbuffers`, `:option`, `:deco`, `:async`, `:ipc`
++with `:ipc_json` (JSON-RPC) and `:ipc_lsp`, and `:zest`; HTTP builds with
++CMake only for now.
++
++```starlark
++bazel_dep(name = "kotatsu")
++git_override(
++    module_name = "kotatsu",
++    commit = "<commit>",
++    remote = "https://github.com/clice-io/kotatsu.git",
++)
++
++# simdjson, toml++, flatbuffers, libuv and cpptrace as kotatsu builds them,
++# for a module that uses them too and must link one copy.
++kotatsu_deps = use_extension("@kotatsu//bazel:extensions.bzl", "kotatsu_deps")
++use_repo(kotatsu_deps, "simdjson")
++```
++
++The depending build brings the C++23 toolchain (`--cxxopt=-std=c++23`). A
++build without exceptions or RTTI sets `--@kotatsu//bazel:exceptions=false`
++or `--@kotatsu//bazel:rtti=false`, which kotatsu's headers see through
++`KOTA_ENABLE_EXCEPTIONS` and `KOTA_ENABLE_RTTI`.
++
+ ## Repository Layout
+ 
+ ```text
+@@ -163,6 +190,9 @@ src/
+   meta/        # Meta target wiring (header-only public APIs)
+   zest/        # Test runner implementation
+ 
++bazel/         # Bazel: build settings, third-party BUILD files, the rule
++               # running the tests' commands
++
+ tests/
+   <module>/    # Tests per module, mirroring include/kota/<module>/:
+                #   unit/ in memory, system/ touching the OS, harness/ helpers,
+diff --git a/bazel/BUILD.bazel b/bazel/BUILD.bazel
+new file mode 100644
+index 0000000..b8a7ac2
+--- /dev/null
++++ b/bazel/BUILD.bazel
+@@ -0,0 +1,50 @@
++load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
++load("@rules_cc//cc:cc_library.bzl", "cc_library")
++
++exports_files(["command_test.ts"])
++
++# CMake's KOTA_ENABLE_EXCEPTIONS and KOTA_ENABLE_RTTI: a build without them
++# sets --@kotatsu//bazel:exceptions=false or --@kotatsu//bazel:rtti=false.
++# They reach the defines kotatsu's headers read, kotatsu's own compiles, and
++# what follows them in the dependencies (simdjson's exceptions).
++bool_flag(
++    name = "exceptions",
++    build_setting_default = True,
++    visibility = ["//visibility:public"],
++)
++
++bool_flag(
++    name = "rtti",
++    build_setting_default = True,
++    visibility = ["//visibility:public"],
++)
++
++config_setting(
++    name = "no_exceptions",
++    flag_values = {":exceptions": "false"},
++    visibility = ["//visibility:public"],
++)
++
++config_setting(
++    name = "no_rtti",
++    flag_values = {":rtti": "false"},
++    visibility = ["//visibility:public"],
++)
++
++# What every kotatsu target and its dependents compile with, as CMake's
++# kota::project_options: the defines are public, so a consumer's view of
++# kotatsu's headers matches how kotatsu was built.
++cc_library(
++    name = "options",
++    defines = select({
++        ":no_exceptions": ["KOTA_ENABLE_EXCEPTIONS=0"],
++        "//conditions:default": ["KOTA_ENABLE_EXCEPTIONS=1"],
++    }) + select({
++        ":no_rtti": ["KOTA_ENABLE_RTTI=0"],
++        "//conditions:default": ["KOTA_ENABLE_RTTI=1"],
++    }) + select({
++        "@platforms//os:windows": ["_CRT_SECURE_NO_WARNINGS"],
++        "//conditions:default": [],
++    }),
++    visibility = ["//:__subpackages__"],
++)
+diff --git a/bazel/command_test.bzl b/bazel/command_test.bzl
+new file mode 100644
+index 0000000..7c62c9b
+--- /dev/null
++++ b/bazel/command_test.bzl
+@@ -0,0 +1,50 @@
++"""A test that runs a command on programs of the build, as ctest runs one.
++
++The command runs through bazel/command_test.ts on node, from the source tree
++(where node_modules is, for the integration tests) or from the runfiles. Each
++`env` value is a runfiles path, $(rootpath) of a label, that the test sees as
++an absolute path; the command's arguments may name $(rootpath) too.
++"""
++
++def _command_test_impl(ctx):
++    targets = ctx.attr.data
++    config = ctx.actions.declare_file(ctx.label.name + ".json")
++    ctx.actions.write(config, json.encode({
++        "command": [ctx.expand_location(arg, targets) for arg in ctx.attr.command],
++        "env": {name: ctx.expand_location(value, targets) for name, value in ctx.attr.env.items()},
++        "source_tree": ctx.attr.source_tree,
++    }))
++
++    windows = ctx.target_platform_has_constraint(ctx.attr._windows[platform_common.ConstraintValueInfo])
++    launcher = ctx.actions.declare_file(ctx.label.name + (".bat" if windows else ".sh"))
++    args = "%s %s" % (ctx.file._runner.short_path, config.short_path)
++    if windows:
++        content = "@node %s %%*\r\n" % args.replace("/", "\\")
++    else:
++        content = "#!/bin/sh\nexec node %s \"$@\"\n" % args
++    ctx.actions.write(launcher, content, is_executable = True)
++
++    runfiles = ctx.runfiles(files = [config, ctx.file._runner, ctx.file._module] + ctx.files.data)
++    for target in targets:
++        runfiles = runfiles.merge(target[DefaultInfo].default_runfiles)
++    return [DefaultInfo(executable = launcher, runfiles = runfiles)]
++
++command_test = rule(
++    implementation = _command_test_impl,
++    test = True,
++    attrs = {
++        "command": attr.string_list(mandatory = True),
++        "data": attr.label_list(allow_files = True),
++        "env": attr.string_dict(),
++        "source_tree": attr.bool(default = False),
++        "_module": attr.label(
++            default = "//:MODULE.bazel",
++            allow_single_file = True,
++        ),
++        "_runner": attr.label(
++            default = ":command_test.ts",
++            allow_single_file = True,
++        ),
++        "_windows": attr.label(default = "@platforms//os:windows"),
++    },
++)
+diff --git a/bazel/command_test.ts b/bazel/command_test.ts
+new file mode 100644
+index 0000000..3a9488d
+--- /dev/null
++++ b/bazel/command_test.ts
+@@ -0,0 +1,40 @@
++// Runs the command of a command_test (bazel/command_test.bzl), given the path
++// of its configuration; extra arguments go after the command's own. Bazel
++// starts a test in its runfiles, where every path of the configuration points.
++
++import { spawnSync } from "node:child_process";
++import { readFileSync, realpathSync } from "node:fs";
++import { dirname, resolve } from "node:path";
++
++type Config = {
++  command: string[];
++  env: Record<string, string>;
++  source_tree: boolean;
++};
++
++const config = JSON.parse(readFileSync(process.argv[2], "utf8")) as Config;
++
++const env = { ...process.env };
++for (const [name, path] of Object.entries(config.env)) {
++  env[name] = resolve(path);
++}
++
++// MODULE.bazel in the runfiles links to the source tree's.
++const cwd = config.source_tree
++  ? dirname(realpathSync.native("MODULE.bazel"))
++  : process.cwd();
++
++// ${TEST_TMPDIR} and the like name a variable of the test's environment.
++const expand = (arg: string) =>
++  arg.replace(/\$\{(\w+)\}/g, (_, name: string) => env[name] ?? "");
++
++const [program, ...args] = config.command.map(expand);
++const result = spawnSync(
++  program === "node" ? process.execPath : program,
++  [...args, ...process.argv.slice(3)],
++  { cwd, env, stdio: "inherit" },
++);
++if (result.error !== undefined) {
++  console.error(`cannot run ${program}: ${result.error.message}`);
++}
++process.exit(result.status ?? 1);
+diff --git a/bazel/defs.bzl b/bazel/defs.bzl
+new file mode 100644
+index 0000000..ecaba61
+--- /dev/null
++++ b/bazel/defs.bzl
+@@ -0,0 +1,52 @@
++"""Rules for kotatsu's own targets."""
++
++load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
++load("@rules_cc//cc:cc_library.bzl", "cc_library")
++load("@rules_cc//cc:cc_test.bzl", "cc_test")
++
++# The flags kotatsu's own sources compile with; they are not passed on to
++# dependents. -Werror is the development build's (.bazelrc), so that a newer
++# compiler's warnings do not fail a consumer's build.
++KOTA_COPTS = select({
++    Label("//bazel:no_exceptions"): ["-fno-exceptions"],
++    "//conditions:default": ["-fexceptions"],
++}) + select({
++    Label("//bazel:no_rtti"): ["-fno-rtti"],
++    "//conditions:default": ["-frtti"],
++}) + [
++    "-Wall",
++    "-Wextra",
++]
++
++def kota_library(name, deps = [], **kwargs):
++    """A library of include/kota/<module>, included as "kota/<module>/..."."""
++    cc_library(
++        name = name,
++        copts = KOTA_COPTS,
++        # No shared library of its own: one on Windows would have to resolve
++        # every symbol of its dependencies.
++        linkstatic = True,
++        strip_include_prefix = "/include",
++        visibility = ["//visibility:public"],
++        deps = deps + [Label("//bazel:options")],
++        **kwargs
++    )
++
++def kota_binary(name, copts = [], **kwargs):
++    cc_binary(
++        name = name,
++        copts = KOTA_COPTS + copts,
++        **kwargs
++    )
++
++def kota_test(name, copts = [], linkopts = [], **kwargs):
++    cc_test(
++        name = name,
++        copts = KOTA_COPTS + copts,
++        # A test links its libraries dynamically by default, each shared
++        # object with a C++ runtime of its own (xclang links libc++
++        # statically), so memory one allocates another frees.
++        linkstatic = True,
++        linkopts = linkopts,
++        **kwargs
++    )
+diff --git a/bazel/extensions.bzl b/bazel/extensions.bzl
+new file mode 100644
+index 0000000..d8c21e6
+--- /dev/null
++++ b/bazel/extensions.bzl
+@@ -0,0 +1,52 @@
++"""kotatsu's third-party libraries, each with a BUILD file of its own."""
++
++load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
++
++def _github(name, repo, tag, sha256, strip_prefix):
++    http_archive(
++        name = name,
++        build_file = Label("//bazel/third_party:%s.BUILD" % name),
++        sha256 = sha256,
++        strip_prefix = strip_prefix,
++        urls = ["https://github.com/%s/archive/refs/tags/%s.tar.gz" % (repo, tag)],
++    )
++
++def _kotatsu_deps_impl(mctx):
++    _github(
++        name = "cpptrace",
++        repo = "jeremy-rifkin/cpptrace",
++        tag = "v1.0.4",
++        sha256 = "5c9f5b301e903714a4d01f1057b9543fa540f7bfcc5e3f8bd1748e652e24f9ea",
++        strip_prefix = "cpptrace-1.0.4",
++    )
++    _github(
++        name = "flatbuffers",
++        repo = "google/flatbuffers",
++        tag = "v25.2.10",
++        sha256 = "b9c2df49707c57a48fc0923d52b8c73beb72d675f9d44b2211e4569be40a7421",
++        strip_prefix = "flatbuffers-25.2.10",
++    )
++    _github(
++        name = "libuv",
++        repo = "libuv/libuv",
++        tag = "v1.52.0",
++        sha256 = "eee139c05f7c868f5ae7a54b1e155fd5b6ed13a22329958d2ba711faad016353",
++        strip_prefix = "libuv-1.52.0",
++    )
++    _github(
++        name = "simdjson",
++        repo = "simdjson/simdjson",
++        tag = "v4.2.4",
++        sha256 = "6f942d018561a6c30838651a386a17e6e4abbfc396afd0f62740dea1810dedea",
++        strip_prefix = "simdjson-4.2.4",
++    )
++    _github(
++        name = "tomlplusplus",
++        repo = "marzer/tomlplusplus",
++        tag = "v3.4.0",
++        sha256 = "8517f65938a4faae9ccf8ebb36631a38c1cadfb5efa85d9a72e15b9e97d25155",
++        strip_prefix = "tomlplusplus-3.4.0",
++    )
++    return mctx.extension_metadata(reproducible = True)
++
++kotatsu_deps = module_extension(implementation = _kotatsu_deps_impl)
+diff --git a/bazel/third_party/BUILD.bazel b/bazel/third_party/BUILD.bazel
+new file mode 100644
+index 0000000..e69de29
+diff --git a/bazel/third_party/cpptrace.BUILD b/bazel/third_party/cpptrace.BUILD
+new file mode 100644
+index 0000000..f781457
+--- /dev/null
++++ b/bazel/third_party/cpptrace.BUILD
+@@ -0,0 +1,49 @@
++load("@rules_cc//cc:cc_library.bzl", "cc_library")
++
++# As kotatsu configures it (src/zest/CMakeLists.txt) and cpptrace's
++# Autoconfig.cmake picks for each platform. The registry's module builds -O0
++# with libunwind (nongnu), which clashes with the LLVM libunwind xclang links.
++cc_library(
++    name = "src_headers",
++    hdrs = glob(["src/**/*.hpp", "src/**/*.h"], allow_empty = True),
++    strip_include_prefix = "src",
++)
++
++cc_library(
++    name = "cpptrace",
++    srcs = glob(["src/**/*.cpp"]),
++    hdrs = glob(["include/cpptrace/**/*.hpp", "include/ctrace/*.h"]),
++    defines = ["CPPTRACE_STATIC_DEFINE"],
++    includes = ["include"],
++    linkopts = select({
++        "@platforms//os:windows": ["-ldbghelp"],
++        "@platforms//os:linux": ["-ldl"],
++        "//conditions:default": [],
++    }),
++    local_defines = [
++        "HAS_ATTRIBUTE_PACKED",
++        "CPPTRACE_HAS_CXX_EXCEPTION_TYPE",
++        "CPPTRACE_DEMANGLE_WITH_CXXABI",
++    ] + select({
++        "@platforms//os:windows": [
++            "CPPTRACE_GET_SYMBOLS_WITH_DBGHELP",
++            "CPPTRACE_UNWIND_WITH_DBGHELP",
++            "NOMINMAX",
++        ],
++        "@platforms//os:macos": [
++            "CPPTRACE_GET_SYMBOLS_WITH_LIBDWARF",
++            "CPPTRACE_UNWIND_WITH_EXECINFO",
++            "CPPTRACE_HAS_MACH_VM",
++        ],
++        "//conditions:default": [
++            "CPPTRACE_GET_SYMBOLS_WITH_LIBDWARF",
++            "CPPTRACE_UNWIND_WITH_UNWIND",
++            "CPPTRACE_HAS_DLADDR1",
++        ],
++    }),
++    visibility = ["//visibility:public"],
++    deps = [":src_headers"] + select({
++        "@platforms//os:windows": [],
++        "//conditions:default": ["@libdwarf"],
++    }),
++)
+diff --git a/bazel/third_party/flatbuffers.BUILD b/bazel/third_party/flatbuffers.BUILD
+new file mode 100644
+index 0000000..7f796e8
+--- /dev/null
++++ b/bazel/third_party/flatbuffers.BUILD
+@@ -0,0 +1,10 @@
++load("@rules_cc//cc:cc_library.bzl", "cc_library")
++
++# The header-only C++ runtime: the registry's flatbuffers module drags in grpc,
++# rules_go and the JS rules, at versions Bazel 9 rejects.
++cc_library(
++    name = "flatbuffers",
++    hdrs = glob(["include/flatbuffers/**/*.h"]),
++    includes = ["include"],
++    visibility = ["//visibility:public"],
++)
+diff --git a/bazel/third_party/libuv.BUILD b/bazel/third_party/libuv.BUILD
+new file mode 100644
+index 0000000..6e7f52d
+--- /dev/null
++++ b/bazel/third_party/libuv.BUILD
+@@ -0,0 +1,99 @@
++load("@rules_cc//cc:cc_library.bzl", "cc_library")
++
++# From the BCR overlay of libuv 1.48.0.bcr.2, for 1.52.0 (same sources) and
++# GNU-style flags on Windows too (MinGW clang, not cl.exe).
++_LOCAL_DEFINES = select({
++    "@platforms//os:windows": [
++        "WIN32_LEAN_AND_MEAN",
++        "_WIN32_WINNT=0x0A00",
++        "_CRT_DECLARE_NONSTDC_NAMES=0",
++    ],
++    "//conditions:default": [
++        "_FILE_OFFSET_BITS=64",
++        "_LARGEFILE_SOURCE",
++    ],
++}) + select({
++    "@platforms//os:macos": [
++        "_DARWIN_UNLIMITED_SELECT=1",
++        "_DARWIN_USE_64_BIT_INODE=1",
++    ],
++    "@platforms//os:linux": [
++        "_GNU_SOURCE",
++        "_POSIX_C_SOURCE=200112",
++    ],
++    "//conditions:default": [],
++})
++
++cc_library(
++    name = "src_headers",
++    hdrs = glob(["src/**/*.h"]),
++    strip_include_prefix = "src",
++)
++
++cc_library(
++    name = "libuv",
++    srcs = [
++        "src/fs-poll.c",
++        "src/idna.c",
++        "src/inet.c",
++        "src/random.c",
++        "src/strscpy.c",
++        "src/strtok.c",
++        "src/thread-common.c",
++        "src/threadpool.c",
++        "src/timer.c",
++        "src/uv-common.c",
++        "src/uv-data-getter-setters.c",
++        "src/version.c",
++    ] + select({
++        "@platforms//os:windows": glob(["src/win/*.c"]),
++        "//conditions:default": [
++            "src/unix/async.c",
++            "src/unix/core.c",
++            "src/unix/dl.c",
++            "src/unix/fs.c",
++            "src/unix/getaddrinfo.c",
++            "src/unix/getnameinfo.c",
++            "src/unix/loop.c",
++            "src/unix/loop-watcher.c",
++            "src/unix/pipe.c",
++            "src/unix/poll.c",
++            "src/unix/process.c",
++            "src/unix/proctitle.c",
++            "src/unix/random-devurandom.c",
++            "src/unix/signal.c",
++            "src/unix/stream.c",
++            "src/unix/tcp.c",
++            "src/unix/thread.c",
++            "src/unix/tty.c",
++            "src/unix/udp.c",
++        ],
++    }) + select({
++        "@platforms//os:macos": [
++            "src/unix/bsd-ifaddrs.c",
++            "src/unix/darwin.c",
++            "src/unix/darwin-proctitle.c",
++            "src/unix/fsevents.c",
++            "src/unix/kqueue.c",
++            "src/unix/random-getentropy.c",
++        ],
++        "@platforms//os:linux": [
++            "src/unix/linux.c",
++            "src/unix/procfs-exepath.c",
++            "src/unix/random-getrandom.c",
++            "src/unix/random-sysctl-linux.c",
++        ],
++        "//conditions:default": [],
++    }),
++    hdrs = glob(["include/**/*.h"]),
++    copts = ["-w", "-fno-strict-aliasing", "-fvisibility=hidden"],
++    linkopts = select({
++        "@platforms//os:windows": ["-lpsapi", "-luser32", "-ladvapi32", "-liphlpapi", "-luserenv", "-lws2_32", "-ldbghelp", "-lole32", "-lshell32"],
++        "@platforms//os:linux": ["-pthread", "-ldl", "-lrt"],
++        "//conditions:default": ["-pthread"],
++    }),
++    local_defines = _LOCAL_DEFINES,
++    strip_include_prefix = "include",
++    visibility = ["//visibility:public"],
++    deps = [":src_headers"],
++)
+diff --git a/bazel/third_party/simdjson.BUILD b/bazel/third_party/simdjson.BUILD
+new file mode 100644
+index 0000000..99a0942
+--- /dev/null
++++ b/bazel/third_party/simdjson.BUILD
+@@ -0,0 +1,29 @@
++load("@rules_cc//cc:cc_library.bzl", "cc_library")
++
++# As the CMake build configures it (src/codec/CMakeLists.txt): threads on,
++# exceptions as kotatsu's.
++cc_library(
++    name = "src_headers",
++    textual_hdrs = glob(
++        [
++            "src/**/*.h",
++            "src/**/*.cpp",
++        ],
++        exclude = ["src/simdjson.cpp"],
++    ),
++    strip_include_prefix = "src",
++)
++
++cc_library(
++    name = "simdjson",
++    srcs = ["src/simdjson.cpp"],
++    hdrs = glob(["include/**/*.h"]),
++    copts = ["-w"],
++    defines = ["SIMDJSON_THREADS_ENABLED=1"] + select({
++        "@kotatsu//bazel:no_exceptions": ["SIMDJSON_EXCEPTIONS=0"],
++        "//conditions:default": ["SIMDJSON_EXCEPTIONS=1"],
++    }),
++    includes = ["include"],
++    visibility = ["//visibility:public"],
++    deps = [":src_headers"],
++)
+diff --git a/bazel/third_party/tomlplusplus.BUILD b/bazel/third_party/tomlplusplus.BUILD
+new file mode 100644
+index 0000000..fa740b7
+--- /dev/null
++++ b/bazel/third_party/tomlplusplus.BUILD
+@@ -0,0 +1,10 @@
++load("@rules_cc//cc:cc_library.bzl", "cc_library")
++
++# kota/codec/toml includes <toml++/toml.hpp>; the registry's module exposes
++# only the single-header toml.hpp.
++cc_library(
++    name = "tomlplusplus",
++    hdrs = glob(["include/toml++/**/*.hpp", "include/toml++/**/*.inl", "include/toml++/**/*.h"]),
++    includes = ["include"],
++    visibility = ["//visibility:public"],
++)
+diff --git a/examples/BUILD.bazel b/examples/BUILD.bazel
+new file mode 100644
+index 0000000..300fc9e
+--- /dev/null
++++ b/examples/BUILD.bazel
+@@ -0,0 +1,25 @@
++load("@rules_cc//cc:cc_library.bzl", "cc_library")
++load("//bazel:defs.bzl", "kota_binary")
++
++package(default_visibility = ["//tests:__pkg__"])
++
++[kota_binary(
++    name = name,
++    srcs = [src],
++    deps = deps,
++) for name, src, deps in [
++    ("async_basics", "async_basics/async_basics.cpp", ["//:async"]),
++    ("build_system", "build_system/build_system.cpp", [":build_system_graph"]),
++    ("dump_dot", "dump_dot/dump_dot.cpp", ["//:async"]),
++    ("jsonrpc_server", "ipc/stdio_server.cpp", ["//:ipc_json"]),
++    ("jsonrpc_roundtrip", "ipc/scripted_roundtrip.cpp", ["//:ipc_json"]),
++    ("spawn_worker", "ipc/spawn_worker.cpp", ["//:ipc_json"]),
++]]
++
++# build_system's graph, which its tests check.
++cc_library(
++    name = "build_system_graph",
++    hdrs = ["build_system/compile_graph.h"],
++    strip_include_prefix = "build_system",
++    deps = ["//:async"],
++)
+diff --git a/include/kota/meta/name.h b/include/kota/meta/name.h
+index 541bba5..7494b32 100644
+--- a/include/kota/meta/name.h
++++ b/include/kota/meta/name.h
+@@ -3,7 +3,7 @@
+ #include <source_location>
+ #include <type_traits>
+ 
+-#include "../support/string_ref.h"
++#include "kota/support/string_ref.h"
+ 
+ namespace kota::meta::detail {
+ 
+diff --git a/package-lock.json b/package-lock.json
+index b17cef8..45a3920 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -6,6 +6,7 @@
+     "": {
+       "name": "kotatsu",
+       "devDependencies": {
++        "@bazel/bazelisk": "^1.28.1",
+         "@types/node": "^24.19.0",
+         "fast-check": "^4.10.2",
+         "typescript": "^7.0.2",
+@@ -15,6 +16,17 @@
+         "vscode-uri": "^3.2.0"
+       }
+     },
++    "node_modules/@bazel/bazelisk": {
++      "version": "1.28.1",
++      "resolved": "https://registry.npmjs.org/@bazel/bazelisk/-/bazelisk-1.28.1.tgz",
++      "integrity": "sha512-K21x83NXOtd0yb2qzjMES3UV4xEWZ1q1vnXFhADA1u7IoiMVQkJAVQRK3oZ5txpnrGafY15HS+YYr2nmsEP4Tg==",
++      "dev": true,
++      "license": "Apache-2.0",
++      "bin": {
++        "bazel": "bazelisk.js",
++        "bazelisk": "bazelisk.js"
++      }
++    },
+     "node_modules/@types/node": {
+       "version": "24.19.0",
+       "resolved": "https://registry.npmjs.org/@types/node/-/node-24.19.0.tgz",
+diff --git a/package.json b/package.json
+index d12b7ab..7adf783 100644
+--- a/package.json
++++ b/package.json
+@@ -3,6 +3,7 @@
+   "private": true,
+   "type": "module",
+   "devDependencies": {
++    "@bazel/bazelisk": "^1.28.1",
+     "@types/node": "^24.19.0",
+     "fast-check": "^4.10.2",
+     "typescript": "^7.0.2",
+diff --git a/pixi.lock b/pixi.lock
+index 5713c0b5060c45c3367f910d67835b5445a8a48b..59ced73809ee684a1f09b8f4121e1b7ace14e7f4 100644
+GIT binary patch
+delta 87
+zcmdmTQ0T!l;SFYttVxMgsX3b+7ArAMzEC7GeE~aT_;&f-jK|fc*GDsQZ})q|=)uIE
+plA4xSno}~_Veyg4;+{t)M-)jl-)CyS&%_ACAewpmeI}Nxa{=MtB6R=&
+
+delta 30
+jcmaDbO?b;ep$%q?&5yL(A89iJF%u9oZ-1oCQa2v})UgdO
+
+diff --git a/pixi.toml b/pixi.toml
+index e74a053..5e9402d 100644
+--- a/pixi.toml
++++ b/pixi.toml
+@@ -27,6 +27,7 @@ windows-msvc = ["build", "windows-msvc"]
+ windows-mingw = ["build", "windows-mingw"]
+ windows-llvm = ["build", "windows-llvm"]
+ windows-xclang = ["build", "windows-xclang"]
++bazel = ["build", "bazel"]
+ format = ["format"]
+ 
+ # Shared by every environment: the TypeScript tooling under scripts/ runs in
+@@ -111,6 +112,23 @@ scripts = ["scripts/activate_windows_llvm.bat"]
+ xclang = "==23.1.2.2"
+ sccache = "*"
+ 
++# Bazel (MODULE.bazel), whose toolchain is xclang's module: it downloads
++# xclang's release for the host itself. Bazel itself is the release
++# .bazelversion names, fetched by bazelisk (an npm package): conda-forge's
++# build runs only in batch mode, with its output inside the environment.
++# `pixi run -e bazel bazel <command> <targets>` runs it; zest's runner check
++# runs on cmake.
++[feature.bazel.tasks.bazel]
++cmd = "npx --no -- bazelisk"
++depends-on = ["npm-ci"]
++
++# Bazel's default output root is too deep for Windows paths, and without
++# symlinks its runfiles hold copies, from which the integration tests cannot
++# find the source tree (bazel/command_test.ts).
++[feature.bazel.target.win-64.tasks.bazel]
++cmd = "npx --no -- bazelisk --output_user_root=C:/b --windows_enable_symlinks"
++depends-on = ["npm-ci"]
++
+ # ============================================================================== #
+ #                                    FORMAT                                      #
+ # ============================================================================== #
+diff --git a/src/zest/snapshot.cpp b/src/zest/snapshot.cpp
+index c804cb4..ca90bc1 100644
+--- a/src/zest/snapshot.cpp
++++ b/src/zest/snapshot.cpp
+@@ -441,11 +441,9 @@ bool check_snapshot_glob(std::string_view base_dir_str,
+         if(!entry.is_regular_file()) {
+             continue;
+         }
+-        std::error_code rel_ec;
+-        auto rel = fs::relative(entry.path(), scan_dir, rel_ec);
+-        if(rel_ec) {
+-            continue;
+-        }
++        // Lexically: fs::relative resolves symlinks, so a file linked from
++        // elsewhere (as in Bazel's runfiles) would be named by its target.
++        auto rel = entry.path().lexically_relative(scan_dir);
+         if(glob->match(rel.generic_string())) {
+             matched.emplace_back(rel);
+         }
+diff --git a/tests/BUILD.bazel b/tests/BUILD.bazel
+new file mode 100644
+index 0000000..289987d
+--- /dev/null
++++ b/tests/BUILD.bazel
+@@ -0,0 +1,212 @@
++load("@rules_cc//cc:cc_library.bzl", "cc_library")
++load("//bazel:command_test.bzl", "command_test")
++load("//bazel:defs.bzl", "kota_binary", "kota_test")
++
++# The tests of each module, as tests/CMakeLists.txt lays them out, but a test
++# binary per module and level rather than one per level: a change to a module
++# reruns only the tests of the modules above it. Every test includes what the
++# tests share relative to tests/.
++
++cc_library(
++    name = "fixtures",
++    hdrs = glob(["fixtures/*.h"]),
++    strip_include_prefix = "/tests",
++    deps = [
++        "//:meta",
++        "//:support",
++    ],
++)
++
++# Each module's harness/, with what it builds on.
++[cc_library(
++    name = module.replace("/", "_") + "_harness",
++    hdrs = glob(
++        ["%s/harness/**/*.h" % module],
++        allow_empty = True,
++    ),
++    strip_include_prefix = "/tests",
++    textual_hdrs = glob(
++        ["%s/harness/**/*.inc" % module],
++        allow_empty = True,
++    ),
++    deps = deps + ["//:zest"],
++) for module, deps in [
++    ("support", ["//:support"]),
++    ("async", ["//:async"]),
++    ("codec", [
++        ":fixtures",
++        "//:codec",
++    ]),
++    ("codec/bincode", [":codec_harness"]),
++    ("codec/dyn", [":codec_harness"]),
++    ("codec/fbs", [
++        ":codec_harness",
++        "//:codec_flatbuffers",
++    ]),
++    ("codec/json", [
++        ":codec_harness",
++        "//:codec_json",
++    ]),
++    ("codec/toml", [
++        ":codec_harness",
++        "//:codec_toml",
++    ]),
++    ("deco", ["//:deco"]),
++    ("ipc", [
++        ":async_harness",
++        "//:codec_json",
++        "//:ipc",
++        "//:ipc_json",
++    ]),
++    ("ipc/lsp", ["//:ipc_lsp"]),
++]]
++
++# <module>_unit_tests and <module>_system_tests, run from the repository root
++# of the runfiles as ctest runs them, with the module's snapshots.
++[kota_test(
++    name = "%s_%s_tests" % (module.replace("/", "_"), level),
++    size = "medium",
++    srcs = ["main.cpp"] + glob(["%s/%s/**/*.cpp" % (module, level)]),
++    args = ["--snapshot-dir=tests/snapshots"],
++    # The module's snapshots, and the files its tests read beside them.
++    data = glob(
++        [
++            "snapshots/%s_*/**" % module.replace("/", "_"),
++            "%s/%s/**" % (module, level),
++        ],
++        allow_empty = True,
++        exclude = ["**/*.cpp"],
++    ),
++    local_defines = defines,
++    # zest's snapshot cases rewrite a snapshot of tests/snapshots and put it
++    # back, as under ctest, which a sandbox's read-only runfiles refuse.
++    tags = [level] + (["no-sandbox"] if module == "zest" else []),
++    deps = deps + ["//:zest"],
++) for module, level, deps, defines in [
++    ("support", "unit", [":support_harness"], []),
++    ("meta", "unit", [":fixtures"], []),
++    ("codec", "unit", [":codec_harness"], []),
++    ("codec/bincode", "unit", [":codec_bincode_harness"], []),
++    ("codec/debug", "unit", [":codec_harness"], []),
++    ("codec/dyn", "unit", [":codec_dyn_harness"], []),
++    ("codec/fbs", "unit", [":codec_fbs_harness"], []),
++    ("codec/json", "unit", [":codec_json_harness"], []),
++    ("codec/toml", "unit", [":codec_toml_harness"], []),
++    ("deco", "unit", [":deco_harness"], []),
++    ("async", "unit", [":async_harness"], []),
++    ("async", "system", [":async_harness"], []),
++    ("ipc", "unit", [":ipc_harness"], []),
++    ("ipc", "system", [":ipc_harness"], []),
++    ("ipc/lsp", "unit", [
++        ":ipc_harness",
++        ":ipc_lsp_harness",
++    ], []),
++    ("zest", "unit", [], []),
++    # zest's EXPECT_SNAPSHOT_JSON cases need the JSON codec.
++    ("zest", "system", ["//:codec_json"], ["KOTA_TEST_HAS_JSON=1"]),
++    ("examples/async", "unit", [
++        ":async_harness",
++        "//examples:build_system_graph",
++    ], []),
++]]
++
++# The integration tests' drivers: integration/drivers/<name>.cpp of a module.
++[kota_binary(
++    name = driver,
++    srcs = ["%s/integration/drivers/%s.cpp" % (module, driver)],
++    # One translation unit instantiating the codec for every LSP type: about
++    # 2 minutes and 2.7 GB in a debug build, far more optimized or sanitized.
++    tags = ["manual"] if driver == "lsp_roundtrip" else [],
++    deps = deps,
++) for module, deps, drivers in [
++    ("ipc", [":ipc_harness"], [
++        "jsonrpc_driver",
++        "stdio_close",
++    ]),
++    ("ipc/lsp", [
++        ":ipc_harness",
++        ":ipc_lsp_harness",
++    ], [
++        "lsp_probe",
++        "lsp_roundtrip",
++        "lsp_stub_server",
++    ]),
++] for driver in drivers]
++
++# zest's own runner, checked end to end by zest/integration/check_runner.cmake.
++kota_binary(
++    name = "zest_runner_fixture",
++    srcs = ["zest/integration/runner_fixture.cpp"],
++    deps = ["//:zest"],
++)
++
++# zest's runner end to end, against tests that crash, hang or exit early.
++command_test(
++    name = "zest_runner_test",
++    command = [
++        "cmake",
++        "-DFIXTURE=${FIXTURE}",
++        "-DWORK_DIR=${TEST_TMPDIR}/zest_runner",
++        "-P",
++        "tests/zest/integration/check_runner.cmake",
++    ],
++    data = [
++        "zest/integration/check_runner.cmake",
++        ":zest_runner_fixture",
++    ],
++    env = {"FIXTURE": "$(rootpath :zest_runner_fixture)"},
++)
++
++# A module's integration/*.test.ts, which node runs from the source tree as
++# ctest does (`pixi run npm-ci` installs their npm packages there), each
++# program named in KOTA_<NAME>.
++[command_test(
++    name = module.replace("/", "_") + "_integration",
++    size = "large",
++    command = [
++        "node",
++        "--import",
++        "./tests/check_npm_packages.ts",
++        "--test",
++        "--test-reporter=spec",
++        "--test-timeout=20000",
++    ] + ["tests/" + test for test in glob(
++        ["%s/integration/*.test.ts" % module],
++        exclude = exclude,
++    )],
++    data = programs + glob(
++        ["**/*.ts"],
++        exclude = [
++            "benchmarks/**",
++            "conformance/**",
++        ],
++    ) + [
++        "//:package-lock.json",
++        "//:package.json",
++    ],
++    env = {
++        "KOTA_" + program.split(":")[-1].upper(): "$(rootpath %s)" % program
++        for program in programs
++    },
++    source_tree = True,
++    tags = ["integration"],
++) for module, programs, exclude in [
++    ("ipc", [
++        ":jsonrpc_driver",
++        ":stdio_close",
++    ], []),
++    # roundtrip.test.ts needs lsp_roundtrip, a debug build's only.
++    ("ipc/lsp", [
++        ":lsp_probe",
++        ":lsp_stub_server",
++    ], ["ipc/lsp/integration/roundtrip.test.ts"]),
++    ("examples/async", [
++        "//examples:async_basics",
++        "//examples:dump_dot",
++    ], []),
++    ("examples/ipc", [
++        "//examples:jsonrpc_roundtrip",
++        "//examples:jsonrpc_server",
++        "//examples:spawn_worker",
++    ], []),
++]]
+diff --git a/tests/async/system/io/system_tests.cpp b/tests/async/system/io/system_tests.cpp
+index 67e5823..289d4c9 100644
+--- a/tests/async/system/io/system_tests.cpp
++++ b/tests/async/system/io/system_tests.cpp
+@@ -110,10 +110,11 @@ ZEST_CASE(directories_are_reported) {
+     EXPECT(std::filesystem::is_directory(*tmp));
+ }
+ 
++// CMake builds system_tests, Bazel a binary per module: async_system_tests.
+ ZEST_CASE(executable_path_names_this_program) {
+     auto path = sys::executable_path();
+     ASSERT(path.has_value());
+-    EXPECT(std::filesystem::path(*path).stem().string() == "system_tests");
++    EXPECT(std::filesystem::path(*path).stem().string().ends_with("system_tests"));
+ }
+ 
+ // Setting the priority it already has leaves the process as it was.
+diff --git a/tests/check_npm_packages.ts b/tests/check_npm_packages.ts
+index ba56e77..3c52a80 100644
+--- a/tests/check_npm_packages.ts
++++ b/tests/check_npm_packages.ts
+@@ -23,7 +23,9 @@ const stale = Object.keys(manifest.devDependencies).filter((name) => {
+   const installed = readJson(`node_modules/${name}/package.json`) as {
+     version?: string;
+   };
+-  return installed?.version !== lock.packages[`node_modules/${name}`]?.version;
++  // @bazel/bazelisk's own package.json writes its version as "v1.28.1".
++  const version = installed?.version?.replace(/^v/, "");
++  return version !== lock.packages[`node_modules/${name}`]?.version;
+ });
+ if (stale.length > 0) {
+   console.error(
+diff --git a/tsconfig.json b/tsconfig.json
+index 36d25be..ef275f7 100644
+--- a/tsconfig.json
++++ b/tsconfig.json
+@@ -10,5 +10,5 @@
+     "erasableSyntaxOnly": true,
+     "verbatimModuleSyntax": true
+   },
+-  "include": ["scripts", "tests"]
++  "include": ["bazel", "scripts", "tests"]
+ }
