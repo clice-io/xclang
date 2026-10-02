@@ -1,0 +1,40 @@
+load("@rules_cc//cc/toolchains:args.bzl", "cc_args")
+load("@rules_cc//cc/toolchains:feature.bzl", "cc_feature")
+load(":hosts.bzl", "HOSTS", "constraints")
+
+exports_files(glob(["*.bzl", "*.patch"]))
+
+# lld's --gc-sections in optimized builds, as a feature: on by default for
+# Linux targets, off for Windows ones, where lld drops the static initializers
+# of COMDAT sections with it (test registrations); --features=gc_sections
+# (or features = ["gc_sections"]) turns it on there, -gc_sections off.
+cc_feature(
+    name = "gc_sections",
+    args = [":gc_sections_args"],
+    feature_name = "gc_sections",
+    requires_any_of = ["@rules_cc//cc/toolchains/features:opt"],
+    visibility = ["//visibility:public"],
+)
+
+cc_args(
+    name = "gc_sections_args",
+    actions = ["@rules_cc//cc/toolchains/actions:link_actions"],
+    args = ["-Wl,--gc-sections"],
+)
+
+# import std and import std.compat: libc++'s modules of the target, from its
+# host's toolchain (bazel/toolchain.bzl). A target importing them depends on
+# this and has the cpp_modules feature.
+alias(
+    name = "std",
+    actual = select({":" + host: "@xclang_%s//:std" % host for host in HOSTS}),
+    visibility = ["//visibility:public"],
+)
+
+[
+    config_setting(
+        name = host,
+        constraint_values = constraints(host),
+    )
+    for host in HOSTS
+]

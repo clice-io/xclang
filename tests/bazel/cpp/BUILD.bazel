@@ -1,0 +1,30 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+# A test and the library it uses: linked statically by default, one copy of
+# libc++ (a shared library each would allocate with one and free with another).
+cc_library(
+    name = "names",
+    srcs = ["names.cpp"],
+    hdrs = ["names.h"],
+)
+
+cc_test(
+    name = "names_test",
+    srcs = ["names_test.cpp"],
+    deps = [":names"],
+)
+
+# A program run by another test: on Windows it is hello.exe.
+cc_binary(
+    name = "hello",
+    srcs = ["hello.cpp"],
+)
+
+cc_test(
+    name = "run_test",
+    srcs = ["run_test.cpp"],
+    args = ["$(rootpath :hello)"],
+    data = [":hello"],
+)

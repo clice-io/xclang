@@ -1,0 +1,68 @@
+--- a/cc/private/toolchain/unix_cc_toolchain_config.bzl
++++ b/cc/private/toolchain/unix_cc_toolchain_config.bzl
+@@ -677,7 +677,9 @@
+         provides = ["profile"],
+     )
+ 
+-    supports_dynamic_linker_feature = feature(name = "supports_dynamic_linker", enabled = True)
++    # Known but off: a target links its libraries statically unless it asks for
++    # this feature. (xclang links libc++ into every shared object of its own.)
++    supports_dynamic_linker_feature = feature(name = "supports_dynamic_linker", enabled = False)
+ 
+     user_compile_flags_feature = feature(
+         name = "user_compile_flags",
+@@ -1177,6 +1179,9 @@
+                 ],
+             ),
+         ],
++        # On: the headers of other repositories are system headers, whose
++        # warnings are not the build's.
++        enabled = True,
+     )
+ 
+     strip_debug_symbols_feature = feature(
+@@ -1759,7 +1764,7 @@
+         ],
+         specific_link_flags = [
+             "-fsanitize=address",
+-        ],
++        ] + ctx.attr.sanitizer_link_flags,
+     )
+ 
+     lsan_feature = _sanitizer_feature(
+@@ -1770,7 +1775,7 @@
+         ],
+         specific_link_flags = [
+             "-fsanitize=leak",
+-        ],
++        ] + ctx.attr.sanitizer_link_flags,
+     )
+ 
+     tsan_feature = _sanitizer_feature(
+@@ -1780,7 +1785,7 @@
+         ],
+         specific_link_flags = [
+             "-fsanitize=thread",
+-        ],
++        ] + ctx.attr.sanitizer_link_flags,
+     )
+ 
+     ubsan_feature = _sanitizer_feature(
+@@ -1790,7 +1795,7 @@
+         ],
+         specific_link_flags = [
+             "-fsanitize=undefined",
+-        ],
++        ] + ctx.attr.sanitizer_link_flags,
+     )
+ 
+     # If you have Xcode + the CLT installed the version defaults can be
+@@ -2152,6 +2157,8 @@
+         "opt_compile_flags": attr.string_list(),
+         "opt_link_flags": attr.string_list(),
+         "supports_start_end_lib": attr.bool(),
++        # Linked with every sanitizer feature (macOS: the rpath of the runtimes).
++        "sanitizer_link_flags": attr.string_list(),
+         "target_libc": attr.string(mandatory = True),
+         "target_system_name": attr.string(mandatory = True),
+         "tool_paths": attr.string_dict(),

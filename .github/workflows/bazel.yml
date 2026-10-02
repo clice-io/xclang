@@ -1,0 +1,125 @@
+name: bazel
+
+# The Bazel module (MODULE.bazel, bazel/) on a machine of every host:
+# tests/bazel's tests, then tests/bazel.ts's checks of the actions' keys.
+#
+#   by hand         with the archives bazel/versions.bzl names
+#   main.yml        with a run's archives (dist-run), unpacked and named by
+#                   XCLANG_ROOT and the like, before they are released
+#   a published     the module of that release (its tree, with the digests
+#   release, or     of its SHA256SUMS), then published to the clice Bazel
+#   by hand with    registry, https://bazel.clice.io, through clice-io/bazel's
+#   its tag         action
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release whose module to test and publish to bazel.clice.io, e.g. 23.1.2.5
+        type: string
+        default: ""
+  workflow_call:
+    inputs:
+      dist-run:
+        description: Run whose dist-<host> archives the module is tested with
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  TAG: ${{ inputs.tag || github.event.release.tag_name }}
+
+jobs:
+  module:
+    name: module (${{ matrix.host }})
+    strategy:
+      fail-fast: false
+      matrix:
+        host:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - x86_64-w64-mingw32
+          - aarch64-w64-mingw32
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm","aarch64-apple-darwin":"macos-15","x86_64-apple-darwin":"macos-15-intel"}')[matrix.host] }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm install -g @bazel/bazelisk
+      # The tag's tree names the release before it: the digests are known
+      # only once its archives are.
+      - name: Release digests
+        if: env.TAG
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
+          node scripts/bazel.ts versions "$RUNNER_TEMP/SHA256SUMS"
+      - uses: actions/download-artifact@v8
+        if: inputs.dist-run
+        with:
+          name: dist-${{ matrix.host }}
+          path: ${{ runner.temp }}/dist
+          run-id: ${{ inputs.dist-run }}
+          github-token: ${{ github.token }}
+      # Windows' own tar (bsdtar), as test.yml unpacks them.
+      - name: Unpack
+        if: inputs.dist-run
+        run: |
+          tar=tar; [[ "$RUNNER_OS" == Windows ]] && tar=/c/Windows/System32/tar.exe
+          dir="$RUNNER_TEMP/unpacked"; mkdir -p "$dir"
+          for a in "$RUNNER_TEMP"/dist/xclang-*.tar.xz "$RUNNER_TEMP"/dist/libclang-*.tar.xz; do "$tar" -xf "$a" -C "$dir"; done
+          [[ "$RUNNER_OS" == Windows ]] && dir="$(cygpath -m "$dir")"
+          env="--repo_env=XCLANG_ROOT=$dir/xclang --repo_env=XCLANG_LIBCLANG_ROOT=$dir/libclang"
+          [[ -d "$dir/libclang-asan" ]] && env="$env --repo_env=XCLANG_LIBCLANG_ASAN_ROOT=$dir/libclang-asan"
+          echo "REPO_ENV=$env" >> "$GITHUB_ENV"
+      - name: Test
+        working-directory: tests/bazel
+        run: |
+          # Windows: a short output root, and runfiles as symlinks.
+          startup=(); [[ "$RUNNER_OS" == Windows ]] && startup=(--output_user_root=C:/b --windows_enable_symlinks)
+          bazel "${startup[@]}" test //... $REPO_ENV --disk_cache="$RUNNER_TEMP/disk"
+          bazel "${startup[@]}" test -c opt //... $REPO_ENV --disk_cache="$RUNNER_TEMP/disk"
+      # Keys of the downloaded archives: a run's unpacked ones are not
+      # named by bazel/versions.bzl.
+      - name: Cache keys and inputs
+        if: ${{ !inputs.dist-run }}
+        run: node tests/bazel.ts --disk-cache "$RUNNER_TEMP/disk"
+
+  publish:
+    if: ${{ inputs.tag || github.event.release.tag_name }}
+    needs: module
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Module archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
+          node scripts/bazel.ts archive "$RUNNER_TEMP/SHA256SUMS" dist
+      - uses: clice-io/bazel@main
+        with:
+          archives: dist/xclang-bazel-*.tar.gz
+          token: ${{ secrets.UPLOAD_BAZEL }}

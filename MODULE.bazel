@@ -1,0 +1,32 @@
+"""xclang as a Bazel module: the C++ toolchain of the host, and libclang and
+the option tables as repositories, all from the release of the module's
+version (bazel/versions.bzl)."""
+
+module(
+    name = "xclang",
+    version = "23.1.2.4",
+    bazel_compatibility = [">=9.0.0"],
+)
+
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "rules_cc", version = "0.2.25")
+
+# What rules_cc's unix toolchain config loads; xclang loads its own patched
+# copy of that file (bazel/repositories.bzl), which resolves them from here.
+bazel_dep(name = "apple_support", version = "2.8.0")
+bazel_dep(name = "bazel_features", version = "1.50.0")
+bazel_dep(name = "bazel_skylib", version = "1.8.0")
+
+xclang = use_extension("//bazel:extensions.bzl", "xclang")
+use_repo(
+    xclang,
+    "xclang_aarch64-apple-darwin",
+    "xclang_aarch64-unknown-linux-gnu",
+    "xclang_aarch64-w64-mingw32",
+    "xclang_unix_config",
+    "xclang_x86_64-apple-darwin",
+    "xclang_x86_64-unknown-linux-gnu",
+    "xclang_x86_64-w64-mingw32",
+)
+
+register_toolchains("//bazel/toolchains:all")
