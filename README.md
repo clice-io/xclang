@@ -111,7 +111,7 @@ What the toolchain does:
   the build's flags (`--cxxopt`): clang refuses a module file built with
   other language options (`-std`, `-fno-exceptions`, `-fno-rtti`, ...), so
   those of its importers go there, not in their `copts`; macros, include
-  paths, optimization and sanitizers may differ.
+  paths and optimization may differ.
 - Other repositories' headers are system headers (`-isystem`), whose
   warnings are not the build's; `__DATE__` and `__TIME__` are redacted.
 - **Sanitizers** are features: `--features=asan` (or `tsan`, `ubsan`,
