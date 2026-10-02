@@ -70,7 +70,7 @@ Bazel 本身建议通过 bazelisk 运行（`npm install -g @bazel/bazelisk`，�
 - **静态链接。** 库静态链接进测试和程序：每个共享库里都各有一份 libc++，一个共享库分配的内存会被另一个释放。`cc_binary(linkshared = True)` 仍然可以生成共享库（`libfoo.so`、`libfoo.dylib`、`foo.dll`）；`features = ["supports_dynamic_linker"]` 让某个目标恢复 Bazel 的动态链接。
 - **Windows** 上的程序是 MinGW 程序，名为 `.exe`，共享库为 `.dll`。
 - 优化构建在 Linux 上用 lld 的 `--gc-sections` 链接（`gc_sections` feature），Windows 上默认不用：那里它会丢掉 COMDAT 段里的静态初始化。不依赖这些初始化的目标可以用 `--features=gc_sections` 或 `features = ["gc_sections"]` 打开，`-gc_sections` 关掉。
-- **C++20 模块**：`module_interfaces` 加 `features = ["cpp_modules"]`，由 clang-scan-deps 扫描依赖；模块文件里的路径相对于执行根目录，在哪构建都一样。`import std` 和 `import std.compat` 来自 `@xclang//bazel:std`：为目标平台构建的 libc++ 模块，作为一个库依赖即可。
+- **C++20 模块**：`module_interfaces` 加 `features = ["cpp_modules"]`，由 clang-scan-deps 扫描依赖；模块文件里的路径相对于执行根目录，在哪构建都一样。`import std` 和 `import std.compat` 来自 `@xclang//bazel:std`：为目标平台构建的 libc++ 模块，作为一个库依赖即可。它用整个构建的选项（`--cxxopt`）编译：语言选项（`-std`、`-fno-exceptions`、`-fno-rtti` 等）不同的模块文件 clang 拒绝导入，所以导入它的目标的语言选项要写在那里，而不是各自的 `copts`；宏、头文件路径、优化级别和 sanitizer 可以不同。
 - 其它仓库的头文件作为系统头文件（`-isystem`），它们的警告不算本项目的；`__DATE__`、`__TIME__` 被替换掉。
 - **Sanitizer** 用 feature 打开：`features = ["asan"]`（或 `tsan`、`ubsan`、`lsan`；整个构建用 `--features=asan`）。macOS 上它们的运行库是共享库，这些 feature 会把工具链里运行库的绝对路径链接进去：只有这些链接依赖检出目录。
 

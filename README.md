@@ -107,7 +107,11 @@ What the toolchain does:
   scanned by clang-scan-deps; module files hold paths relative to the
   execution root, so they are the same wherever they are built. `import
   std` and `import std.compat` come from `@xclang//bazel:std`, libc++'s
-  modules built for the target as a library to depend on.
+  modules built for the target as a library to depend on. It is built with
+  the build's flags (`--cxxopt`): clang refuses a module file built with
+  other language options (`-std`, `-fno-exceptions`, `-fno-rtti`, ...), so
+  those of its importers go there, not in their `copts`; macros, include
+  paths, optimization and sanitizers may differ.
 - Other repositories' headers are system headers (`-isystem`), whose
   warnings are not the build's; `__DATE__` and `__TIME__` are redacted.
 - **Sanitizers** are features: `features = ["asan"]` (or `tsan`, `ubsan`,
