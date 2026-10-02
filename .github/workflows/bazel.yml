@@ -47,7 +47,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag || github.sha }}
+          # exp: this tree; 23.1.2.4's predates the module.
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v5
         with:
@@ -79,7 +80,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag }}
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v5
         with:
@@ -94,10 +95,11 @@ jobs:
         with:
           archives: dist/xclang-bazel-*.tar.gz
           token: ${{ secrets.UPLOAD_BAZEL }}
+          replace: true
 
   # tests/bazel on xclang from the registry, as a consumer gets it.
   registry:
-    if: github.ref == 'refs/heads/exp/bazel'
+    if: github.ref == 'refs/heads/exp/bazel' && !inputs.tag
     name: registry (${{ matrix.os }})
     strategy:
       fail-fast: false
@@ -126,7 +128,7 @@ jobs:
           bazel "${startup[@]}" mod graph | grep xclang
 
   kotatsu:
-    if: github.ref == 'refs/heads/exp/bazel'
+    if: github.ref == 'refs/heads/exp/bazel' && !inputs.tag
     name: kotatsu (${{ matrix.os }})
     strategy:
       fail-fast: false
