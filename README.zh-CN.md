@@ -186,6 +186,7 @@ xclang 用 LLVM 发布版的源码，加上 `patches/` 里的修改来构建。�
 | `0004-windows-driver-setup-api-mingw` | MinGW 构建的 clang 也通过 Setup API 找到 Visual Studio 2017 及以后的版本，和 MSVC 构建的一样（[clice#714](https://github.com/clice-io/clice/issues/714)） |
 | `0006-libcxx-format-buffer-full` | `std::format_to` 写入容器时，参数长度为 256 的倍数不再导致写出 256 字节的栈上缓冲区 |
 | `0007-lld-macho-empty-section-unwind` | 空 section 的符号和函数地址相同时，ld64.lld 不再丢掉该函数的 unwind 信息：一条 clang 命令编译并链接的 ThinLTO 程序在 arm64 macOS 上能接住自己抛出的异常 |
+| `0008-preprocessed-raw-string-lines` | `clang -E` 把原始字符串里的 CRLF 换行写成 `\n`（它本来的含义），并计入它跨的行数：编译 `-E` 的输出（xmake 等构建缓存就这样做）得到的字符串和行号与直接编译相同 |
 
 ## 限制
 

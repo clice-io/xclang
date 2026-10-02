@@ -340,6 +340,32 @@ int main() { std::println("{} {}", "import", std::vector{1, 2, 3}); }
   failures.push(`no module manifest for ${native}: ${manifest}`);
 }
 
+/// clang -E keeps a raw string literal of a CRLF file as compiling it does,
+/// through a text-mode stream too (Windows), and the lines after it
+/// (patches/0008): its output compiles to the same program.
+{
+  const source = write("raw-crlf.cpp", [
+    "#include <cstdio>",
+    "#include <cstring>",
+    "#include <source_location>",
+    "const char* s = R\"(a",
+    "b)\";",
+    "int line = std::source_location::current().line();",
+    "int main() {",
+    "  std::printf(\"%d %zu\\n\", line, std::strlen(s));",
+    "  return line == 6 && std::strcmp(s, \"a\\nb\") == 0 ? 0 : 1;",
+    "}",
+    "",
+  ].join("\r\n"));
+  const flags = [`--target=${native}`, "-std=c++20"];
+  const preprocessed = path.join(work, "raw-crlf.ii");
+  const program = path.join(work, `raw-crlf${exe}`);
+  if (run(tool("clang++"), [...flags, "-E", source, "-o", preprocessed]) !== undefined &&
+      run(tool("clang++"), [...flags, preprocessed, "-o", program]) !== undefined) {
+    run(program, []);
+  }
+}
+
 const header = write("common.hpp", "#include <map>\n#include <string>\n#include <vector>\n");
 const pchUser = write("pch_user.cpp", "int main() { std::map<std::string, std::vector<int>> m; return int(m.size()); }\n");
 run(tool("clang++"), [`--target=${native}`, "-x", "c++-header", header, "-o", path.join(work, "common.hpp.pch")]);

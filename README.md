@@ -310,6 +310,7 @@ same thing; libclang's manifest lists them (`XCLANG_PATCHES`).
 | `0004-windows-driver-setup-api-mingw` | the MinGW-built clang finds Visual Studio 2017 and later through the Setup API, like the MSVC-built one ([clice#714](https://github.com/clice-io/clice/issues/714)) |
 | `0006-libcxx-format-buffer-full` | `std::format_to` into a container no longer writes past its 256-code-unit stack buffer after an argument whose length is a multiple of 256 |
 | `0007-lld-macho-empty-section-unwind` | ld64.lld keeps a function's unwind entry when an empty section's symbol shares its address: ThinLTO programs linked by one clang command catch their exceptions on arm64 macOS |
+| `0008-preprocessed-raw-string-lines` | `clang -E` writes a raw string literal's CRLF line breaks as `\n`, what they mean, and counts its lines: its output, compiled (build caches such as xmake's), gives the same strings and line numbers |
 
 ## Limits
 

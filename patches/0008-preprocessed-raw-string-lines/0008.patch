@@ -1,0 +1,71 @@
+diff --git a/clang/lib/Frontend/PrintPreprocessedOutput.cpp b/clang/lib/Frontend/PrintPreprocessedOutput.cpp
+index 0226688..681b930 100644
+--- a/clang/lib/Frontend/PrintPreprocessedOutput.cpp
++++ b/clang/lib/Frontend/PrintPreprocessedOutput.cpp
+@@ -230,6 +230,7 @@ public:
+                      unsigned ExtraLen=0);
+   bool LineMarkersAreDisabled() const { return DisableLineMarkers; }
+   void HandleNewlinesInToken(const char *TokStr, unsigned Len);
++  void WriteStringLiteral(StringRef Spelling);
+ 
+   /// MacroDefined - This hook is called whenever a macro definition is seen.
+   void MacroDefined(const Token &MacroNameTok,
+@@ -837,6 +838,25 @@ void PrintPPOutputPPCallbacks::HandleNewlinesInToken(const char *TokStr,
+   CurLine += NumNewlines;
+ }
+ 
++/// Write the spelling of a string literal. Only a raw string literal holds
++/// line breaks: each \r\n is written as \n, which is what it means in the
++/// literal (StringLiteralParser), so that compiling the output gives the same
++/// string even through a text-mode stream, which would make it \r\r\n; and
++/// the lines the literal spans are counted, so that the tokens after it keep
++/// their line numbers.
++void PrintPPOutputPPCallbacks::WriteStringLiteral(StringRef Spelling) {
++  if (Spelling.find_first_of("\r\n") == StringRef::npos) {
++    OS->write(Spelling.data(), Spelling.size());
++    return;
++  }
++  HandleNewlinesInToken(Spelling.data(), Spelling.size());
++  for (size_t Pos; (Pos = Spelling.find("\r\n")) != StringRef::npos;) {
++    OS->write(Spelling.data(), Pos);
++    Spelling = Spelling.substr(Pos + 1);
++  }
++  OS->write(Spelling.data(), Spelling.size());
++}
++
+ 
+ namespace {
+ struct UnknownPragmaHandler : public PragmaHandler {
+@@ -1018,11 +1038,18 @@ static void PrintPreprocessedTokens(Preprocessor &PP, Token &Tok,
+       *Callbacks->OS << II->getName();
+     } else if (Tok.isLiteral() && !Tok.needsCleaning() &&
+                Tok.getLiteralData()) {
+-      Callbacks->OS->write(Tok.getLiteralData(), Tok.getLength());
++      if (tok::isStringLiteral(Tok.getKind()))
++        Callbacks->WriteStringLiteral(
++            StringRef(Tok.getLiteralData(), Tok.getLength()));
++      else
++        Callbacks->OS->write(Tok.getLiteralData(), Tok.getLength());
+     } else if (Tok.getLength() < std::size(Buffer)) {
+       const char *TokPtr = Buffer;
+       unsigned Len = PP.getSpelling(Tok, TokPtr);
+-      Callbacks->OS->write(TokPtr, Len);
++      if (tok::isStringLiteral(Tok.getKind()))
++        Callbacks->WriteStringLiteral(StringRef(TokPtr, Len));
++      else
++        Callbacks->OS->write(TokPtr, Len);
+ 
+       // Tokens that can contain embedded newlines need to adjust our current
+       // line number.
+@@ -1039,7 +1066,10 @@ static void PrintPreprocessedTokens(Preprocessor &PP, Token &Tok,
+       }
+     } else {
+       std::string S = PP.getSpelling(Tok);
+-      Callbacks->OS->write(S.data(), S.size());
++      if (tok::isStringLiteral(Tok.getKind()))
++        Callbacks->WriteStringLiteral(S);
++      else
++        Callbacks->OS->write(S.data(), S.size());
+ 
+       // Tokens that can contain embedded newlines need to adjust our current
+       // line number.
