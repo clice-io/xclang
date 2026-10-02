@@ -103,6 +103,18 @@ What the toolchain does:
   feature) for Linux, not for Windows, where it drops static initializers in
   COMDAT sections: `--features=gc_sections` or `features = ["gc_sections"]`
   turns it on where nothing relies on them, `-gc_sections` off.
+- **ThinLTO cache.** Linking libclang's bitcode generates code for every
+  module of it, minutes each time; with
+  `--repo_env=XCLANG_THINLTO_CACHE=<absolute directory>` the linker keeps
+  that code there and a link after the first takes seconds, with the same
+  output (the `thinlto_cache` feature; `-thinlto_cache` turns it off). The
+  directory is made if missing and is on the links' command lines, so one
+  path for every checkout keeps them shared by a disk cache. Sandboxed links
+  (Linux, macOS) need it writable, and Linux's sandbox replaces `/tmp`:
+  ```
+  common:linux --repo_env=XCLANG_THINLTO_CACHE=/var/tmp/xclang-thinlto
+  common:linux --sandbox_writable_path=/var/tmp/xclang-thinlto
+  ```
 - **C++20 modules**: `module_interfaces` with `features = ["cpp_modules"]`,
   scanned by clang-scan-deps; module files hold paths relative to the
   execution root, so they are the same wherever they are built. `import

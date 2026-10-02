@@ -226,3 +226,56 @@ xclang_macos_sdk = repository_rule(
     configure = True,
     doc = "The path of Xcode's macOS SDK, the one part of the toolchain not in the archive.",
 )
+
+def _thinlto_cache_impl(rctx):
+    path = (rctx.getenv("XCLANG_THINLTO_CACHE") or "").replace("\\", "/").rstrip("/")
+    args = []
+    if path:
+        if not (path.startswith("/") or path[1:3] == ":/"):
+            fail("XCLANG_THINLTO_CACHE is not an absolute path: " + path)
+
+        # A sandbox makes a path writable only if it exists when the action
+        # starts, which no action can see to: it is made here, and this
+        # repository fetched again when it is gone.
+        rctx.watch(path)
+        if not rctx.path(path).exists:
+            windows = rctx.os.name.lower().startswith("windows")
+            res = rctx.execute(["cmd", "/c", "mkdir", path.replace("/", "\\")] if windows else ["mkdir", "-p", path])
+            if res.return_code != 0:
+                fail("cannot create %s: %s" % (path, res.stderr))
+        args = ["-Wl,-cache_path_lto," + path, "-Wl,--thinlto-cache-dir=" + path]
+    rctx.file("BUILD.bazel", """\
+load("@rules_cc//cc/toolchains:args.bzl", "cc_args")
+load("@rules_cc//cc/toolchains:feature.bzl", "cc_feature")
+
+# The linker's ThinLTO cache in XCLANG_THINLTO_CACHE (bazel/repositories.bzl);
+# no flags without it.
+cc_feature(
+    name = "thinlto_cache",
+    args = {args},
+    feature_name = "thinlto_cache",
+    visibility = ["//visibility:public"],
+)
+""".format(args = json.encode([":args"] if args else [])) + ("" if not args else """
+cc_args(
+    name = "args",
+    actions = ["@rules_cc//cc/toolchains/actions:link_actions"],
+    args = select({{
+        # Apple's ld, with xclang's libLTO.
+        "@platforms//os:macos": [{apple}],
+        "//conditions:default": [{lld}],
+    }}),
+)
+""".format(apple = json.encode(args[0]), lld = json.encode(args[1]))))
+
+xclang_thinlto_cache = repository_rule(
+    implementation = _thinlto_cache_impl,
+    doc = """The thinlto_cache feature of every xclang toolchain: with
+--repo_env=XCLANG_THINLTO_CACHE=<absolute directory>, links that do ThinLTO
+(of libclang's bitcode) keep the code they generate per module there and reuse
+it, so a link after the first takes seconds rather than minutes. The output is
+the same with and without it. The directory is made if missing, and is on the
+links' command lines: one path for every checkout keeps their actions shared
+by a disk or remote cache. Sandboxed links (Linux, macOS) need it writable:
+--sandbox_writable_path=<the same directory>.""",
+)

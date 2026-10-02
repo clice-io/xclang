@@ -23,6 +23,7 @@ use_repo(
     "xclang_aarch64-apple-darwin",
     "xclang_aarch64-unknown-linux-gnu",
     "xclang_aarch64-w64-mingw32",
+    "xclang_thinlto_cache",
     "xclang_unix_config",
     "xclang_x86_64-apple-darwin",
     "xclang_x86_64-unknown-linux-gnu",
