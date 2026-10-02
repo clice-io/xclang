@@ -29,3 +29,21 @@ cc_test(
         ":math",
     ],
 )
+
+# import std and import std.compat, libc++'s modules built for the target.
+cc_library(
+    name = "shapes",
+    features = ["cpp_modules"],
+    module_interfaces = ["shapes.cppm"],
+    deps = ["@xclang//bazel:std"],
+)
+
+cc_test(
+    name = "std_test",
+    srcs = ["std.cpp"],
+    features = ["cpp_modules"],
+    deps = [
+        ":shapes",
+        "@xclang//bazel:std",
+    ],
+)

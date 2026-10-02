@@ -103,6 +103,11 @@ What the toolchain does:
   feature) for Linux, not for Windows, where it drops static initializers in
   COMDAT sections: `--features=gc_sections` or `features = ["gc_sections"]`
   turns it on where nothing relies on them, `-gc_sections` off.
+- **C++20 modules**: `module_interfaces` with `features = ["cpp_modules"]`,
+  scanned by clang-scan-deps; module files hold paths relative to the
+  execution root, so they are the same wherever they are built. `import
+  std` and `import std.compat` come from `@xclang//bazel:std`, libc++'s
+  modules built for the target as a library to depend on.
 - Other repositories' headers are system headers (`-isystem`), whose
   warnings are not the build's; `__DATE__` and `__TIME__` are redacted.
 - **Sanitizers** are features: `features = ["asan"]` (or `tsan`, `ubsan`,

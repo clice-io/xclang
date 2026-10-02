@@ -11,6 +11,7 @@ picks sysroot, libc++, compiler-rt and linker, so the other flags here are
 only Bazel's.
 """
 
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc/toolchains:cc_toolchain.bzl", "cc_toolchain")
 load("@xclang_unix_config//cc/private/toolchain:unix_cc_toolchain_config.bzl", "cc_toolchain_config")
 load(":hosts.bzl", "TARGETS")
@@ -132,6 +133,11 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
         unfiltered_compile_flags = [
             # Paths relative to the execution root for clang's own files too.
             "-no-canonical-prefixes",
+            # C++20 modules: the paths in a module file relative to the working
+            # directory, the execution root, as the path of a module file's
+            # module is not: the same module file wherever it is built.
+            "-Xclang",
+            "-fmodule-file-home-is-cwd",
             # Keep __DATE__ and friends out of the outputs, as rules_cc's
             # detection does.
             "-Wno-builtin-macro-redefined",
@@ -154,4 +160,32 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
         strip_files = name + "_bin",
         supports_param_files = 1,
         toolchain_config = name + "_config",
+    )
+
+def xclang_std_modules(name, target, root):
+    """libc++'s std and std.compat modules of target, as a cc_library: a
+    target importing them depends on it and has the cpp_modules feature.
+
+    Args:
+        name: the cc_library.
+        target: the target triple.
+        root: the package's path from the execution root.
+    """
+    share = "%s/%s/share/libc++/v1" % (target, "usr" if TARGETS[target].os == "linux" else "")
+    share = share.replace("//", "/")
+    cc_library(
+        name = name,
+        # libc++.modules.json: the module sources, with their directory as a
+        # system include directory, and the warnings libc++'s own build
+        # turns off for them.
+        copts = [
+            "-isystem",
+            "%s/%s" % (root, share),
+            "-Wno-reserved-module-identifier",
+            "-Wno-reserved-user-defined-literal",
+        ],
+        features = ["cpp_modules"],
+        module_interfaces = [share + "/std.cppm", share + "/std.compat.cppm"],
+        textual_hdrs = native.glob([share + "/std/*.inc", share + "/std.compat/*.inc"]),
+        visibility = ["//visibility:public"],
     )

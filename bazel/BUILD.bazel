@@ -1,5 +1,6 @@
 load("@rules_cc//cc/toolchains:args.bzl", "cc_args")
 load("@rules_cc//cc/toolchains:feature.bzl", "cc_feature")
+load(":hosts.bzl", "HOSTS", "constraints")
 
 exports_files(glob(["*.bzl", "*.patch"]))
 
@@ -20,3 +21,20 @@ cc_args(
     actions = ["@rules_cc//cc/toolchains/actions:link_actions"],
     args = ["-Wl,--gc-sections"],
 )
+
+# import std and import std.compat: libc++'s modules of the target, from its
+# host's toolchain (bazel/toolchain.bzl). A target importing them depends on
+# this and has the cpp_modules feature.
+alias(
+    name = "std",
+    actual = select({":" + host: "@xclang_%s//:std" % host for host in HOSTS}),
+    visibility = ["//visibility:public"],
+)
+
+[
+    config_setting(
+        name = host,
+        constraint_values = constraints(host),
+    )
+    for host in HOSTS
+]

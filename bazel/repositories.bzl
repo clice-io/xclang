@@ -97,7 +97,7 @@ def _toolchain_impl(rctx):
     if macos:
         rctx.file("libexec/ld", _LD, executable = True)
     rctx.file("BUILD.bazel", """\
-load({toolchain_bzl}, "xclang_cc_toolchain")
+load({toolchain_bzl}, "xclang_cc_toolchain", "xclang_std_modules")
 {sdk_load}
 package(default_visibility = ["//visibility:public"])
 
@@ -110,6 +110,12 @@ xclang_cc_toolchain(
     host = {host},
     macos_sdk = {sdk},
     root = {root},
+)
+
+xclang_std_modules(
+    name = "std",
+    root = {root},
+    target = {host},
 )
 """.format(
         toolchain_bzl = json.encode(str(Label("//bazel:toolchain.bzl"))),
