@@ -119,7 +119,7 @@ jobs:
       - name: Test
         working-directory: tests/bazel
         run: |
-          node -e 'const fs = require("fs"); const m = fs.readFileSync("MODULE.bazel", "utf8").replace(/local_path_override\([^)]*\)\n/, ""); if (m.includes("local_path_override")) process.exit(1); fs.writeFileSync("MODULE.bazel", m)'
+          node -e 'const fs = require("fs"); const m = fs.readFileSync("MODULE.bazel", "utf8").replace(/local_path_override\([^)]*\)\r?\n/, ""); if (m.includes("local_path_override")) process.exit(1); fs.writeFileSync("MODULE.bazel", m)'
           printf 'common --registry=https://bazel.clice.io/\ncommon --registry=https://bcr.bazel.build/\n' >> .bazelrc
           startup=(); [[ "$RUNNER_OS" == Windows ]] && startup=(--output_user_root=C:/b --windows_enable_symlinks)
           bazel "${startup[@]}" test //...
