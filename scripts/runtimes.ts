@@ -114,11 +114,20 @@ function cxx(t: common.Target, stage: string): void {
 function cxxAsan(t: common.Target, stage: string): void {
   const install = path.join(common.WORK, "build", `cxx-asan-${t.triple}-install`);
   fs.rmSync(install, { recursive: true, force: true });
-  cmake(`cxx-asan-${t.triple}`, path.join(src, "runtimes"), [...cxxArgs(t, stage, install), "-DLLVM_USE_SANITIZER=Address"]);
+  /// On macOS the libraries look for the ASan runtime next to the builtins,
+  /// which clang does not report there (-print-libgcc-file-name).
+  const builtins = path.join(common.resourceDir(stage), "lib", "darwin", "libclang_rt.osx.a");
+  cmake(`cxx-asan-${t.triple}`, path.join(src, "runtimes"), [
+    ...cxxArgs(t, stage, install),
+    "-DLLVM_USE_SANITIZER=Address",
+    ...(t.os === "darwin" ? [`-DCOMPILER_RT_LIBRARY_builtins_${t.triple}=${builtins}`] : []),
+  ]);
   const dest = path.join(cxxPrefix(t, stage), "lib", "asan");
   fs.rmSync(dest, { recursive: true, force: true });
   fs.mkdirSync(path.join(dest, "include"), { recursive: true });
-  for (const lib of fs.readdirSync(path.join(install, "lib")).filter((f) => /^libc\+\+.*\.a$/.test(f))) {
+  /// libc++.a holds libc++abi already; libc++experimental.a is for
+  /// -fexperimental-library.
+  for (const lib of ["libc++.a", "libc++experimental.a"]) {
     fs.copyFileSync(path.join(install, "lib", lib), path.join(dest, lib));
   }
   /// Its __config_site differs from the other only in saying so.
