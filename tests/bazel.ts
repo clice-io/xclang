@@ -96,7 +96,17 @@ const response = await fetch(`https://github.com/clice-io/xclang/releases/downlo
 if (!response.ok) common.fail(`no SHA256SUMS for ${values.previous}: ${response.status}`);
 fs.writeFileSync(sums, await response.text());
 common.run(process.execPath, [path.join(copy, "scripts", "bazel.ts"), "versions", sums]);
-const previous = bazel(tests, ["build", ...cache, ...TARGETS]);
+/// Releases before 23.1.2.5 link macOS programs with the system's ld, which
+/// this module no longer points at their libLTO.dylib: libclang's ThinLTO
+/// bitcode does not link with them.
+const older = (a: string, b: string) => {
+  const [x, y] = [a, b].map((v) => v.split(".").map(Number));
+  const i = x!.findIndex((n, k) => n !== y![k]);
+  return i >= 0 && x![i]! < y![i]!;
+};
+const previousTargets = process.platform === "darwin" && older(values.previous!, "23.1.2.5")
+  ? PROGRAMS : TARGETS;
+const previous = bazel(tests, ["build", ...cache, ...previousTargets]);
 check(previous.hits === 0 && previous.executed > 0,
   `xclang ${values.previous}: ${previous.executed} actions run, ${previous.hits} from the disk cache`);
 
