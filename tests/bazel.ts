@@ -25,7 +25,7 @@ import * as common from "../scripts/common.ts";
 const { values } = parseArgs({
   options: {
     "disk-cache": { type: "string" },
-    previous: { type: "string", default: "23.1.2.3" },
+    previous: { type: "string", default: "23.1.2.4" },
   },
 });
 if (!values["disk-cache"]) common.fail("--disk-cache <dir> [--previous <version>]");

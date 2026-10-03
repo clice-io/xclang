@@ -53,7 +53,8 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
         name = name + "_compiler_files",
         srcs = [name + "_bin", config, scanner] + native.glob([resource + "/include/**"]) +
                native.glob([target + "/" + p for p in t.headers]) +
-               (native.glob([target + "/" + t.asan_libcxx + "/include/**"]) if t.asan_libcxx else []),
+               # libc++'s ASan build: none in releases before 23.1.2.5.
+               (native.glob([target + "/" + t.asan_libcxx + "/include/**"], allow_empty = True) if t.asan_libcxx else []),
     )
     native.filegroup(
         name = name + "_linker_files",
