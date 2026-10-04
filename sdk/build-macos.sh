@@ -35,8 +35,9 @@ for arch in arm64 x86_64; do
   step "$arch --sysroot instead of -isysroot" probe "$X/bin/clang$EXE" "--target=$arch-apple-macos" "--sysroot=$SDK" "$T/hello.c" -o "$o/hello-sysroot"
   step "$arch SDKROOT instead of -isysroot" probe env SDKROOT="$SDK" "$X/bin/clang$EXE" "--target=$arch-apple-macos" "$T/hello.c" -o "$o/hello-sdkroot"
   step "$arch profile runtime" probe "${cc[@]}" -fprofile-instr-generate "$T/hello.c" -o "$o/profile"
-  # The ASan runtime is a dylib: it goes next to the program.
-  step "$arch ASan" probe "${cc[@]}" -g -fsanitize=address "$T/asan.c" -Wl,-rpath,@executable_path -o "$o/asan"
+  # The ASan runtime is a dylib, found next to the program (clang adds the
+  # rpath @executable_path).
+  step "$arch ASan" probe "${cc[@]}" -g -fsanitize=address "$T/asan.c" -o "$o/asan"
   cp "$X"/lib/clang/*/lib/darwin/libclang_rt.asan_osx_dynamic.dylib "$o/" 2>/dev/null || true
 done
 step "universal C (-arch arm64 -arch x86_64)" probe "$X/bin/clang$EXE" -isysroot "$SDK" --target=arm64-apple-macos -arch arm64 -arch x86_64 "$T/hello.c" -o "$OUT/hello-universal"

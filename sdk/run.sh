@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Run the probe programs built for this machine: run.sh <dir>...
 # Each <dir> holds programs and build.txt; prints PASS/FAIL per program and
-# exits 1 if a required program failed.
+# exits 1 if a required program failed. kotatsu's tests run in its source
+# tree, $KOTATSU_SRC, as its ctest runs them.
 set -u
 fail=0
 check() { # check <name> required|probe <command...>
@@ -22,7 +23,8 @@ for d in "$@"; do
     case "$n" in
       asan*) check "$f (expects heap-buffer-overflow)" probe bash -c '"$1" 2>&1 | tee /dev/stderr | grep -q heap-buffer-overflow' _ "$f" ;;
       profile*) check "$f (writes a profile)" probe bash -c 'LLVM_PROFILE_FILE="$1.profraw" "$1" && test -s "$1.profraw"' _ "$f" ;;
-      int128*|hello-sysroot|hello-sdkroot|hello-universal|*_tests|*_tests.exe) check "$f" probe "$f" ;;
+      *_tests|*_tests.exe) check "$f" required bash -c 'cd "$KOTATSU_SRC" && "$1" --snapshot-dir=tests/snapshots' _ "$(cd "$(dirname "$f")" && pwd)/$n" ;;
+      int128*|hello-sysroot|hello-sdkroot|hello-universal) check "$f" probe "$f" ;;
       *) check "$f" required "$f" ;;
     esac
   done

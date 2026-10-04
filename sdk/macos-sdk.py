@@ -234,22 +234,34 @@ def extract(pkg, out, links):
                 size += len(data)
     if sdk is None:
         raise SystemExit("no SDK in the package")
-    # Without symlinks (Windows), each link becomes a copy of its target, made
-    # once no link under the target is still to be made, so that the copy is
-    # whole; links to links resolve over several rounds.
+    # Without symlinks (Windows, where they need a privilege), a link to a
+    # directory becomes a junction and a link to a file a hard link; with
+    # --links copy, a copy, made once no link under its target is still to be
+    # made, so that it is whole. Links to links resolve over several rounds.
     pending = [(os.path.normpath(p), t) for p, t in pending]
     while pending:
         paths = sorted(p for p, _ in pending)
         left = []
         for path, target in pending:
             src = os.path.normpath(os.path.join(os.path.dirname(path), target))
-            i = bisect.bisect_left(paths, src + os.sep)
-            if i < len(paths) and paths[i].startswith(src + os.sep):
-                left.append((path, target))
+            if links == "copy":
+                if (path + os.sep).startswith(src + os.sep):
+                    continue  # a link to a directory above it (ruby/ruby -> .)
+                i = bisect.bisect_left(paths, src + os.sep)
+                if i < len(paths) and paths[i].startswith(src + os.sep):
+                    left.append((path, target))
+                elif os.path.isdir(src):
+                    shutil.copytree(src, path)
+                elif os.path.isfile(src):
+                    shutil.copyfile(src, path)
+                else:
+                    left.append((path, target))
             elif os.path.isdir(src):
-                shutil.copytree(src, path)
+                import _winapi
+
+                _winapi.CreateJunction(os.path.abspath(src), path)
             elif os.path.isfile(src):
-                shutil.copyfile(src, path)
+                os.link(src, path)
             else:
                 left.append((path, target))
         if len(left) == len(pending):
@@ -281,7 +293,7 @@ def cmd_fetch(a):
         shutil.rmtree(a.out)
     os.makedirs(a.out)
     start = time.monotonic()
-    links = a.links or ("copy" if os.name == "nt" else "symlink")
+    links = a.links or ("junction" if os.name == "nt" else "symlink")
     sdk = extract(pkg, a.out, links)
     log(f"unpacked {sdk} into {a.out} in {time.monotonic() - start:.1f} s")
     return 0
@@ -317,7 +329,7 @@ def main():
     f.add_argument("--out", required=True, help="the SDK directory to create")
     f.add_argument("--pkg", help="a package already downloaded")
     f.add_argument("--cache", default=".", help="where the package is downloaded to")
-    f.add_argument("--links", choices=["symlink", "copy"], help="default: copy on Windows")
+    f.add_argument("--links", choices=["symlink", "junction", "copy"], help="default: junction on Windows")
     f.add_argument("--unpinned", action="store_true", help=argparse.SUPPRESS)
     c = sub.add_parser("catalog", help="list SDK packages in Apple's catalog")
     c.add_argument("--catalog", default=CATALOG)
