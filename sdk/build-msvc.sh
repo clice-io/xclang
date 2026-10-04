@@ -39,6 +39,6 @@ for arch in x86_64 aarch64; do
 done
 rm -f "$OUT"/*/*.lib "$OUT"/*/*.exp "$OUT"/*/*.obj
 for f in "$OUT"/x86_64/hello-cpp.exe "$OUT"/x86_64/hello-cpp-md.exe "$OUT"/aarch64/win32.exe; do
-  [ -f "$f" ] && { echo "== $f"; "$X/bin/llvm-readobj" --coff-imports "$f" | grep -E 'Name:' | sort -u; }
+  [ -f "$f" ] && { echo "== $f"; "$X/bin/llvm-objdump" -p "$f" | grep 'DLL Name' | sort -u; }
 done
 exit $fail

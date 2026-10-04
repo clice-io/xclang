@@ -44,16 +44,20 @@ CDN = "https://swcdn.apple.com/content/downloads"
 SDKS = {
     "26.5": (
         f"{CDN}/09/08/047-91568-A_Y1CFZWQCD4/4xekpyz43i26dbp4enxfro8eb1q7wiujh5/CLTools_macOSNMOS_SDK.pkg",
-        "",
+        "5f044578cd78a3a9b9c965a42d56bad609ee5d252e1d4e6aa7c42fc3f35fee7b",
         61622368,
     ),
     "27.0": (
         f"{CDN}/58/48/082-83364-A_KCEBOO2NJS/0d2rj4y5ucjlkgcvqt6f6a4pergug5tu2b/CLTools_macOSNMOS_SDK.pkg",
-        "",
+        "d55351824fd17742fd6e1e7a252fa1028698f32147ee48be9a6b75442bf30575",
         70553676,
     ),
 }
 DEFAULT = "26.5"
+
+# What compiling and linking never read, as Nixpkgs leaves out too: man pages
+# (some named like APR::Base64.3pm, which Windows refuses), tools, Perl.
+SKIP = ("usr/bin/", "usr/share/", "System/Library/Perl/")
 
 CATALOG = (
     "https://swscan.apple.com/content/catalogs/others/index-27-26-15-14-13-12-10.16-10.15-10.14-10.13-"
@@ -196,6 +200,8 @@ def extract(pkg, out, links):
                 if m.group(1) not in others:
                     others.add(m.group(1))
                     log(f"skipping {m.group(1)}")
+                continue
+            if m.group(2).startswith(SKIP):
                 continue
             path = os.path.join(out, *m.group(2).split("/"))
             kind = stat.S_IFMT(mode)

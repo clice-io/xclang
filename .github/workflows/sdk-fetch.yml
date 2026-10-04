@@ -49,12 +49,12 @@ jobs:
         run: |
           python sdk/macos-sdk.py catalog --last 4
           start=$SECONDS
-          python sdk/macos-sdk.py fetch --accept-license --unpinned --version "${{ matrix.sdk }}" --cache "$RUNNER_TEMP" --out "$RUNNER_TEMP/MacOSX.sdk"
+          python sdk/macos-sdk.py fetch --accept-license --version "${{ matrix.sdk }}" --cache "$RUNNER_TEMP" --out "$RUNNER_TEMP/MacOSX.sdk"
           echo "fetch + unpack: $((SECONDS - start)) s"
           ls -l "$RUNNER_TEMP"/*.pkg
           du -sh "$RUNNER_TEMP/MacOSX.sdk"; find "$RUNNER_TEMP/MacOSX.sdk" -type f | wc -l; find "$RUNNER_TEMP/MacOSX.sdk" -type l | wc -l
           python -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["Version"], d.get("CanonicalName"), d.get("MaximumDeploymentTarget"))' "$RUNNER_TEMP/MacOSX.sdk/SDKSettings.json"
-          ls "$RUNNER_TEMP/MacOSX.sdk" "$RUNNER_TEMP/MacOSX.sdk/usr/lib" | head -40
+          ls "$RUNNER_TEMP/MacOSX.sdk"; ls "$RUNNER_TEMP/MacOSX.sdk/usr/lib" | wc -l
           echo "SDK=$RUNNER_TEMP/MacOSX.sdk" >> "$GITHUB_ENV"
       - name: Build
         run: sdk/build-macos.sh "$X" "$SDK" out
@@ -100,7 +100,7 @@ jobs:
       - name: Fetch the SDK from Apple
         run: |
           start=$SECONDS
-          python sdk/macos-sdk.py fetch --accept-license --unpinned --version 26.5 --cache "$RUNNER_TEMP" --out "$RUNNER_TEMP/MacOSX.sdk"
+          python sdk/macos-sdk.py fetch --accept-license --version 26.5 --cache "$RUNNER_TEMP" --out "$RUNNER_TEMP/MacOSX.sdk"
           echo "fetch + unpack: $((SECONDS - start)) s"
           du -sh "$RUNNER_TEMP/MacOSX.sdk"
           echo "SDK=$(cygpath -m "$RUNNER_TEMP/MacOSX.sdk")" >> "$GITHUB_ENV"
@@ -189,6 +189,27 @@ jobs:
           echo "W=$W" >> "$GITHUB_ENV"
       - name: Build
         run: sdk/build-msvc.sh "$X" "$W" out
+      - uses: actions/setup-python@v6
+        if: ${{ !cancelled() }}
+        with:
+          python-version: "3.13"
+      - name: kotatsu
+        if: ${{ !cancelled() }}
+        run: |
+          python -m pip install cmake ninja
+          git clone -q --filter=blob:none https://github.com/clice-io/kotatsu "$RUNNER_TEMP/kotatsu"
+          git -C "$RUNNER_TEMP/kotatsu" checkout -q "$KOTATSU"
+          for arch in x86_64 aarch64; do
+            b=$RUNNER_TEMP/kotatsu-$arch
+            start=$SECONDS
+            cmake -S "$RUNNER_TEMP/kotatsu" -B "$b" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              -DCMAKE_TOOLCHAIN_FILE="$PWD/sdk/msvc.cmake" -DXCLANG_ROOT="$X" -DWINSYSROOT="$W" -DWINDOWS_ARCH=$arch \
+              -DKOTA_ENABLE_TEST=ON
+            cmake --build "$b" --target unit_tests system_tests
+            echo "kotatsu $arch: $((SECONDS - start)) s"
+            find "$b" -type f \( -name unit_tests.exe -o -name system_tests.exe \) -exec cp {} out/$arch/ \;
+          done
+          ls -l out/*/
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
