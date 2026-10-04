@@ -419,15 +419,22 @@ def windows_member(name, member, version):
     return None
 
 
+# Spellings in use that no header writes, Microsoft's documentation's (xwin
+# links them too).
+KNOWN_HEADERS = ["BaseTsd.h", "Mstcpip.h"]
+KNOWN_LIBS = ["Kernel32.lib", "Iphlpapi.lib"]
+
 INCLUDE = re.compile(rb'^[ \t]*#[ \t]*include[ \t]*[<"]([^>"\r\n]+)[>"]', re.M)
 PRAGMA_LIB = re.compile(rb'#[ \t]*pragma[ \t]+comment[ \t]*\([ \t]*lib[ \t]*,[ \t]*"([^"]+)"', re.I)
 
 
 def fix_case(includes, libs):
     """Links for the names Windows finds whatever their case: every file's
-    in lower case, and the paths of each #include and #pragma comment(lib)
+    in lower case, every library's in upper case too (LIBCMT.lib, as objects
+    MSVC built ask for), the paths of each #include and #pragma comment(lib)
     of the headers as they are written (<Windows.h> includes <winbase.h>,
-    which is WinBase.h). Returns how many links were made."""
+    which is WinBase.h), and a few known spellings. Returns how many links
+    were made."""
     dirs = {}
 
     def entries(d):
@@ -470,6 +477,13 @@ def fix_case(includes, libs):
     for path in files:
         d, n = os.path.split(path)
         link(d, n.lower(), n)
+        stem, ext = os.path.splitext(n)
+        if ext.lower() == ".lib":
+            link(d, stem.upper() + ".lib", n)
+    for name in KNOWN_HEADERS:
+        any(resolve(d, [name]) for d in includes)
+    for name in KNOWN_LIBS:
+        any(resolve(d, [name]) for d in libs)
     for h in headers:
         with open(h, "rb") as f:
             text = f.read()

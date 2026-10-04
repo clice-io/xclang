@@ -247,7 +247,7 @@ jobs:
         run: |
           # NOMINMAX: kotatsu's tests include <winsock2.h> without it, which its
           # CI does not see, as kota_http (KOTA_BUILD_ALL_TESTS) defines it.
-          CXXFLAGS=/DNOMINMAX cmake -S "$K" -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+          CXXFLAGS=-DNOMINMAX cmake -S "$K" -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_TOOLCHAIN_FILE="$S/sdk/msvc.cmake" -DXCLANG_ROOT="$X" \
             -DWINSYSROOT="$W" -DWINDOWS_ARCH=${{ matrix.arch }} -DKOTA_ENABLE_TEST=ON
           cmake --build build --target unit_tests system_tests

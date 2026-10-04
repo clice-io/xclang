@@ -9,7 +9,9 @@ mkdir -p "$DIR"
 cd "$DIR"
 curl -sSfLO "https://github.com/clice-io/xclang/releases/download/$V/$A"
 curl -sSfLO "https://github.com/clice-io/xclang/releases/download/$V/SHA256SUMS"
-if command -v sha256sum > /dev/null; then grep " $A\$" SHA256SUMS | sha256sum -c >&2; else grep " $A\$" SHA256SUMS | shasum -a 256 -c >&2; fi
+want=$(grep " $A\$" SHA256SUMS | cut -d' ' -f1)
+got=$( (sha256sum "$A" 2> /dev/null || shasum -a 256 "$A") | cut -d' ' -f1)
+[ "$got" = "$want" ] || { echo "$A: sha256 $got, expected $want" >&2; exit 1; }
 case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*) /c/Windows/System32/tar.exe -xf "$A"; cygpath -m "$PWD/xclang" ;;
   *) tar -xf "$A"; echo "$PWD/xclang" ;;
