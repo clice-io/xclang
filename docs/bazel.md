@@ -122,5 +122,7 @@ An unreleased build is used from where it was unpacked, with
 `XCLANG_LIBCLANG_ROOT` (`XCLANG_LIBCLANG_ASAN_ROOT`) for libclang.
 
 tests/bazel builds and tests with the module on every host (bazel.yml),
-and tests/bazel.ts checks that the actions' keys hold no absolute path and
-that another release rebuilds them.
+and tests/bazel.ts checks that the actions' keys hold no absolute path,
+that another release rebuilds them, that the registry's archive of the
+module gives the same actions, and that `git_override` with `strip_prefix`
+builds.

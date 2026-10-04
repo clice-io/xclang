@@ -1,7 +1,8 @@
 name: bazel
 
 # The Bazel module (packages/bazel) on a machine of every host:
-# tests/bazel's tests, then tests/bazel.ts's checks of the actions' keys.
+# tests/bazel's tests, then tests/bazel.ts's checks of the actions' keys and
+# of the module as the registry and git_override have it.
 #
 #   by hand         with the archives packages/bazel/bazel/versions.bzl names
 #   main.yml        with a run's archives (dist-run), unpacked and named by

@@ -6,12 +6,18 @@
 /// 1. A copy of the checkout elsewhere (other paths, another output base)
 ///    builds tests/bazel's programs from the disk cache alone: no action's
 ///    key holds an absolute path.
-/// 2. The copy at the previous release (packages/bazel/bazel/versions.bzl
+/// 2. The module as the registry has it: scripts/bazel.ts's archive of
+///    packages/bazel, in a registry of its own, in place of tests/bazel's
+///    local_path_override: the same actions, from the disk cache.
+/// 3. The module as git_override of a commit has it: the checkout's HEAD,
+///    strip_prefix = "packages/bazel", builds the programs (from the disk
+///    cache, if HEAD's versions.bzl names the same release).
+/// 4. The copy at the previous release (packages/bazel/bazel/versions.bzl
 ///    of --previous) runs every compile and link again: the toolchain's
 ///    files are the actions' inputs.
-/// 3. lld's --gc-sections in optimized links: on by default for Linux,
+/// 5. lld's --gc-sections in optimized links: on by default for Linux,
 ///    off for Windows unless asked for (the gc_sections feature).
-/// 4. On Linux and macOS, the programs built without the disk cache, in the
+/// 6. On Linux and macOS, the programs built without the disk cache, in the
 ///    sandbox and outside it, one action at a time, next to as many actions
 ///    with no inputs: what staging the toolchain's files costs.
 
@@ -19,6 +25,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import * as common from "../scripts/common.ts";
 
@@ -91,6 +98,68 @@ const shared = bazel(tests, ["build", ...cache, ...TARGETS]);
 check(shared.executed === 0 && shared.hits > 0,
   `another checkout: ${shared.hits} actions from the disk cache, ${shared.executed} run`);
 
+/// tests/bazel elsewhere on the module at the release's version, from where
+/// `override` (in place of local_path_override) says; built, then gone.
+/// (Windows checkouts have CRLF line ends.)
+const versionsBzl = path.join(copy, "packages", "bazel", "bazel", "versions.bzl");
+const versions = fs.readFileSync(versionsBzl, "utf8").replaceAll("\r\n", "\n");
+const version = /^VERSION = "(.+)"$/m.exec(versions)?.[1];
+if (!version) common.fail(`no VERSION in ${versionsBzl}`);
+function consumer(name: string, override: string, args: string[]): Processes {
+  const dir = path.join(path.dirname(copy), name);
+  fs.cpSync(tests, dir, {
+    recursive: true,
+    filter: (src) => !/^(bazel-.*|MODULE\.bazel\.lock)$/.test(path.relative(tests, src)),
+  });
+  const module = fs.readFileSync(path.join(dir, "MODULE.bazel"), "utf8").replaceAll("\r\n", "\n");
+  const local = /^local_path_override\([^)]*\)\n/m;
+  if (!local.test(module)) common.fail("no local_path_override in tests/bazel/MODULE.bazel");
+  fs.writeFileSync(path.join(dir, "MODULE.bazel"), module.replace(local, override)
+    .replace(/^(bazel_dep\(name = "xclang", version = )"[^"]*"/m, `$1"${version}"`));
+  const processes = bazel(dir, args);
+  run(dir, ["clean", "--expunge"]);
+  return processes;
+}
+
+/// The registry's files for the archive (bazel.clice.io's have the same),
+/// from versions.bzl's digests as the release's SHA256SUMS.
+const registry = path.join(path.dirname(copy), "registry");
+const entry = path.join(registry, "modules", "xclang", version);
+fs.mkdirSync(entry, { recursive: true });
+const releaseSums = path.join(path.dirname(copy), "SHA256SUMS");
+fs.writeFileSync(releaseSums, [...versions.matchAll(/^    "(\S+)": "([0-9a-f]{64})",$/gm)].map((m) => `${m[2]}  ${m[1]}\n`).join(""));
+const work = path.join(copy, "work");
+const integrity = /^integrity (\S+)$/m.exec(common.capture(process.execPath,
+  [path.join(copy, "scripts", "bazel.ts"), "archive", releaseSums, registry], { env: { ...process.env, XCLANG_WORK: work } }))?.[1];
+if (!integrity) common.fail("no integrity from scripts/bazel.ts archive");
+fs.copyFileSync(path.join(work, "bazel-module", `xclang-bazel-${version}`, "MODULE.bazel"), path.join(entry, "MODULE.bazel"));
+fs.writeFileSync(path.join(registry, "bazel_registry.json"), `{"mirrors": []}\n`);
+fs.writeFileSync(path.join(registry, "modules", "xclang", "metadata.json"), JSON.stringify({ versions: [version], yanked_versions: {} }));
+fs.writeFileSync(path.join(entry, "source.json"), JSON.stringify({
+  integrity,
+  strip_prefix: `xclang-bazel-${version}`,
+  url: pathToFileURL(path.join(registry, `xclang-bazel-${version}.tar.gz`)).href,
+}));
+const registered = consumer("registry-consumer", "", ["build", ...cache,
+  `--registry=${pathToFileURL(registry).href}`, "--registry=https://bcr.bazel.build/", ...TARGETS]);
+check(registered.executed === 0 && registered.hits > 0,
+  `the registry's archive: ${registered.hits} actions from the disk cache, ${registered.executed} run`);
+
+/// git_override of the checkout's HEAD, a local repository for its remote.
+const head = common.capture("git", ["-C", common.ROOT, "rev-parse", "HEAD"]).trim();
+const same = common.capture("git", ["-C", common.ROOT, "show", "HEAD:packages/bazel/bazel/versions.bzl"]) === versions;
+const remote = common.ROOT.replaceAll("\\", "/");
+const overridden = consumer("git-consumer", `git_override(
+    module_name = "xclang",
+    remote = "${remote}",
+    commit = "${head}",
+    strip_prefix = "packages/bazel",
+)
+`, ["build", ...cache, ...PROGRAMS]);
+check(overridden.hits + overridden.executed > 0 && (!same || overridden.executed === 0),
+  `git_override, strip_prefix = "packages/bazel": ${overridden.hits} actions from the disk cache, ` +
+  `${overridden.executed} run${same ? "" : " (HEAD names another release)"}`);
+
 const sums = path.join(copy, "SHA256SUMS");
 const response = await fetch(`https://github.com/clice-io/xclang/releases/download/${values.previous}/SHA256SUMS`);
 if (!response.ok) common.fail(`no SHA256SUMS for ${values.previous}: ${response.status}`);
@@ -124,9 +193,7 @@ if (process.platform === "linux") {
 
 if (!windows) {
   /// The release of the module again, fetched already: only the actions differ.
-  common.run("git", ["-C", common.ROOT, "show", "HEAD:packages/bazel/bazel/versions.bzl"], {
-    stdio: ["ignore", fs.openSync(path.join(copy, "packages", "bazel", "bazel", "versions.bzl"), "w"), "inherit"],
-  });
+  fs.writeFileSync(versionsBzl, versions);
   /// What the sandbox costs any action: as many that read nothing.
   fs.mkdirSync(path.join(tests, "baseline"));
   fs.writeFileSync(path.join(tests, "baseline", "BUILD.bazel"),
