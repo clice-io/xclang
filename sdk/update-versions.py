@@ -15,6 +15,7 @@ SHA-512 only), some 15 GB the first time.
 
 import argparse
 import concurrent.futures
+import datetime
 import gzip
 import hashlib
 import importlib.util
@@ -24,7 +25,6 @@ import plistlib
 import re
 import sys
 import tempfile
-import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 _spec = importlib.util.spec_from_file_location("vendor_sdk", os.path.join(HERE, "vendor-sdk.py"))
@@ -66,14 +66,14 @@ def version_key(v):
 
 
 def fetch(url):
-    with urllib.request.urlopen(url, timeout=120) as r:
+    with vendor.urlopen(url, timeout=120) as r:
         return r.read(), r.url
 
 
 def hash_url(url, keep=None):
     """Size and sha256 of what url serves, streamed; written to keep too."""
     h, size = hashlib.sha256(), 0
-    with urllib.request.urlopen(url, timeout=120) as r, open(keep or os.devnull, "wb") as f:
+    with vendor.urlopen(url, timeout=120) as r, open(keep or os.devnull, "wb") as f:
         while chunk := r.read(1 << 20):
             h.update(chunk)
             f.write(chunk)
@@ -82,7 +82,7 @@ def hash_url(url, keep=None):
 
 
 def content_length(url):
-    with urllib.request.urlopen(urllib.request.Request(url, method="HEAD"), timeout=60) as r:
+    with vendor.urlopen(url, method="HEAD") as r:
         return int(r.headers["Content-Length"])
 
 
@@ -220,7 +220,8 @@ def update_presets(table, defaults):
     """Presets: what GitHub's Windows and macOS runner images (not
     deprecated ones) build with, from actions/runner-images' software lists.
     Unlike the versions they point to, they follow the images: each says
-    which image, of which version, it mirrors."""
+    which image, of which version, it mirrors, and when that was read."""
+    today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
     readme, _ = fetch(f"{RUNNER_IMAGES}/README.md")
     readme = readme.decode()
     links = dict(re.findall(r"^\[([^\]]+)\]: https://github\.com/actions/runner-images/blob/main/(\S+)$", readme, re.M))
@@ -268,6 +269,9 @@ def update_presets(table, defaults):
         if missing:
             log(f"{key}: {missing} not in the table")
             continue
+        # When it was read: the day it last changed.
+        before = {k: v for k, v in table.get("presets", {}).get(key, {}).items() if k != "read"}
+        image["read"] = table["presets"][key].get("read", today) if before == image else today
         presets[key] = image
         log(f"  preset {key} ({', '.join(labels)}): " + ", ".join(f"{k} {image[k]}" for k in ("visual-studio", "xcode", "msvc", "sdk") if k in image))
     table["presets"] = presets

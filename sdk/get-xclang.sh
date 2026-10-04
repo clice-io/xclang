@@ -7,8 +7,9 @@ V=$1 HOST=$2 DIR=$3
 A=xclang-$V-$HOST.tar.xz
 mkdir -p "$DIR"
 cd "$DIR"
-curl -sSfLO "https://github.com/clice-io/xclang/releases/download/$V/$A"
-curl -sSfLO "https://github.com/clice-io/xclang/releases/download/$V/SHA256SUMS"
+# The same generic User-Agent as vendor-sdk.py.
+curl -sSfLO -A xclang-vendor-sdk "https://github.com/clice-io/xclang/releases/download/$V/$A"
+curl -sSfLO -A xclang-vendor-sdk "https://github.com/clice-io/xclang/releases/download/$V/SHA256SUMS"
 want=$(grep " $A\$" SHA256SUMS | cut -d' ' -f1)
 got=$( (sha256sum "$A" 2> /dev/null || shasum -a 256 "$A") | cut -d' ' -f1)
 [ "$got" = "$want" ] || { echo "$A: sha256 $got, expected $want" >&2; exit 1; }

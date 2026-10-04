@@ -3,7 +3,8 @@
 Cross-compiling for macOS and for the MSVC ABI from any host with xclang
 23.1.2.5, against SDKs downloaded from Apple and Microsoft themselves after
 the user accepts their licenses. xclang distributes neither.
-`vendor-sdk.py` (Python, standard library only) fetches both, on any host;
+`vendor-sdk.py` (Python, standard library only) fetches both, on any host,
+with a generic User-Agent (`xclang-vendor-sdk`);
 `.github/workflows/sdk-fetch.yml` runs it all; nothing of an SDK leaves the
 job that downloaded it.
 
@@ -38,7 +39,8 @@ actions/runner-images' software lists (its README's labels, each image's
 Visual Studio and Windows SDK, or default Xcode and that Xcode's macOS SDK);
 a Visual Studio's MSVC is the one its `VC.Tools.x86.x64` component installs,
 found in its channel's vsman. Unlike versions, presets follow the images:
-each records the image, its labels and the image version it mirrors.
+each records the image, its labels, the image version it mirrors and the
+day that was read (`read`, kept while the preset stays the same).
 
 | preset | labels | versions |
 |---|---|---|
@@ -51,10 +53,14 @@ each records the image, its labels and the image version it mirrors.
 | xcode-27 | `xcode-27`, `xcode-27-xlarge` | Xcode 27.0: SDK 27.0 (xclang cannot use it yet) |
 
 `vendor-sdk.py` takes the `windows-latest` and `macos-latest` presets
-unless told otherwise: what a workflow gets without naming an image, so a
-cross build matches the native build most CI users have; both are
-validated, and the newest versions no image has yet (SDK 10.0.28000, MSVC
-14.52) are one flag away. `--preset` names another (an image or any of its
+unless told otherwise, rather than the newest versions xclang works with:
+what a workflow gets without naming an image, so a cross build matches the
+native build most CI users have. For macOS the two are the same (SDK 26.5).
+For Windows the newest (MSVC 14.52, SDK 10.0.28000) are on no image, not
+even Visual Studio 2026's default, and give nothing the preset lacks: the
+STL of MSVC 14.50 and later, 14.51 and 14.52 alike, supports Windows 10 and
+later only. `--preset windows-2022` (MSVC 14.44) is the one for programs
+that also run on Windows 7 SP1 and 8.1. `--preset` names another (an image or any of its
 labels); `--version`, `--sdk-version`, `--msvc-version` (whole or in part:
 `26`, `10.0.26100`, `14.44`) replace a preset's; `macos list` and
 `windows list` show presets and versions.
@@ -67,9 +73,8 @@ labels); `--version`, `--sdk-version`, `--msvc-version` (whole or in part:
   newest SDK (10.0.28000), builds C and C++ (MSVC STL, /MT and /MD) hello
   programs for x64 and arm64 on Linux, which run on windows-2025 and
   windows-11-arm: all 38 SDKs and all 20 toolsets work;
-- each preset (windows-latest, windows-2022; macos-latest, macos-15)
-  builds the hello programs and kotatsu for both architectures, which run
-  and pass;
+- each preset builds the hello programs and kotatsu for both architectures,
+  which run and pass (xcode-27's SDK 27.0 excepted);
 - kotatsu, with the newest of each SDK line (10.0.17763 ... 10.0.28000) and
   MSVC 14.52, and with MSVC 14.44: builds and passes its tests on both. With
   MSVC 14.29 (VS 2019) it does not build: its STL has no `<expected>`, which

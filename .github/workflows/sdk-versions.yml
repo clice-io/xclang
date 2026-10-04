@@ -63,13 +63,9 @@ jobs:
           win_kotatsu = [{"sdk": s, "msvc": m, "arch": a} for s, m in combos for a in ("x86_64", "aarch64")]
           majors = newest(macos, lambda x: ".".join(x.split(".")[:2]) if x.startswith("10.") else x.split(".")[0])
           mac_kotatsu = [{"sdk": s, "arch": a} for s in majors for a in ("arm64", "x86_64")]
-          # One of the presets that point to the same versions.
-          seen, win_presets, mac_presets = set(), [], []
+          # Every preset, also those with another's versions.
+          win_presets, mac_presets = [], []
           for k, p in t["presets"].items():
-              what = (p.get("msvc"), p["sdk"])
-              if what in seen:
-                  continue
-              seen.add(what)
               if "msvc" in p:
                   win_presets += [{"preset": k, "arch": a} for a in ("x86_64", "aarch64")]
               else:

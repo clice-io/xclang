@@ -17,7 +17,6 @@ import re
 import sys
 import tempfile
 import time
-import urllib.request
 import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -72,7 +71,7 @@ def expected(check, names):
 
 def download(url, path):
     h, size = hashlib.sha256(), 0
-    with urllib.request.urlopen(url, timeout=120) as r, open(path, "wb") as f:
+    with vendor.urlopen(url, timeout=120) as r, open(path, "wb") as f:
         while chunk := r.read(1 << 20):
             h.update(chunk)
             f.write(chunk)

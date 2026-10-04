@@ -2099,7 +2099,8 @@
    "readme": "https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md",
    "image-version": "20260928.0222.1",
    "xcode": "27.0",
-   "sdk": "27.0"
+   "sdk": "27.0",
+   "read": "2026-10-04"
   },
   "macOS-26": {
    "image": "macOS-26",
@@ -2111,7 +2112,8 @@
    "readme": "https://github.com/actions/runner-images/blob/main/images/macos/macos-26-Readme.md",
    "image-version": "20260824.0517.1",
    "xcode": "26.6",
-   "sdk": "26.5"
+   "sdk": "26.5",
+   "read": "2026-10-04"
   },
   "macOS-26-arm64": {
    "image": "macOS-26-arm64",
@@ -2123,7 +2125,8 @@
    "readme": "https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md",
    "image-version": "20260907.0351.1",
    "xcode": "26.6",
-   "sdk": "26.5"
+   "sdk": "26.5",
+   "read": "2026-10-04"
   },
   "macOS-15": {
    "image": "macOS-15",
@@ -2134,7 +2137,8 @@
    "readme": "https://github.com/actions/runner-images/blob/main/images/macos/macos-15-Readme.md",
    "image-version": "20260824.0482.1",
    "xcode": "16.4",
-   "sdk": "15.5"
+   "sdk": "15.5",
+   "read": "2026-10-04"
   },
   "macOS-15-arm64": {
    "image": "macOS-15-arm64",
@@ -2145,7 +2149,8 @@
    "readme": "https://github.com/actions/runner-images/blob/main/images/macos/macos-15-arm64-Readme.md",
    "image-version": "20260907.0337.1",
    "xcode": "16.4",
-   "sdk": "15.5"
+   "sdk": "15.5",
+   "read": "2026-10-04"
   },
   "windows-2025-vs2026": {
    "image": "windows-2025-vs2026",
@@ -2158,7 +2163,8 @@
    "image-version": "20260925.250.1",
    "visual-studio": "2026 18.10.12217.157",
    "msvc": "14.51",
-   "sdk": "10.0.26100.8249"
+   "sdk": "10.0.26100.8249",
+   "read": "2026-10-04"
   },
   "windows-2022": {
    "image": "windows-2022",
@@ -2169,7 +2175,8 @@
    "image-version": "20260927.320.1",
    "visual-studio": "2022 17.14.37710.0",
    "msvc": "14.44.17.14",
-   "sdk": "10.0.26100.7705"
+   "sdk": "10.0.26100.7705",
+   "read": "2026-10-04"
   },
   "windows-11-arm64": {
    "image": "windows-11-arm64",
@@ -2180,7 +2187,8 @@
    "image-version": "20260927.180.1",
    "visual-studio": "2022 17.14.37710.0",
    "msvc": "14.44.17.14",
-   "sdk": "10.0.26100.7705"
+   "sdk": "10.0.26100.7705",
+   "read": "2026-10-04"
   },
   "windows-11-vs2026-arm64": {
    "image": "windows-11-vs2026-arm64",
@@ -2191,7 +2199,8 @@
    "image-version": "20260924.168.1",
    "visual-studio": "2026 18.10.12217.157",
    "msvc": "14.51",
-   "sdk": "10.0.26100.8249"
+   "sdk": "10.0.26100.8249",
+   "read": "2026-10-04"
   }
  }
 }

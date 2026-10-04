@@ -86,7 +86,13 @@ def pick(versions, want, broken, what):
 
 
 # The presets taken when none is named: what a workflow on GitHub's runners
-# gets without naming an image, so that a cross build matches a native one.
+# gets without naming an image, so that a cross build matches the native
+# one most CI has. The newest versions xclang works with are no better: for
+# macOS they are the same (SDK 26.5); for Windows (MSVC 14.52, SDK
+# 10.0.28000) no image has them, not even Visual Studio 2026 by default,
+# and their STL, like windows-latest's 14.51 (14.50 and later), runs on
+# Windows 10 and later only; windows-2022's MSVC 14.44 serves Windows 7 SP1
+# and 8.1 too.
 DEFAULT_PRESETS = {"windows": "windows-latest", "macos": "macos-latest"}
 
 
@@ -130,11 +136,20 @@ def log(*args):
     print(*args, file=sys.stderr, flush=True)
 
 
+# Every request says only what the tool is: no name, address or host.
+USER_AGENT = "xclang-vendor-sdk"
+
+
+def urlopen(url, timeout=60, method=None):
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT}, method=method)
+    return urllib.request.urlopen(request, timeout=timeout)
+
+
 def download(url, dest, size=None):
     """Stream url to dest; returns the sha256 of what was written."""
     h = hashlib.sha256()
     start, done, last = time.monotonic(), 0, 0.0
-    with urllib.request.urlopen(url, timeout=60) as r, open(dest + ".part", "wb") as f:
+    with urlopen(url) as r, open(dest + ".part", "wb") as f:
         total = size or int(r.headers.get("Content-Length") or 0)
         while chunk := r.read(1 << 20):
             f.write(chunk)
@@ -403,6 +418,7 @@ def list_presets(table, kind):
             what = f"MSVC {p['msvc']}, Windows SDK {p['sdk']}" if kind == "windows" else f"SDK {p['sdk']} (Xcode {p['xcode']})"
             mark = " (default)" if DEFAULT_PRESETS[kind] in p["labels"] else ""
             print(f"  {key:26} {what:42} {', '.join(p['labels'])}{mark}")
+            print(f"  {'':26} image {p.get('image-version')}, read {p.get('read')}")
 
 
 def macos_list(a):
