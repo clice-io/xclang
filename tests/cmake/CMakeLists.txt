@@ -1,0 +1,38 @@
+# The xclang CMake package as a consumer uses it (tests/cmake.ts): the
+# compilers, find_package(xclang) and import std, for the host or another
+# target (XCLANG_TARGET).
+#
+#   XCLANG_TEST_FETCH     the URL of xclang-cmake-<version>.tar.gz: nothing
+#                         installed, the toolchain downloaded by xclang.cmake
+#   XCLANG_TEST_FETCH_SHA256  its digest
+#   XCLANG_TEST_LIBCLANG  with libclang's CMake packages in CMAKE_PREFIX_PATH:
+#                         tests/libclang, a tool on find_package(Clang), too
+cmake_minimum_required(VERSION 3.28)
+
+if(XCLANG_TEST_FETCH)
+    include(FetchContent)
+    FetchContent_Declare(xclang URL "${XCLANG_TEST_FETCH}" URL_HASH SHA256=${XCLANG_TEST_FETCH_SHA256})
+    FetchContent_MakeAvailable(xclang)
+    include(${xclang_SOURCE_DIR}/xclang.cmake)
+endif()
+
+project(xclang_tests LANGUAGES C CXX)
+enable_testing()
+
+find_package(xclang REQUIRED CONFIG)
+
+# After find_package: xclang::std is built with what the directory ends
+# with, here C++23 without GNU extensions, as its importers are (a module
+# file of gnu++23 would not load into them).
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+add_subdirectory(hello)
+add_subdirectory(std)
+add_subdirectory(modules)
+add_subdirectory(noexcept)
+if(XCLANG_TEST_LIBCLANG)
+    add_subdirectory(../libclang libclang)
+    add_test(NAME libclang COMMAND consumer)
+    set_tests_properties(libclang PROPERTIES PASS_REGULAR_EXPRESSION "clang version 23.*tokens 9 zlib 1 zstd 1")
+endif()

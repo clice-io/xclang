@@ -12,15 +12,16 @@ name: main
 #   package        every host's release archives
 #   test           every host's archive checked on a machine of that host
 #   bazel          the Bazel module with every host's archives (bazel.yml)
+#   cmake          the CMake package with every host's archives (cmake.yml)
 #   release        a draft release of everything (needs the profile)
 
 on:
   workflow_dispatch:
     inputs:
       stages:
-        description: "Comma-separated stages: runtimes, instrumented, train, toolchain, asan, package, test, bazel, release"
+        description: "Comma-separated stages: runtimes, instrumented, train, toolchain, asan, package, test, bazel, cmake, release"
         type: string
-        default: runtimes,instrumented,train,toolchain,asan,package,test,bazel
+        default: runtimes,instrumented,train,toolchain,asan,package,test,bazel,cmake
       runtimes:
         description: JSON list of the runtimes units to build; the others come from reuse-run
         type: string
@@ -135,8 +136,15 @@ jobs:
     with:
       dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
 
+  cmake:
+    needs: package
+    if: ${{ !cancelled() && contains(inputs.stages, 'cmake') && needs.package.result != 'failure' }}
+    uses: ./.github/workflows/cmake.yml
+    with:
+      dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
+
   release:
-    needs: [train, package, test, bazel]
+    needs: [train, package, test, bazel, cmake]
     if: ${{ !cancelled() && contains(inputs.stages, 'release') && !contains(needs.*.result, 'failure') }}
     permissions:
       contents: write

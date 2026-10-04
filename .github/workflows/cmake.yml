@@ -1,0 +1,110 @@
+name: cmake
+
+# The CMake package (cmake-package/) on a machine of every host, with the
+# oldest CMake and Ninja it supports and the newest: tests/cmake.ts builds
+# tests/cmake by PATH, for every other target through the toolchain file,
+# and from nothing installed through FetchContent.
+#
+#   by hand         with the archives of a published release (the latest
+#                   by default), the package of this checkout
+#   main.yml        with a run's archives (dist-run), before they are
+#                   released
+#   a published     with its archives and its xclang-cmake-<version>.tar.gz
+#   release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release whose archives to test with, e.g. 23.1.2.5; the latest by default
+        type: string
+        default: ""
+  workflow_call:
+    inputs:
+      dist-run:
+        description: Run whose dist-<host> archives the package is tested with
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  TAG: ${{ inputs.tag || github.event.release.tag_name }}
+
+jobs:
+  consumer:
+    name: consumer (${{ matrix.host }}, CMake ${{ matrix.cmake }})
+    strategy:
+      fail-fast: false
+      matrix:
+        host:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - x86_64-w64-mingw32
+          - aarch64-w64-mingw32
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+        cmake: ["3.28.1", latest]
+        include:
+          - { cmake: "3.28.1", ninja: "1.11.1" }
+    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm","aarch64-apple-darwin":"macos-15","x86_64-apple-darwin":"macos-15-intel"}')[matrix.host] }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: CMake and Ninja
+        run: |
+          if [[ "${{ matrix.cmake }}" == latest ]]; then
+            python -m pip install cmake ninja
+          else
+            python -m pip install "cmake==${{ matrix.cmake }}" "ninja==${{ matrix.ninja }}"
+          fi
+      - uses: actions/download-artifact@v8
+        if: inputs.dist-run
+        with:
+          name: dist-${{ matrix.host }}
+          path: ${{ runner.temp }}/dist
+          run-id: ${{ inputs.dist-run }}
+          github-token: ${{ github.token }}
+      - name: Run archives
+        if: inputs.dist-run
+        run: |
+          (cd "$RUNNER_TEMP/dist" && sha256sum *.tar.xz > SHA256SUMS)
+          echo "URL=$RUNNER_TEMP/dist" >> "$GITHUB_ENV"
+      - name: Release archives
+        if: ${{ !inputs.dist-run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${TAG:-$(gh release view -R "$GITHUB_REPOSITORY" --json tagName -q .tagName)}"
+          gh release download "$tag" -R "$GITHUB_REPOSITORY" -D "$RUNNER_TEMP/dist" -p SHA256SUMS \
+            -p "xclang-*-${{ matrix.host }}.tar.xz" -p "libclang-*-${{ matrix.host }}.tar.xz"
+          echo "URL=https://github.com/$GITHUB_REPOSITORY/releases/download/$tag" >> "$GITHUB_ENV"
+          # A published release's own FetchContent archive, from its tag on.
+          if [[ "$GITHUB_EVENT_NAME" == release ]] && grep -q " xclang-cmake-$tag.tar.gz" "$RUNNER_TEMP/dist/SHA256SUMS"; then
+            echo "ASSET=https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/xclang-cmake-$tag.tar.gz" >> "$GITHUB_ENV"
+          fi
+      # Windows' own tar (bsdtar), as test.yml unpacks them.
+      - name: Unpack
+        run: |
+          tar=tar; [[ "$RUNNER_OS" == Windows ]] && tar=/c/Windows/System32/tar.exe
+          dir="$RUNNER_TEMP/unpacked"; mkdir -p "$dir"
+          for a in "$RUNNER_TEMP"/dist/xclang-*.tar.xz "$RUNNER_TEMP"/dist/libclang-*-${{ matrix.host }}.tar.xz; do "$tar" -xf "$a" -C "$dir"; done
+      - name: Test
+        run: |
+          node tests/cmake.ts --tree "$RUNNER_TEMP/unpacked/xclang" --libclang "$RUNNER_TEMP/unpacked/libclang" \
+            --sums "$RUNNER_TEMP/dist/SHA256SUMS" --url "$URL" ${ASSET:+--asset "$ASSET"}
