@@ -1,0 +1,316 @@
+name: sdk-versions
+
+# Every version of sdk/versions.json, checked: each package downloads with
+# its sha256 and unpacks as expected; every Windows SDK (with the default
+# MSVC) and every MSVC (with the default Windows SDK) builds the hello
+# programs for x64 and arm64, every macOS SDK for arm64 and x86_64, kotatsu
+# with the newest of each line; they run on Windows and macOS. Only the
+# programs built here travel between jobs.
+
+on:
+  push:
+    branches: [exp/sdk-fetch]
+    paths: [sdk/**, .github/workflows/sdk-versions.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  XCLANG: 23.1.2.5
+  KOTATSU: d3b82f79499bd8e2e5e557f7bf7eca7a27b928b7
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      winsdk: ${{ steps.plan.outputs.winsdk }}
+      msvc: ${{ steps.plan.outputs.msvc }}
+      win-kotatsu: ${{ steps.plan.outputs.win-kotatsu }}
+      macos: ${{ steps.plan.outputs.macos }}
+      mac-kotatsu: ${{ steps.plan.outputs.mac-kotatsu }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - id: plan
+        shell: python
+        run: |
+          import importlib.util, json, os
+          spec = importlib.util.spec_from_file_location("vendor", "sdk/vendor-sdk.py")
+          v = importlib.util.module_from_spec(spec); spec.loader.exec_module(v)
+          t = json.load(open("sdk/versions.json")); w = t["windows"]; key = v.version_key
+          def newest(versions, group):
+              out = {}
+              for x in sorted(versions, key=key):
+                  out[group(x)] = x
+              return list(out.values())
+          winsdk, msvc = sorted(w["sdk"], key=key), sorted(w["msvc"], key=key)
+          macos = sorted(v.macos_versions(t), key=key)
+          sdk0 = v.pick(w["sdk"], None, v.windows_sdk_broken, "")
+          msvc0 = v.pick(w["msvc"], None, v.msvc_broken, "")
+          # The newest of each SDK line (10.0.26100), and of each Visual
+          # Studio's MSVC (the third number of 14.44.17.14).
+          combos = [(s, msvc0) for s in newest(winsdk, lambda x: x.rsplit(".", 1)[0])]
+          combos += [(sdk0, m) for m in newest(msvc, lambda x: x.split(".")[2]) if (sdk0, m) not in combos]
+          win_kotatsu = [{"sdk": s, "msvc": m, "arch": a} for s, m in combos for a in ("x86_64", "aarch64")]
+          majors = newest(macos, lambda x: ".".join(x.split(".")[:2]) if x.startswith("10.") else x.split(".")[0])
+          mac_kotatsu = [{"sdk": s, "arch": a} for s in majors for a in ("arm64", "x86_64")]
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              for name, value in [("winsdk", winsdk), ("msvc", msvc), ("win-kotatsu", win_kotatsu), ("macos", macos), ("mac-kotatsu", mac_kotatsu)]:
+                  f.write(f"{name}={json.dumps(value)}\n")
+                  print(name, len(value), json.dumps(value))
+
+  check:
+    name: check packages ${{ matrix.shard }}/12
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: python sdk/check-versions.py --shard ${{ matrix.shard }} --shards 12 | tee -a "$GITHUB_STEP_SUMMARY"
+
+  winsdk:
+    name: Windows SDK ${{ matrix.version }}
+    needs: plan
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ${{ fromJSON(needs.plan.outputs.winsdk) }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: xclang, the CRT and the Windows SDK
+        run: |
+          echo "X=$(sdk/get-xclang.sh "$XCLANG" x86_64-unknown-linux-gnu "$RUNNER_TEMP")" >> "$GITHUB_ENV"
+          python sdk/vendor-sdk.py windows fetch --accept-license --sdk-version ${{ matrix.version }} --cache "$RUNNER_TEMP/cache" --out "$RUNNER_TEMP/w" \
+            || { mkdir -p out; echo "FAIL fetch" > out/build.txt; exit 1; }
+      - name: Build
+        run: sdk/hello.sh msvc "$X" "$RUNNER_TEMP/w" out
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: win-sdk-${{ matrix.version }}
+          path: out
+
+  msvc:
+    name: MSVC ${{ matrix.version }}
+    needs: plan
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ${{ fromJSON(needs.plan.outputs.msvc) }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: xclang, the CRT and the Windows SDK
+        run: |
+          echo "X=$(sdk/get-xclang.sh "$XCLANG" x86_64-unknown-linux-gnu "$RUNNER_TEMP")" >> "$GITHUB_ENV"
+          python sdk/vendor-sdk.py windows fetch --accept-license --msvc-version ${{ matrix.version }} --cache "$RUNNER_TEMP/cache" --out "$RUNNER_TEMP/w" \
+            || { mkdir -p out; echo "FAIL fetch" > out/build.txt; exit 1; }
+      - name: Build
+        run: sdk/hello.sh msvc "$X" "$RUNNER_TEMP/w" out
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: win-msvc-${{ matrix.version }}
+          path: out
+
+  win-kotatsu:
+    name: kotatsu, ${{ matrix.arch }}, SDK ${{ matrix.sdk }}, MSVC ${{ matrix.msvc }}
+    needs: plan
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.win-kotatsu) }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: python -m pip install cmake ninja
+      - name: xclang, the CRT and the Windows SDK, kotatsu
+        run: |
+          echo "X=$(sdk/get-xclang.sh "$XCLANG" x86_64-unknown-linux-gnu "$RUNNER_TEMP")" >> "$GITHUB_ENV"
+          python sdk/vendor-sdk.py windows fetch --accept-license --sdk-version ${{ matrix.sdk }} --msvc-version ${{ matrix.msvc }} \
+            --arch ${{ matrix.arch }} --cache "$RUNNER_TEMP/cache" --out "$RUNNER_TEMP/w"
+          git clone -q --filter=blob:none https://github.com/clice-io/kotatsu "$RUNNER_TEMP/kotatsu"
+          git -C "$RUNNER_TEMP/kotatsu" checkout -q "$KOTATSU"
+      - name: Build
+        run: |
+          mkdir -p out/${{ matrix.arch }}
+          # NOMINMAX: kotatsu's tests include <winsock2.h> without it.
+          CXXFLAGS=-DNOMINMAX cmake -S "$RUNNER_TEMP/kotatsu" -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_TOOLCHAIN_FILE="$PWD/sdk/msvc.cmake" -DXCLANG_ROOT="$X" \
+            -DWINSYSROOT="$RUNNER_TEMP/w" -DWINDOWS_ARCH=${{ matrix.arch }} -DKOTA_ENABLE_TEST=ON \
+            && cmake --build build --target unit_tests system_tests \
+            && cp build/unit_tests.exe build/system_tests.exe out/${{ matrix.arch }}/ \
+            && echo "PASS kotatsu" > out/build.txt || { echo "FAIL kotatsu" > out/build.txt; exit 1; }
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: win-kotatsu-${{ matrix.sdk }}-${{ matrix.msvc }}-${{ matrix.arch }}
+          path: out
+
+  win-run:
+    name: run on ${{ matrix.runner }}
+    needs: [winsdk, msvc, win-kotatsu]
+    if: ${{ !cancelled() }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: windows-2025, arch: x86_64 }
+          - { runner: windows-11-arm, arch: aarch64 }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: win-*
+          path: art
+      - name: kotatsu's sources, for its tests
+        run: |
+          git clone -q --filter=blob:none https://github.com/clice-io/kotatsu "$RUNNER_TEMP/kotatsu"
+          git -C "$RUNNER_TEMP/kotatsu" checkout -q "$KOTATSU"
+          echo "KOTATSU_SRC=$RUNNER_TEMP/kotatsu" >> "$GITHUB_ENV"
+      - name: Run
+        run: sdk/run-all.sh art ${{ matrix.arch }}
+
+  macos:
+    name: macOS SDK ${{ matrix.version }}
+    needs: plan
+    runs-on: ubuntu-24.04
+    # ld64.lld 23.1.2 cannot read the 27 SDK's .tbd files (arm64e.x1).
+    continue-on-error: ${{ startsWith(matrix.version, '27') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ${{ fromJSON(needs.plan.outputs.macos) }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: xclang, the SDK
+        run: |
+          echo "X=$(sdk/get-xclang.sh "$XCLANG" x86_64-unknown-linux-gnu "$RUNNER_TEMP")" >> "$GITHUB_ENV"
+          python sdk/vendor-sdk.py macos fetch --accept-license --version ${{ matrix.version }} --cache "$RUNNER_TEMP" --out "$RUNNER_TEMP/MacOSX.sdk" \
+            || { mkdir -p out; echo "FAIL fetch" > out/build.txt; exit 1; }
+      - name: Build
+        run: sdk/hello.sh macos "$X" "$RUNNER_TEMP/MacOSX.sdk" out
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: mac-sdk-${{ matrix.version }}
+          path: out
+
+  mac-kotatsu:
+    name: kotatsu, ${{ matrix.arch }}, macOS SDK ${{ matrix.sdk }}
+    needs: plan
+    runs-on: ubuntu-24.04
+    continue-on-error: ${{ startsWith(matrix.sdk, '27') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.mac-kotatsu) }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: python -m pip install cmake ninja
+      - name: xclang, the SDK, kotatsu
+        run: |
+          echo "X=$(sdk/get-xclang.sh "$XCLANG" x86_64-unknown-linux-gnu "$RUNNER_TEMP")" >> "$GITHUB_ENV"
+          python sdk/vendor-sdk.py macos fetch --accept-license --version ${{ matrix.sdk }} --cache "$RUNNER_TEMP" --out "$RUNNER_TEMP/MacOSX.sdk"
+          git clone -q --filter=blob:none https://github.com/clice-io/kotatsu "$RUNNER_TEMP/kotatsu"
+          git -C "$RUNNER_TEMP/kotatsu" checkout -q "$KOTATSU"
+      - name: Build
+        run: |
+          mkdir -p out/${{ matrix.arch }}
+          cmake -S "$RUNNER_TEMP/kotatsu" -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_TOOLCHAIN_FILE="$PWD/sdk/darwin.cmake" -DXCLANG_ROOT="$X" \
+            -DMACOS_SDK="$RUNNER_TEMP/MacOSX.sdk" -DMACOS_ARCH=${{ matrix.arch }} -DKOTA_ENABLE_TEST=ON \
+            && cmake --build build --target unit_tests system_tests \
+            && cp build/unit_tests build/system_tests out/${{ matrix.arch }}/ \
+            && echo "PASS kotatsu" > out/build.txt || { echo "FAIL kotatsu" > out/build.txt; exit 1; }
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: mac-kotatsu-${{ matrix.sdk }}-${{ matrix.arch }}
+          path: out
+
+  mac-run:
+    name: run on ${{ matrix.runner }}
+    needs: [macos, mac-kotatsu]
+    if: ${{ !cancelled() }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-15, arch: arm64 }
+          - { runner: macos-15-intel, arch: x86_64 }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: mac-*
+          path: art
+      - name: kotatsu's sources, for its tests
+        run: |
+          git clone -q --filter=blob:none https://github.com/clice-io/kotatsu "$RUNNER_TEMP/kotatsu"
+          git -C "$RUNNER_TEMP/kotatsu" checkout -q "$KOTATSU"
+          echo "KOTATSU_SRC=$RUNNER_TEMP/kotatsu" >> "$GITHUB_ENV"
+      - name: Run
+        run: sw_vers; sdk/run-all.sh art ${{ matrix.arch }}

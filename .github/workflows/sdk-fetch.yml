@@ -5,10 +5,8 @@ name: sdk-fetch
 # programs built here travel between jobs, never an SDK or anything taken
 # from one.
 
+# By hand only now: sdk-versions.yml runs on every push.
 on:
-  push:
-    branches: [exp/sdk-fetch]
-    paths: [sdk/**, .github/workflows/sdk-fetch.yml]
   workflow_dispatch:
 
 permissions:

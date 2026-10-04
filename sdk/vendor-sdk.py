@@ -2,29 +2,31 @@
 """Fetch the vendor SDKs xclang cross-compiles against, from the vendors.
 
 xclang never redistributes them: this downloads them from Apple's and
-Microsoft's own servers, checks each download against a pinned sha256, and
-unpacks them on any host, with Python's standard library only.
+Microsoft's own servers, checks each download against the sha256 the
+version table (versions.json, made by update-versions.py) pins, and unpacks
+them on any host, with Python's standard library only.
 
-  vendor-sdk.py macos catalog
-      list the SDK packages in Apple's software update catalog
+  vendor-sdk.py macos list | windows list
+      the versions the table has, the default marked
   vendor-sdk.py macos fetch --accept-license [--version 26.5] --out DIR
-      Apple's macOS SDK, from the Command Line Tools package
+      Apple's macOS SDK, from a Command Line Tools package
       (xar -> pbzx -> cpio):  clang --target=arm64-apple-macos -isysroot DIR
-
-  vendor-sdk.py windows list
-      the MSVC and Windows SDK versions Microsoft offers now
-  vendor-sdk.py windows fetch --accept-license [--arch x86_64,aarch64] --out DIR
+  vendor-sdk.py windows fetch --accept-license [--sdk-version 10.0.26100]
+          [--msvc-version 14.44] [--arch x86_64,aarch64,x86] --out DIR
       the MSVC C/C++ runtime and standard library (Visual Studio's .vsix
       packages) and the Windows SDK (its NuGet packages), as a /winsysroot:
       clang-cl --target=x86_64-pc-windows-msvc /winsysroot DIR
       clang --target=x86_64-pc-windows-msvc -Xmicrosoft-windows-sys-root DIR
+
+A version may be given in part (26, 10.0.26100, 14.44): the newest that
+matches is taken. The default is the newest xclang works with.
 """
 
 import argparse
 import bisect
 import concurrent.futures
-import gzip
 import hashlib
+import itertools
 import json
 import lzma
 import os
@@ -47,32 +49,56 @@ allows its use only on Apple-branded computers. xclang does not distribute
 it: this downloads it from Apple's servers for you. Pass --accept-license
 to confirm that you have read and accept that agreement."""
 
-CDN = "https://swcdn.apple.com/content/downloads"
+TABLE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "versions.json")
 
-# version -> (package URL, sha256 of the package, size in bytes). The same
-# URLs Nixpkgs pins (pkgs/by-name/ap/apple-sdk/metadata/versions.json).
-SDKS = {
-    "26.5": (
-        f"{CDN}/09/08/047-91568-A_Y1CFZWQCD4/4xekpyz43i26dbp4enxfro8eb1q7wiujh5/CLTools_macOSNMOS_SDK.pkg",
-        "5f044578cd78a3a9b9c965a42d56bad609ee5d252e1d4e6aa7c42fc3f35fee7b",
-        61622368,
-    ),
-    "27.0": (
-        f"{CDN}/58/48/082-83364-A_KCEBOO2NJS/0d2rj4y5ucjlkgcvqt6f6a4pergug5tu2b/CLTools_macOSNMOS_SDK.pkg",
-        "d55351824fd17742fd6e1e7a252fa1028698f32147ee48be9a6b75442bf30575",
-        70553676,
-    ),
-}
-DEFAULT = "26.5"
+
+def version_key(v):
+    return [int(x) for x in re.findall(r"\d+", v)]
+
+
+# What xclang 23.1.2.5 cannot use, which the defaults pass over: the macOS
+# 27 SDK's .tbd files list arm64e.x1, which its ld64.lld rejects
+# (llvm#222721).
+def macos_broken(version):
+    return version_key(version) >= [27]
+
+
+def windows_sdk_broken(version):
+    return False
+
+
+def msvc_broken(version):
+    return False
+
+
+def pick(versions, want, broken, what):
+    """The version of versions want names (whole or in part), or the newest
+    that is not broken."""
+    known = sorted(versions, key=version_key)
+    if want:
+        matches = [v for v in known if v == want or v.startswith(want + ".")]
+        if not matches:
+            raise SystemExit(f"no {what} {want} in the table; it has: {' '.join(known)}")
+        return matches[-1]
+    return [v for v in known if not broken(v)][-1]
+
+
+def load_table(path):
+    with open(path) as f:
+        return json.load(f)
+
+
+def macos_versions(table):
+    """SDK version -> its package: the first the table lists."""
+    out = {}
+    for p in table["macos"]["packages"]:
+        out.setdefault(p["sdk"], p)
+    return out
+
 
 # What compiling and linking never read, as Nixpkgs leaves out too: man pages
 # (some named like APR::Base64.3pm, which Windows refuses), tools, Perl.
 SKIP = ("usr/bin/", "usr/share/", "System/Library/Perl/")
-
-CATALOG = (
-    "https://swscan.apple.com/content/catalogs/others/index-27-26-15-14-13-12-10.16-10.15-10.14-10.13-"
-    "10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz"
-)
 
 MS_LICENSE = """\
 The MSVC C/C++ runtime and standard library are Microsoft's, under the
@@ -81,61 +107,6 @@ Visual Studio Build Tools license
 its own (https://aka.ms/WinSDKLicenseURL). xclang does not distribute them:
 this downloads them from Microsoft's servers for you. Pass --accept-license
 to confirm that you have read and accept both."""
-
-VS_CHANNEL = "https://aka.ms/vs/17/release/channel"
-VS = "https://download.visualstudio.microsoft.com/download/pr"
-NUGET = "https://api.nuget.org/v3-flatcontainer"
-MSVC = "14.44.17.14"
-WINSDK = "10.0.26100.9169"
-
-# name -> (URL, sha256, size). MSVC's from Visual Studio 17.14.41's
-# VisualStudio.vsman (`windows list`): its headers, and per architecture the
-# Desktop package (static runtime) and the Store one, which has the import
-# libraries of the DLL runtime too (msvcrt, msvcprt, vcruntime, oldnames).
-# The Windows SDK's from nuget.org: headers, and libraries per architecture.
-WINDOWS = {
-    "crt": (
-        f"{VS}/c610cd8c-801b-44b8-a80a-82cc382aeb43/852382a9aa73502b7849c1bcadfb603ba7175c4e8b60e6aba03c7de711d4ece5/Microsoft.VC.{MSVC}.CRT.Headers.base.vsix",
-        "852382a9aa73502b7849c1bcadfb603ba7175c4e8b60e6aba03c7de711d4ece5",
-        2128977,
-    ),
-    "crt-x86_64-desktop": (
-        f"{VS}/67cf767c-5e71-47c2-a54a-cd5631e28942/f01f701a7bcd9587a340898c851424f6a52bb913a70c185ff0d5bf0288c5831a/Microsoft.VC.{MSVC}.CRT.x64.Desktop.base.vsix",
-        "f01f701a7bcd9587a340898c851424f6a52bb913a70c185ff0d5bf0288c5831a",
-        51521199,
-    ),
-    "crt-x86_64-store": (
-        f"{VS}/67cf767c-5e71-47c2-a54a-cd5631e28942/9135b03c0df53c7a0aa9bef7230a1c2ff4263a0ee7baa7e419d034f484f6bb56/Microsoft.VC.{MSVC}.CRT.x64.Store.base.vsix",
-        "9135b03c0df53c7a0aa9bef7230a1c2ff4263a0ee7baa7e419d034f484f6bb56",
-        28032384,
-    ),
-    "crt-aarch64-desktop": (
-        f"{VS}/67cf767c-5e71-47c2-a54a-cd5631e28942/ba1aeca6d6470d2b3b318ec7bffb3e61f9a736cfb76d8a7d18e004a8e7c26651/Microsoft.VC.{MSVC}.CRT.ARM64.Desktop.base.vsix",
-        "ba1aeca6d6470d2b3b318ec7bffb3e61f9a736cfb76d8a7d18e004a8e7c26651",
-        49166761,
-    ),
-    "crt-aarch64-store": (
-        f"{VS}/67cf767c-5e71-47c2-a54a-cd5631e28942/57ece91747be72fdd9ed0c39b83225011c8afba6b6f616a23ace54d0522f79e9/Microsoft.VC.{MSVC}.CRT.ARM64.Store.base.vsix",
-        "57ece91747be72fdd9ed0c39b83225011c8afba6b6f616a23ace54d0522f79e9",
-        61763419,
-    ),
-    "sdk": (
-        f"{NUGET}/microsoft.windows.sdk.cpp/{WINSDK}/microsoft.windows.sdk.cpp.{WINSDK}.nupkg",
-        "475269434dcd808a67853773272f972c3229c0e10c3ddc821290e70cc0f6904d",
-        160512239,
-    ),
-    "sdk-x86_64": (
-        f"{NUGET}/microsoft.windows.sdk.cpp.x64/{WINSDK}/microsoft.windows.sdk.cpp.x64.{WINSDK}.nupkg",
-        "df6226a051e320942abfbd57848b43d18772996ecd66beadad240f2a56ed2f7b",
-        53001499,
-    ),
-    "sdk-aarch64": (
-        f"{NUGET}/microsoft.windows.sdk.cpp.arm64/{WINSDK}/microsoft.windows.sdk.cpp.arm64.{WINSDK}.nupkg",
-        "b5eb594aaf0e98c381d5852e45b42f375920ca6268870c151ec3405b63676542",
-        105809054,
-    ),
-}
-
 
 def log(*args):
     print(*args, file=sys.stderr, flush=True)
@@ -240,6 +211,36 @@ def pbzx(pieces):
         yield lzma.decompress(chunk) if chunk.startswith(b"\xfd7zXZ\x00") else chunk
 
 
+def payload(pieces):
+    """A package's Payload as a cpio stream: pbzx (since macOS 10.10's
+    packages), gzip (older ones) or stored."""
+    first = next(pieces, b"")
+    pieces = itertools.chain([first], pieces)
+    if first.startswith(b"pbzx"):
+        return pbzx(pieces)
+    if first.startswith(b"\x1f\x8b"):
+        gz = zlib.decompressobj(31)
+        return (gz.decompress(piece) for piece in pieces)
+    return pieces
+
+
+SDK_PATH = re.compile(r"^(?:\./)?Library/Developer/CommandLineTools/SDKs/([^/]+\.sdk)/(.+)$")
+
+
+def sdk_version(pkg):
+    """The version of the SDK a Command Line Tools package carries (26.5),
+    from the SDKSettings near the start of its payload: older packages name
+    the SDK's directory MacOSX.sdk."""
+    with open(pkg, "rb") as f:
+        for name, mode, _, _, data in cpio(payload(Xar(f).read("Payload"))):
+            m = SDK_PATH.match(name)
+            if m and stat.S_ISREG(mode) and m.group(2) == "SDKSettings.json":
+                return json.loads(data)["Version"]
+            if m and stat.S_ISREG(mode) and m.group(2) == "SDKSettings.plist":
+                return plistlib.loads(data)["Version"]
+    raise SystemExit(f"{pkg}: no SDK in the package")
+
+
 def cpio(pieces):
     """Entries of an odc ("070707") cpio stream: (name, mode, nlink, inode, data)."""
     s = Stream(pieces)
@@ -257,9 +258,9 @@ def cpio(pieces):
 
 def extract(pkg, out, links):
     """Unpack the SDK directory of the package into out."""
-    sdks = re.compile(r"^(?:\./)?Library/Developer/CommandLineTools/SDKs/([^/]+\.sdk)/(.+)$")
+    sdks = SDK_PATH
     with open(pkg, "rb") as f:
-        entries = cpio(pbzx(Xar(f).read("Payload")))
+        entries = cpio(payload(Xar(f).read("Payload")))
         sdk, files, size, pending, inodes, empties, others = None, 0, 0, [], {}, {}, set()
         for name, mode, nlink, inode, data in entries:
             m = sdks.match(name)
@@ -347,19 +348,19 @@ def macos_fetch(a):
     if not a.accept_license:
         log(APPLE_LICENSE)
         return 1
-    url, sha256, size = SDKS[a.version]
-    pkg = a.pkg or os.path.join(a.cache, f"CLTools_macOSNMOS_SDK-{a.version}.pkg")
-    if os.path.exists(pkg):
+    versions = macos_versions(load_table(a.table))
+    version = pick(versions, a.version, macos_broken, "macOS SDK")
+    entry = versions[version]
+    url, sha256, size = entry["url"], entry["sha256"], entry["size"]
+    log(f"macOS SDK {version}: {url}")
+    pkg = a.pkg or os.path.join(a.cache, f"{entry['product']}-{url.rsplit('/', 1)[1]}")
+    start = time.monotonic()
+    if a.unpinned:
         got = sha256_file(pkg)
     else:
-        os.makedirs(os.path.dirname(os.path.abspath(pkg)), exist_ok=True)
-        log(f"downloading {url}")
-        got = download(url, pkg, size)
-    log(f"sha256 {got}")
-    if sha256 and got != sha256 and not a.unpinned:
-        raise SystemExit(f"sha256 mismatch: expected {sha256}")
-    if not sha256 and not a.unpinned:
-        raise SystemExit("no sha256 pinned for this version (--unpinned: unpack without checking)")
+        fetch_pinned(url, sha256, size, pkg)
+        got = sha256
+    log(f"sha256 {got}, {size / 1e6:.1f} MB in {time.monotonic() - start:.1f} s")
     if os.path.exists(a.out):
         shutil.rmtree(a.out)
     os.makedirs(a.out)
@@ -370,24 +371,13 @@ def macos_fetch(a):
     return 0
 
 
-def macos_catalog(a):
-    with urllib.request.urlopen(a.catalog, timeout=60) as r:
-        data = r.read()
-    if data[:2] == b"\x1f\x8b":
-        data = gzip.decompress(data)
-    rows = []
-    for pid, product in plistlib.loads(data)["Products"].items():
-        for p in product.get("Packages", []):
-            if re.search(r"/CLTools_macOS[NL]MOS_SDK\.pkg$", p["URL"]):
-                rows.append((product["PostDate"], pid, p))
-    rows.sort(key=lambda r: r[0])
-    for date, pid, p in rows[-a.last :]:
-        with urllib.request.urlopen(p["MetadataURL"], timeout=60) as r:
-            info = ET.fromstring(r.read())
-        if info.tag != "pkg-info":
-            info = info.find(".//pkg-info")
-        version = info.get("version") if info is not None else "?"
-        print(f"{date:%Y-%m-%d} {pid} {version:28} {p['Size']:>9} {p['URL']}")
+def macos_list(a):
+    versions = macos_versions(load_table(a.table))
+    default = pick(versions, None, macos_broken, "macOS SDK")
+    for v in sorted(versions, key=version_key):
+        p = versions[v]
+        mark = " (default)" if v == default else " (xclang cannot use it)" if macos_broken(v) else ""
+        print(f"{v:8} {p['posted']} {p['size'] / 1e6:6.1f} MB  {p['url']}{mark}")
     return 0
 
 
@@ -408,12 +398,12 @@ def windows_member(name, member, version):
         # Headers, and an architecture's own libraries and link-option objects
         # (setargv.obj, ...), not those for Store apps, UWP or enclaves; no
         # debug symbols.
-        m = re.match(r"Contents/(VC/Tools/MSVC/[^/]+/(?:include/.+|lib/(?:x64|arm64)/[^/]+\.(?:lib|obj)))$", member)
+        m = re.match(r"Contents/(VC/Tools/MSVC/[^/]+/(?:include/.+|lib/(?:x64|arm64|x86)/[^/]+\.(?:lib|obj)))$", member)
         return m and m.group(1)
     m = re.match(r"c/Include/[^/]+/((?:um|shared|ucrt|winrt|cppwinrt)/.+)$", member)
     if m:
         return f"Windows Kits/10/Include/{version}/{m.group(1)}"
-    m = re.match(r"c/(um|ucrt)/(x64|arm64)/([^/]+)$", member)
+    m = re.match(r"c/(um|ucrt)/(x64|arm64|x86)/([^/]+)$", member)
     if m:
         return f"Windows Kits/10/Lib/{version}/{m.group(1)}/{m.group(2)}/{m.group(3)}"
     return None
@@ -502,29 +492,50 @@ def fix_case(includes, libs):
     return made
 
 
+MS_ARCH = {"x86_64": "x64", "aarch64": "arm64", "x86": "x86"}
+
+
 def windows_fetch(a):
     if not a.accept_license:
         log(MS_LICENSE)
         return 1
+    table = load_table(a.table)["windows"]
+    sdk_version = pick(table["sdk"], a.sdk_version, windows_sdk_broken, "Windows SDK")
+    msvc_version = pick(table["msvc"], a.msvc_version, msvc_broken, "MSVC")
+    sdk, msvc = table["sdk"][sdk_version], table["msvc"][msvc_version]
+    log(f"MSVC {msvc_version} ({msvc['manifest']}), Windows SDK {sdk_version}")
     archs = a.arch.split(",")
-    names = ["crt", "sdk"] + [f"{k}-{x}{s}" for x in archs for k, s in (("crt", "-desktop"), ("crt", "-store"), ("sdk", ""))]
+    for arch in archs:
+        if arch not in MS_ARCH:
+            raise SystemExit(f"unknown architecture {arch}: x86_64, aarch64 or x86")
+        for what, entry in ((f"MSVC {msvc_version}", msvc), (f"Windows SDK {sdk_version}", sdk)):
+            if arch not in entry:
+                raise SystemExit(f"{what} has no {arch} packages")
+    packages = [("crt", msvc["headers"]), ("sdk", sdk["headers"])]
+    packages += [("crt", part) for x in archs for part in msvc[x].values()]
+    packages += [("sdk", sdk[x]) for x in archs]
     start = time.monotonic()
     with concurrent.futures.ThreadPoolExecutor(4) as pool:
-        jobs = {n: pool.submit(fetch_pinned, *WINDOWS[n], os.path.join(a.cache, WINDOWS[n][0].rsplit("/", 1)[1])) for n in names}
-        paths = {n: j.result() for n, j in jobs.items()}
-    total = sum(WINDOWS[n][2] for n in names)
-    log(f"{len(names)} packages, {total / 1e6:.1f} MB, in {time.monotonic() - start:.1f} s")
+        jobs = [
+            (kind, pool.submit(fetch_pinned, p["url"], p["sha256"], p["size"], os.path.join(a.cache, p["url"].rsplit("/", 1)[1])))
+            for kind, p in packages
+        ]
+        paths = [(kind, j.result()) for kind, j in jobs]
+    total = sum(p["size"] for _, p in packages)
+    log(f"{len(packages)} packages, {total / 1e6:.1f} MB, in {time.monotonic() - start:.1f} s")
 
     start = time.monotonic()
     if os.path.exists(a.out):
         shutil.rmtree(a.out)
     os.makedirs(a.out)
-    version = ".".join(WINSDK.split(".")[:3]) + ".0"
+    # The SDK's own version, which names its directories (10.0.26100.0).
+    with zipfile.ZipFile(paths[1][1]) as z:
+        version = next(m.group(1) for n in z.namelist() if (m := re.match(r"c/Include/([^/]+)/um/", n)))
     files, size, seen = 0, 0, {}
-    for n in names:
-        with zipfile.ZipFile(paths[n]) as z:
+    for kind, path in paths:
+        with zipfile.ZipFile(path) as z:
             for info in z.infolist():
-                rel = windows_member(n, info.filename, version)
+                rel = windows_member(kind, info.filename, version)
                 if not rel or info.is_dir():
                     continue
                 if seen.setdefault(rel.lower(), rel) != rel:
@@ -545,67 +556,59 @@ def windows_fetch(a):
         log("case-insensitive file system: no links needed")
     else:
         start = time.monotonic()
-        msvc = os.path.join(a.out, "VC", "Tools", "MSVC")
-        msvc = os.path.join(msvc, os.listdir(msvc)[0])
+        tools = os.path.join(a.out, "VC", "Tools", "MSVC")
+        tools = os.path.join(tools, os.listdir(tools)[0])
         kits = os.path.join(a.out, "Windows Kits", "10")
-        includes = [os.path.join(msvc, "include")] + [
+        includes = [os.path.join(tools, "include")] + [
             os.path.join(kits, "Include", version, d) for d in ("ucrt", "um", "shared", "winrt", "cppwinrt")
         ]
-        ms = {"x86_64": "x64", "aarch64": "arm64"}
-        libs = [os.path.join(msvc, "lib", ms[x]) for x in archs] + [
-            os.path.join(kits, "Lib", version, d, ms[x]) for x in archs for d in ("um", "ucrt")
+        libs = [os.path.join(tools, "lib", MS_ARCH[x]) for x in archs] + [
+            os.path.join(kits, "Lib", version, d, MS_ARCH[x]) for x in archs for d in ("um", "ucrt")
         ]
-        made = fix_case(includes, libs)
+        made = fix_case([d for d in includes if os.path.isdir(d)], [d for d in libs if os.path.isdir(d)])
         log(f"case-sensitive file system: {made} links in {time.monotonic() - start:.1f} s")
     return 0
 
 
 def windows_list(a):
-    with urllib.request.urlopen(VS_CHANNEL, timeout=60) as r:
-        channel = json.load(r)
-    print(f"Visual Studio {channel['info']['productDisplayVersion']} ({r.url})")
-    item = next(i for i in channel["channelItems"] if i["id"] == "Microsoft.VisualStudio.Manifests.VisualStudio")
-    payload = item["payloads"][0]
-    with urllib.request.urlopen(payload["url"], timeout=120) as r:
-        vsman = json.load(r)
-    print(f"  {payload['url']}  sha256 {payload['sha256']}")
-    wanted = re.compile(r"Microsoft\.VC\.([\d.]+)\.CRT\.(Headers|x64\.Desktop|x64\.Store|ARM64\.Desktop|ARM64\.Store)\.base$")
-    for p in vsman["packages"]:
-        if wanted.match(p["id"]):
-            pl = p["payloads"][0]
-            print(f"  {p['id']}  {pl['size']}  {pl['url']}  sha256 {pl['sha256']}")
-    for pkg in ("microsoft.windows.sdk.cpp", "microsoft.windows.sdk.cpp.x64", "microsoft.windows.sdk.cpp.arm64"):
-        with urllib.request.urlopen(f"{NUGET}/{pkg}/index.json", timeout=60) as r:
-            versions = [v for v in json.load(r)["versions"] if "-" not in v]
-        print(f"{pkg}: {' '.join(versions[-6:])}")
+    table = load_table(a.table)["windows"]
+    for what, versions, broken in (("Windows SDK", table["sdk"], windows_sdk_broken), ("MSVC", table["msvc"], msvc_broken)):
+        default = pick(versions, None, broken, what)
+        print(f"{what}:")
+        for v in sorted(versions, key=version_key):
+            e = versions[v]
+            archs = [x for x in MS_ARCH if x in e]
+            mark = " (default)" if v == default else " (xclang cannot use it)" if broken(v) else ""
+            source = e.get("manifest", "nuget.org")
+            print(f"  {v:18} {' '.join(archs):22} {source}{mark}")
     return 0
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--table", default=TABLE, help=argparse.SUPPRESS)
     vendors = p.add_subparsers(dest="vendor", required=True)
     mac = vendors.add_parser("macos", help="Apple's macOS SDK").add_subparsers(dest="cmd", required=True)
-    f = mac.add_parser("fetch", help="download and unpack a pinned SDK")
+    f = mac.add_parser("fetch", help="download and unpack an SDK")
     f.add_argument("--accept-license", action="store_true")
-    f.add_argument("--version", default=DEFAULT, choices=sorted(SDKS))
+    f.add_argument("--version", help="the SDK's version, whole or in part (default: the newest xclang works with)")
     f.add_argument("--out", required=True, help="the SDK directory to create")
     f.add_argument("--pkg", help="a package already downloaded")
     f.add_argument("--cache", default=".", help="where the package is downloaded to")
     f.add_argument("--links", choices=["symlink", "junction", "copy"], help="default: junction on Windows")
     f.add_argument("--unpinned", action="store_true", help=argparse.SUPPRESS)
     f.set_defaults(run=macos_fetch)
-    c = mac.add_parser("catalog", help="list SDK packages in Apple's catalog")
-    c.add_argument("--catalog", default=CATALOG)
-    c.add_argument("--last", type=int, default=8)
-    c.set_defaults(run=macos_catalog)
+    mac.add_parser("list", help="the SDK versions the table has").set_defaults(run=macos_list)
     win = vendors.add_parser("windows", help="the MSVC runtime and the Windows SDK").add_subparsers(dest="cmd", required=True)
-    f = win.add_parser("fetch", help="download the pinned packages and unpack them as a /winsysroot")
+    f = win.add_parser("fetch", help="download and unpack them as a /winsysroot")
     f.add_argument("--accept-license", action="store_true")
-    f.add_argument("--arch", default="x86_64,aarch64", help="x86_64, aarch64 or both, comma-separated")
+    f.add_argument("--sdk-version", help="the Windows SDK's version, whole or in part (10.0.26100)")
+    f.add_argument("--msvc-version", help="MSVC's version, whole or in part (14.44)")
+    f.add_argument("--arch", default="x86_64,aarch64", help="x86_64, aarch64, x86, comma-separated")
     f.add_argument("--out", required=True, help="the /winsysroot directory to create")
     f.add_argument("--cache", default=".", help="where the packages are downloaded to")
     f.set_defaults(run=windows_fetch)
-    win.add_parser("list", help="what Microsoft offers now").set_defaults(run=windows_list)
+    win.add_parser("list", help="the versions the table has").set_defaults(run=windows_list)
     a = p.parse_args()
     return a.run(a)
 
