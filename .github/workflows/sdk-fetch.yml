@@ -16,6 +16,11 @@ permissions:
 env:
   XCLANG: 23.1.2.5
   XWIN: 0.10.0
+  # The Visual Studio 17.14.41 channel manifest (aka.ms/vs/17/release/channel
+  # on 10-05), which pins VisualStudio.vsman by sha256, which pins every
+  # package xwin downloads.
+  VS_CHANNEL: https://download.visualstudio.microsoft.com/download/pr/bc92e2cb-33de-4a0c-995d-efa817f16b16/0dbdfd40c17757e64fc9f72cd9954ec8471c04fd8461a77806e5291e23239ac0/VisualStudio.17.Release.chman
+  VS_CHANNEL_SHA256: fca418ba94ffbcfb7a2b25f10f16f39dd09660568d21eef4bd3f274cb0b27b8c
   KOTATSU: d3b82f79499bd8e2e5e557f7bf7eca7a27b928b7
   GH_TOKEN: ${{ github.token }}
 
@@ -61,22 +66,6 @@ jobs:
           echo "SDK=$RUNNER_TEMP/MacOSX.sdk" >> "$GITHUB_ENV"
       - name: Build
         run: sdk/build-macos.sh "$X" "$SDK" out
-      - name: kotatsu
-        if: ${{ !cancelled() }}
-        run: |
-          git clone -q --filter=blob:none https://github.com/clice-io/kotatsu "$RUNNER_TEMP/kotatsu"
-          git -C "$RUNNER_TEMP/kotatsu" checkout -q "$KOTATSU"
-          for arch in arm64 x86_64; do
-            b=$RUNNER_TEMP/kotatsu-$arch
-            start=$SECONDS
-            cmake -S "$RUNNER_TEMP/kotatsu" -B "$b" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-              -DCMAKE_TOOLCHAIN_FILE="$PWD/sdk/darwin.cmake" -DXCLANG_ROOT="$X" -DMACOS_SDK="$SDK" -DMACOS_ARCH=$arch \
-              -DKOTA_ENABLE_TEST=ON
-            cmake --build "$b" --target unit_tests system_tests
-            echo "kotatsu $arch: $((SECONDS - start)) s"
-            find "$b" -type f \( -name unit_tests -o -name system_tests \) -exec cp {} out/$arch/ \;
-          done
-          ls -l out/*/
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
@@ -115,9 +104,49 @@ jobs:
           name: macos-windows-26.5
           path: out
 
+  macos-kotatsu:
+    name: kotatsu for ${{ matrix.arch }} macOS, from Linux
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, x86_64]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: python -m pip install cmake ninja
+      - name: xclang, the SDK, kotatsu
+        run: |
+          cd "$RUNNER_TEMP"
+          gh release download "$XCLANG" -R clice-io/xclang -p "xclang-$XCLANG-x86_64-unknown-linux-gnu.tar.xz" -p SHA256SUMS
+          grep "xclang-$XCLANG-x86_64-unknown-linux-gnu.tar.xz" SHA256SUMS | sha256sum -c
+          tar -xf xclang-*.tar.xz
+          python "$GITHUB_WORKSPACE/sdk/macos-sdk.py" fetch --accept-license --version 26.5 --out MacOSX.sdk
+          git clone -q --filter=blob:none https://github.com/clice-io/kotatsu
+          git -C kotatsu checkout -q "$KOTATSU"
+      - name: Build
+        run: |
+          cmake -S "$RUNNER_TEMP/kotatsu" -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_TOOLCHAIN_FILE="$PWD/sdk/darwin.cmake" -DXCLANG_ROOT="$RUNNER_TEMP/xclang" \
+            -DMACOS_SDK="$RUNNER_TEMP/MacOSX.sdk" -DMACOS_ARCH=${{ matrix.arch }} -DKOTA_ENABLE_TEST=ON
+          cmake --build build --target unit_tests system_tests
+          mkdir -p out/${{ matrix.arch }}
+          cp build/unit_tests build/system_tests out/${{ matrix.arch }}/
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-kotatsu-${{ matrix.arch }}
+          path: out
+
   macos-run:
     name: run on ${{ matrix.runner }}
-    needs: [macos-linux, macos-windows]
+    needs: [macos-linux, macos-windows, macos-kotatsu]
     if: ${{ !cancelled() }}
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -147,7 +176,7 @@ jobs:
           sw_vers; uname -m
           fail=0
           for a in art/*; do
-            echo "### $a"; cat "$a/build.txt"
+            echo "### $a"; cat "$a/build.txt" 2>/dev/null
             sdk/run.sh "$a/${{ matrix.arch }}" "$a" | tee -a results.txt || fail=1
           done
           exit $fail
@@ -189,7 +218,10 @@ jobs:
         run: |
           xwin --version
           start=$SECONDS
-          xwin --accept-license --cache-dir "$RUNNER_TEMP/xwin-cache" --arch x86_64,aarch64 \
+          curl -sSfL -o "$RUNNER_TEMP/channel.json" "$VS_CHANNEL"
+          echo "$VS_CHANNEL_SHA256  $RUNNER_TEMP/channel.json" | sha256sum -c
+          xwin --accept-license --manifest "$RUNNER_TEMP/channel.json" --sdk-version 10.0.26100 --crt-version 14.44.17.14 \
+            --cache-dir "$RUNNER_TEMP/xwin-cache" --arch x86_64,aarch64 \
             splat --include-debug-libs --use-winsysroot-style --preserve-ms-arch-notation --output "$RUNNER_TEMP/winsysroot"
           echo "xwin: $((SECONDS - start)) s"
           du -sh "$RUNNER_TEMP/xwin-cache/dl" "$RUNNER_TEMP/winsysroot"
@@ -199,38 +231,63 @@ jobs:
           echo "W=$W" >> "$GITHUB_ENV"
       - name: Build
         run: sdk/build-msvc.sh "$X" "$W" out
-      - uses: actions/setup-python@v6
-        if: ${{ !cancelled() }}
-        with:
-          python-version: "3.13"
-      - name: kotatsu
-        if: ${{ !cancelled() }}
-        run: |
-          python -m pip install cmake ninja
-          git clone -q --filter=blob:none https://github.com/clice-io/kotatsu "$RUNNER_TEMP/kotatsu"
-          git -C "$RUNNER_TEMP/kotatsu" checkout -q "$KOTATSU"
-          for arch in x86_64 aarch64; do
-            b=$RUNNER_TEMP/kotatsu-$arch
-            start=$SECONDS
-            # NOMINMAX: kotatsu's tests include <winsock2.h> without it, which its
-            # CI does not see, as kota_http (KOTA_BUILD_ALL_TESTS) defines it.
-            CXXFLAGS=/DNOMINMAX cmake -S "$RUNNER_TEMP/kotatsu" -B "$b" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-              -DCMAKE_TOOLCHAIN_FILE="$PWD/sdk/msvc.cmake" -DXCLANG_ROOT="$X" -DWINSYSROOT="$W" -DWINDOWS_ARCH=$arch \
-              -DKOTA_ENABLE_TEST=ON
-            cmake --build "$b" --target unit_tests system_tests
-            echo "kotatsu $arch: $((SECONDS - start)) s"
-            find "$b" -type f \( -name unit_tests.exe -o -name system_tests.exe \) -exec cp {} out/$arch/ \;
-          done
-          ls -l out/*/
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: msvc-linux
           path: out
 
+  msvc-kotatsu:
+    name: kotatsu for ${{ matrix.arch }} Windows (MSVC ABI), from Linux
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: python -m pip install cmake ninja
+      - name: xclang, xwin's sysroot, kotatsu
+        run: |
+          cd "$RUNNER_TEMP"
+          gh release download "$XCLANG" -R clice-io/xclang -p "xclang-$XCLANG-x86_64-unknown-linux-gnu.tar.xz" -p SHA256SUMS
+          grep "xclang-$XCLANG-x86_64-unknown-linux-gnu.tar.xz" SHA256SUMS | sha256sum -c
+          tar -xf xclang-*.tar.xz
+          gh release download "$XWIN" -R Jake-Shadle/xwin -p "xwin-$XWIN-x86_64-unknown-linux-musl.tar.gz"
+          tar -xzf "xwin-$XWIN-x86_64-unknown-linux-musl.tar.gz"
+          curl -sSfL -o channel.json "$VS_CHANNEL"
+          echo "$VS_CHANNEL_SHA256  channel.json" | sha256sum -c
+          "xwin-$XWIN-x86_64-unknown-linux-musl/xwin" --accept-license --log-level warn --manifest channel.json \
+            --sdk-version 10.0.26100 --crt-version 14.44.17.14 --arch ${{ matrix.arch }} \
+            splat --include-debug-libs --use-winsysroot-style --preserve-ms-arch-notation --output winsysroot
+          git clone -q --filter=blob:none https://github.com/clice-io/kotatsu
+          git -C kotatsu checkout -q "$KOTATSU"
+      - name: Build
+        run: |
+          # NOMINMAX: kotatsu's tests include <winsock2.h> without it, which its
+          # CI does not see, as kota_http (KOTA_BUILD_ALL_TESTS) defines it.
+          CXXFLAGS=/DNOMINMAX cmake -S "$RUNNER_TEMP/kotatsu" -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_TOOLCHAIN_FILE="$PWD/sdk/msvc.cmake" -DXCLANG_ROOT="$RUNNER_TEMP/xclang" \
+            -DWINSYSROOT="$RUNNER_TEMP/winsysroot" -DWINDOWS_ARCH=${{ matrix.arch }} -DKOTA_ENABLE_TEST=ON
+          cmake --build build --target unit_tests system_tests
+          mkdir -p out/${{ matrix.arch }}
+          cp build/unit_tests.exe build/system_tests.exe out/${{ matrix.arch }}/
+      - uses: actions/upload-artifact@v7
+        with:
+          name: msvc-kotatsu-${{ matrix.arch }}
+          path: out
+
   msvc-run:
     name: run on ${{ matrix.runner }}
-    needs: msvc-linux
+    needs: [msvc-linux, msvc-kotatsu]
     if: ${{ !cancelled() }}
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -248,7 +305,7 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@v8
         with:
-          name: msvc-linux
+          pattern: msvc-*
           path: art
       - name: kotatsu's sources, for its tests
         run: |
@@ -257,5 +314,7 @@ jobs:
           echo "KOTATSU_SRC=$RUNNER_TEMP/kotatsu" >> "$GITHUB_ENV"
       - name: Run
         run: |
-          cat art/build.txt
-          sdk/run.sh "art/${{ matrix.arch }}"
+          cat art/msvc-linux/build.txt
+          fail=0
+          for a in art/*; do sdk/run.sh "$a/${{ matrix.arch }}" || fail=1; done
+          exit $fail
