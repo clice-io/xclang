@@ -1,11 +1,11 @@
-/// The Bazel module of a release (MODULE.bazel, bazel/), from its SHA256SUMS:
+/// The Bazel module of a release (packages/bazel), from its SHA256SUMS:
 ///
 ///   node scripts/bazel.ts versions <SHA256SUMS>
-///       bazel/versions.bzl: the release's version and the sha256 of each
-///       of its archives
+///       packages/bazel/bazel/versions.bzl: the release's version and the
+///       sha256 of each of its archives
 ///   node scripts/bazel.ts archive <SHA256SUMS> <dir>
-///       <dir>/xclang-bazel-<version>.tar.gz: the module at that release,
-///       its source archive in the clice Bazel registry (bazel.yml
+///       <dir>/xclang-bazel-<version>.tar.gz: packages/bazel at that
+///       release, its source archive in the clice Bazel registry (bazel.yml
 ///       publishes it); prints its integrity
 ///
 /// The release is tagged before its archives exist, so the module of the
@@ -16,6 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import * as common from "./common.ts";
 
+const MODULE = path.join(common.ROOT, "packages", "bazel");
 const [command, sums, dir] = process.argv.slice(2);
 if (!sums || !["versions", "archive"].includes(command!) || (command === "archive" && !dir)) {
   common.fail("versions <SHA256SUMS> | archive <SHA256SUMS> <dir>");
@@ -40,21 +41,24 @@ ${[...archives].sort(([a], [b]) => (a < b ? -1 : 1)).map(([f, sha]) => `    "${f
 `;
 
 if (command === "versions") {
-  fs.writeFileSync(path.join(common.ROOT, "bazel", "versions.bzl"), versions);
-  console.log(`bazel/versions.bzl: ${version}, ${archives.size} archives`);
+  fs.writeFileSync(path.join(MODULE, "bazel", "versions.bzl"), versions);
+  console.log(`packages/bazel/bazel/versions.bzl: ${version}, ${archives.size} archives`);
 } else {
   const name = `xclang-bazel-${version}`;
   const stage = path.join(common.WORK, "bazel-module");
   const root = path.join(stage, name);
   fs.rmSync(stage, { recursive: true, force: true });
-  fs.mkdirSync(path.join(root, "bazel"), { recursive: true });
+  /// packages/bazel without what a build in it leaves, and the license;
   /// MODULE.bazel at the release's version, bazel/ with its digests.
-  const module = fs.readFileSync(path.join(common.ROOT, "MODULE.bazel"), "utf8");
+  fs.cpSync(MODULE, root, {
+    recursive: true,
+    filter: (src) => !/^(bazel-.*|MODULE\.bazel\.lock)$/.test(path.relative(MODULE, src)),
+  });
+  fs.copyFileSync(path.join(common.ROOT, "LICENSE"), path.join(root, "LICENSE"));
+  const module = fs.readFileSync(path.join(MODULE, "MODULE.bazel"), "utf8");
   const versioned = module.replace(/^(    version = )"[^"]*",$/m, `$1"${version}",`);
   if (versioned === module && !module.includes(`version = "${version}"`)) common.fail("no version in MODULE.bazel");
   fs.writeFileSync(path.join(root, "MODULE.bazel"), versioned);
-  for (const file of ["LICENSE", "REPO.bazel"]) fs.copyFileSync(path.join(common.ROOT, file), path.join(root, file));
-  common.copyTree(path.join(common.ROOT, "bazel"), path.join(root, "bazel"));
   fs.writeFileSync(path.join(root, "bazel", "versions.bzl"), versions);
   /// The same bytes from the same sources: sorted, no owners or times.
   fs.mkdirSync(dir!, { recursive: true });

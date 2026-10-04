@@ -11,7 +11,7 @@ with no other generator for these targets.
 
 The package is in every toolchain archive from 23.1.2.6 on, in
 `lib/cmake/xclang` (and so in the conda package), and in this repository,
-`cmake-package/`, at every tag.
+`packages/cmake/`, at every tag.
 
 ## With xclang installed
 
@@ -46,8 +46,8 @@ cmake -G Ninja -B build --toolchain <xclang>/lib/cmake/xclang/toolchain.cmake
 ## Without xclang installed
 
 Before `project()`, FetchContent fetches this repository at the release's
-tag, and `cmake-package/xclang.cmake` downloads that release's toolchain for
-the host and makes it the build's:
+tag, and `packages/cmake/xclang.cmake` downloads that release's toolchain
+for the host and makes it the build's:
 
 ```cmake
 cmake_minimum_required(VERSION 3.28)
@@ -58,7 +58,7 @@ FetchContent_Declare(xclang
     GIT_REPOSITORY https://github.com/clice-io/xclang
     GIT_TAG ${XCLANG_VERSION})
 FetchContent_MakeAvailable(xclang)
-include(${xclang_SOURCE_DIR}/cmake-package/xclang.cmake)
+include(${xclang_SOURCE_DIR}/packages/cmake/xclang.cmake)
 
 project(app LANGUAGES CXX)
 
@@ -68,7 +68,7 @@ add_executable(app main.cpp)
 target_link_libraries(app PRIVATE xclang::std)
 ```
 
-The tag holds `cmake-package/` from 23.1.2.6 on. `GIT_TAG` may also name a
+The tag holds `packages/cmake/` from 23.1.2.6 on. `GIT_TAG` may also name a
 later commit, with `XCLANG_VERSION` the release whose toolchain it
 downloads: an earlier one works too.
 
@@ -165,7 +165,7 @@ A tool on libclang finds it with `find_package(Clang)`; see
 | `xclang-config.cmake` | `find_package(xclang)`: `xclang::std`, `xclang_add_std()`, `XCLANG_ROOT` |
 | `xclang-config-version.cmake` | the release (toolchain archives only): `find_package(xclang 23.1)` |
 | `toolchain.cmake` | the tree as the build's toolchain, `XCLANG_TARGET` |
-| `xclang.cmake` | in `cmake-package/` only: the download before `project()` |
+| `xclang.cmake` | in `packages/cmake/` only: the download before `project()` |
 
 tests/cmake builds with the package as above on every host, with CMake
 3.28 and Ninja 1.11 and with the newest ones (cmake.yml).

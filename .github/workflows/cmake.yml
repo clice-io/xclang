@@ -1,6 +1,6 @@
 name: cmake
 
-# The CMake package (cmake-package/) on a machine of every host, with the
+# The CMake package (packages/cmake) on a machine of every host, with the
 # oldest CMake and Ninja it supports and the newest: tests/cmake.ts builds
 # tests/cmake by PATH, for every other target through the toolchain file,
 # and from nothing installed, xclang.cmake downloading the toolchain.

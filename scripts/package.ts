@@ -44,7 +44,7 @@ const toolchain = path.join(out, `toolchain-${host.triple}`);
 if (!fs.existsSync(path.join(toolchain, "bin"))) common.fail(`missing ${toolchain}`);
 const tree = common.makeTree(path.join(common.WORK, "package", host.triple, "xclang"), toolchain, runtimes);
 fs.copyFileSync(path.join(common.ROOT, "LICENSE"), path.join(tree, "LICENSE"));
-/// find_package(xclang) and the toolchain file (cmake-package/).
+/// find_package(xclang) and the toolchain file (packages/cmake).
 common.writeCMakePackage(path.join(tree, "lib", "cmake", "xclang"), version);
 /// windres, the name CMake looks for to compile a MinGW project's .rc
 /// files (Modules/Platform/Windows-GNU.cmake), is llvm-windres: on Windows

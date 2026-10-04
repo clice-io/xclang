@@ -21,10 +21,25 @@ xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
 use_repo(xclang, "libclang", "llvm_option_inc")
 ```
 
-A commit of this repository works too, through `git_override`: its
-`bazel/versions.bzl` names the release it downloads. The module registers
-its toolchains itself, and a library that only builds with xclang makes the
-`bazel_dep` a `dev_dependency`. Also in `.bazelrc`:
+A commit of this repository works too, through `git_override`. The module
+is the repository's `packages/bazel` directory, and the commit's
+`packages/bazel/bazel/versions.bzl` names the release it downloads:
+
+```starlark
+bazel_dep(name = "xclang", version = "23.1.2.5")
+git_override(
+    module_name = "xclang",
+    remote = "https://github.com/clice-io/xclang",
+    commit = "<commit>",
+    strip_prefix = "packages/bazel",
+)
+```
+
+Older commits (the tags up to 23.1.2.5) have the module at the top of the
+repository, and no `strip_prefix`.
+
+The module registers its toolchains itself, and a library that only builds
+with xclang makes the `bazel_dep` a `dev_dependency`. Also in `.bazelrc`:
 
 ```
 common --enable_platform_specific_config

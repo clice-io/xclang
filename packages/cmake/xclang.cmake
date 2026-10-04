@@ -8,7 +8,7 @@
 #       GIT_REPOSITORY https://github.com/clice-io/xclang
 #       GIT_TAG ${XCLANG_VERSION})
 #   FetchContent_MakeAvailable(xclang)
-#   include(${xclang_SOURCE_DIR}/cmake-package/xclang.cmake)
+#   include(${xclang_SOURCE_DIR}/packages/cmake/xclang.cmake)
 #   project(...)
 #
 #   XCLANG_VERSION    the release whose toolchain to download, e.g. 23.1.2.6;

@@ -1,5 +1,5 @@
 /work/
 .pixi/
 node_modules/
-/bazel-*
-/MODULE.bazel.lock
+/packages/bazel/bazel-*
+/packages/bazel/MODULE.bazel.lock

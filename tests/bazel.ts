@@ -6,9 +6,9 @@
 /// 1. A copy of the checkout elsewhere (other paths, another output base)
 ///    builds tests/bazel's programs from the disk cache alone: no action's
 ///    key holds an absolute path.
-/// 2. The copy at the previous release (bazel/versions.bzl of --previous)
-///    runs every compile and link again: the toolchain's files are the
-///    actions' inputs.
+/// 2. The copy at the previous release (packages/bazel/bazel/versions.bzl
+///    of --previous) runs every compile and link again: the toolchain's
+///    files are the actions' inputs.
 /// 3. lld's --gc-sections in optimized links: on by default for Linux,
 ///    off for Windows unless asked for (the gc_sections feature).
 /// 4. On Linux and macOS, the programs built without the disk cache, in the
@@ -124,8 +124,8 @@ if (process.platform === "linux") {
 
 if (!windows) {
   /// The release of the module again, fetched already: only the actions differ.
-  common.run("git", ["-C", common.ROOT, "show", "HEAD:bazel/versions.bzl"], {
-    stdio: ["ignore", fs.openSync(path.join(copy, "bazel", "versions.bzl"), "w"), "inherit"],
+  common.run("git", ["-C", common.ROOT, "show", "HEAD:packages/bazel/bazel/versions.bzl"], {
+    stdio: ["ignore", fs.openSync(path.join(copy, "packages", "bazel", "bazel", "versions.bzl"), "w"), "inherit"],
   });
   /// What the sandbox costs any action: as many that read nothing.
   fs.mkdirSync(path.join(tests, "baseline"));

@@ -3,7 +3,7 @@
 ///
 ///   xclang            one per host subdir: the host's archive as it is, every
 ///                     target included, and the activation scripts that put
-///                     its bin/ in PATH
+///                     its bin/ in PATH (packages/conda)
 ///   llvm-option-inc   noarch: the option tables, in include/
 ///
 /// The toolchain installs under $PREFIX/opt/xclang; nothing goes to
@@ -76,7 +76,7 @@ for (const host of hosts) {
     for (const ext of host.os === "mingw" ? ["bat", "ps1"] : ["sh"]) {
       const to = path.join(stage, "etc", "conda", `${phase}.d`, `xclang.${ext}`);
       fs.mkdirSync(path.dirname(to), { recursive: true });
-      fs.copyFileSync(path.join(common.ROOT, "conda", `${phase}.${ext}`), to);
+      fs.copyFileSync(path.join(common.ROOT, "packages", "conda", `${phase}.${ext}`), to);
     }
   }
   packages.push({

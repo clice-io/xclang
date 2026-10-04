@@ -1,4 +1,4 @@
-/// The CMake package (cmake-package/) as a consumer uses it, with a host's
+/// The CMake package (packages/cmake) as a consumer uses it, with a host's
 /// archives unpacked: tests/cmake built and its tests run, with the cmake
 /// and ninja in PATH.
 ///

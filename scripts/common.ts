@@ -349,12 +349,12 @@ export function writeConfigs(tree: string): void {
   }
 }
 
-/// xclang's CMake package for its users (cmake-package/) in dest, as a
+/// xclang's CMake package for its users (packages/cmake) in dest, as a
 /// toolchain tree's lib/cmake/xclang holds it: find_package(xclang), its
 /// version, and the toolchain file. (xclang.cmake, which downloads a
 /// toolchain, is used from a checkout of the release's tag.)
 export function writeCMakePackage(dest: string, version: string): void {
-  const source = path.join(ROOT, "cmake-package");
+  const source = path.join(ROOT, "packages", "cmake");
   fs.rmSync(dest, { recursive: true, force: true });
   fs.mkdirSync(dest, { recursive: true });
   for (const file of ["xclang-config.cmake", "toolchain.cmake"]) {

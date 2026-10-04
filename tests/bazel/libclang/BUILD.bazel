@@ -1,8 +1,8 @@
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 # A tool on libclang, as tests/libclang is for CMake: the libraries it names
-# bring the rest of their link interface (bazel/libclang.bzl). libclang is
-# ThinLTO bitcode, linked by the lld of the same release.
+# bring the rest of their link interface (packages/bazel/bazel/libclang.bzl).
+# libclang is ThinLTO bitcode, linked by the lld of the same release.
 LIBRARIES = [
     "clangBasic",
     "clangLex",

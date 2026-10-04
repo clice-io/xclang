@@ -17,7 +17,7 @@ if(XCLANG_TEST_FETCH)
         GIT_REPOSITORY https://github.com/clice-io/xclang
         GIT_TAG ${XCLANG_VERSION})
     FetchContent_MakeAvailable(xclang)
-    include(${xclang_SOURCE_DIR}/cmake-package/xclang.cmake)
+    include(${xclang_SOURCE_DIR}/packages/cmake/xclang.cmake)
 endif()
 
 project(xclang_tests LANGUAGES C CXX)

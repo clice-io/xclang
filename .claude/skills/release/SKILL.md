@@ -55,8 +55,8 @@ before publishing.
 8. **After publishing**, on main (ask before pushing), one commit
    `readme: <version>`:
    - `node scripts/bazel.ts versions <SHA256SUMS of the release>` →
-     bazel/versions.bzl; `version = "<version>"` in MODULE.bazel and
-     tests/bazel/MODULE.bazel;
+     packages/bazel/bazel/versions.bzl; `version = "<version>"` in
+     packages/bazel/MODULE.bazel and tests/bazel/MODULE.bazel;
    - tests/bazel.ts: `previous` default → the release before this one;
    - README.md and README.zh-CN.md: `xclang = "<version>.*"`,
      `bazel_dep(... version = "<version>")`;

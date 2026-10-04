@@ -16,8 +16,14 @@ the [patches](docs/patches.md) of its tag.
   makes one for other language options; `toolchain.cmake` makes the tree a
   build's toolchain, for any of its targets with `XCLANG_TARGET`. A build
   without xclang installed fetches this repository's tag with FetchContent,
-  and `cmake-package/xclang.cmake` downloads the host's toolchain, checked
+  and `packages/cmake/xclang.cmake` downloads the host's toolchain, checked
   against the release's `SHA256SUMS`, into the user's cache.
+- What users build with is under [`packages/`](packages): the Bazel module
+  in `packages/bazel`, the CMake package in `packages/cmake`, the conda
+  package's activation scripts in `packages/conda`. The module's labels
+  (`@xclang//bazel:std`, ...) are the same and the registry's archive holds
+  the same tree; a `git_override` of a commit needs `strip_prefix =
+  "packages/bazel"` ([docs/bazel.md](docs/bazel.md)).
 - Bazel: the module loads archives without libc++'s ASan build (releases
   before 23.1.2.5) too.
 - The README keeps to what xclang is; the rest is in [docs/](docs).

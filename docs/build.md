@@ -75,8 +75,6 @@ same version, and Apple's clang on macOS (tests/bench.ts).
 cmake/caches/      what each build is: runtimes, the host toolchain, the
                    instrumented one, the ASan libclang
 cmake/toolchain.cmake   building for a target with an xclang tree
-cmake-package/     the CMake package for xclang's users (find_package,
-                   toolchain file, FetchContent download)
 config/            the per-target clang config files
 scripts/           TypeScript, run by Node: bootstrap, runtimes (with the
                    sysroots), toolchain, package, conda, bazel
@@ -86,9 +84,13 @@ patches/           changes to LLVM, a directory and a README each
 tests/             smoke.ts and libclang.ts, the per-host checks; bazel/
                    and cmake/, the build systems' consumers; bench.ts,
                    compile speed against other compilers
-conda/             activation scripts; scripts/conda.ts makes the packages
-MODULE.bazel, bazel/    the Bazel module; scripts/bazel.ts makes its
-                   registry archive
+packages/          what xclang's users build with (packages/README.md):
+  bazel/           the Bazel module; scripts/bazel.ts makes its registry
+                   archive
+  cmake/           the CMake package (find_package, toolchain file,
+                   FetchContent download)
+  conda/           the conda packages' activation scripts; scripts/conda.ts
+                   makes the packages
 .github/workflows/ the workflows above
 ```
 

@@ -1,9 +1,9 @@
 name: bazel
 
-# The Bazel module (MODULE.bazel, bazel/) on a machine of every host:
+# The Bazel module (packages/bazel) on a machine of every host:
 # tests/bazel's tests, then tests/bazel.ts's checks of the actions' keys.
 #
-#   by hand         with the archives bazel/versions.bzl names
+#   by hand         with the archives packages/bazel/bazel/versions.bzl names
 #   main.yml        with a run's archives (dist-run), unpacked and named by
 #                   XCLANG_ROOT and the like, before they are released
 #   a published     the module of that release (its tree, with the digests
@@ -96,7 +96,7 @@ jobs:
           bazel "${startup[@]}" test //... $REPO_ENV --disk_cache="$RUNNER_TEMP/disk"
           bazel "${startup[@]}" test -c opt //... $REPO_ENV --disk_cache="$RUNNER_TEMP/disk"
       # Keys of the downloaded archives: a run's unpacked ones are not
-      # named by bazel/versions.bzl.
+      # named by packages/bazel/bazel/versions.bzl.
       - name: Cache keys and inputs
         if: ${{ !inputs.dist-run }}
         run: node tests/bazel.ts --disk-cache "$RUNNER_TEMP/disk"
