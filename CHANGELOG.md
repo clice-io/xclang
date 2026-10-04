@@ -26,7 +26,9 @@ the [patches](docs/patches.md) of its tag.
   "packages/bazel"` ([docs/bazel.md](docs/bazel.md)).
 - Bazel: the module loads archives without libc++'s ASan build (releases
   before 23.1.2.5) too.
-- The README keeps to what xclang is; the rest is in [docs/](docs).
+- The README keeps to what xclang is and where it is going; the rest is
+  in [docs/](docs). The [roadmap](docs/roadmap.md) has the targets, their
+  tiers and where each stands.
 
 ## [23.1.2.5](https://github.com/clice-io/xclang/releases/tag/23.1.2.5) — 2026-10-03
 

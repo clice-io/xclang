@@ -2,9 +2,16 @@
 
 [中文](README.zh-CN.md)
 
-A self-contained clang toolchain. One directory holds the compiler, the
-linker, the binary tools and, for every target it serves, the sysroot and
-the runtimes, so cross-compiling is a `--target` flag and nothing else:
+Cross-compiling with clang the way rustup, cross-rs and cargo-zigbuild
+let Rust do it: one compiler for every target. The common targets come
+with the toolchain; everything else (more targets, and the vendor SDKs
+that cannot be redistributed) is fetched when a build needs it. The
+runtimes are prebuilt, and are later to be built on demand as well. Partly
+like `zig cc`, with stock clang, and without bundling everything.
+
+Today one directory holds the compiler, the linker, the binary tools and,
+for six targets, the sysroot and the runtimes, so cross-compiling is a
+`--target` flag and nothing else:
 
 ```sh
 xclang/bin/clang++ --target=aarch64-w64-mingw32 main.cpp -o main.exe
@@ -13,18 +20,36 @@ xclang/bin/clang++ --target=aarch64-w64-mingw32 main.cpp -o main.exe
 No `--sysroot`, no `-L`, no SDK to install: `bin/aarch64-w64-mingw32.cfg`,
 which clang reads for that target, points it at `xclang/aarch64-w64-mingw32/`,
 and it links the libc++, libunwind and compiler-rt built for that exact
-target. Think `zig cc`, with stock clang. Every host (Linux, Windows and
-macOS, x64 and arm64) carries all six targets; macOS targets use Xcode's
-SDK.
+target.
+
+## Targets
+
+Every host toolchain (Linux, Windows and macOS, x64 and arm64) carries the
+six common targets: Linux x64 and arm64 with glibc 2.17, Windows x64 and
+arm64 with MinGW-w64 (UCRT), and macOS arm64 and x64, which use Xcode's SDK
+and so build on macOS hosts only.
+
+MinGW is today's Windows target; MSVC-ABI targets, against the user's own
+MSVC and Windows SDK, are to be first-class. They are in research, as is
+building for macOS from any host with Apple's SDK. A command, `xclang`,
+that fetches more targets and the vendor SDKs (`xclang target add`,
+`xclang sdk fetch`) is planned and does not exist yet. The
+[roadmap](docs/roadmap.md) lists the targets, their tiers and where each
+stands.
 
 ## Who it is for
 
 People who want a toolchain they can pin, ship and reproduce, and binaries
 that run wherever they are copied:
 
-- **Hermetic by default.** libc++, libc++abi, libunwind and the builtins
-  are static, and Linux programs need glibc 2.17. The output depends on
-  the OS and nothing else.
+- **Hermetic.** A program depends at run time only on the system libraries
+  every installation of its OS has and no one may redistribute: glibc on
+  Linux (2.17 or later), libSystem and the system frameworks it uses on
+  macOS, the OS's DLLs on Windows, UCRT included (Windows 10 and later).
+  Everything else, libc++, libc++abi, libunwind and the builtins among
+  them, is linked statically. At build time the only inputs from outside
+  are vendor SDKs, pinned. Sanitizer runtimes are the exception
+  ([layout](docs/layout.md#hermeticity)).
 - **Every piece is usable on its own.** The sysroots and runtimes are plain
   directories laid out the way clang's drivers expect.
 - **Fast.** clang and lld are built with PGO and ThinLTO, and linked
@@ -89,7 +114,7 @@ bazel_dep(name = "xclang", version = "23.1.2.5")
 - [Hosts, targets and layout](docs/layout.md), and the limits
 - [How a release is built](docs/build.md): the PGO pipeline, the tests, the workflows, the repository
 - [Patches](docs/patches.md) to LLVM
-- [Roadmap](docs/roadmap.md): what is planned, considered or in research
+- [Roadmap](docs/roadmap.md): the aim, the targets and their tiers, what is planned, considered or in research
 - [CHANGELOG](CHANGELOG.md)
 
 xclang is developed for [clice](https://github.com/clice-io/clice), whose
