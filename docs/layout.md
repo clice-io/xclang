@@ -19,8 +19,23 @@ Every host toolchain carries every target directory:
 Programs built for Linux run on glibc 2.17 and later, those built for macOS
 on 13.0 and later; the toolchain itself has the same floors.
 
-libc++, libc++abi, libunwind and the builtins are static: the output
-depends on the OS and nothing else. clang and lld are linked statically
+## Hermeticity
+
+A program depends at run time only on the system libraries every
+installation of its OS has and no one may redistribute; everything else is
+linked statically. At build time the only inputs from outside are vendor
+SDKs, pinned (today Xcode's, for the macOS targets).
+
+| target | at run time, from the system | linked statically |
+|---|---|---|
+| Linux (glibc) | glibc 2.17 or later: `libc`, `libm`, `libpthread`, `libdl`, `librt`, the dynamic loader | libc++, libc++abi, libunwind, the builtins |
+| macOS | libSystem (the C library and the unwinder), the system frameworks the program links | libc++, libc++abi, the builtins |
+| Windows (MinGW) | the OS's DLLs (`kernel32`, ...), UCRT (`api-ms-win-crt-*`, part of Windows 10 and later) | libc++, libc++abi, libunwind, the builtins, winpthreads, mingw-w64's own runtime |
+
+Sanitizer runtimes are the exception: macOS's are dylibs, which a program
+loads from the toolchain or from its own directory.
+
+The toolchain follows the rule too: clang and lld are linked statically
 against xclang's own libc++ on every host, macOS included: the system's
 libc++.dylib is never used.
 
