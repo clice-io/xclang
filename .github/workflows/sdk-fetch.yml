@@ -176,7 +176,7 @@ jobs:
           sw_vers; uname -m
           fail=0
           for a in art/*; do
-            echo "### $a"; cat "$a/build.txt" 2>/dev/null
+            echo "### $a"; cat "$a/build.txt" 2>/dev/null || true
             sdk/run.sh "$a/${{ matrix.arch }}" "$a" | tee -a results.txt || fail=1
           done
           exit $fail
