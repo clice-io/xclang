@@ -1,0 +1,223 @@
+name: sdk-fetch
+
+# Probe: cross-compile for macOS and for the MSVC ABI with vendor SDKs that
+# each job downloads from the vendor itself (sdk/). Only the programs built
+# here travel between jobs, never an SDK or anything taken from one.
+
+on:
+  push:
+    branches: [exp/sdk-fetch]
+    paths: [sdk/**, .github/workflows/sdk-fetch.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  XCLANG: 23.1.2.5
+  XWIN: 0.10.0
+  KOTATSU: d3b82f79499bd8e2e5e557f7bf7eca7a27b928b7
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  macos-linux:
+    name: macOS ${{ matrix.sdk }} SDK, from Linux
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk: ["26.5", "27.0"]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: python -m pip install cmake ninja
+      - name: xclang
+        run: |
+          cd "$RUNNER_TEMP"
+          gh release download "$XCLANG" -R clice-io/xclang -p "xclang-$XCLANG-x86_64-unknown-linux-gnu.tar.xz" -p SHA256SUMS
+          grep "xclang-$XCLANG-x86_64-unknown-linux-gnu.tar.xz" SHA256SUMS | sha256sum -c
+          tar -xf xclang-*.tar.xz
+          echo "X=$RUNNER_TEMP/xclang" >> "$GITHUB_ENV"
+      - name: Fetch the SDK from Apple
+        run: |
+          python sdk/macos-sdk.py catalog --last 4
+          start=$SECONDS
+          python sdk/macos-sdk.py fetch --accept-license --unpinned --version "${{ matrix.sdk }}" --cache "$RUNNER_TEMP" --out "$RUNNER_TEMP/MacOSX.sdk"
+          echo "fetch + unpack: $((SECONDS - start)) s"
+          ls -l "$RUNNER_TEMP"/*.pkg
+          du -sh "$RUNNER_TEMP/MacOSX.sdk"; find "$RUNNER_TEMP/MacOSX.sdk" -type f | wc -l; find "$RUNNER_TEMP/MacOSX.sdk" -type l | wc -l
+          python -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["Version"], d.get("CanonicalName"), d.get("MaximumDeploymentTarget"))' "$RUNNER_TEMP/MacOSX.sdk/SDKSettings.json"
+          ls "$RUNNER_TEMP/MacOSX.sdk" "$RUNNER_TEMP/MacOSX.sdk/usr/lib" | head -40
+          echo "SDK=$RUNNER_TEMP/MacOSX.sdk" >> "$GITHUB_ENV"
+      - name: Build
+        run: sdk/build-macos.sh "$X" "$SDK" out
+      - name: kotatsu
+        if: ${{ !cancelled() }}
+        run: |
+          git clone -q --filter=blob:none https://github.com/clice-io/kotatsu "$RUNNER_TEMP/kotatsu"
+          git -C "$RUNNER_TEMP/kotatsu" checkout -q "$KOTATSU"
+          for arch in arm64 x86_64; do
+            b=$RUNNER_TEMP/kotatsu-$arch
+            start=$SECONDS
+            cmake -S "$RUNNER_TEMP/kotatsu" -B "$b" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              -DCMAKE_TOOLCHAIN_FILE="$PWD/sdk/darwin.cmake" -DXCLANG_ROOT="$X" -DMACOS_SDK="$SDK" -DMACOS_ARCH=$arch \
+              -DKOTA_ENABLE_TEST=ON
+            cmake --build "$b" --target unit_tests system_tests
+            echo "kotatsu $arch: $((SECONDS - start)) s"
+            find "$b" -type f \( -name unit_tests -o -name system_tests \) -exec cp {} out/$arch/ \;
+          done
+          ls -l out/*/
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: macos-linux-${{ matrix.sdk }}
+          path: out
+
+  macos-windows:
+    name: macOS 26.5 SDK, from Windows
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: xclang
+        run: |
+          cd "$RUNNER_TEMP"
+          gh release download "$XCLANG" -R clice-io/xclang -p "xclang-$XCLANG-x86_64-w64-mingw32.tar.xz" -p SHA256SUMS
+          grep "xclang-$XCLANG-x86_64-w64-mingw32.tar.xz" SHA256SUMS | sha256sum -c
+          /c/Windows/System32/tar.exe -xf "xclang-$XCLANG-x86_64-w64-mingw32.tar.xz"
+          echo "X=$(cygpath -m "$RUNNER_TEMP/xclang")" >> "$GITHUB_ENV"
+      - name: Fetch the SDK from Apple
+        run: |
+          start=$SECONDS
+          python sdk/macos-sdk.py fetch --accept-license --unpinned --version 26.5 --cache "$RUNNER_TEMP" --out "$RUNNER_TEMP/MacOSX.sdk"
+          echo "fetch + unpack: $((SECONDS - start)) s"
+          du -sh "$RUNNER_TEMP/MacOSX.sdk"
+          echo "SDK=$(cygpath -m "$RUNNER_TEMP/MacOSX.sdk")" >> "$GITHUB_ENV"
+      - name: Build
+        run: sdk/build-macos.sh "$X" "$SDK" out
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: macos-windows-26.5
+          path: out
+
+  macos-run:
+    name: run on ${{ matrix.runner }}
+    needs: [macos-linux, macos-windows]
+    if: ${{ !cancelled() }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-15, arch: arm64 }
+          - { runner: macos-15-intel, arch: x86_64 }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: macos-*
+          path: art
+      - name: Run
+        run: |
+          sw_vers; uname -m
+          fail=0
+          for a in art/*; do
+            echo "### $a"; cat "$a/build.txt"
+            sdk/run.sh "$a/${{ matrix.arch }}" "$a" | tee -a results.txt || fail=1
+          done
+          exit $fail
+      - name: Code signatures
+        if: ${{ !cancelled() }}
+        run: |
+          for f in art/*/${{ matrix.arch }}/hello-cpp art/*/${{ matrix.arch }}/objc art/*/${{ matrix.arch }}/unit_tests; do
+            [ -f "$f" ] || continue
+            echo "== $f"; codesign -dv "$f" 2>&1 | grep -E 'Format|Signature|Identifier|flags'; codesign --verify --verbose "$f"
+          done
+
+  msvc-linux:
+    name: MSVC ABI (xwin), from Linux
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: xclang
+        run: |
+          cd "$RUNNER_TEMP"
+          gh release download "$XCLANG" -R clice-io/xclang -p "xclang-$XCLANG-x86_64-unknown-linux-gnu.tar.xz" -p SHA256SUMS
+          grep "xclang-$XCLANG-x86_64-unknown-linux-gnu.tar.xz" SHA256SUMS | sha256sum -c
+          tar -xf xclang-*.tar.xz
+          echo "X=$RUNNER_TEMP/xclang" >> "$GITHUB_ENV"
+      - name: xwin
+        run: |
+          cd "$RUNNER_TEMP"
+          gh release download "$XWIN" -R Jake-Shadle/xwin -p "xwin-$XWIN-x86_64-unknown-linux-musl.tar.gz*"
+          sha256sum -c <(echo "$(cut -d' ' -f1 < xwin-$XWIN-x86_64-unknown-linux-musl.tar.gz.sha256)  xwin-$XWIN-x86_64-unknown-linux-musl.tar.gz")
+          tar -xzf "xwin-$XWIN-x86_64-unknown-linux-musl.tar.gz"
+          echo "$RUNNER_TEMP/xwin-$XWIN-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+      - name: Fetch the CRT and the Windows SDK from Microsoft
+        run: |
+          xwin --version
+          start=$SECONDS
+          xwin --accept-license --cache-dir "$RUNNER_TEMP/xwin-cache" --arch x86_64,aarch64 \
+            splat --use-winsysroot-style --preserve-ms-arch-notation --output "$RUNNER_TEMP/winsysroot"
+          echo "xwin: $((SECONDS - start)) s"
+          du -sh "$RUNNER_TEMP/xwin-cache/dl" "$RUNNER_TEMP/winsysroot"
+          W=$RUNNER_TEMP/winsysroot
+          ls "$W" "$W/VC/Tools/MSVC" "$W/Windows Kits/10/Include" "$W/VC/Tools/MSVC"/*/lib
+          echo "files: $(find "$W" -type f | wc -l), symlinks: $(find "$W" -type l | wc -l)"
+          echo "W=$W" >> "$GITHUB_ENV"
+      - name: Build
+        run: sdk/build-msvc.sh "$X" "$W" out
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: msvc-linux
+          path: out
+
+  msvc-run:
+    name: run on ${{ matrix.runner }}
+    needs: msvc-linux
+    if: ${{ !cancelled() }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: windows-2025, arch: x86_64 }
+          - { runner: windows-11-arm, arch: aarch64 }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: msvc-linux
+          path: art
+      - name: Run
+        run: |
+          cat art/build.txt
+          sdk/run.sh "art/${{ matrix.arch }}"
