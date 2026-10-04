@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Cross-compile the probe programs for x64 and arm64 Windows (MSVC ABI) with
-# an xclang tree and the CRT + Windows SDK splatted by xwin in /winsysroot
-# layout: build-msvc.sh <xclang> <winsysroot> <out>
+# an xclang tree and the /winsysroot vendor-sdk.py unpacks:
+#   build-msvc.sh <xclang> <winsysroot> <out>
 # Writes <out>/<arch>/<program>.exe and <out>/build.txt; exits 1 if a
 # required step failed. Steps marked probe may fail.
 set -u
@@ -18,6 +18,11 @@ step() { # step <name> required|probe <command...>
   echo "::endgroup::"
   echo "$r $name ($kind, $((SECONDS - start)) s)" | tee -a "$OUT/build.txt"
 }
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*)
+  # Git Bash would turn /O2 into a path.
+  export MSYS_NO_PATHCONV=1
+  X=$(cygpath -m "$X") W=$(cygpath -m "$W") T=$(cygpath -m "$T") ;;
+esac
 R=$("$X/bin/clang" -print-resource-dir)
 for arch in x86_64 aarch64; do
   o=$OUT/$arch
