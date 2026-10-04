@@ -17,9 +17,10 @@ makes it and only ever appends (2 min on CI, `sdk-table.yml`):
 - **Windows SDK**: the 38 stable `Microsoft.Windows.SDK.CPP` versions on
   nuget.org, 10.0.17763.4 to 10.0.28000.2705, each with its `.x64`, `.arm64`
   and `.x86` package; sha256 computed (nuget.org gives SHA-512 only).
-- **MSVC**: the 18 toolsets of Visual Studio's stable channels, 14.29.16.10
-  to 14.50.18.0: VS 2026 (`aka.ms/vs/18/stable`, 18.10.3) carries 14.29 to
-  14.50, VS 2022 the same up to 14.44, VS 2019 (16.11.60) 14.29.16.10 too; a
+- **MSVC**: the 20 toolsets of Visual Studio's stable channels, 14.29.16.10
+  to 14.52: VS 2026 (`aka.ms/vs/18/stable`, 18.10.3) carries 14.29 to 14.52
+  (14.51 by default; its packages have two-part versions, `14.51`), VS 2022
+  the same up to 14.44, VS 2019 (16.11.60) 14.29.16.10 too; a
   toolset comes from the newest channel that has it (each signs its own
   copy). Per architecture (x64, arm64, x86) the `Desktop`, `Store` and, for
   arm64, `Desktop.debug` packages, with the sha256 the vsman lists. The
@@ -32,20 +33,45 @@ makes it and only ever appends (2 min on CI, `sdk-table.yml`):
   2019, `CLTools_SDK_macOS1014.pkg`), 16 SDK versions from 10.14 to 27.0;
   when several packages carry one version, the newest product's comes first.
 
-`vendor-sdk.py` takes the newest version xclang works with unless told
-otherwise (`--version`, `--sdk-version`, `--msvc-version`, whole or in part:
-`26`, `10.0.26100`, `14.44`); `macos list` and `windows list` show the table.
+**Presets** are what GitHub's runner images build with, read from
+actions/runner-images' software lists (its README's labels, each image's
+Visual Studio and Windows SDK, or default Xcode and that Xcode's macOS SDK);
+a Visual Studio's MSVC is the one its `VC.Tools.x86.x64` component installs,
+found in its channel's vsman. Unlike versions, presets follow the images:
+each records the image, its labels and the image version it mirrors.
+
+| preset | labels | versions |
+|---|---|---|
+| windows-2025-vs2026 | `windows-latest`, `windows-2025`, `windows-2025-vs2026` | VS 2026 18.10: MSVC 14.51, SDK 10.0.26100.8249 |
+| windows-11-vs2026-arm64 | `windows-11-vs2026-arm` | the same |
+| windows-2022 | `windows-2022` | VS 2022 17.14: MSVC 14.44, SDK 10.0.26100.7705 |
+| windows-11-arm64 | `windows-11-arm` | the same |
+| macOS-26-arm64, macOS-26 | `macos-latest`, `macos-26`, `macos-26-intel`, ... | Xcode 26.6: SDK 26.5 |
+| macOS-15-arm64, macOS-15 | `macos-15`, `macos-15-intel`, ... | Xcode 16.4: SDK 15.5 |
+| xcode-27 | `xcode-27`, `xcode-27-xlarge` | Xcode 27.0: SDK 27.0 (xclang cannot use it yet) |
+
+`vendor-sdk.py` takes the `windows-latest` and `macos-latest` presets
+unless told otherwise: what a workflow gets without naming an image, so a
+cross build matches the native build most CI users have; both are
+validated, and the newest versions no image has yet (SDK 10.0.28000, MSVC
+14.52) are one flag away. `--preset` names another (an image or any of its
+labels); `--version`, `--sdk-version`, `--msvc-version` (whole or in part:
+`26`, `10.0.26100`, `14.44`) replace a preset's; `macos list` and
+`windows list` show presets and versions.
 
 `sdk-versions.yml` checks all of it:
 
-- all 329 packages download with their size and sha256 and hold what the
+- all 345 packages download with their size and sha256 and hold what the
   tool takes from them;
-- every Windows SDK with MSVC 14.50, and every MSVC with SDK 10.0.28000,
-  builds C and C++ (MSVC STL, /MT and /MD) hello programs for x64 and arm64
-  on Linux, which run on windows-2025 and windows-11-arm: all 38 SDKs and all
-  18 toolsets work;
+- every Windows SDK with the newest MSVC (14.52), and every MSVC with the
+  newest SDK (10.0.28000), builds C and C++ (MSVC STL, /MT and /MD) hello
+  programs for x64 and arm64 on Linux, which run on windows-2025 and
+  windows-11-arm: all 38 SDKs and all 20 toolsets work;
+- each preset (windows-latest, windows-2022; macos-latest, macos-15)
+  builds the hello programs and kotatsu for both architectures, which run
+  and pass;
 - kotatsu, with the newest of each SDK line (10.0.17763 ... 10.0.28000) and
-  MSVC 14.50, and with MSVC 14.44: builds and passes its tests on both. With
+  MSVC 14.52, and with MSVC 14.44: builds and passes its tests on both. With
   MSVC 14.29 (VS 2019) it does not build: its STL has no `<expected>`, which
   kotatsu (C++23) needs and MSVC has from 14.33;
 - every macOS SDK builds C and C++ hello programs for arm64 and x86_64,
