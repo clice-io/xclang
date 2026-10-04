@@ -70,16 +70,26 @@ def expected(check, names):
     return [p for p in want if not has(p)]
 
 
-def check_one(what, p, check, tmp):
-    path = os.path.join(tmp, "package")
+def download(url, path):
     h, size = hashlib.sha256(), 0
-    with urllib.request.urlopen(p["url"], timeout=120) as r, open(path, "wb") as f:
+    with urllib.request.urlopen(url, timeout=120) as r, open(path, "wb") as f:
         while chunk := r.read(1 << 20):
             h.update(chunk)
             f.write(chunk)
             size += len(chunk)
-    if size != p["size"] or h.hexdigest() != p["sha256"]:
-        return f"{size} bytes, sha256 {h.hexdigest()}; the table has {p['size']}, {p['sha256']}"
+    return size, h.hexdigest()
+
+
+def check_one(what, p, check, tmp):
+    path = os.path.join(tmp, "package")
+    # A download now and then comes short: three tries.
+    for attempt in range(3):
+        size, sha256 = download(p["url"], path)
+        if size == p["size"] and sha256 == p["sha256"]:
+            break
+        print(f"  {what}: {size} bytes, sha256 {sha256}", flush=True)
+    else:
+        return f"{size} bytes, sha256 {sha256}; the table has {p['size']}, {p['sha256']}"
     if check is None:
         return None
     if check[0] == "macos":

@@ -7,11 +7,63 @@ the user accepts their licenses. xclang distributes neither.
 `.github/workflows/sdk-fetch.yml` runs it all; nothing of an SDK leaves the
 job that downloaded it.
 
+## Versions
+
+`versions.json` lists every version the vendors offer: where each package
+is, its size and sha256, nothing from inside the packages but the version of
+the macOS SDK a Command Line Tools package carries. `update-versions.py`
+makes it and only ever appends (2 min on CI, `sdk-table.yml`):
+
+- **Windows SDK**: the 38 stable `Microsoft.Windows.SDK.CPP` versions on
+  nuget.org, 10.0.17763.4 to 10.0.28000.2705, each with its `.x64`, `.arm64`
+  and `.x86` package; sha256 computed (nuget.org gives SHA-512 only).
+- **MSVC**: the 18 toolsets of Visual Studio's stable channels, 14.29.16.10
+  to 14.50.18.0: VS 2026 (`aka.ms/vs/18/stable`, 18.10.3) carries 14.29 to
+  14.50, VS 2022 the same up to 14.44, VS 2019 (16.11.60) 14.29.16.10 too; a
+  toolset comes from the newest channel that has it (each signs its own
+  copy). Per architecture (x64, arm64, x86) the `Desktop`, `Store` and, for
+  arm64, `Desktop.debug` packages, with the sha256 the vsman lists. The
+  channel manifests and vsmans are pinned too; the CDN serves each vsman
+  smaller than the size and sha256 its channel manifest lists, whatever the
+  request, so the table pins what it serves (and keeps the listed values),
+  and takes each vsix's size from the CDN, not the vsman.
+- **macOS SDK**: the 29 distinct SDK packages of Apple's catalogs (macOS
+  10.14 to 27 catalogs; `CLTools_macOSNMOS_SDK.pkg`, `..LMOS..` and, from
+  2019, `CLTools_SDK_macOS1014.pkg`), 16 SDK versions from 10.14 to 27.0;
+  when several packages carry one version, the newest product's comes first.
+
+`vendor-sdk.py` takes the newest version xclang works with unless told
+otherwise (`--version`, `--sdk-version`, `--msvc-version`, whole or in part:
+`26`, `10.0.26100`, `14.44`); `macos list` and `windows list` show the table.
+
+`sdk-versions.yml` checks all of it:
+
+- all 329 packages download with their size and sha256 and hold what the
+  tool takes from them;
+- every Windows SDK with MSVC 14.50, and every MSVC with SDK 10.0.28000,
+  builds C and C++ (MSVC STL, /MT and /MD) hello programs for x64 and arm64
+  on Linux, which run on windows-2025 and windows-11-arm: all 38 SDKs and all
+  18 toolsets work;
+- kotatsu, with the newest of each SDK line (10.0.17763 ... 10.0.28000) and
+  MSVC 14.50, and with MSVC 14.44: builds and passes its tests on both. With
+  MSVC 14.29 (VS 2019) it does not build: its STL has no `<expected>`, which
+  kotatsu (C++23) needs and MSVC has from 14.33;
+- every macOS SDK builds C and C++ hello programs for arm64 and x86_64,
+  which run on macos-15 and macos-15-intel, and kotatsu with the newest of
+  each major: 11.1 to 26.5 work for both (kotatsu: 11.3 ... 26.5). 10.15.6
+  has no arm64 (it predates Apple silicon): x86_64 only, kotatsu included.
+  10.14 builds C only: xclang's libc++ calls `aligned_alloc`, which 10.14's
+  `libSystem` does not have (macOS 10.15 does). 27.0 fails (`arm64e.x1`).
+
+Oldest that works with xclang 23.1.2.5: Windows SDK 10.0.17763.4 (the
+oldest on nuget.org), MSVC 14.29.16.10 (the oldest offered), macOS SDK 11.1
+(10.15.6 for x86_64).
+
 ## macOS
 
 ```sh
-python3 sdk/vendor-sdk.py macos catalog     # SDK packages in Apple's catalog
-python3 sdk/vendor-sdk.py macos fetch --accept-license --version 26.5 --out MacOSX.sdk
+python3 sdk/vendor-sdk.py macos list        # the versions of versions.json
+python3 sdk/vendor-sdk.py macos fetch --accept-license [--version 26.5] --out MacOSX.sdk
 clang++ --target=arm64-apple-macos -isysroot MacOSX.sdk main.cpp -o main
 ```
 
@@ -43,13 +95,15 @@ clang++ --target=arm64-apple-macos -isysroot MacOSX.sdk main.cpp -o main
 ## Windows, MSVC ABI
 
 ```sh
-python3 sdk/vendor-sdk.py windows list      # what Microsoft offers now
-python3 sdk/vendor-sdk.py windows fetch --accept-license [--arch x86_64,aarch64] --out winsysroot
+python3 sdk/vendor-sdk.py windows list      # the versions of versions.json
+python3 sdk/vendor-sdk.py windows fetch --accept-license [--sdk-version 10.0.26100] [--msvc-version 14.44] \
+  [--arch x86_64,aarch64,x86] --out winsysroot
 clang-cl --target=x86_64-pc-windows-msvc /winsysroot winsysroot -fuse-ld=lld /EHsc -- main.cpp
 clang++ --target=x86_64-pc-windows-msvc -Xmicrosoft-windows-sys-root winsysroot -fuse-ld=lld main.cpp
 ```
 
-- **Source**, all plain zips, pinned by URL and sha256:
+- **Source**, all plain zips (what the first probe pinned; versions.json
+  now lists every version):
   - MSVC 14.44.17.14 (toolset 14.44.35207), from Visual Studio 17.14.41's
     channel manifest (`aka.ms/vs/17/release/channel` → `VisualStudio.vsman`,
     which lists each package's sha256): the `.vsix` packages

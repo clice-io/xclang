@@ -386,10 +386,13 @@ def fetch_pinned(url, sha256, size, path):
     if os.path.exists(path) and sha256_file(path) == sha256:
         return path
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-    got = download(url, path, size)
-    if got != sha256:
-        raise SystemExit(f"{url}: sha256 {got}, expected {sha256}")
-    return path
+    # A download now and then comes damaged: three tries.
+    for attempt in range(3):
+        got = download(url, path, size)
+        if got == sha256:
+            return path
+        log(f"{url}: sha256 {got}, expected {sha256}")
+    raise SystemExit(f"{url}: not the sha256 the table pins")
 
 
 def windows_member(name, member, version):
