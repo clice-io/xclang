@@ -3,14 +3,14 @@ name: cmake
 # The CMake package (cmake-package/) on a machine of every host, with the
 # oldest CMake and Ninja it supports and the newest: tests/cmake.ts builds
 # tests/cmake by PATH, for every other target through the toolchain file,
-# and from nothing installed through FetchContent.
+# and from nothing installed, xclang.cmake downloading the toolchain.
 #
 #   by hand         with the archives of a published release (the latest
-#                   by default), the package of this checkout
+#                   by default) and the package of this checkout
 #   main.yml        with a run's archives (dist-run), before they are
 #                   released
-#   a published     with its archives and its xclang-cmake-<version>.tar.gz
-#   release
+#   a published     as its users have it: its tag fetched from GitHub, its
+#   release         archives from the release
 
 on:
   release:
@@ -94,10 +94,6 @@ jobs:
           gh release download "$tag" -R "$GITHUB_REPOSITORY" -D "$RUNNER_TEMP/dist" -p SHA256SUMS \
             -p "xclang-*-${{ matrix.host }}.tar.xz" -p "libclang-*-${{ matrix.host }}.tar.xz"
           echo "URL=https://github.com/$GITHUB_REPOSITORY/releases/download/$tag" >> "$GITHUB_ENV"
-          # A published release's own FetchContent archive, from its tag on.
-          if [[ "$GITHUB_EVENT_NAME" == release ]] && grep -q " xclang-cmake-$tag.tar.gz" "$RUNNER_TEMP/dist/SHA256SUMS"; then
-            echo "ASSET=https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/xclang-cmake-$tag.tar.gz" >> "$GITHUB_ENV"
-          fi
       # Windows' own tar (bsdtar), as test.yml unpacks them.
       - name: Unpack
         run: |
@@ -107,4 +103,4 @@ jobs:
       - name: Test
         run: |
           node tests/cmake.ts --tree "$RUNNER_TEMP/unpacked/xclang" --libclang "$RUNNER_TEMP/unpacked/libclang" \
-            --sums "$RUNNER_TEMP/dist/SHA256SUMS" --url "$URL" ${ASSET:+--asset "$ASSET"}
+            --sums "$RUNNER_TEMP/dist/SHA256SUMS" --url "$URL" $([[ "$GITHUB_EVENT_NAME" == release ]] && echo --git)

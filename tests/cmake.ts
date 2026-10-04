@@ -3,7 +3,7 @@
 /// and ninja in PATH.
 ///
 ///   node tests/cmake.ts --tree <xclang> --sums <SHA256SUMS>
-///     [--libclang <libclang>] [--url <archives>] [--asset <url>]
+///     [--libclang <libclang>] [--url <archives> [--git] [--cache <dir>]]
 ///
 /// 1. xclang's bin/ in PATH, as pixi has it, and CMAKE_CXX_COMPILER=clang++:
 ///    find_package(xclang) by PATH. With --libclang, tests/libclang too,
@@ -11,9 +11,11 @@
 /// 2. Every other target this host builds for, through the toolchain file
 ///    and XCLANG_TARGET; run where this machine runs them (x86_64 macOS on
 ///    arm64, through Rosetta).
-/// 3. With --url, nothing installed: FetchContent of xclang-cmake-<version>
-///    (--asset, or made here from --sums by scripts/cmake.ts), whose
-///    xclang.cmake downloads the host's toolchain from --url.
+/// 3. With --url, nothing installed: FetchContent of xclang's tag (this
+///    checkout in its place, through FETCHCONTENT_SOURCE_DIR_XCLANG; the
+///    tag on GitHub with --git), whose xclang.cmake downloads SHA256SUMS
+///    and the host's toolchain from --url (a directory or a URL) into
+///    --cache (the user's cache by default).
 ///
 /// A tree whose lib/cmake/xclang is not the checkout's (releases before the
 /// package, or before a change of it) gets the checkout's.
@@ -32,11 +34,12 @@ const { values } = parseArgs({
     sums: { type: "string" },
     libclang: { type: "string" },
     url: { type: "string" },
-    asset: { type: "string" },
+    git: { type: "boolean", default: false },
+    cache: { type: "string" },
   },
 });
 if (!values.tree || !values.sums) {
-  common.fail("--tree <xclang> --sums <SHA256SUMS> [--libclang <libclang>] [--url <archives>] [--asset <url>]");
+  common.fail("--tree <xclang> --sums <SHA256SUMS> [--libclang <libclang>] [--url <archives> [--git] [--cache <dir>]]");
 }
 const tree = path.resolve(values.tree);
 const sums = path.resolve(values.sums);
@@ -107,17 +110,12 @@ for (const t of common.TARGETS.filter((t) => t !== native && (t.os !== "darwin" 
 /// 3. Nothing installed: the toolchain downloaded by xclang.cmake.
 if (values.url) {
   const url = fs.existsSync(values.url) ? pathToFileURL(path.resolve(values.url)).href : values.url;
-  let asset = values.asset;
-  let assetSha = digests.get(`xclang-cmake-${version}.tar.gz`);
-  if (!asset) {
-    const made = common.capture(process.execPath, [path.join(common.ROOT, "scripts", "cmake.ts"), "archive", sums, work]);
-    assetSha = /^sha256 ([0-9a-f]{64})$/m.exec(made)?.[1];
-    /// A path: ExternalProject takes a file:// URL's path as it is, which
-    /// on Windows is no path.
-    asset = path.join(work, `xclang-cmake-${version}.tar.gz`);
-  }
-  if (!assetSha) common.fail(`no digest of xclang-cmake-${version}.tar.gz in ${sums}`);
-  build("fetch", [`-DXCLANG_TEST_FETCH=${asset}`, `-DXCLANG_TEST_FETCH_SHA256=${assetSha}`, `-DXCLANG_URL=${url}`]);
+  build("fetch", [
+    `-DXCLANG_TEST_FETCH=${version}`,
+    ...(values.git ? [] : [`-DFETCHCONTENT_SOURCE_DIR_XCLANG=${common.ROOT}`]),
+    `-DXCLANG_URL=${url}`,
+    ...(values.cache ? [`-DXCLANG_CACHE_DIR=${path.resolve(values.cache)}`] : []),
+  ]);
 }
 
 if (failures.length) common.fail(`${failures.length} builds failed:\n  ${failures.join("\n  ")}`);

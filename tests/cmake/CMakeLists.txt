@@ -2,18 +2,22 @@
 # compilers, find_package(xclang) and import std, for the host or another
 # target (XCLANG_TARGET).
 #
-#   XCLANG_TEST_FETCH     the URL of xclang-cmake-<version>.tar.gz: nothing
-#                         installed, the toolchain downloaded by xclang.cmake
-#   XCLANG_TEST_FETCH_SHA256  its digest
+#   XCLANG_TEST_FETCH     a release: nothing installed, xclang's source of
+#                         its tag fetched (FETCHCONTENT_SOURCE_DIR_XCLANG
+#                         stands in for it), and its toolchain downloaded
+#                         by xclang.cmake
 #   XCLANG_TEST_LIBCLANG  with libclang's CMake packages in CMAKE_PREFIX_PATH:
 #                         tests/libclang, a tool on find_package(Clang), too
 cmake_minimum_required(VERSION 3.28)
 
 if(XCLANG_TEST_FETCH)
+    set(XCLANG_VERSION ${XCLANG_TEST_FETCH})
     include(FetchContent)
-    FetchContent_Declare(xclang URL "${XCLANG_TEST_FETCH}" URL_HASH SHA256=${XCLANG_TEST_FETCH_SHA256})
+    FetchContent_Declare(xclang
+        GIT_REPOSITORY https://github.com/clice-io/xclang
+        GIT_TAG ${XCLANG_VERSION})
     FetchContent_MakeAvailable(xclang)
-    include(${xclang_SOURCE_DIR}/xclang.cmake)
+    include(${xclang_SOURCE_DIR}/cmake-package/xclang.cmake)
 endif()
 
 project(xclang_tests LANGUAGES C CXX)

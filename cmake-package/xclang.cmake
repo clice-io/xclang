@@ -1,24 +1,26 @@
 # Before project(): xclang as the build's toolchain, the host's archive of
-# the release this file comes with (xclang-cmake-<version>.tar.gz),
-# downloaded once and checked against the release's SHA256SUMS next to
-# this file.
+# a release, downloaded once into a cache shared by every build tree and
+# checked against the digest the release's SHA256SUMS gives it.
 #
+#   set(XCLANG_VERSION <version>)
 #   include(FetchContent)
 #   FetchContent_Declare(xclang
-#       URL https://github.com/clice-io/xclang/releases/download/<version>/xclang-cmake-<version>.tar.gz
-#       URL_HASH SHA256=<its line in the release's SHA256SUMS>)
+#       GIT_REPOSITORY https://github.com/clice-io/xclang
+#       GIT_TAG ${XCLANG_VERSION})
 #   FetchContent_MakeAvailable(xclang)
-#   include(${xclang_SOURCE_DIR}/xclang.cmake)
+#   include(${xclang_SOURCE_DIR}/cmake-package/xclang.cmake)
 #   project(...)
 #
+#   XCLANG_VERSION    the release whose toolchain to download, e.g. 23.1.2.6;
+#                     by default the one tagging this checkout
 #   XCLANG_TARGET     another target to build for (toolchain.cmake)
-#   XCLANG_ROOT       an unpacked xclang to use instead of downloading
-#   XCLANG_CACHE_DIR  where archives are unpacked, a directory per release
-#                     and host; <build>/_deps by default, a directory of
-#                     its own shares them between build trees
-#   XCLANG_URL        where the archives are downloaded from: the release by
-#                     default; a mirror serves the same bytes, as their
-#                     digests are checked
+#   XCLANG_ROOT       an unpacked xclang to use instead of downloading one
+#   XCLANG_CACHE_DIR  where toolchains are unpacked, <version>/<host> each;
+#                     by default the user's cache, ~/.cache/xclang
+#                     ($XDG_CACHE_HOME/xclang), ~/Library/Caches/xclang on
+#                     macOS, %LOCALAPPDATA%/xclang on Windows
+#   XCLANG_URL        where the release's SHA256SUMS and archives are; a
+#                     mirror's digests are the mirror's
 
 include_guard(GLOBAL)
 if(CMAKE_VERSION VERSION_LESS 3.28)
@@ -38,17 +40,27 @@ function(_xclang_toolchain)
         return()
     endif()
 
-    set(toolchain "${CMAKE_CURRENT_LIST_DIR}/toolchain.cmake")
-    if(CMAKE_TOOLCHAIN_FILE)
-        file(REAL_PATH "${CMAKE_TOOLCHAIN_FILE}" given)
-        file(REAL_PATH "${toolchain}" ours)
-        if(NOT given STREQUAL ours)
-            message(FATAL_ERROR "xclang: the build has a toolchain file already, ${CMAKE_TOOLCHAIN_FILE}")
-        endif()
-    endif()
-    set(CMAKE_TOOLCHAIN_FILE "${toolchain}" PARENT_SCOPE)
-
     if(NOT XCLANG_ROOT)
+        set(version "${XCLANG_VERSION}")
+        if(NOT version)
+            # The release tagging this checkout, if one does: a rebuild of
+            # the same commit is another release.
+            find_package(Git QUIET)
+            if(GIT_FOUND)
+                execute_process(
+                    COMMAND "${GIT_EXECUTABLE}" tag --points-at HEAD
+                    WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+                    OUTPUT_VARIABLE tags OUTPUT_STRIP_TRAILING_WHITESPACE
+                    ERROR_QUIET)
+                string(REGEX MATCHALL "[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+" version "${tags}")
+            endif()
+            list(LENGTH version releases)
+            if(NOT releases EQUAL 1)
+                message(FATAL_ERROR "xclang: ${CMAKE_CURRENT_LIST_DIR} is tagged by ${releases} releases; "
+                    "set XCLANG_VERSION to the one to download")
+            endif()
+        endif()
+
         cmake_host_system_information(RESULT arch QUERY OS_PLATFORM)
         if(arch MATCHES "^(arm64|aarch64|ARM64)$")
             set(arch aarch64)
@@ -63,45 +75,79 @@ function(_xclang_toolchain)
             set(host "${arch}-unknown-linux-gnu")
         endif()
 
-        file(STRINGS "${CMAKE_CURRENT_LIST_DIR}/SHA256SUMS" sums REGEX " [ *]?xclang-.*-${host}\\.tar\\.xz$")
-        if(NOT sums MATCHES "^([0-9a-f]+) [ *]?(xclang-(.*)-${host})\\.tar\\.xz$")
-            message(FATAL_ERROR "xclang: no toolchain for ${host} in ${CMAKE_CURRENT_LIST_DIR}/SHA256SUMS")
+        set(cache "${XCLANG_CACHE_DIR}")
+        if(NOT cache)
+            set(cache "$ENV{XCLANG_CACHE_DIR}")
         endif()
-        set(sha256 "${CMAKE_MATCH_1}")
-        set(name "${CMAKE_MATCH_2}")
-        set(version "${CMAKE_MATCH_3}")
-
-        if(NOT XCLANG_CACHE_DIR)
-            set(XCLANG_CACHE_DIR "${CMAKE_BINARY_DIR}/_deps")
-        endif()
-        if(NOT XCLANG_URL)
-            set(XCLANG_URL "https://github.com/clice-io/xclang/releases/download/${version}")
-        endif()
-        set(root "${XCLANG_CACHE_DIR}/${name}")
-        if(NOT EXISTS "${root}/bin")
-            string(RANDOM LENGTH 8 tag)
-            set(archive "${XCLANG_CACHE_DIR}/${name}.tar.xz.${tag}")
-            message(STATUS "xclang: downloading ${XCLANG_URL}/${name}.tar.xz")
-            file(DOWNLOAD "${XCLANG_URL}/${name}.tar.xz" "${archive}"
-                EXPECTED_HASH SHA256=${sha256} STATUS status)
-            list(GET status 0 code)
-            if(NOT code EQUAL 0)
-                file(REMOVE "${archive}")
-                message(FATAL_ERROR "xclang: downloading ${XCLANG_URL}/${name}.tar.xz failed: ${status}")
+        if(NOT cache)
+            if(CMAKE_HOST_WIN32)
+                set(cache "$ENV{LOCALAPPDATA}/xclang")
+            elseif(DEFINED ENV{XDG_CACHE_HOME})
+                set(cache "$ENV{XDG_CACHE_HOME}/xclang")
+            elseif(CMAKE_HOST_APPLE)
+                set(cache "$ENV{HOME}/Library/Caches/xclang")
+            else()
+                set(cache "$ENV{HOME}/.cache/xclang")
             endif()
-            # Unpacked aside and moved in place: an interrupted run leaves no
-            # half tree where the next one looks.
-            set(stage "${XCLANG_CACHE_DIR}/${name}.${tag}")
-            file(ARCHIVE_EXTRACT INPUT "${archive}" DESTINATION "${stage}")
-            file(REMOVE "${archive}")
+        endif()
+        file(TO_CMAKE_PATH "${cache}" cache)
+        set(root "${cache}/${version}/${host}")
+
+        if(NOT EXISTS "${root}/bin")
+            set(url "${XCLANG_URL}")
+            if(NOT url)
+                set(url "https://github.com/clice-io/xclang/releases/download/${version}")
+            endif()
+            set(name "xclang-${version}-${host}.tar.xz")
+            # Downloaded and unpacked aside, then moved in place: an
+            # interrupted or concurrent configure leaves no half tree where
+            # another one looks.
+            string(RANDOM LENGTH 8 tag)
+            set(stage "${cache}/${version}/.${host}.${tag}")
+            file(MAKE_DIRECTORY "${stage}")
+            foreach(file SHA256SUMS ${name})
+                if(file STREQUAL name)
+                    message(STATUS "xclang: downloading ${url}/${name}")
+                endif()
+                file(DOWNLOAD "${url}/${file}" "${stage}/${file}" STATUS status)
+                list(GET status 0 code)
+                if(NOT code EQUAL 0)
+                    file(REMOVE_RECURSE "${stage}")
+                    message(FATAL_ERROR "xclang: downloading ${url}/${file} failed: ${status}")
+                endif()
+            endforeach()
+            file(STRINGS "${stage}/SHA256SUMS" sums REGEX " [ *]?${name}$")
+            file(SHA256 "${stage}/${name}" digest)
+            if(NOT sums MATCHES "^${digest} ")
+                file(REMOVE_RECURSE "${stage}")
+                message(FATAL_ERROR "xclang: ${name} has the sha256 ${digest}, "
+                    "not the one ${url}/SHA256SUMS gives it: ${sums}")
+            endif()
+            file(ARCHIVE_EXTRACT INPUT "${stage}/${name}" DESTINATION "${stage}")
             file(RENAME "${stage}/xclang" "${root}" RESULT moved)
             file(REMOVE_RECURSE "${stage}")
-            if(NOT moved EQUAL 0 AND NOT EXISTS "${root}/bin")
-                message(FATAL_ERROR "xclang: unpacking ${name}.tar.xz into ${root} failed: ${moved}")
+            if(NOT EXISTS "${root}/bin")
+                message(FATAL_ERROR "xclang: unpacking ${name} into ${root} failed: ${moved}")
             endif()
         endif()
+        set(XCLANG_ROOT "${root}")
         set(XCLANG_ROOT "${root}" PARENT_SCOPE)
     endif()
+
+    # The toolchain file of the tree, or this checkout's for a release
+    # without one (before 23.1.2.6).
+    set(toolchain "${XCLANG_ROOT}/lib/cmake/xclang/toolchain.cmake")
+    if(NOT EXISTS "${toolchain}")
+        set(toolchain "${CMAKE_CURRENT_LIST_DIR}/toolchain.cmake")
+    endif()
+    if(CMAKE_TOOLCHAIN_FILE)
+        file(REAL_PATH "${CMAKE_TOOLCHAIN_FILE}" given)
+        file(REAL_PATH "${toolchain}" ours)
+        if(NOT given STREQUAL ours)
+            message(FATAL_ERROR "xclang: the build has a toolchain file already, ${CMAKE_TOOLCHAIN_FILE}")
+        endif()
+    endif()
+    set(CMAKE_TOOLCHAIN_FILE "${toolchain}" PARENT_SCOPE)
 endfunction()
 
 _xclang_toolchain()
