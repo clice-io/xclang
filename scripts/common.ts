@@ -349,6 +349,27 @@ export function writeConfigs(tree: string): void {
   }
 }
 
+/// xclang's CMake package for its users (cmake-package/) in dest:
+/// find_package(xclang) and the toolchain file, as a toolchain tree's
+/// lib/cmake/xclang holds them, and with `release` (the release's
+/// SHA256SUMS) also xclang.cmake and that file, the release asset that
+/// downloads the toolchain.
+export function writeCMakePackage(dest: string, version: string, release?: string): void {
+  const source = path.join(ROOT, "cmake-package");
+  fs.rmSync(dest, { recursive: true, force: true });
+  fs.mkdirSync(dest, { recursive: true });
+  for (const file of ["xclang-config.cmake", "toolchain.cmake", ...(release ? ["xclang.cmake"] : [])]) {
+    fs.copyFileSync(path.join(source, file), path.join(dest, file));
+  }
+  const template = fs.readFileSync(path.join(source, "xclang-config-version.cmake.in"), "utf8");
+  fs.writeFileSync(path.join(dest, "xclang-config-version.cmake"),
+    template.replaceAll("@VERSION@", version).replaceAll("@MAJOR@", version.split(".")[0]!));
+  if (release) {
+    fs.copyFileSync(release, path.join(dest, "SHA256SUMS"));
+    fs.copyFileSync(path.join(ROOT, "LICENSE"), path.join(dest, "LICENSE"));
+  }
+}
+
 /// CMake arguments that build for `t` with the toolchain tree at `tree`.
 export function cmakeToolchainArgs(tree: string, t: Target): string[] {
   return [

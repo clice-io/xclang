@@ -1,7 +1,8 @@
 /// Put one host's release archives together in work/dist, as .tar.xz:
 ///
 ///   xclang-<version>-<host>      the toolchain of work/out/toolchain-<host>,
-///                                with every target of work/out/runtimes-*
+///                                with every target of work/out/runtimes-*,
+///                                and the CMake package in lib/cmake/xclang
 ///   libclang-<version>-<host>    work/out/libclang-<host>
 ///   libclang-<version>-<host>-asan  work/out/libclang-<host>-asan, if built
 ///   llvm-option-inc-<version>    Linux x64 only: clang's, lld's, llvm-lib's
@@ -43,6 +44,8 @@ const toolchain = path.join(out, `toolchain-${host.triple}`);
 if (!fs.existsSync(path.join(toolchain, "bin"))) common.fail(`missing ${toolchain}`);
 const tree = common.makeTree(path.join(common.WORK, "package", host.triple, "xclang"), toolchain, runtimes);
 fs.copyFileSync(path.join(common.ROOT, "LICENSE"), path.join(tree, "LICENSE"));
+/// find_package(xclang) and the toolchain file (cmake-package/).
+common.writeCMakePackage(path.join(tree, "lib", "cmake", "xclang"), version);
 /// windres, the name CMake looks for to compile a MinGW project's .rc
 /// files (Modules/Platform/Windows-GNU.cmake), is llvm-windres: on Windows
 /// a copy of its launcher, which passes on the name it runs under.
