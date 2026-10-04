@@ -1,11 +1,12 @@
 name: sdk-versions
 
 # Every version of sdk/versions.json, checked: each package downloads with
-# its sha256 and unpacks as expected; every Windows SDK (with the default
-# MSVC) and every MSVC (with the default Windows SDK) builds the hello
-# programs for x64 and arm64, every macOS SDK for arm64 and x86_64, kotatsu
-# with the newest of each line; they run on Windows and macOS. Only the
-# programs built here travel between jobs.
+# its sha256 and unpacks as expected; every Windows SDK (with the newest
+# MSVC) and every MSVC (with the newest Windows SDK) builds the hello
+# programs for x64 and arm64, every macOS SDK for arm64 and x86_64; kotatsu
+# with the newest of each line, and hello and kotatsu with each preset (a
+# runner image's versions); they run on Windows and macOS. Only the programs
+# built here travel between jobs.
 
 on:
   push:
@@ -29,6 +30,10 @@ jobs:
       win-kotatsu: ${{ steps.plan.outputs.win-kotatsu }}
       macos: ${{ steps.plan.outputs.macos }}
       mac-kotatsu: ${{ steps.plan.outputs.mac-kotatsu }}
+      win-presets: ${{ steps.plan.outputs.win-presets }}
+      mac-presets: ${{ steps.plan.outputs.mac-presets }}
+      sdk-newest: ${{ steps.plan.outputs.sdk-newest }}
+      msvc-newest: ${{ steps.plan.outputs.msvc-newest }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -47,19 +52,34 @@ jobs:
               return list(out.values())
           winsdk, msvc = sorted(w["sdk"], key=key), sorted(w["msvc"], key=key)
           macos = sorted(v.macos_versions(t), key=key)
-          sdk0 = v.pick(w["sdk"], None, v.windows_sdk_broken, "")
-          msvc0 = v.pick(w["msvc"], None, v.msvc_broken, "")
-          # The newest of each SDK line (10.0.26100), and of each Visual
-          # Studio's MSVC (the third number of 14.44.17.14).
-          combos = [(s, msvc0) for s in newest(winsdk, lambda x: x.rsplit(".", 1)[0])]
-          combos += [(sdk0, m) for m in newest(msvc, lambda x: x.split(".")[2]) if (sdk0, m) not in combos]
+          sdk_newest = v.pick(w["sdk"], None, v.windows_sdk_broken, "")
+          msvc_newest = v.pick(w["msvc"], None, v.msvc_broken, "")
+          # The newest of each SDK line (10.0.26100), with the newest MSVC;
+          # the newest MSVC of each Visual Studio (2019: 14.29, 2022: to
+          # 14.44, 2026: 14.5x), with the newest SDK.
+          vs = lambda x: 2019 if key(x)[1] <= 29 else 2022 if key(x)[1] <= 44 else 2026
+          combos = [(s, msvc_newest) for s in newest(winsdk, lambda x: x.rsplit(".", 1)[0])]
+          combos += [(sdk_newest, m) for m in newest(msvc, vs) if (sdk_newest, m) not in combos]
           win_kotatsu = [{"sdk": s, "msvc": m, "arch": a} for s, m in combos for a in ("x86_64", "aarch64")]
           majors = newest(macos, lambda x: ".".join(x.split(".")[:2]) if x.startswith("10.") else x.split(".")[0])
           mac_kotatsu = [{"sdk": s, "arch": a} for s in majors for a in ("arm64", "x86_64")]
+          # One of the presets that point to the same versions.
+          seen, win_presets, mac_presets = set(), [], []
+          for k, p in t["presets"].items():
+              what = (p.get("msvc"), p["sdk"])
+              if what in seen:
+                  continue
+              seen.add(what)
+              if "msvc" in p:
+                  win_presets += [{"preset": k, "arch": a} for a in ("x86_64", "aarch64")]
+              else:
+                  mac_presets += [{"preset": k, "arch": a} for a in ("arm64", "x86_64")]
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-              for name, value in [("winsdk", winsdk), ("msvc", msvc), ("win-kotatsu", win_kotatsu), ("macos", macos), ("mac-kotatsu", mac_kotatsu)]:
-                  f.write(f"{name}={json.dumps(value)}\n")
-                  print(name, len(value), json.dumps(value))
+              for name, value in [("winsdk", winsdk), ("msvc", msvc), ("win-kotatsu", win_kotatsu), ("macos", macos),
+                                  ("mac-kotatsu", mac_kotatsu), ("win-presets", win_presets), ("mac-presets", mac_presets),
+                                  ("sdk-newest", sdk_newest), ("msvc-newest", msvc_newest)]:
+                  f.write(f"{name}={json.dumps(value) if isinstance(value, list) else value}\n")
+                  print(name, value)
 
   check:
     name: check packages ${{ matrix.shard }}/12
@@ -101,7 +121,7 @@ jobs:
       - name: xclang, the CRT and the Windows SDK
         run: |
           echo "X=$(sdk/get-xclang.sh "$XCLANG" x86_64-unknown-linux-gnu "$RUNNER_TEMP")" >> "$GITHUB_ENV"
-          python sdk/vendor-sdk.py windows fetch --accept-license --sdk-version ${{ matrix.version }} --cache "$RUNNER_TEMP/cache" --out "$RUNNER_TEMP/w" \
+          python sdk/vendor-sdk.py windows fetch --accept-license --sdk-version ${{ matrix.version }} --msvc-version ${{ needs.plan.outputs.msvc-newest }} --cache "$RUNNER_TEMP/cache" --out "$RUNNER_TEMP/w" \
             || { mkdir -p out; echo "FAIL fetch" > out/build.txt; exit 1; }
       - name: Build
         run: sdk/hello.sh msvc "$X" "$RUNNER_TEMP/w" out
@@ -132,7 +152,7 @@ jobs:
       - name: xclang, the CRT and the Windows SDK
         run: |
           echo "X=$(sdk/get-xclang.sh "$XCLANG" x86_64-unknown-linux-gnu "$RUNNER_TEMP")" >> "$GITHUB_ENV"
-          python sdk/vendor-sdk.py windows fetch --accept-license --msvc-version ${{ matrix.version }} --cache "$RUNNER_TEMP/cache" --out "$RUNNER_TEMP/w" \
+          python sdk/vendor-sdk.py windows fetch --accept-license --msvc-version ${{ matrix.version }} --sdk-version ${{ needs.plan.outputs.sdk-newest }} --cache "$RUNNER_TEMP/cache" --out "$RUNNER_TEMP/w" \
             || { mkdir -p out; echo "FAIL fetch" > out/build.txt; exit 1; }
       - name: Build
         run: sdk/hello.sh msvc "$X" "$RUNNER_TEMP/w" out
@@ -184,9 +204,51 @@ jobs:
           name: win-kotatsu-${{ matrix.sdk }}-${{ matrix.msvc }}-${{ matrix.arch }}
           path: out
 
+  win-preset:
+    name: preset ${{ matrix.preset }}, ${{ matrix.arch }}
+    needs: plan
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.win-presets) }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: python -m pip install cmake ninja
+      - name: xclang, the preset's CRT and Windows SDK, kotatsu
+        run: |
+          echo "X=$(sdk/get-xclang.sh "$XCLANG" x86_64-unknown-linux-gnu "$RUNNER_TEMP")" >> "$GITHUB_ENV"
+          python sdk/vendor-sdk.py windows fetch --accept-license --preset ${{ matrix.preset }} --cache "$RUNNER_TEMP/cache" --out "$RUNNER_TEMP/w"
+          git clone -q --filter=blob:none https://github.com/clice-io/kotatsu "$RUNNER_TEMP/kotatsu"
+          git -C "$RUNNER_TEMP/kotatsu" checkout -q "$KOTATSU"
+      - name: Build
+        run: |
+          sdk/hello.sh msvc "$X" "$RUNNER_TEMP/w" out || fail=1
+          # NOMINMAX: kotatsu's tests include <winsock2.h> without it.
+          CXXFLAGS=-DNOMINMAX cmake -S "$RUNNER_TEMP/kotatsu" -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_TOOLCHAIN_FILE="$PWD/sdk/msvc.cmake" -DXCLANG_ROOT="$X" \
+            -DWINSYSROOT="$RUNNER_TEMP/w" -DWINDOWS_ARCH=${{ matrix.arch }} -DKOTA_ENABLE_TEST=ON \
+            && cmake --build build --target unit_tests system_tests \
+            && cp build/unit_tests.exe build/system_tests.exe out/${{ matrix.arch }}/ \
+            && echo "PASS kotatsu" >> out/build.txt || { echo "FAIL kotatsu" >> out/build.txt; fail=1; }
+          exit ${fail:-0}
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: win-preset-${{ matrix.preset }}-${{ matrix.arch }}
+          path: out
+
   win-run:
     name: run on ${{ matrix.runner }}
-    needs: [winsdk, msvc, win-kotatsu]
+    needs: [winsdk, msvc, win-kotatsu, win-preset]
     if: ${{ !cancelled() }}
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -288,9 +350,52 @@ jobs:
           name: mac-kotatsu-${{ matrix.sdk }}-${{ matrix.arch }}
           path: out
 
+  mac-preset:
+    name: preset ${{ matrix.preset }}, ${{ matrix.arch }}
+    needs: plan
+    runs-on: ubuntu-24.04
+    # xcode-27's SDK: ld64.lld 23.1.2 cannot read its .tbd files (arm64e.x1).
+    continue-on-error: ${{ startsWith(matrix.preset, 'xcode-27') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.mac-presets) }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: python -m pip install cmake ninja
+      - name: xclang, the preset's SDK, kotatsu
+        run: |
+          echo "X=$(sdk/get-xclang.sh "$XCLANG" x86_64-unknown-linux-gnu "$RUNNER_TEMP")" >> "$GITHUB_ENV"
+          python sdk/vendor-sdk.py macos fetch --accept-license --preset ${{ matrix.preset }} --cache "$RUNNER_TEMP" --out "$RUNNER_TEMP/MacOSX.sdk"
+          git clone -q --filter=blob:none https://github.com/clice-io/kotatsu "$RUNNER_TEMP/kotatsu"
+          git -C "$RUNNER_TEMP/kotatsu" checkout -q "$KOTATSU"
+      - name: Build
+        run: |
+          sdk/hello.sh macos "$X" "$RUNNER_TEMP/MacOSX.sdk" out || fail=1
+          cmake -S "$RUNNER_TEMP/kotatsu" -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_TOOLCHAIN_FILE="$PWD/sdk/darwin.cmake" -DXCLANG_ROOT="$X" \
+            -DMACOS_SDK="$RUNNER_TEMP/MacOSX.sdk" -DMACOS_ARCH=${{ matrix.arch }} -DKOTA_ENABLE_TEST=ON \
+            && cmake --build build --target unit_tests system_tests \
+            && cp build/unit_tests build/system_tests out/${{ matrix.arch }}/ \
+            && echo "PASS kotatsu" >> out/build.txt || { echo "FAIL kotatsu" >> out/build.txt; fail=1; }
+          exit ${fail:-0}
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: mac-preset-${{ matrix.preset }}-${{ matrix.arch }}
+          path: out
+
   mac-run:
     name: run on ${{ matrix.runner }}
-    needs: [macos, mac-kotatsu]
+    needs: [macos, mac-kotatsu, mac-preset]
     if: ${{ !cancelled() }}
     runs-on: ${{ matrix.runner }}
     strategy:

@@ -914,6 +914,104 @@
       "sha256": "60b5243ee5d040374132714ca5d254ccc39d5aaad70d3d3cd2bbdbc1a1892e40"
      }
     }
+   },
+   "14.51": {
+    "manifest": "VisualStudio.18.Release 18.10.3",
+    "headers": {
+     "url": "https://download.visualstudio.microsoft.com/download/pr/a62262cf-b9f6-4770-9454-7372ad8fcec0/e6d9cc5f0750cbc40a6b2468991c57ed0044fa2e242295a6d51bc02d72502b05/Microsoft.VC.14.51.CRT.Headers.base.vsix",
+     "size": 2067137,
+     "sha256": "e6d9cc5f0750cbc40a6b2468991c57ed0044fa2e242295a6d51bc02d72502b05"
+    },
+    "x86_64": {
+     "desktop": {
+      "url": "https://download.visualstudio.microsoft.com/download/pr/16ac3a9f-21a9-4b80-a1cb-097bd79ea455/b86f502f4092c11af0c99de3e1b535da17d0116af07e8b18dfec58e0b514485c/Microsoft.VC.14.51.CRT.x64.Desktop.base.vsix",
+      "size": 65954407,
+      "sha256": "b86f502f4092c11af0c99de3e1b535da17d0116af07e8b18dfec58e0b514485c"
+     },
+     "store": {
+      "url": "https://download.visualstudio.microsoft.com/download/pr/16ac3a9f-21a9-4b80-a1cb-097bd79ea455/1f641df0650a8657f6dc4a9fd030bc11c502a3a735a64a39735b9106c353058a/Microsoft.VC.14.51.CRT.x64.Store.base.vsix",
+      "size": 29600001,
+      "sha256": "1f641df0650a8657f6dc4a9fd030bc11c502a3a735a64a39735b9106c353058a"
+     }
+    },
+    "aarch64": {
+     "desktop": {
+      "url": "https://download.visualstudio.microsoft.com/download/pr/16ac3a9f-21a9-4b80-a1cb-097bd79ea455/c30a1064ef39efd3e969a1cac2bb56173de42aee558efbf7b5c1ca8910228687/Microsoft.VC.14.51.CRT.ARM64.Desktop.base.vsix",
+      "size": 65344991,
+      "sha256": "c30a1064ef39efd3e969a1cac2bb56173de42aee558efbf7b5c1ca8910228687"
+     },
+     "store": {
+      "url": "https://download.visualstudio.microsoft.com/download/pr/16ac3a9f-21a9-4b80-a1cb-097bd79ea455/904230c4a5c5d34b84c9c962f9435a8909cdaa2d0ebe3d0c55472de4e45db081/Microsoft.VC.14.51.CRT.ARM64.Store.base.vsix",
+      "size": 66139454,
+      "sha256": "904230c4a5c5d34b84c9c962f9435a8909cdaa2d0ebe3d0c55472de4e45db081"
+     },
+     "desktop-debug": {
+      "url": "https://download.visualstudio.microsoft.com/download/pr/16ac3a9f-21a9-4b80-a1cb-097bd79ea455/31b8b9016b3a16c046a4c599fec98ee5d8c5bb403ccf2e6c0fd82a2cdf89a568/Microsoft.VC.14.51.CRT.ARM64.Desktop.debug.base.vsix",
+      "size": 51869844,
+      "sha256": "31b8b9016b3a16c046a4c599fec98ee5d8c5bb403ccf2e6c0fd82a2cdf89a568"
+     }
+    },
+    "x86": {
+     "desktop": {
+      "url": "https://download.visualstudio.microsoft.com/download/pr/16ac3a9f-21a9-4b80-a1cb-097bd79ea455/89c26aad297f1fbf57094c29c33cb56cdf72e13a038db7ec88b63ceb751f9f05/Microsoft.VC.14.51.CRT.x86.Desktop.base.vsix",
+      "size": 59412668,
+      "sha256": "89c26aad297f1fbf57094c29c33cb56cdf72e13a038db7ec88b63ceb751f9f05"
+     },
+     "store": {
+      "url": "https://download.visualstudio.microsoft.com/download/pr/16ac3a9f-21a9-4b80-a1cb-097bd79ea455/263a156aaf004505f44006ff161d96e16349ff53f5f295b5f7de7852ec4e2d6f/Microsoft.VC.14.51.CRT.x86.Store.base.vsix",
+      "size": 28934339,
+      "sha256": "263a156aaf004505f44006ff161d96e16349ff53f5f295b5f7de7852ec4e2d6f"
+     }
+    }
+   },
+   "14.52": {
+    "manifest": "VisualStudio.18.Release 18.10.3",
+    "headers": {
+     "url": "https://download.visualstudio.microsoft.com/download/pr/fedfadc0-2ddc-42f8-afa2-24eda4792a5f/890295eeb603627813418880d5baddac5bc85871b816265843945f9a1bf134ed/Microsoft.VC.14.52.CRT.Headers.base.vsix",
+     "size": 2082467,
+     "sha256": "890295eeb603627813418880d5baddac5bc85871b816265843945f9a1bf134ed"
+    },
+    "x86_64": {
+     "desktop": {
+      "url": "https://download.visualstudio.microsoft.com/download/pr/fedfadc0-2ddc-42f8-afa2-24eda4792a5f/1a75e383cec129c136a828388b19f8eefbc71e014ae630f684036cc7b1eb131f/Microsoft.VC.14.52.CRT.x64.Desktop.base.vsix",
+      "size": 65756837,
+      "sha256": "1a75e383cec129c136a828388b19f8eefbc71e014ae630f684036cc7b1eb131f"
+     },
+     "store": {
+      "url": "https://download.visualstudio.microsoft.com/download/pr/fedfadc0-2ddc-42f8-afa2-24eda4792a5f/d8a5730e3d54c34fb7c9328da9e6ff0909372949468272f9142fda6c1dd3db2d/Microsoft.VC.14.52.CRT.x64.Store.base.vsix",
+      "size": 29841132,
+      "sha256": "d8a5730e3d54c34fb7c9328da9e6ff0909372949468272f9142fda6c1dd3db2d"
+     }
+    },
+    "aarch64": {
+     "desktop": {
+      "url": "https://download.visualstudio.microsoft.com/download/pr/fedfadc0-2ddc-42f8-afa2-24eda4792a5f/70ae3483bbfe81e3ba83ccea15b617c90d51262c174f493f8cc38b3a2017cdfd/Microsoft.VC.14.52.CRT.ARM64.Desktop.base.vsix",
+      "size": 81820491,
+      "sha256": "70ae3483bbfe81e3ba83ccea15b617c90d51262c174f493f8cc38b3a2017cdfd"
+     },
+     "store": {
+      "url": "https://download.visualstudio.microsoft.com/download/pr/fedfadc0-2ddc-42f8-afa2-24eda4792a5f/0474a51bad065e9ca5106eb37a8ad4161f05d872be13b3773d5ff91f2de5e1ab/Microsoft.VC.14.52.CRT.ARM64.Store.base.vsix",
+      "size": 67013738,
+      "sha256": "0474a51bad065e9ca5106eb37a8ad4161f05d872be13b3773d5ff91f2de5e1ab"
+     },
+     "desktop-debug": {
+      "url": "https://download.visualstudio.microsoft.com/download/pr/fedfadc0-2ddc-42f8-afa2-24eda4792a5f/43a0cd0bf68d60bea9d2ee3c67001e8166dd90b8172a1d1e198bad52e869eb69/Microsoft.VC.14.52.CRT.ARM64.Desktop.debug.base.vsix",
+      "size": 51850455,
+      "sha256": "43a0cd0bf68d60bea9d2ee3c67001e8166dd90b8172a1d1e198bad52e869eb69"
+     }
+    },
+    "x86": {
+     "desktop": {
+      "url": "https://download.visualstudio.microsoft.com/download/pr/fedfadc0-2ddc-42f8-afa2-24eda4792a5f/c72ab7a434a025d3e8f57814c5c7cb69054948c9eac4dca1ea34777b7a334e76/Microsoft.VC.14.52.CRT.x86.Desktop.base.vsix",
+      "size": 58955443,
+      "sha256": "c72ab7a434a025d3e8f57814c5c7cb69054948c9eac4dca1ea34777b7a334e76"
+     },
+     "store": {
+      "url": "https://download.visualstudio.microsoft.com/download/pr/fedfadc0-2ddc-42f8-afa2-24eda4792a5f/15311c46bb71d9df9c51e93b0a4d4d8f21ae7f8e0e616dedcd3c9a2ccd9da64b/Microsoft.VC.14.52.CRT.x86.Store.base.vsix",
+      "size": 29196514,
+      "sha256": "15311c46bb71d9df9c51e93b0a4d4d8f21ae7f8e0e616dedcd3c9a2ccd9da64b"
+     }
+    }
    }
   },
   "sdk": {
@@ -1990,5 +2088,110 @@
     "sha256": "3b65c623e29ad74a3cd4f4eaf8e7fa6fc4b887b07bdf7b83f9217caa5fd67f51"
    }
   ]
+ },
+ "presets": {
+  "xcode-27": {
+   "image": "xcode-27",
+   "labels": [
+    "xcode-27",
+    "xcode-27-xlarge"
+   ],
+   "readme": "https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md",
+   "image-version": "20260928.0222.1",
+   "xcode": "27.0",
+   "sdk": "27.0"
+  },
+  "macOS-26": {
+   "image": "macOS-26",
+   "labels": [
+    "macos-latest-large",
+    "macos-26-intel",
+    "macos-26-large"
+   ],
+   "readme": "https://github.com/actions/runner-images/blob/main/images/macos/macos-26-Readme.md",
+   "image-version": "20260824.0517.1",
+   "xcode": "26.6",
+   "sdk": "26.5"
+  },
+  "macOS-26-arm64": {
+   "image": "macOS-26-arm64",
+   "labels": [
+    "macos-latest",
+    "macos-26",
+    "macos-26-xlarge"
+   ],
+   "readme": "https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md",
+   "image-version": "20260907.0351.1",
+   "xcode": "26.6",
+   "sdk": "26.5"
+  },
+  "macOS-15": {
+   "image": "macOS-15",
+   "labels": [
+    "macos-15-large",
+    "macos-15-intel"
+   ],
+   "readme": "https://github.com/actions/runner-images/blob/main/images/macos/macos-15-Readme.md",
+   "image-version": "20260824.0482.1",
+   "xcode": "16.4",
+   "sdk": "15.5"
+  },
+  "macOS-15-arm64": {
+   "image": "macOS-15-arm64",
+   "labels": [
+    "macos-15",
+    "macos-15-xlarge"
+   ],
+   "readme": "https://github.com/actions/runner-images/blob/main/images/macos/macos-15-arm64-Readme.md",
+   "image-version": "20260907.0337.1",
+   "xcode": "16.4",
+   "sdk": "15.5"
+  },
+  "windows-2025-vs2026": {
+   "image": "windows-2025-vs2026",
+   "labels": [
+    "windows-latest",
+    "windows-2025",
+    "windows-2025-vs2026"
+   ],
+   "readme": "https://github.com/actions/runner-images/blob/main/images/windows/Windows2025-VS2026-Readme.md",
+   "image-version": "20260925.250.1",
+   "visual-studio": "2026 18.10.12217.157",
+   "msvc": "14.51",
+   "sdk": "10.0.26100.8249"
+  },
+  "windows-2022": {
+   "image": "windows-2022",
+   "labels": [
+    "windows-2022"
+   ],
+   "readme": "https://github.com/actions/runner-images/blob/main/images/windows/Windows2022-Readme.md",
+   "image-version": "20260927.320.1",
+   "visual-studio": "2022 17.14.37710.0",
+   "msvc": "14.44.17.14",
+   "sdk": "10.0.26100.7705"
+  },
+  "windows-11-arm64": {
+   "image": "windows-11-arm64",
+   "labels": [
+    "windows-11-arm"
+   ],
+   "readme": "https://github.com/actions/runner-images/blob/main/images/windows/Windows11-Arm64-Readme.md",
+   "image-version": "20260927.180.1",
+   "visual-studio": "2022 17.14.37710.0",
+   "msvc": "14.44.17.14",
+   "sdk": "10.0.26100.7705"
+  },
+  "windows-11-vs2026-arm64": {
+   "image": "windows-11-vs2026-arm64",
+   "labels": [
+    "windows-11-vs2026-arm"
+   ],
+   "readme": "https://github.com/actions/runner-images/blob/main/images/windows/Windows11-VS2026-Arm64-Readme.md",
+   "image-version": "20260924.168.1",
+   "visual-studio": "2026 18.10.12217.157",
+   "msvc": "14.51",
+   "sdk": "10.0.26100.8249"
+  }
  }
 }

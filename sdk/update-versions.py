@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Add every SDK version the vendors offer now to versions.json.
+"""Add every SDK version the vendors offer now to versions.json, and the
+presets of GitHub's runner images.
 
-What is in the table never changes; a run only appends what is new. The
+What is in the table never changes; a run only appends what is new. Only
+the presets, which follow the images, are made anew. The
 table says where each package is, its size and its sha256, and nothing from
 inside the packages but the version of the macOS SDK a Command Line Tools
 package carries. The sha256s Visual Studio's manifests list are taken from
@@ -88,7 +90,21 @@ def package(url, size, sha256):
     return {"url": url, "size": size, "sha256": sha256}
 
 
-def update_msvc(table, pool):
+def default_msvc(packages):
+    """The MSVC a Visual Studio installs with its C++ tools: the CRT headers
+    the VC.Tools.x86.x64 component comes to, breadth first."""
+    todo, seen = ["microsoft.visualstudio.component.vc.tools.x86.x64"], set()
+    while todo:
+        i = todo.pop(0)
+        if (m := re.match(r"microsoft\.vc\.(\d+\.\d+(?:\.\d+\.\d+)?)\.crt\.headers\.base$", i)):
+            return m.group(1)
+        if i not in seen:
+            seen.add(i)
+            todo += [d.lower() for d in (packages.get(i, {}).get("dependencies") or {})]
+    return None
+
+
+def update_msvc(table, pool, defaults):
     windows = table.setdefault("windows", {})
     manifests = windows.setdefault("manifests", {})
     msvc = windows.setdefault("msvc", {})
@@ -102,9 +118,14 @@ def update_msvc(table, pool):
         # channel manifest lists for it, whatever the request: it is pinned
         # by what it serves. The packages the vsman lists match their sha256.
         data, _ = fetch(vsman["url"])
-        packages = {p["id"].lower(): p for p in json.loads(data)["packages"]}
-        versions = {m.group(1) for i in packages if (m := re.match(r"microsoft\.vc\.(\d+(?:\.\d+){3})\.crt\.headers\.base$", i))}
-        log(f"{name}: MSVC {' '.join(sorted(versions, key=version_key))}")
+        packages = {}
+        for p in json.loads(data)["packages"]:
+            packages.setdefault(p["id"].lower(), p)
+        # 14.44.17.14, or since Visual Studio 2026 14.51.
+        versions = {m.group(1) for i in packages if (m := re.match(r"microsoft\.vc\.(\d+\.\d+(?:\.\d+\.\d+)?)\.crt\.headers\.base$", i))}
+        default = default_msvc(packages)
+        log(f"{name}: MSVC {' '.join(sorted(versions, key=version_key))}, {default} by default")
+        defaults[channel] = (name, default)
 
         def vsix(version, part):
             p = packages.get(f"microsoft.vc.{version}.crt.{part}.base".lower())
@@ -190,6 +211,68 @@ def update_macos(table, pool):
         log(f"  + macOS SDK {version} ({pid}, {url.rsplit('/', 1)[1]})")
 
 
+RUNNER_IMAGES = "https://raw.githubusercontent.com/actions/runner-images/main"
+# Visual Studio's major version -> the channel of its toolsets.
+VS_CHANNELS = {"16": "vs/16/release", "17": "vs/17/release", "18": "vs/18/stable"}
+
+
+def update_presets(table, defaults):
+    """Presets: what GitHub's Windows and macOS runner images (not
+    deprecated ones) build with, from actions/runner-images' software lists.
+    Unlike the versions they point to, they follow the images: each says
+    which image, of which version, it mirrors."""
+    readme, _ = fetch(f"{RUNNER_IMAGES}/README.md")
+    readme = readme.decode()
+    links = dict(re.findall(r"^\[([^\]]+)\]: https://github\.com/actions/runner-images/blob/main/(\S+)$", readme, re.M))
+    msvc = table["windows"]["msvc"]
+    sdks = table["windows"]["sdk"]
+    macos = {p["sdk"] for p in table["macos"]["packages"]}
+    presets = {}
+    for row in re.findall(r"^\|(.+)\|$", readme, re.M):
+        cells = [c.strip() for c in row.split("|")]
+        if len(cells) < 4 or "deprecated" in cells[0] or not cells[3].startswith("["):
+            continue
+        key = cells[3].strip("[]")
+        labels = re.findall(r"`([^`]+)`", cells[2])
+        path = links.get(key)
+        if not path or not labels or not re.match(r"images/(windows|macos)/", path):
+            continue
+        text = fetch(f"{RUNNER_IMAGES}/{path}")[0].decode()
+        image = {"image": key, "labels": labels, "readme": f"https://github.com/actions/runner-images/blob/main/{path}"}
+        if m := re.search(r"Image Version: (\S+)", text):
+            image["image-version"] = m.group(1)
+        if path.startswith("images/windows/"):
+            vs = re.search(r"^\| Visual Studio \w+ (\d{4}) \| (\d+)\.([\d.]+) \|", text, re.M)
+            kit = re.search(r"^\| Windows Software Development Kit\s*\| 10\.1\.([\d.]+)", text, re.M)
+            if not vs or not kit:
+                log(f"{key}: no Visual Studio or Windows SDK in its software list")
+                continue
+            image["visual-studio"] = f"{vs.group(1)} {vs.group(2)}.{vs.group(3)}"
+            image["msvc"] = defaults.get(VS_CHANNELS.get(vs.group(2)), (None, None))[1]
+            image["sdk"] = f"10.0.{kit.group(1)}"
+            missing = [v for v, known in ((image["msvc"], msvc), (image["sdk"], sdks)) if v not in known]
+        else:
+            xcode = re.search(r"^\| ([\d.]+) \(default\)", text, re.M)
+            # Installed SDKs: | macOS 15.5 | macosx15.5 | 16.4 |, the Xcodes last.
+            sdk = xcode and next(
+                (m.group(1) for m in re.finditer(r"^\| macOS ([\d.]+)\s*\| macosx[\d.]+\s*\| ([^|]+)\|", text, re.M)
+                 if xcode.group(1) in [x.strip() for x in m.group(2).split(",")]),
+                None,
+            )
+            if not sdk:
+                log(f"{key}: no default Xcode's macOS SDK in its software list")
+                continue
+            image["xcode"] = xcode.group(1)
+            image["sdk"] = sdk
+            missing = [sdk] if sdk not in macos else []
+        if missing:
+            log(f"{key}: {missing} not in the table")
+            continue
+        presets[key] = image
+        log(f"  preset {key} ({', '.join(labels)}): " + ", ".join(f"{k} {image[k]}" for k in ("visual-studio", "xcode", "msvc", "sdk") if k in image))
+    table["presets"] = presets
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--table", default=os.path.join(HERE, "versions.json"))
@@ -199,10 +282,12 @@ def main():
     if os.path.exists(a.table):
         with open(a.table) as f:
             table = json.load(f)
+    defaults = {}
     with concurrent.futures.ThreadPoolExecutor(a.jobs) as pool:
-        update_msvc(table, pool)
+        update_msvc(table, pool, defaults)
         update_winsdk(table, pool)
         update_macos(table, pool)
+    update_presets(table, defaults)
     with open(a.table, "w") as f:
         json.dump(table, f, indent=1)
         f.write("\n")

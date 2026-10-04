@@ -7,19 +7,21 @@ version table (versions.json, made by update-versions.py) pins, and unpacks
 them on any host, with Python's standard library only.
 
   vendor-sdk.py macos list | windows list
-      the versions the table has, the default marked
-  vendor-sdk.py macos fetch --accept-license [--version 26.5] --out DIR
+      the presets and versions the table has, the defaults marked
+  vendor-sdk.py macos fetch --accept-license [--preset macos-15] [--version 26.5] --out DIR
       Apple's macOS SDK, from a Command Line Tools package
       (xar -> pbzx -> cpio):  clang --target=arm64-apple-macos -isysroot DIR
-  vendor-sdk.py windows fetch --accept-license [--sdk-version 10.0.26100]
-          [--msvc-version 14.44] [--arch x86_64,aarch64,x86] --out DIR
+  vendor-sdk.py windows fetch --accept-license [--preset windows-2022]
+          [--sdk-version 10.0.26100] [--msvc-version 14.44] [--arch x86_64,aarch64,x86] --out DIR
       the MSVC C/C++ runtime and standard library (Visual Studio's .vsix
       packages) and the Windows SDK (its NuGet packages), as a /winsysroot:
       clang-cl --target=x86_64-pc-windows-msvc /winsysroot DIR
       clang --target=x86_64-pc-windows-msvc -Xmicrosoft-windows-sys-root DIR
 
-A version may be given in part (26, 10.0.26100, 14.44): the newest that
-matches is taken. The default is the newest xclang works with.
+By default the versions are those of a preset, what one of GitHub's runner
+images builds with (windows-latest, macos-latest unless --preset names
+another); a version given whole or in part (26, 10.0.26100, 14.44) replaces
+the preset's, the newest that matches taken.
 """
 
 import argparse
@@ -81,6 +83,22 @@ def pick(versions, want, broken, what):
             raise SystemExit(f"no {what} {want} in the table; it has: {' '.join(known)}")
         return matches[-1]
     return [v for v in known if not broken(v)][-1]
+
+
+# The presets taken when none is named: what a workflow on GitHub's runners
+# gets without naming an image, so that a cross build matches a native one.
+DEFAULT_PRESETS = {"windows": "windows-latest", "macos": "macos-latest"}
+
+
+def preset(table, name, kind):
+    """(key, preset) of the preset name (an image, or one of its runner
+    labels) names."""
+    presets = {k: p for k, p in table.get("presets", {}).items() if ("msvc" in p) == (kind == "windows")}
+    for key, p in presets.items():
+        if name == key or name in p["labels"]:
+            return key, p
+    names = sorted({x for k, p in presets.items() for x in [k] + p["labels"]})
+    raise SystemExit(f"no {kind} preset {name}; there are: {' '.join(names)}")
 
 
 def load_table(path):
@@ -348,8 +366,15 @@ def macos_fetch(a):
     if not a.accept_license:
         log(APPLE_LICENSE)
         return 1
-    versions = macos_versions(load_table(a.table))
-    version = pick(versions, a.version, macos_broken, "macOS SDK")
+    table = load_table(a.table)
+    versions = macos_versions(table)
+    key, pre = preset(table, a.preset or DEFAULT_PRESETS["macos"], "macos")
+    want = a.version or pre["sdk"]
+    if not a.version and not a.preset and macos_broken(want):
+        want = None  # the default preset's SDK is one xclang cannot use
+    version = pick(versions, want, macos_broken, "macOS SDK")
+    if not a.version:
+        log(f"preset {key} ({', '.join(pre['labels'])}; image {pre.get('image-version')}, Xcode {pre['xcode']})")
     entry = versions[version]
     url, sha256, size = entry["url"], entry["sha256"], entry["size"]
     log(f"macOS SDK {version}: {url}")
@@ -371,13 +396,25 @@ def macos_fetch(a):
     return 0
 
 
+def list_presets(table, kind):
+    print("Presets, from GitHub's runner images:")
+    for key, p in table.get("presets", {}).items():
+        if ("msvc" in p) == (kind == "windows"):
+            what = f"MSVC {p['msvc']}, Windows SDK {p['sdk']}" if kind == "windows" else f"SDK {p['sdk']} (Xcode {p['xcode']})"
+            mark = " (default)" if DEFAULT_PRESETS[kind] in p["labels"] else ""
+            print(f"  {key:26} {what:42} {', '.join(p['labels'])}{mark}")
+
+
 def macos_list(a):
-    versions = macos_versions(load_table(a.table))
-    default = pick(versions, None, macos_broken, "macOS SDK")
+    table = load_table(a.table)
+    list_presets(table, "macos")
+    versions = macos_versions(table)
+    default = pick(versions, preset(table, DEFAULT_PRESETS["macos"], "macos")[1]["sdk"], macos_broken, "macOS SDK")
+    print("SDKs:")
     for v in sorted(versions, key=version_key):
         p = versions[v]
         mark = " (default)" if v == default else " (xclang cannot use it)" if macos_broken(v) else ""
-        print(f"{v:8} {p['posted']} {p['size'] / 1e6:6.1f} MB  {p['url']}{mark}")
+        print(f"  {v:8} {p['posted']} {p['size'] / 1e6:6.1f} MB  {p['url']}{mark}")
     return 0
 
 
@@ -502,9 +539,13 @@ def windows_fetch(a):
     if not a.accept_license:
         log(MS_LICENSE)
         return 1
-    table = load_table(a.table)["windows"]
-    sdk_version = pick(table["sdk"], a.sdk_version, windows_sdk_broken, "Windows SDK")
-    msvc_version = pick(table["msvc"], a.msvc_version, msvc_broken, "MSVC")
+    full = load_table(a.table)
+    table = full["windows"]
+    key, pre = preset(full, a.preset or DEFAULT_PRESETS["windows"], "windows")
+    if not (a.sdk_version and a.msvc_version):
+        log(f"preset {key} ({', '.join(pre['labels'])}; image {pre.get('image-version')}, Visual Studio {pre['visual-studio']})")
+    sdk_version = pick(table["sdk"], a.sdk_version or pre["sdk"], windows_sdk_broken, "Windows SDK")
+    msvc_version = pick(table["msvc"], a.msvc_version or pre["msvc"], msvc_broken, "MSVC")
     sdk, msvc = table["sdk"][sdk_version], table["msvc"][msvc_version]
     log(f"MSVC {msvc_version} ({msvc['manifest']}), Windows SDK {sdk_version}")
     archs = a.arch.split(",")
@@ -574,9 +615,15 @@ def windows_fetch(a):
 
 
 def windows_list(a):
-    table = load_table(a.table)["windows"]
-    for what, versions, broken in (("Windows SDK", table["sdk"], windows_sdk_broken), ("MSVC", table["msvc"], msvc_broken)):
-        default = pick(versions, None, broken, what)
+    full = load_table(a.table)
+    list_presets(full, "windows")
+    table = full["windows"]
+    pre = preset(full, DEFAULT_PRESETS["windows"], "windows")[1]
+    for what, versions, broken, want in (
+        ("Windows SDK", table["sdk"], windows_sdk_broken, pre["sdk"]),
+        ("MSVC", table["msvc"], msvc_broken, pre["msvc"]),
+    ):
+        default = pick(versions, want, broken, what)
         print(f"{what}:")
         for v in sorted(versions, key=version_key):
             e = versions[v]
@@ -594,7 +641,8 @@ def main():
     mac = vendors.add_parser("macos", help="Apple's macOS SDK").add_subparsers(dest="cmd", required=True)
     f = mac.add_parser("fetch", help="download and unpack an SDK")
     f.add_argument("--accept-license", action="store_true")
-    f.add_argument("--version", help="the SDK's version, whole or in part (default: the newest xclang works with)")
+    f.add_argument("--preset", help="a runner image's SDK: macos-15, macos-latest, ... (default: macos-latest)")
+    f.add_argument("--version", help="the SDK's version, whole or in part, instead of the preset's")
     f.add_argument("--out", required=True, help="the SDK directory to create")
     f.add_argument("--pkg", help="a package already downloaded")
     f.add_argument("--cache", default=".", help="where the package is downloaded to")
@@ -605,8 +653,9 @@ def main():
     win = vendors.add_parser("windows", help="the MSVC runtime and the Windows SDK").add_subparsers(dest="cmd", required=True)
     f = win.add_parser("fetch", help="download and unpack them as a /winsysroot")
     f.add_argument("--accept-license", action="store_true")
-    f.add_argument("--sdk-version", help="the Windows SDK's version, whole or in part (10.0.26100)")
-    f.add_argument("--msvc-version", help="MSVC's version, whole or in part (14.44)")
+    f.add_argument("--preset", help="a runner image's MSVC and SDK: windows-2022, windows-latest, ... (default: windows-latest)")
+    f.add_argument("--sdk-version", help="the Windows SDK's version, whole or in part (10.0.26100), instead of the preset's")
+    f.add_argument("--msvc-version", help="MSVC's version, whole or in part (14.44), instead of the preset's")
     f.add_argument("--arch", default="x86_64,aarch64", help="x86_64, aarch64, x86, comma-separated")
     f.add_argument("--out", required=True, help="the /winsysroot directory to create")
     f.add_argument("--cache", default=".", help="where the packages are downloaded to")
