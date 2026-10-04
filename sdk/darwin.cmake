@@ -1,5 +1,5 @@
 # Cross-compile for macOS from another host, with an xclang tree and an SDK
-# unpacked by macos-sdk.py:
+# unpacked by vendor-sdk.py:
 #   -DCMAKE_TOOLCHAIN_FILE=sdk/darwin.cmake -DXCLANG_ROOT=<xclang>
 #   -DMACOS_SDK=<sdk> -DMACOS_ARCH=arm64|x86_64
 foreach(var XCLANG_ROOT MACOS_SDK MACOS_ARCH)

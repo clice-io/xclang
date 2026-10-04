@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Cross-compile the probe programs for arm64 and x86_64 macOS with an xclang
-# tree and an SDK unpacked by macos-sdk.py: build-macos.sh <xclang> <sdk> <out>
+# tree and an SDK unpacked by vendor-sdk.py: build-macos.sh <xclang> <sdk> <out>
 # Writes <out>/<arch>/<program> and <out>/build.txt (PASS/FAIL per step);
 # exits 1 if a required step failed. Steps marked probe may fail.
 set -u

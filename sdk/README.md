@@ -3,16 +3,15 @@
 Cross-compiling for macOS and for the MSVC ABI from any host with xclang
 23.1.2.5, against SDKs downloaded from Apple and Microsoft themselves after
 the user accepts their licenses. xclang distributes neither.
+`vendor-sdk.py` (Python, standard library only) fetches both, on any host;
 `.github/workflows/sdk-fetch.yml` runs it all; nothing of an SDK leaves the
 job that downloaded it.
 
 ## macOS
 
-`macos-sdk.py` (Python, standard library only):
-
 ```sh
-python3 sdk/macos-sdk.py catalog            # SDK packages in Apple's catalog
-python3 sdk/macos-sdk.py fetch --accept-license --version 26.5 --out MacOSX.sdk
+python3 sdk/vendor-sdk.py macos catalog     # SDK packages in Apple's catalog
+python3 sdk/vendor-sdk.py macos fetch --accept-license --version 26.5 --out MacOSX.sdk
 clang++ --target=arm64-apple-macos -isysroot MacOSX.sdk main.cpp -o main
 ```
 
@@ -43,25 +42,54 @@ clang++ --target=arm64-apple-macos -isysroot MacOSX.sdk main.cpp -o main
 
 ## Windows, MSVC ABI
 
-[xwin](https://github.com/Jake-Shadle/xwin) 0.10.0, `--accept-license`,
-splats the MSVC CRT + STL and the Windows SDK in `/winsysroot` layout:
-
 ```sh
-xwin --accept-license --manifest channel.json --sdk-version 10.0.26100 --crt-version 14.44.17.14 \
-  --arch x86_64,aarch64 splat --include-debug-libs --use-winsysroot-style --preserve-ms-arch-notation --output winsysroot
-clang-cl --target=x86_64-pc-windows-msvc /winsysroot winsysroot -fuse-ld=lld /EHsc main.cpp
+python3 sdk/vendor-sdk.py windows list      # what Microsoft offers now
+python3 sdk/vendor-sdk.py windows fetch --accept-license [--arch x86_64,aarch64] --out winsysroot
+clang-cl --target=x86_64-pc-windows-msvc /winsysroot winsysroot -fuse-ld=lld /EHsc -- main.cpp
 clang++ --target=x86_64-pc-windows-msvc -Xmicrosoft-windows-sys-root winsysroot -fuse-ld=lld main.cpp
 ```
 
-- **Pinning**: the channel manifest behind `aka.ms/vs/17/release/channel`
-  (VS 17.14.41) by URL and sha256; it pins `VisualStudio.vsman` by sha256,
-  which pins every package. MSVC 14.44.17.14, Windows SDK 10.0.26100.
-- **Size**: 450 MB download (both archs), 1.4 GB splat with the debug CRT,
-  95 s on CI.
-- **Works** for x64 and arm64, run on windows-2025 and windows-11-arm: C;
-  C++ with the MSVC STL (exceptions, threads, `<filesystem>`, `<format>`;
-  /MT, /MD; ThinLTO); both drivers; Win32 API (kernel32, user32, advapi32);
+- **Source**, all plain zips, pinned by URL and sha256:
+  - MSVC 14.44.17.14 (toolset 14.44.35207), from Visual Studio 17.14.41's
+    channel manifest (`aka.ms/vs/17/release/channel` → `VisualStudio.vsman`,
+    which lists each package's sha256): the `.vsix` packages
+    `CRT.Headers.base` (headers and STL) and per architecture
+    `CRT.<arch>.Desktop.base` (static runtime, `setargv.obj`, ...) and
+    `CRT.<arch>.Store.base`, which holds the DLL runtime's import libraries
+    too (`msvcrt`, `msvcprt`, `vcruntime`, `oldnames`); `store/`, `uwp/`,
+    `enclave/` and the `.pdb` files are left out.
+  - Windows SDK 10.0.26100.9169, from nuget.org: `Microsoft.Windows.SDK.CPP`
+    (`Include/<ver>/{um,shared,ucrt,winrt,cppwinrt}`; its `bin/`, `Redist/`,
+    `Source/`, `References/` are left out) and `Microsoft.Windows.SDK.CPP.x64`
+    / `.arm64` (`um` and `ucrt` libraries). No MSI or CAB anywhere.
+- **License**: `--accept-license` stands for the Visual Studio Build Tools
+  license and the Windows SDK's, which the tool names.
+- **Layout**: a `/winsysroot`, as Visual Studio installs it:
+  `VC/Tools/MSVC/14.44.35207/{include,lib/<x64|arm64>}`,
+  `Windows Kits/10/{Include,Lib}/10.0.26100.0/...`.
+- **Case**: on a case-sensitive file system (Linux; a macOS or Windows one
+  is not), links for what Windows finds whatever the case: every file in
+  lower case, every library in upper case (`LIBCMT.lib`), each `#include`
+  and `#pragma comment(lib)` of the headers as written (`winbase.h` for
+  `WinBase.h`), and xwin's few known spellings (`BaseTsd.h`, `Mstcpip.h`,
+  `Kernel32.lib`, `Iphlpapi.lib`): 3.6k links (xwin: 3.5k).
+- **Size and time** (both architectures): 512 MB download (x64 only: 295 MB),
+  1.44 GB unpacked, 6.2k files. On CI: download 3 s (Linux, Windows) to
+  13 s (macOS); unpack 3–5 s (Linux, macOS arm64), 11–13 s (Windows x64,
+  macOS x64), 26 s (Windows arm64); links 3 s.
+- **Against xwin's splat** (same MSVC, SDK 10.0.26100 from the MSIs): nothing
+  missing for what is built here. Not taken: the enclave libraries and the
+  C++/CLI `Microsoft.VisualC.STLCLR.dll`. 482 SDK headers differ, NuGet's
+  build being a later servicing release (netcx headers moved to
+  `netcx/shared/1.0/`); 41 files are new (`corecrt_math.h`, `tgmath.h`,
+  `ucrt.osmode*.lib`, ...).
+- **Works** from Linux x64 and arm64, macOS arm64 and x64, Windows x64 and
+  arm64, for x64 and arm64, run on windows-2025 and windows-11-arm: C; C++
+  with the MSVC STL (exceptions, threads, `<filesystem>`, `<format>`; /MT,
+  /MD; ThinLTO); both drivers; Win32 API (kernel32, user32, advapi32);
   kotatsu's unit and system tests (`msvc.cmake`).
+- **clang-cl on macOS** reads an input path starting with `/U` (`/Users/...`)
+  as its `/U` option: inputs go after `--` (CMake does so).
 - **Missing in xclang**: compiler-rt for `*-windows-msvc` (`__int128`
   division needs `__udivti3`, which xclang's MinGW builtins do provide; no
   `clang_rt.profile.lib`, no ASan).
