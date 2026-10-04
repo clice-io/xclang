@@ -89,6 +89,7 @@ bazel_dep(name = "xclang", version = "23.1.2.5")
 - [Hosts, targets and layout](docs/layout.md), and the limits
 - [How a release is built](docs/build.md): the PGO pipeline, the tests, the workflows, the repository
 - [Patches](docs/patches.md) to LLVM
+- [Roadmap](docs/roadmap.md): what is planned, considered or in research
 - [CHANGELOG](CHANGELOG.md)
 
 xclang is developed for [clice](https://github.com/clice-io/clice), whose

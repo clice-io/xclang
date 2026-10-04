@@ -72,6 +72,7 @@ bazel_dep(name = "xclang", version = "23.1.2.5")
 - [Hosts, targets and layout](docs/layout.md)：主机平台、目标平台、目录结构和限制
 - [How a release is built](docs/build.md)：PGO 流程、测试、workflow、仓库结构
 - [Patches](docs/patches.md)：对 LLVM 的修改
+- [Roadmap](docs/roadmap.md)：计划中、在考虑中和在研究中的工作
 - [CHANGELOG](CHANGELOG.md)
 
 xclang 是为 [clice](https://github.com/clice-io/clice) 开发的，clice 的发布构建是它的第一个用户；[catter](https://github.com/clice-io/catter) 也用它构建。
