@@ -2,9 +2,13 @@ name: sdk-table
 
 # Append the SDK versions the vendors offer now to sdk/versions.json
 # (sdk/update-versions.py): the updated table is the artifact, its new
-# entries the summary; committing it is by hand.
+# entries the summary; committing it is by hand. Runs when the script or this
+# file changes (a workflow_dispatch needs the file on the default branch).
 
 on:
+  push:
+    branches: [exp/sdk-fetch]
+    paths: [sdk/update-versions.py, .github/workflows/sdk-table.yml]
   workflow_dispatch:
 
 permissions:
