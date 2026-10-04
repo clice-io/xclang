@@ -6,16 +6,21 @@
 #                         its tag fetched (FETCHCONTENT_SOURCE_DIR_XCLANG
 #                         stands in for it), and its toolchain downloaded
 #                         by xclang.cmake
+#   XCLANG_TEST_GIT_TAG   what of xclang to fetch instead of that tag: a
+#                         branch or commit with the release's toolchain
 #   XCLANG_TEST_LIBCLANG  with libclang's CMake packages in CMAKE_PREFIX_PATH:
 #                         tests/libclang, a tool on find_package(Clang), too
 cmake_minimum_required(VERSION 3.28)
 
 if(XCLANG_TEST_FETCH)
     set(XCLANG_VERSION ${XCLANG_TEST_FETCH})
+    if(NOT XCLANG_TEST_GIT_TAG)
+        set(XCLANG_TEST_GIT_TAG ${XCLANG_VERSION})
+    endif()
     include(FetchContent)
     FetchContent_Declare(xclang
         GIT_REPOSITORY https://github.com/clice-io/xclang
-        GIT_TAG ${XCLANG_VERSION})
+        GIT_TAG ${XCLANG_TEST_GIT_TAG})
     FetchContent_MakeAvailable(xclang)
     include(${xclang_SOURCE_DIR}/packages/cmake/xclang.cmake)
 endif()

@@ -6,7 +6,8 @@ name: cmake
 # and from nothing installed, xclang.cmake downloading the toolchain.
 #
 #   by hand         with the archives of a published release (the latest
-#                   by default) and the package of this checkout
+#                   by default) and the package of this checkout, or of
+#                   a ref FetchContent fetches from GitHub (git-ref)
 #   main.yml        with a run's archives (dist-run), before they are
 #                   released
 #   a published     as its users have it: its tag fetched from GitHub, its
@@ -19,6 +20,10 @@ on:
     inputs:
       tag:
         description: Published release whose archives to test with, e.g. 23.1.2.5; the latest by default
+        type: string
+        default: ""
+      git-ref:
+        description: Branch or commit of this repository that FetchContent fetches from GitHub instead of using this checkout, e.g. one not yet tagged
         type: string
         default: ""
   workflow_call:
@@ -101,6 +106,8 @@ jobs:
           dir="$RUNNER_TEMP/unpacked"; mkdir -p "$dir"
           for a in "$RUNNER_TEMP"/dist/xclang-*.tar.xz "$RUNNER_TEMP"/dist/libclang-*-${{ matrix.host }}.tar.xz; do "$tar" -xf "$a" -C "$dir"; done
       - name: Test
+        env:
+          GIT_REF: ${{ inputs.git-ref || github.event_name == 'release' && env.TAG || '' }}
         run: |
           node tests/cmake.ts --tree "$RUNNER_TEMP/unpacked/xclang" --libclang "$RUNNER_TEMP/unpacked/libclang" \
-            --sums "$RUNNER_TEMP/dist/SHA256SUMS" --url "$URL" $([[ "$GITHUB_EVENT_NAME" == release ]] && echo --git)
+            --sums "$RUNNER_TEMP/dist/SHA256SUMS" --url "$URL" ${GIT_REF:+--git "$GIT_REF"}

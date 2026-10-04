@@ -3,7 +3,7 @@
 /// and ninja in PATH.
 ///
 ///   node tests/cmake.ts --tree <xclang> --sums <SHA256SUMS>
-///     [--libclang <libclang>] [--url <archives> [--git] [--cache <dir>]]
+///     [--libclang <libclang>] [--url <archives> [--git <ref>] [--cache <dir>]]
 ///
 /// 1. xclang's bin/ in PATH, as pixi has it, and CMAKE_CXX_COMPILER=clang++:
 ///    find_package(xclang) by PATH. With --libclang, tests/libclang too,
@@ -12,10 +12,10 @@
 ///    and XCLANG_TARGET; run where this machine runs them (x86_64 macOS on
 ///    arm64, through Rosetta).
 /// 3. With --url, nothing installed: FetchContent of xclang's tag (this
-///    checkout in its place, through FETCHCONTENT_SOURCE_DIR_XCLANG; the
-///    tag on GitHub with --git), whose xclang.cmake downloads SHA256SUMS
-///    and the host's toolchain from --url (a directory or a URL) into
-///    --cache (the user's cache by default).
+///    checkout in its place, through FETCHCONTENT_SOURCE_DIR_XCLANG; with
+///    --git, that tag, branch or commit on GitHub), whose xclang.cmake
+///    downloads SHA256SUMS and the host's toolchain from --url (a directory
+///    or a URL) into --cache (the user's cache by default).
 ///
 /// A tree whose lib/cmake/xclang is not the checkout's (releases before the
 /// package, or before a change of it) gets the checkout's.
@@ -34,12 +34,12 @@ const { values } = parseArgs({
     sums: { type: "string" },
     libclang: { type: "string" },
     url: { type: "string" },
-    git: { type: "boolean", default: false },
+    git: { type: "string" },
     cache: { type: "string" },
   },
 });
 if (!values.tree || !values.sums) {
-  common.fail("--tree <xclang> --sums <SHA256SUMS> [--libclang <libclang>] [--url <archives> [--git] [--cache <dir>]]");
+  common.fail("--tree <xclang> --sums <SHA256SUMS> [--libclang <libclang>] [--url <archives> [--git <ref>] [--cache <dir>]]");
 }
 const tree = path.resolve(values.tree);
 const sums = path.resolve(values.sums);
@@ -112,7 +112,7 @@ if (values.url) {
   const url = fs.existsSync(values.url) ? pathToFileURL(path.resolve(values.url)).href : values.url;
   build("fetch", [
     `-DXCLANG_TEST_FETCH=${version}`,
-    ...(values.git ? [] : [`-DFETCHCONTENT_SOURCE_DIR_XCLANG=${common.ROOT}`]),
+    values.git ? `-DXCLANG_TEST_GIT_TAG=${values.git}` : `-DFETCHCONTENT_SOURCE_DIR_XCLANG=${common.ROOT}`,
     `-DXCLANG_URL=${url}`,
     ...(values.cache ? [`-DXCLANG_CACHE_DIR=${path.resolve(values.cache)}`] : []),
   ]);
