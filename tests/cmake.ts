@@ -9,8 +9,8 @@
 ///    find_package(xclang) by PATH. With --libclang, tests/libclang too,
 ///    on find_package(Clang).
 /// 2. Every other target this host builds for, through the toolchain file
-///    and XCLANG_TARGET; run where this machine runs them (the other macOS
-///    architecture, through Rosetta).
+///    and XCLANG_TARGET; run where this machine runs them (x86_64 macOS on
+///    arm64, through Rosetta).
 /// 3. With --url, nothing installed: FetchContent of xclang-cmake-<version>
 ///    (--asset, or made here from --sums by scripts/cmake.ts), whose
 ///    xclang.cmake downloads the host's toolchain from --url.
@@ -43,7 +43,8 @@ const sums = path.resolve(values.sums);
 const windows = process.platform === "win32";
 const native = common.TARGETS.find((t) => t.arch === (os.arch() === "arm64" ? "aarch64" : "x86_64") &&
   t.os === (windows ? "mingw" : process.platform === "darwin" ? "darwin" : "linux"))!;
-const work = fs.mkdtempSync(path.join(os.tmpdir(), "xclang-cmake-"));
+/// The long form of Windows' temporary directory (not RUNNER~1).
+const work = fs.mkdtempSync(path.join(fs.realpathSync.native(os.tmpdir()), "xclang-cmake-"));
 const source = path.join(common.ROOT, "tests", "cmake");
 const failures: string[] = [];
 
@@ -95,11 +96,12 @@ build("path", [
   ...(values.libclang ? ["-DXCLANG_TEST_LIBCLANG=ON", `-DCMAKE_PREFIX_PATH=${path.resolve(values.libclang)}`] : []),
 ], pathEnv);
 
-/// 2. The other targets: macOS ones only on macOS (the SDK), where the other
-/// architecture runs through Rosetta.
+/// 2. The other targets: macOS ones only on macOS (the SDK); arm64 macOS
+/// runs x86_64 programs through Rosetta.
 const toolchain = path.join(installed, "toolchain.cmake");
 for (const t of common.TARGETS.filter((t) => t !== native && (t.os !== "darwin" || native.os === "darwin"))) {
-  build(t.triple, [`--toolchain=${toolchain}`, `-DXCLANG_TARGET=${t.triple}`], process.env, t.os === "darwin");
+  build(t.triple, [`--toolchain=${toolchain}`, `-DXCLANG_TARGET=${t.triple}`], process.env,
+    t.os === "darwin" && native.arch === "aarch64");
 }
 
 /// 3. Nothing installed: the toolchain downloaded by xclang.cmake.
@@ -110,7 +112,9 @@ if (values.url) {
   if (!asset) {
     const made = common.capture(process.execPath, [path.join(common.ROOT, "scripts", "cmake.ts"), "archive", sums, work]);
     assetSha = /^sha256 ([0-9a-f]{64})$/m.exec(made)?.[1];
-    asset = pathToFileURL(path.join(work, `xclang-cmake-${version}.tar.gz`)).href;
+    /// A path: ExternalProject takes a file:// URL's path as it is, which
+    /// on Windows is no path.
+    asset = path.join(work, `xclang-cmake-${version}.tar.gz`);
   }
   if (!assetSha) common.fail(`no digest of xclang-cmake-${version}.tar.gz in ${sums}`);
   build("fetch", [`-DXCLANG_TEST_FETCH=${asset}`, `-DXCLANG_TEST_FETCH_SHA256=${assetSha}`, `-DXCLANG_URL=${url}`]);

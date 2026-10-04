@@ -14,6 +14,7 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import zlib from "node:zlib";
 import * as common from "./common.ts";
 
 const [command, sums, dir] = process.argv.slice(2);
@@ -28,9 +29,38 @@ const name = `xclang-cmake-${version}`;
 const stage = path.join(common.WORK, "cmake-package");
 fs.rmSync(stage, { recursive: true, force: true });
 common.writeCMakePackage(path.join(stage, name), version, sums);
-/// The same bytes from the same sources: sorted, no owners or times.
+/// The same bytes from the same sources, on any host (tests/cmake.ts makes
+/// one on each): a ustar archive written here, sorted, with no owners or
+/// times, gzipped by Node's zlib with the header's OS byte "unknown".
+const files = fs.readdirSync(path.join(stage, name)).sort();
+const blocks: Buffer[] = [header(`${name}/`, 0, "5", 0o755)];
+for (const file of files) {
+  const data = fs.readFileSync(path.join(stage, name, file));
+  blocks.push(header(`${name}/${file}`, data.length, "0", 0o644), data, Buffer.alloc((512 - (data.length % 512)) % 512));
+}
+blocks.push(Buffer.alloc(1024));
+const gz = zlib.gzipSync(Buffer.concat(blocks), { level: 9 });
+gz[9] = 255;
 fs.mkdirSync(dir, { recursive: true });
 const out = path.resolve(dir, `${name}.tar.gz`);
-common.run("bash", ["-c", `set -o pipefail; tar -C "$0" --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cf - "$1" | gzip -9n > "$2"`,
-  stage, name, out]);
-console.log(`${out}\nsha256 ${createHash("sha256").update(fs.readFileSync(out)).digest("hex")}`);
+fs.writeFileSync(out, gz);
+console.log(`${out}\nsha256 ${createHash("sha256").update(gz).digest("hex")}`);
+
+function header(entry: string, size: number, type: string, mode: number): Buffer {
+  const block = Buffer.alloc(512);
+  const field = (offset: number, length: number, value: string) => block.write(value, offset, length, "ascii");
+  const octal = (offset: number, length: number, value: number) => field(offset, length, value.toString(8).padStart(length - 1, "0"));
+  if (entry.length > 100) common.fail(`${entry}: too long for a ustar name`);
+  field(0, 100, entry);
+  octal(100, 8, mode);
+  octal(108, 8, 0);
+  octal(116, 8, 0);
+  octal(124, 12, size);
+  octal(136, 12, 0);
+  field(148, 8, " ".repeat(8));
+  field(156, 1, type);
+  field(257, 8, "ustar\u000000");
+  const sum = block.reduce((total, byte) => total + byte, 0);
+  field(148, 8, `${sum.toString(8).padStart(6, "0")}\u0000 `);
+  return block;
+}
