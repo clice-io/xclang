@@ -55,6 +55,7 @@ jobs:
           du -sh "$RUNNER_TEMP/MacOSX.sdk"; find "$RUNNER_TEMP/MacOSX.sdk" -type f | wc -l; find "$RUNNER_TEMP/MacOSX.sdk" -type l | wc -l
           python -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["Version"], d.get("CanonicalName"), d.get("MaximumDeploymentTarget"))' "$RUNNER_TEMP/MacOSX.sdk/SDKSettings.json"
           ls "$RUNNER_TEMP/MacOSX.sdk"; ls "$RUNNER_TEMP/MacOSX.sdk/usr/lib" | wc -l
+          head -c 300 "$RUNNER_TEMP/MacOSX.sdk/usr/lib/libSystem.tbd"; echo
           echo "SDK=$RUNNER_TEMP/MacOSX.sdk" >> "$GITHUB_ENV"
       - name: Build
         run: sdk/build-macos.sh "$X" "$SDK" out
@@ -180,7 +181,7 @@ jobs:
           xwin --version
           start=$SECONDS
           xwin --accept-license --cache-dir "$RUNNER_TEMP/xwin-cache" --arch x86_64,aarch64 \
-            splat --use-winsysroot-style --preserve-ms-arch-notation --output "$RUNNER_TEMP/winsysroot"
+            splat --include-debug-libs --use-winsysroot-style --preserve-ms-arch-notation --output "$RUNNER_TEMP/winsysroot"
           echo "xwin: $((SECONDS - start)) s"
           du -sh "$RUNNER_TEMP/xwin-cache/dl" "$RUNNER_TEMP/winsysroot"
           W=$RUNNER_TEMP/winsysroot

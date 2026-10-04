@@ -15,6 +15,7 @@ Then: clang --target=arm64-apple-macos -isysroot DIR ...
 """
 
 import argparse
+import bisect
 import gzip
 import hashlib
 import lzma
@@ -233,13 +234,19 @@ def extract(pkg, out, links):
                 size += len(data)
     if sdk is None:
         raise SystemExit("no SDK in the package")
-    # Without symlinks (Windows), each link becomes a copy of its target;
-    # links to links resolve over several rounds.
+    # Without symlinks (Windows), each link becomes a copy of its target, made
+    # once no link under the target is still to be made, so that the copy is
+    # whole; links to links resolve over several rounds.
+    pending = [(os.path.normpath(p), t) for p, t in pending]
     while pending:
+        paths = sorted(p for p, _ in pending)
         left = []
         for path, target in pending:
             src = os.path.normpath(os.path.join(os.path.dirname(path), target))
-            if os.path.isdir(src):
+            i = bisect.bisect_left(paths, src + os.sep)
+            if i < len(paths) and paths[i].startswith(src + os.sep):
+                left.append((path, target))
+            elif os.path.isdir(src):
                 shutil.copytree(src, path)
             elif os.path.isfile(src):
                 shutil.copyfile(src, path)
@@ -266,10 +273,10 @@ def cmd_fetch(a):
         log(f"downloading {url}")
         got = download(url, pkg, size)
     log(f"sha256 {got}")
-    if sha256 and got != sha256:
+    if sha256 and got != sha256 and not a.unpinned:
         raise SystemExit(f"sha256 mismatch: expected {sha256}")
     if not sha256 and not a.unpinned:
-        raise SystemExit("no sha256 pinned for this version (--unpinned to unpack anyway)")
+        raise SystemExit("no sha256 pinned for this version (--unpinned: unpack without checking)")
     if os.path.exists(a.out):
         shutil.rmtree(a.out)
     os.makedirs(a.out)
