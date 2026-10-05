@@ -10,6 +10,10 @@
 #                       other language options: they go on it as PUBLIC
 #                       options, and reach its importers from there
 #   XCLANG_ROOT         the toolchain's directory
+#   XCLANG_THINLTO_CACHE
+#                       set: the directory of the linker's ThinLTO cache
+#                       for the links of the directory and below (further
+#                       down)
 #
 # clang refuses a module built with other language options (-std, GNU
 # extensions, -fno-exceptions, -fno-rtti, ...) than its importer's; macros,
@@ -112,6 +116,36 @@ if(NOT COMMAND xclang_add_std)
             add_library(xclang::std ALIAS xclang_std)
         endif()
     endfunction()
+endif()
+
+# The linker's ThinLTO cache: with XCLANG_THINLTO_CACHE, an absolute
+# directory (or the environment variable of that name at the first
+# configure), the links of the directory that called find_package(xclang)
+# and of its subdirectories keep the code ThinLTO generates per module there
+# and reuse it, so a link of libclang's bitcode after the first takes seconds.
+# The directory is made here; the flag is the target's linker's.
+if(NOT DEFINED XCLANG_THINLTO_CACHE AND DEFINED ENV{XCLANG_THINLTO_CACHE})
+    set(XCLANG_THINLTO_CACHE "$ENV{XCLANG_THINLTO_CACHE}" CACHE PATH "The linker's ThinLTO cache")
+endif()
+if(XCLANG_THINLTO_CACHE)
+    file(TO_CMAKE_PATH "${XCLANG_THINLTO_CACHE}" _xclang_cache)
+    if(NOT IS_ABSOLUTE "${_xclang_cache}")
+        set(xclang_FOUND FALSE)
+        set(xclang_NOT_FOUND_MESSAGE "XCLANG_THINLTO_CACHE is not an absolute path: ${XCLANG_THINLTO_CACHE}")
+        return()
+    endif()
+    file(MAKE_DIRECTORY "${_xclang_cache}")
+    if(APPLE)
+        # ld64.lld (and Apple's ld, with libLTO).
+        set(_xclang_cache "LINKER:-cache_path_lto,${_xclang_cache}")
+    else()
+        # lld for ELF and for COFF (MinGW).
+        set(_xclang_cache "LINKER:--thinlto-cache-dir=${_xclang_cache}")
+    endif()
+    get_directory_property(_xclang_options LINK_OPTIONS)
+    if(NOT _xclang_cache IN_LIST _xclang_options)
+        add_link_options("${_xclang_cache}")
+    endif()
 endif()
 
 get_property(_xclang_deferred GLOBAL PROPERTY _XCLANG_STD_DEFERRED)

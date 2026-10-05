@@ -16,6 +16,9 @@
 ///    --git, that tag, branch or commit on GitHub), whose xclang.cmake
 ///    downloads SHA256SUMS and the host's toolchain from --url (a directory
 ///    or a URL) into --cache (the user's cache by default).
+/// 4. With --libclang, the linker's ThinLTO cache (XCLANG_THINLTO_CACHE) on
+///    the link of tests/libclang: a second link takes every module's code
+///    from it, and the program is the same.
 ///
 /// A tree whose lib/cmake/xclang is not the checkout's (releases before the
 /// package, or before a change of it) gets the checkout's.
@@ -116,6 +119,50 @@ if (values.url) {
     `-DXCLANG_URL=${url}`,
     ...(values.cache ? [`-DXCLANG_CACHE_DIR=${path.resolve(values.cache)}`] : []),
   ]);
+}
+
+/// 4. With --libclang, the linker's ThinLTO cache on the path build's link of
+/// libclang's bitcode: XCLANG_THINLTO_CACHE's directory made at configure
+/// time, filled by the first link, every entry of it used as it is by the
+/// next one, and the program the same as without the cache (on Windows,
+/// linked without a timestamp).
+if (values.libclang && !failures.some((f) => f.startsWith("path:"))) {
+  const dir = path.join(work, "path");
+  const cache = path.join(work, "thinlto", "cache");
+  const program = path.join(dir, "libclang", `consumer${windows ? ".exe" : ""}`);
+  const configure = (args: string[]): boolean =>
+    spawnSync("cmake", ["-S", source, "-B", dir, ...args], { stdio: "inherit", env: pathEnv }).status === 0;
+  const link = (): { seconds: number; bytes: Buffer } | undefined => {
+    fs.rmSync(program, { force: true });
+    const start = Date.now();
+    if (spawnSync("cmake", ["--build", dir, "--target", "consumer"], { stdio: "inherit", env: pathEnv }).status !== 0) return;
+    return { seconds: (Date.now() - start) / 1000, bytes: fs.readFileSync(program) };
+  };
+  /// The cache's entries and their times: an entry written again is a miss.
+  const entries = (): Map<string, number> => new Map(fs.readdirSync(cache).filter((f) => f.startsWith("llvmcache-"))
+    .map((f) => [f, fs.statSync(path.join(cache, f)).mtimeMs]));
+  const thinlto = (): string | undefined => {
+    if (windows && !configure(["-DCMAKE_EXE_LINKER_FLAGS=-Wl,--no-insert-timestamp"])) return "configure";
+    const none = link();
+    if (!none) return "link without the cache";
+    if (!configure([`-DXCLANG_THINLTO_CACHE=${cache}`])) return "configure with XCLANG_THINLTO_CACHE";
+    if (!fs.existsSync(cache)) return `configure made no ${cache}`;
+    const cold = link();
+    const filled = entries();
+    const warm = link();
+    if (!cold || !warm) return "link with the cache";
+    const after = entries();
+    const missed = [...after].filter(([f, t]) => filled.get(f) !== t).length;
+    const same = cold.bytes.equals(none.bytes) && warm.bytes.equals(none.bytes);
+    console.log(`ThinLTO cache: link ${none.seconds.toFixed(1)} s without it, ${cold.seconds.toFixed(1)} s cold ` +
+      `(${filled.size} entries), ${warm.seconds.toFixed(1)} s warm (${missed} entries written again); ` +
+      `the program ${same ? "the same" : "differs"} with and without it`);
+    if (filled.size === 0) return "the first link left nothing in the cache";
+    if (missed > 0) return `the second link wrote ${missed} entries again`;
+    if (!same) return "the program differs with the cache";
+  };
+  const failed = thinlto();
+  if (failed) failures.push(`thinlto: ${failed}`);
 }
 
 if (failures.length) common.fail(`${failures.length} builds failed:\n  ${failures.join("\n  ")}`);
