@@ -1,0 +1,61 @@
+guide:
+  label: Guide
+  items:
+    - what-is-xclang
+    - why-xclang
+    - quick-start
+    - install
+    - cross-compiling
+    - comparisons
+    - faq
+
+integrations:
+  label: Integrations
+  items:
+    - cmake
+    - bazel
+    - clang
+    - cargo
+    - ci
+
+features:
+  label: Features
+  items:
+    - modules
+    - sanitizers
+    - debugging
+    - thinlto-cache
+    - libclang
+
+reference:
+  label: Reference
+  items:
+    - targets
+    - layout
+    - compatibility
+    - cmake-api
+    - bazel-api
+    - releases
+    - xclang-command
+
+design:
+  label: Design
+  items:
+    - hermeticity
+    - toolchain
+    - pgo
+    - release-build
+    - macos
+    - windows
+    - bazel-module
+    - vendor-sdks
+    - patches
+    - roadmap
+
+dev:
+  label: Development
+  collapsed: true
+  items:
+    - contributing
+    - releasing
+    - llvm-patches

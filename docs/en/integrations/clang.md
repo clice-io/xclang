@@ -1,96 +1,115 @@
-# Using clang
+# Plain clang, Make and Meson
 
-## Cross-compiling
+Any build that runs a compiler by name works with xclang: put xclang's
+`bin/` first in `PATH` (pixi does) or name the programs by their path, and
+add `--target` for another target. Every command on this page is run as
+written on every host by
+[examples.yml](https://github.com/clice-io/xclang/blob/main/.github/workflows/examples.yml)
+([the run for 23.1.2.6](https://github.com/clice-io/xclang/actions/runs/37354730630)),
+Make on Linux and macOS hosts.
 
-Every toolchain carries every target's sysroot and runtimes, so
-cross-compiling is a `--target` flag and nothing else:
+## clang
 
 ```sh
-xclang/bin/clang++ --target=aarch64-w64-mingw32 main.cpp -o main.exe
-xclang/bin/clang++ --target=aarch64-unknown-linux-gnu main.cpp -o main
+clang++ -O2 hello.cpp -o hello
+clang++ -O2 --target=x86_64-unknown-linux-gnu hello.cpp -o hello-linux-x64
+clang++ -O2 --target=aarch64-unknown-linux-gnu hello.cpp -o hello-linux-arm64
+clang++ -O2 --target=x86_64-w64-mingw32 hello.cpp -o hello-windows-x64.exe
+clang++ -O2 --target=aarch64-w64-mingw32 hello.cpp -o hello-windows-arm64.exe
 ```
 
-No `--sysroot`, no `-L`, no SDK to install: `bin/aarch64-w64-mingw32.cfg`,
-which clang reads for that target, points it at `xclang/aarch64-w64-mingw32/`,
-and it links the libc++, libunwind and compiler-rt built for that exact
-target. The targets are `x86_64-unknown-linux-gnu`,
-`aarch64-unknown-linux-gnu`, `x86_64-w64-mingw32`, `aarch64-w64-mingw32`,
-`aarch64-apple-darwin` and `x86_64-apple-darwin`
-([hosts and targets](layout.md)); clang's other spellings of them
+and on macOS hosts `--target=aarch64-apple-darwin` and
+`--target=x86_64-apple-darwin`, against Xcode's SDK (found by `xcrun`, or
+given with `-isysroot`). clang's other spellings of the targets
 (`x86_64-pc-linux-gnu`, `aarch64-pc-windows-gnu`, `arm64-apple-macos`, ...)
-reach the same config files. macOS targets need Xcode's SDK, found by
-`xcrun` or given with `-isysroot`, so they build on macOS only.
+reach the same config files.
 
-## Config files
+What the config files decide, so that a command does not:
 
-The config files apply to native builds too, so a plain `clang++ main.cpp`
-on Linux compiles against glibc 2.17 and links everything but glibc
-statically. What each target's file says:
+- the sysroot (`--sysroot`), libc++, libunwind and compiler-rt of the
+  target, linked statically;
+- lld as the linker (ld64.lld for macOS targets, on macOS too;
+  `-fuse-ld=ld` selects Apple's, with xclang's `libLTO.dylib`);
+- macOS: deployment target 13.0, a later `-mmacos-version-min` replaces it.
 
-| target | config file |
-|---|---|
-| Linux | `--sysroot` of the target's directory, compiler-rt, libunwind and libc++ (`-static-libstdc++ -static-libgcc`), lld |
-| Windows | `--sysroot` of the target's directory, compiler-rt, libunwind and libc++ (static libraries only), lld |
-| macOS | xclang's libc++ headers and `libc++.a` ahead of the SDK's `libc++.tbd`, deployment target 13.0, ld64.lld |
+`--no-default-config` drops all of it and gives the bare compiler, for
+building against the system's own headers and libraries as upstream clang
+would. [The toolchain's shape](../design/toolchain.md#a-config-file-per-target)
+says why the choices are config files and not built in.
 
-`--no-default-config` gives the bare compiler, for building against the
-system's own headers and libraries. The sysroots and runtimes are plain
-directories laid out the way clang's drivers expect, so any clang pointed
-at them with `--sysroot` / `-resource-dir` cross-compiles too.
-
-macOS targets link with ld64.lld, on macOS too. `-fuse-ld=ld` selects the
-system's `ld`, which does LTO with xclang's `libLTO.dylib`, as Apple's own
-toolchain does.
-
-## GCC's names
-
-Build scripts written for GCC keep working: `-latomic`, `-lgcc`,
-`-lgcc_eh`, `-lgcc_s` (and on Windows `-lssp`, which `-fstack-protector`
-asks for) find empty archives, the functions being in compiler-rt,
-libunwind and mingw-w64; `-lstdc++` means libc++. `-static` links fully
-static Linux programs. `windres`, the name CMake looks for to compile a
-MinGW project's `.rc` files, is `llvm-windres`.
-
-## compiler-rt and sanitizers
-
-compiler-rt carries the builtins (with the `__atomic_*` functions of
-atomics too wide to be lock-free), the profile runtime, and for Linux and
-macOS targets AddressSanitizer, ThreadSanitizer, LeakSanitizer, UBSan and
-libFuzzer. zlib and zstd are linked in statically: `-gz=zlib`, `-gz=zstd`
-and compressed profiles work on every host.
-
-Those targets also carry libc++'s ASan build, `<asan>`: `lib/asan` of the
-target directory (`usr/lib/asan` on Linux). An ASan build compiles and
-links with it, all of it, libraries too:
-
-```
-compile   -fsanitize=address -isystem <asan>/include
-link      -fsanitize=address -nostdlib++ <asan>/libc++.a
-```
-
-Its `__config_site` turns on the container checks of `std::string`, and
-its `libc++.a` is instrumented like the code that calls it: a program
-mixing either with the other build gets false container-overflow reports.
-The other sanitizers need nothing of the kind.
+Build scripts written for GCC keep working: `-latomic`, `-lgcc`, `-lgcc_eh`,
+`-lgcc_s` and on Windows `-lssp` find empty archives, the functions being in
+compiler-rt, libunwind and mingw-w64; `-lstdc++` means libc++; `-static`
+links fully static Linux programs; `windres` is `llvm-windres`
+([GCC library names](../design/hermeticity.md#gcc-library-names)).
+tests/smoke.ts checks each on every host.
 
 libc++ is built with hardening mode `none`. The mode is a per-translation-unit
-macro, so a debug build opts in with `-D_LIBCPP_HARDENING_MODE=...`.
+macro, so a debug build opts in with `-D_LIBCPP_HARDENING_MODE=...`
+(tests/smoke.ts builds with `_LIBCPP_HARDENING_MODE_DEBUG`).
 
-## import std
+## Make
 
-libc++'s `std` and `std.compat` modules are sources in each target
-directory, which clang names: `-print-library-module-manifest-path` prints
-`libc++.modules.json`, and the sources are next to it in
-`../share/libc++/v1`. Built by hand:
+[examples/make](https://github.com/clice-io/xclang/tree/main/examples/make):
 
-```sh
-share=$(dirname "$(clang++ -print-library-module-manifest-path)")/../share/libc++/v1
-clang++ -std=c++23 -Wno-reserved-module-identifier -isystem "$share" \
-    --precompile "$share/std.cppm" -o std.pcm
-clang++ -std=c++23 -fmodule-file=std=std.pcm main.cpp std.pcm -o main
+<!-- file: examples/make/Makefile -->
+```make
+# make CXX=clang++
+# make CXX="clang++ --target=aarch64-unknown-linux-gnu"
+hello: hello.cpp
+	$(CXX) $(CXXFLAGS) -O2 hello.cpp -o $@ $(LDFLAGS)
 ```
 
-clang refuses a module file built with other language options (`-std`, GNU
-extensions, `-fno-exceptions`, `-fno-rtti`, ...) than its importer's;
-macros, include paths and optimization may differ. [CMake](cmake.md) and
-[Bazel](bazel.md) build the modules for a build by themselves.
+```sh
+make CXX=clang++
+make CXX="clang++ --target=aarch64-unknown-linux-gnu"
+```
+
+The target goes into the compiler's name, so every rule that compiles or
+links gets it; `AR=llvm-ar` and `RANLIB=llvm-ranlib` for a build that makes
+static libraries. A configure script takes the same `CC`, `CXX` and `AR`.
+
+## Meson
+
+[examples/meson](https://github.com/clice-io/xclang/tree/main/examples/meson).
+For the host, Meson finds the compiler by `CXX`:
+
+```sh
+CXX=clang++ meson setup build
+meson compile -C build
+```
+
+For another target, a cross file names the compiler with `--target` and the
+machine Meson builds for:
+
+<!-- file: examples/meson/cross/aarch64-w64-mingw32.ini -->
+```ini
+[binaries]
+c = ['clang', '--target=aarch64-w64-mingw32']
+cpp = ['clang++', '--target=aarch64-w64-mingw32']
+ar = 'llvm-ar'
+strip = 'llvm-strip'
+windres = ['llvm-windres', '--target=aarch64-w64-mingw32']
+
+[host_machine]
+system = 'windows'
+cpu_family = 'aarch64'
+cpu = 'aarch64'
+endian = 'little'
+```
+
+```sh
+meson setup build-aarch64-w64-mingw32 --cross-file cross/aarch64-w64-mingw32.ini
+meson compile -C build-aarch64-w64-mingw32
+```
+
+`cross/aarch64-unknown-linux-gnu.ini` is the same for Linux on Arm, without
+`windres`, with `system = 'linux'`.
+
+## More
+
+- Sanitizers, and the ASan build of libc++ an ASan program links:
+  [sanitizers](../features/sanitizers.md).
+- `import std` by hand: [C++20 modules](../features/modules.md#by-hand).
+- Debug symbols with the toolchain's dsymutil and llvm-gsymutil:
+  [debugging](../features/debugging.md).

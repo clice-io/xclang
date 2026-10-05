@@ -7,7 +7,7 @@ item is
 - **being considered**: wanted, its form or its cost still open;
 - **in research**: whether it can be done well is still being found out.
 
-What each release changed is in the [CHANGELOG](../CHANGELOG.md).
+What each release changed is in the [CHANGELOG](https://github.com/clice-io/xclang/blob/main/CHANGELOG.md).
 
 ## The aim
 
@@ -21,25 +21,17 @@ never redistributes them. Partly like `zig cc`, without bundling
 everything: what a host's toolchain does not carry is fetched, not built
 from bundled sources.
 
-Every target keeps the [hermeticity](layout.md#hermeticity) rule: a program
+Every target keeps the [hermeticity](hermeticity.md) rule: a program
 depends at run time only on the libraries of its OS that cannot be
 redistributed, and links everything else statically.
 
 ## Tiers
 
-Each target has a tier, as Rust's do:
-
-- **Tier 1**: built for every release, and its tests run on a GitHub-hosted
-  runner of the target itself (Windows x64 runs x86 programs, wasmtime
-  WebAssembly ones); a failure stops the release.
-- **Tier 2**: built for every release, and its tests run under emulation or
-  virtualization: qemu, a virtual machine, Android's emulator, Apple's
-  simulators.
-- **Tier 3**: built, or buildable on demand; programs are compiled and
-  linked for it, not run.
-
-A target marked **SDK** needs a vendor SDK that the user fetches and
-accepts the license of; xclang's tests fetch it the same way.
+Each target has a tier, as Rust's do: tier 1 is tested on a machine of the
+target itself, tier 2 under emulation, tier 3 compiled and linked only
+([tiers](../reference/targets.md#tiers)). A target marked **SDK** needs a
+vendor SDK that the user fetches and accepts the license of; xclang's tests
+fetch it the same way.
 
 ## Targets
 
@@ -122,7 +114,7 @@ xclang sdk fetch windows --accept-license
 
 It is written in Rust (ureq, rustls with ring) and built for every host
 with xclang as its C compiler and linker, so it is xclang's first user for
-cargo (below). It exists, `cli/` ([the xclang command](cli.md)), and is
+cargo (below). It exists, `cli/` ([the xclang command](../reference/xclang-command.md)), and is
 built and tested by CI, not yet in a release.
 
 ## xclang for cargo
@@ -131,7 +123,7 @@ Planned: xclang as the C and C++ toolchain of cargo builds for other
 targets, the C compiler and the linker of crates with C code and of Rust's
 own targets, as cargo-zigbuild does with zig, with stock clang and the
 runtimes xclang ships.
-[Rust](rust.md) says how, from building the xclang command for every
+[Rust and cargo](../integrations/cargo.md) says how, from building the xclang command for every
 host, and for macOS and the MSVC ABI from Linux with the fetched SDKs.
 
 ## libc++ built on demand
@@ -152,10 +144,10 @@ The prebuilt runtimes stay the default.
 
 ## Build systems
 
-- **A ThinLTO link cache**, shipped (Unreleased): `XCLANG_THINLTO_CACHE`
+- **A ThinLTO link cache**, shipped in 23.1.2.6: `XCLANG_THINLTO_CACHE`
   in the Bazel module and the CMake package keeps the code ThinLTO links
   generate, so a relink after a small change redoes only what changed
-  ([Bazel](bazel.md#the-thinlto-cache), [CMake](cmake.md#the-thinlto-cache)).
+  ([the ThinLTO cache](../features/thinlto-cache.md)).
 - **More targets from CMake and Bazel**, planned: both build systems
   would take fetched targets as they come, and the Bazel module the vendor
   SDKs. Its toolchains build for every target of the host's archive today
@@ -164,15 +156,15 @@ The prebuilt runtimes stay the default.
 
 ## Reproducibility
 
-- **Reproducible links**, shipped for Bazel (Unreleased): the same inputs
+- **Reproducible links**, shipped for Bazel in 23.1.2.6: the same inputs
   link to the same binary wherever they are linked, debug information
   relative to the execution root (`-ffile-compilation-dir=.`), on macOS
   debug maps without the build's directory (`-oso_prefix`), on Windows no
-  link timestamps ([Bazel](bazel.md#debugging)). Planned: the same for
+  link timestamps ([debugging](../features/debugging.md)). Planned: the same for
   CMake builds, whose paths are the build tree's own.
 - **Immutable releases**, planned: GitHub releases whose assets cannot
   change once published, so neither can the `SHA256SUMS` that
-  [CMake](cmake.md)'s download checks archives against.
+  [CMake](../integrations/cmake.md)'s download checks archives against.
 
 ## Following LLVM
 

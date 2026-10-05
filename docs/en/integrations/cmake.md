@@ -1,17 +1,16 @@
 # CMake
 
-xclang's CMake package makes the toolchain a build's compiler, for the
-host or another target, and gives the build libc++'s `std` and
-`std.compat` modules as a library to link: `import std` without CMake's
-experimental `CMAKE_EXPERIMENTAL_CXX_IMPORT_STD`.
+xclang's CMake package makes the toolchain a build's compiler, for the host
+or another target, and gives the build libc++'s `std` and `std.compat`
+modules as a library to link: `import std` without CMake's experimental
+`CMAKE_EXPERIMENTAL_CXX_IMPORT_STD`.
 
 It needs CMake 3.28 and Ninja 1.11 or later, the first that build C++20
 modules, and the Ninja or Ninja Multi-Config generator: CMake builds modules
-with no other generator for these targets.
-
-The package is in every toolchain archive from 23.1.2.6 on, in
-`lib/cmake/xclang` (and so in the conda package), and in this repository,
-`packages/cmake/`, at every tag.
+with no other generator for these targets. The package is in every
+toolchain archive from 23.1.2.6 on, in `lib/cmake/xclang` (and so in the
+conda package), and in this repository, `packages/cmake/`, at every tag.
+Every variable and function is listed in the [CMake API](../reference/cmake-api.md).
 
 ## With xclang installed
 
@@ -37,11 +36,16 @@ gives `<xclang>/lib/cmake/xclang`), or `-Dxclang_ROOT=<xclang>`. It comes
 after `project()`, whose C++ compiler must be xclang's.
 
 The toolchain file sets the compilers and binary tools (`llvm-ar`,
-`llvm-ranlib`, ...) of a tree and the package's location at once:
+`llvm-ranlib`, ...) of a tree and the package's location at once, without
+`PATH`:
 
 ```sh
 cmake -G Ninja -B build --toolchain <xclang>/lib/cmake/xclang/toolchain.cmake
 ```
+
+A ready project is in
+[examples/cmake](https://github.com/clice-io/xclang/tree/main/examples/cmake):
+the [quick start](../guide/quick-start.md) builds it.
 
 ## Without xclang installed
 
@@ -68,6 +72,10 @@ add_executable(app main.cpp)
 target_link_libraries(app PRIVATE xclang::std)
 ```
 
+```sh
+cmake -G Ninja -B build
+```
+
 The tag holds `packages/cmake/` from 23.1.2.6 on. `GIT_TAG` may also name a
 later commit, with `XCLANG_VERSION` the release whose toolchain it
 downloads: an earlier one works too.
@@ -75,25 +83,17 @@ downloads: an earlier one works too.
 `xclang.cmake` downloads the release's `SHA256SUMS` and
 `xclang-<version>-<host>.tar.xz`, checks the archive against its line
 there, unpacks it into the user's cache, once per version and host, and
-sets `CMAKE_TOOLCHAIN_FILE` to its toolchain file. The archive is as
-trustworthy as the release's `SHA256SUMS`: both come from the GitHub
-release, and releases are not yet immutable. Another build tree of the same
-release and host finds the toolchain in the cache and downloads nothing but
-the checkout.
+sets `CMAKE_TOOLCHAIN_FILE` to its toolchain file. Another build tree of the
+same release and host finds the toolchain in the cache and downloads
+nothing but the checkout. The archive is as trustworthy as the release's
+`SHA256SUMS`: both come from the GitHub release, and releases are not yet
+immutable ([releases](../reference/releases.md#checking-a-download)).
 
-| variable | |
-|---|---|
-| `XCLANG_VERSION` | the release to download; without it, the release tagging the fetched checkout |
-| `XCLANG_TARGET` | another target to build for (below) |
-| `XCLANG_ROOT` | an unpacked xclang to use instead of downloading one |
-| `XCLANG_CACHE_DIR` | where toolchains are unpacked, `<version>/<host>` each (also an environment variable); by default `$XDG_CACHE_HOME/xclang` or `~/.cache/xclang`, `~/Library/Caches/xclang` on macOS, `%LOCALAPPDATA%\xclang` on Windows |
-| `XCLANG_URL` | where `SHA256SUMS` and the archives are downloaded from, a mirror of the release; its `SHA256SUMS` is then the one trusted |
-
-The variables are set before the `include`, or given with `-D`. A toolchain
-is downloaded and unpacked aside and moved in place, so build trees
-configured at once do not clash. `xclang.cmake` stops if the build has a
-toolchain file of its own already (vcpkg's, say); vcpkg chain-loads an
-installed xclang's (`VCPKG_CHAINLOAD_TOOLCHAIN_FILE`) instead.
+`XCLANG_CACHE_DIR` moves the cache, `XCLANG_ROOT` uses an unpacked xclang
+instead of downloading one, `XCLANG_URL` names a mirror. `xclang.cmake`
+stops if the build has a toolchain file of its own already (vcpkg's, say);
+vcpkg chain-loads an installed xclang's (`VCPKG_CHAINLOAD_TOOLCHAIN_FILE`)
+instead.
 
 ## Other targets
 
@@ -110,10 +110,15 @@ cmake -G Ninja -B build-arm64 --toolchain <xclang>/lib/cmake/xclang/toolchain.cm
   `CMAKE_OSX_ARCHITECTURES` to CMake, not cross-compiling, and x86_64
   programs run on arm64 macOS through Rosetta.
 - CMake looks for the libraries, headers and packages of another target in
-  that target's directory only (`CMAKE_SYSROOT`, `CMAKE_FIND_ROOT_PATH_MODE_*`
-  `ONLY`): a dependency built for the target is named by `<Package>_DIR`, or
-  its prefix added to `CMAKE_FIND_ROOT_PATH`.
+  that target's directory only (`CMAKE_SYSROOT`,
+  `CMAKE_FIND_ROOT_PATH_MODE_*` `ONLY`): a dependency built for the target
+  is named by `<Package>_DIR`, or its prefix added to `CMAKE_FIND_ROOT_PATH`.
+  A library found on the build machine would be the wrong architecture or
+  OS, and the link would fail late or, worse, succeed against the wrong
+  headers.
 - `xclang::std` is built for the target too.
+- Tests built for another target run on a machine of that target, not on
+  the build machine.
 
 ## import std
 
@@ -124,7 +129,8 @@ the build's target. It is built only when something links it.
 
 clang refuses a module file built with other language options than its
 importer's: `-std`, GNU extensions, `-fno-exceptions`, `-fno-rtti`, ...;
-macros, include paths and optimization may differ. So:
+macros, include paths and optimization may differ
+([C++20 modules](../features/modules.md) says why). So:
 
 - `xclang::std` is built with the settings of the directory that called
   `find_package(xclang)`, as they are at the end of its `CMakeLists.txt`:
@@ -153,6 +159,11 @@ target_sources(geometry PUBLIC FILE_SET CXX_MODULES FILES geometry.cppm geometry
 target_link_libraries(geometry PUBLIC xclang::std)
 ```
 
+ccache never caches a module interface, and before 4.14 it serves an
+importer's stale object after the interface changed; see
+[C++20 modules](../features/modules.md#build-caches-and-modules) before
+putting it in front of the compiler.
+
 ## Debug symbols
 
 `xclang_debug_symbols(<target>)` makes a program's debug symbols for its
@@ -173,56 +184,38 @@ xclang_debug_symbols(tool)
   dsymutil reads the objects the debug map points into, and the link keeps
   ThinLTO's for it in `<build dir>/tool.lto`.
 
+What GSYM and dSYM are for, and why they come from the link, is in
+[debugging](../features/debugging.md).
+
 ## libclang
 
 A tool on libclang finds it with `find_package(Clang)`; see
-[libclang](libclang.md).
+[libclang](../features/libclang.md#cmake).
 
 ## The ThinLTO cache
 
 libclang is ThinLTO bitcode, so the link of a tool on it generates the code
 of every module the tool uses, which takes minutes. With
-`XCLANG_THINLTO_CACHE`, an absolute directory, the linker keeps that code
-there, per module, and a link after the first takes seconds, generating
-only what a change touched; the cache does not change the program.
-`find_package(xclang)` makes the directory at configure time and adds the
-target's linker's flag to every link of the directory that called it and of
-its subdirectories: `-Wl,--thinlto-cache-dir=<dir>` for Linux and Windows
-targets, `-Wl,-cache_path_lto,<dir>` for macOS ones.
+`XCLANG_THINLTO_CACHE`, an absolute directory, a link after the first takes
+seconds:
 
 ```sh
 cmake -G Ninja -B build -DXCLANG_THINLTO_CACHE=/var/tmp/xclang-thinlto
 ```
 
-The environment variable `XCLANG_THINLTO_CACHE` gives the first configure
-of every build tree its value. Build trees, and Bazel builds
-([Bazel](bazel.md#the-thinlto-cache), whose paths these are), can share one
-directory: an entry is named by a hash of everything that makes it, and
-written whole or not at all. The linker prunes it by LLVM's default policy,
-every 20 minutes at most dropping what no link has read for a week.
+`find_package(xclang)` makes the directory at configure time and adds the
+target's linker's flag to every link of the directory that called it and of
+its subdirectories: `-Wl,--thinlto-cache-dir=<dir>` for Linux and Windows
+targets, `-Wl,-cache_path_lto,<dir>` for macOS ones. The environment
+variable `XCLANG_THINLTO_CACHE` gives the first configure of every build
+tree its value. How the cache works, its pruning and why its path is fixed
+are in [the ThinLTO cache](../features/thinlto-cache.md); keeping it in CI
+is in [CI](ci.md).
 
-In CI the directory goes in an `actions/cache` entry keyed on the xclang
-version, with the build's other caches: a restored cache is not pruned
-(restoring sets every file's last access), and a new release, whose links
-need none of the old entries, starts an empty one.
+## Tested by
 
-```yaml
-- uses: actions/cache@v6
-  with:
-    path: ${{ runner.os == 'Windows' && 'C:/xclang-thinlto' || '/var/tmp/xclang-thinlto' }}
-    key: thinlto-${{ runner.os }}-${{ runner.arch }}-xclang-23.1.2.6-${{ github.sha }}
-    restore-keys: thinlto-${{ runner.os }}-${{ runner.arch }}-xclang-23.1.2.6-
-```
-
-## What the package holds
-
-| file | |
-|---|---|
-| `xclang-config.cmake` | `find_package(xclang)`: `xclang::std`, `xclang_add_std()`, `xclang_debug_symbols()`, `XCLANG_ROOT`, the ThinLTO cache |
-| `xclang-config-version.cmake` | the release (toolchain archives only): `find_package(xclang 23.1)` |
-| `toolchain.cmake` | the tree as the build's toolchain, `XCLANG_TARGET` |
-| `xclang.cmake` | in `packages/cmake/` only: the download before `project()` |
-
-tests/cmake builds with the package as above on every host, with CMake
-3.28 and Ninja 1.11 and with the newest ones (cmake.yml), and links
-tests/libclang with the ThinLTO cache and again from it.
+tests/cmake builds with the package as above on every host, with CMake 3.28
+and Ninja 1.11 and with the newest ones (cmake.yml): found by `PATH`, through
+the toolchain file for every other target the host can build, and
+downloaded by FetchContent from the release's tag. It links tests/libclang
+with the ThinLTO cache and again from it, and builds examples/cmake.

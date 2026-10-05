@@ -13,7 +13,7 @@ without the parts a tool does not link:
 - **PGO and ThinLTO bitcode**, so they need an lld of the same release:
   link with that release's toolchain. A link generates the code of every
   module the tool uses, minutes each time; the linker's ThinLTO cache
-  ([CMake](cmake.md#the-thinlto-cache), [Bazel](bazel.md#the-thinlto-cache))
+  ([the ThinLTO cache](thinlto-cache.md), [Bazel](../integrations/bazel.md#the-thinlto-cache))
   makes the links after the first take seconds.
 - **No RTTI**: code using them compiles with `-fno-rtti`, as LLVM's did.
 - **libc++**, xclang's own, as every program of the toolchain.
@@ -38,14 +38,14 @@ without the parts a tool does not link:
   on). No target's code generator: `InitializeAllTargets()`,
   `InitializeAllAsmPrinters()` and `InitializeNativeTarget()` do not link.
 - `lib/cmake/xclang/libclang.cmake` records the build: `XCLANG_LLVM_VERSION`,
-  `XCLANG_LTO`, `XCLANG_PGO`, `XCLANG_PATCHES` (the [patches](patches.md)
+  `XCLANG_LTO`, `XCLANG_PGO`, `XCLANG_PATCHES` (the [patches](../design/patches.md)
   applied, in order), and so on.
 
 `libclang-<version>-<host>-asan.tar.xz`, for Linux x64 and macOS arm64, is
 a build with assertions and AddressSanitizer, at `-O1` and without PGO or
 ThinLTO, for debugging a tool, with the same headers and libraries. It is
 built against libc++'s ASan build, so the tool is too
-([sanitizers](clang.md#compiler-rt-and-sanitizers)).
+([sanitizers](sanitizers.md)).
 
 ### CMake
 
@@ -68,7 +68,7 @@ cmake -G Ninja -B build -DCMAKE_CXX_COMPILER=<xclang>/bin/clang++ \
 ```
 
 tests/libclang is this tool; every host builds and runs it
-(tests/libclang.ts, and through xclang's [CMake package](cmake.md) in
+(tests/libclang.ts, and through xclang's [CMake package](../integrations/cmake.md) in
 tests/cmake).
 
 ### Bazel
@@ -84,7 +84,7 @@ used with `--features=asan`, and `@libclang` is that too in a build with
 together, and a build for a target without an ASan build says so. (A
 target's own `features = ["asan"]` switches no dependency.) Both are the
 target platform's: built for another target
-([cross-compiling](bazel.md#cross-compiling)), a tool links that target's
+([cross-compiling](../integrations/bazel.md#cross-compiling)), a tool links that target's
 archive, which is downloaded only then; `@libclang_<triple>` is one
 target's.
 
@@ -93,7 +93,7 @@ in `lib/clang` next to the directory of its program, as clang itself does.
 `xclang_resource_dir` lays `@libclang`'s out there for a program `bin/<name>`
 of its package, in `bazel-bin` and in the runfiles:
 
-```starlark
+```python
 load("@xclang//bazel:resource_dir.bzl", "xclang_resource_dir")
 
 cc_binary(
@@ -106,7 +106,7 @@ cc_binary(
 xclang_resource_dir(name = "resource_dir")
 ```
 
-```starlark
+```python
 xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
 use_repo(xclang, "libclang", "libclang_asan", "llvm_option_inc")
 ```

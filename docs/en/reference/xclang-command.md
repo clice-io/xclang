@@ -3,7 +3,7 @@
 `bin/xclang` fetches what the toolchain does not carry: the vendor SDKs
 that cannot be redistributed, and targets beyond the six every toolchain
 has. It is written in Rust (`cli/`) and built for every host with xclang
-as its C compiler and linker ([Rust](rust.md)). No release carries it yet:
+as its C compiler and linker ([Rust and cargo](../integrations/cargo.md)). No release carries it yet:
 the archives do once the release pipeline runs with `cli` (below).
 
 ```sh

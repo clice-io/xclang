@@ -1,12 +1,23 @@
-# Rust: xclang as cargo's cross toolchain
+# Rust and cargo
 
 xclang can be the C compiler and the linker of cargo builds for other
 targets, the way cargo-zigbuild uses zig: crates' C code (`cc`) and Rust's
 own linking go through xclang's clang and lld, with xclang's sysroots and
-static runtimes, so the result has xclang's [hermeticity](layout.md#hermeticity).
+static runtimes, so the result has xclang's [hermeticity](../design/hermeticity.md).
 What follows is what builds xclang's own command (`cli/`, with ring's and
 liblzma's C code) for every host; `scripts/cli.ts` and `tests/cargo.ts` do
 exactly this. This is a seed: no `xclang cargo` helper exists yet.
+
+What is tested, and where (cli.yml):
+
+- Linux and MinGW targets: `scripts/cli.ts` builds `cli/` this way from
+  Linux x64 for both Linux and both Windows hosts, and from macOS arm64 for
+  both macOS hosts, with a released xclang, and checks what each binary
+  loads; the binaries then run their tests on a machine of each host.
+- macOS and MSVC targets from Linux: `tests/cargo.ts`, with the SDKs
+  fetched by `xclang sdk fetch`. That command is built from `cli/` and is
+  in no release yet ([the xclang command](../reference/xclang-command.md)),
+  so the `xclang sdk` lines below need a build of it.
 
 ## Targets
 
@@ -110,4 +121,4 @@ time:
   23.1.2.5's aarch64 sysroot, Rust links without it and C++ programs and
   shared libraries naming `-lgcc_s` still link.
 - Rust targets xclang has no target for yet (musl, other architectures)
-  follow with the targets of the [roadmap](roadmap.md).
+  follow with the targets of the [roadmap](../design/roadmap.md).
