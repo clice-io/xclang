@@ -20,6 +20,6 @@ again, builds the same thing; libclang's manifest lists them
 | [`0009-textapi-arm64e-x1`](https://github.com/clice-io/xclang/blob/main/patches/0009-textapi-arm64e-x1/README.md) | ld64.lld reads the macOS 27 SDK's `.tbd` stubs, which list `arm64e.x1`: macOS programs link against Xcode 27's SDK (release/23.x's backport, in 23.1.3) |
 
 0005 (ASan's container checks in libc++'s ODR signature) was in 23.1.2.3 and
-23.1.2.4; libc++'s ASan build replaced it in 23.1.2.5.
+23.1.2.4; the ASan libc++ replaced it in 23.1.2.5.
 [CHANGELOG.md](https://github.com/clice-io/xclang/blob/main/CHANGELOG.md)
 has which release took which patch.

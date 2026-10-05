@@ -1,9 +1,10 @@
 # Releasing
 
-How a release `<llvm version>.<revision>` is cut. The maintainers' step list
-is the release skill in
+How a release `<llvm version>.<revision>` is cut. The step list for
+maintainers is the release skill in
 [.claude/skills/release](https://github.com/clice-io/xclang/blob/main/.claude/skills/release/SKILL.md);
-this page is the same process, for people.
+this page is the same process, for people. What the pipeline does is in the
+[build pipeline](release-build.md).
 
 ## Rules
 
@@ -41,8 +42,9 @@ this page is the same process, for people.
 7. **After publishing**, one commit on `main`, `readme: <version>`: the
    module's `versions.bzl` from the release's `SHA256SUMS`, the version in
    the module files, the README, the docs and examples/
-   (`grep -rn <previous version>` finds them), and CHANGELOG.md's
-   Unreleased becomes the release's section.
+   (`grep -rn <previous version>` finds them), the runs table of
+   [testing](testing.md), and CHANGELOG.md's Unreleased becomes the
+   release's section.
 8. **examples.yml**, by hand, once conda.clice.io and bazel.clice.io have
    the release: the docs' commands against it on every host.
 9. **bench.yml** with the release run's artifacts, when performance

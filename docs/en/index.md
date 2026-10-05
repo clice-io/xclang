@@ -27,7 +27,7 @@ features:
     details: clang and lld are built with PGO and ThinLTO on every host, Windows included.
     link: ./design/pgo#what-it-buys
   - title: C++20 Modules
-    details: import std in CMake 3.28 or later and in Bazel, without experimental switches.
+    details: import std in CMake 3.28 or later, without experimental switches, and in Bazel.
     link: ./features/modules
   - title: Every Build System
     details: CMake, Bazel, Meson, Make and cargo, with xclang from pixi, an archive, FetchContent or the Bazel registry.

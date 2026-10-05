@@ -1,32 +1,35 @@
 # How a Release Is Built
 
 A release is built on GitHub-hosted runners by `main.yml`, from LLVM's
-release source with the [patches](../reference/patches.md) applied, in
-stages:
+release source with the [patches](../reference/patches.md) applied. The
+steps for cutting one are in [releasing](releasing.md).
 
-1. **Runtimes.** A bootstrap clang builds every target's sysroot, libc++,
-   libc++abi, libunwind and compiler-rt, and libc++'s ASan build.
+## The Stages
+
+1. **Runtimes.** A bootstrap clang builds the sysroot, libc++, libc++abi,
+   libunwind and compiler-rt of every target, and the ASan libc++.
 2. **Instrumented compiler.** The bootstrap clang builds a clang and lld
    with frontend instrumentation, on Linux x64.
 3. **Training.** The instrumented toolchain compiles a fixed training set
    and writes the profile: about 1700 compiler runs in 23 minutes
-   ([PGO](../design/pgo.md)).
+   ([PGO](../design/pgo.md#the-training)).
 4. **Toolchains.** Every host's clang, lld and tools are built with that
-   profile and ThinLTO, about two hours per host; the same build tree gives
-   that host's libclang archive. The ASan libclang of Linux x64 and macOS
-   arm64 is built apart, without profile or ThinLTO. Linux and Windows hosts
-   are built on Linux x64, the macOS ones on macOS arm64; every host but
-   those two is cross-compiled.
-5. **Package and test.** Each host's archives are tested on a machine of
-   that host (below), and the Bazel module and the CMake package are tested
-   with them.
+   profile and ThinLTO, about two hours per host. The same build tree gives
+   the libclang archive of that host. The ASan libclang of Linux x64 and
+   macOS arm64 is built apart, without profile or ThinLTO.
+5. **Package and test.** The archives of each host are tested on a
+   machine of that host, and the Bazel module and the CMake package are
+   tested with them ([testing](testing.md)).
 6. **Release.** A draft release with every archive, the profile and
-   `SHA256SUMS`; publishing it, by hand, creates the tag.
+   `SHA256SUMS`. Publishing it, by hand, creates the tag.
+
+Linux and Windows hosts are built on Linux x64, the macOS ones on macOS
+arm64. Every host but those two is cross-compiled.
 
 ## The Bootstrap Chain
 
 The bootstrap clang is an earlier xclang release, pinned with its sha256 in
-`scripts/common.ts`; the first was built by LLVM's own release builds:
+`scripts/common.ts`. The first was built by LLVM's own release builds:
 
 | release | built by |
 |---|---|
@@ -39,40 +42,19 @@ The bootstrap clang is an earlier xclang release, pinned with its sha256 in
 
 xclang builds itself with the same config files, runtimes and linker its
 users get, so the release pipeline is its first user. The bootstrap moves
-forward deliberately, as a release that lacks something the build needs
-breaks it (23.1.2.1 lacked compiler-rt's headers, which LLVM's ASan build
-includes); 23.1.2.6 moved to 23.1.2.5, whose ld64.lld has
+forward deliberately, because a release that lacks something the build
+needs breaks it. 23.1.2.1 lacked the compiler-rt headers, which LLVM's ASan
+build includes. 23.1.2.6 moved to 23.1.2.5, whose ld64.lld has
 [patch 0007](../reference/patches.md), to link xclang's own macOS builds
-with it. LLVM's release builds stay pinned as the benchmark's reference.
-
-## What Is Tested before a Release
-
-Each host's archives, on a machine of that host:
-
-- its own programs load no C++ runtime (and need glibc 2.17 at most);
-- C and C++ programs build for every target and run where they can, with
-  wide atomics, hardening flags, GCC's library names, a version resource,
-  and `-static` on Linux;
-- `import std`, a PCH, ThinLTO, ASan, TSan and libFuzzer work natively, and
-  the checks the [patches](../reference/patches.md) were made against pass
-  (tests/smoke.ts);
-- a small tool on libclang, found through `find_package(Clang)`, builds and
-  runs (tests/libclang.ts);
-- tests/bazel builds and tests with the Bazel module (bazel.yml; the
-  published release's is cross-compiled for every other target too, and
-  run on a machine of it), and tests/cmake with the CMake package, by
-  `PATH`, for every other target, and downloaded by FetchContent, with
-  CMake 3.28 and the newest (cmake.yml).
-
-After publishing, examples.yml runs the documentation's commands against
-the release from conda.clice.io, the archives, the tag and bazel.clice.io.
+with it. LLVM's release builds stay pinned as the reference of the
+benchmark.
 
 ## The Workflows
 
-`main.yml`, started by hand, runs the stages as reusable workflows;
-`stages` picks which run, and `reuse-run` (with `runtimes-run`,
-`profile-run`) takes a stage's artifacts from an earlier run instead of
-building them again.
+`main.yml`, started by hand, runs the stages as reusable workflows.
+`stages` picks which run. `reuse-run`, with `runtimes-run` and
+`profile-run`, takes the artifacts of a stage from an earlier run instead
+of building them again.
 
 | stage | workflow | |
 |---|---|---|
@@ -82,28 +64,89 @@ building them again.
 | `toolchain` | toolchain.yml | every host's toolchain and libclang |
 | `asan` | toolchain.yml | the ASan libclang of Linux x64 and macOS arm64 |
 | `package` | package.yml | every host's release archives |
-| `test` | test.yml | every host's archives checked on a machine of that host |
+| `test` | test.yml | every host's archives, checked on a machine of that host |
 | `bazel` | bazel.yml | the Bazel module with every host's archives |
 | `cmake` | cmake.yml | the CMake package with every host's archives |
 | `release` | release.yml | a draft release of everything, with `SHA256SUMS` |
 
-With `cli`, `package` also builds the
+With `cli`, the `package` stage also builds the
 [xclang command](../reference/xclang-command.md) (cli.yml) and puts it into
 every toolchain archive. The command is
 [unreleased](../design/roadmap.md#xclang-command), so no release has been
 built with `cli`. cli.yml also runs on its own, testing the command on every
 host.
 
-A draft creates no tag; publishing it does, by hand. Publishing starts
-bazel.yml, which tests the release's module and publishes it to
-[bazel.clice.io](https://bazel.clice.io), and cmake.yml, which builds
-tests/cmake from the tag as a user fetches it. conda.yml, by hand, makes the
-conda packages of a published release, tests them with pixi on every host
-and publishes them to [conda.clice.io](https://conda.clice.io). Once the
-release is on both, examples.yml (by hand) runs the docs' commands and
-examples/ against it on every host. bench.yml compares xclang's compile
-speed with LLVM's own build of the same version, and Apple's clang on macOS
-(tests/bench.ts, [PGO](../design/pgo.md#what-it-buys)).
+A draft creates no tag; publishing it does. Publishing starts two
+workflows:
+
+- bazel.yml tests the module of the release and publishes it to
+  [bazel.clice.io](https://bazel.clice.io).
+- cmake.yml builds `tests/cmake` from the tag, as a user fetches it.
+
+Then, by hand:
+
+- conda.yml makes the conda packages of the release, tests them with pixi on
+  every host, and publishes them to
+  [conda.clice.io](https://conda.clice.io).
+- examples.yml runs the commands of the docs and `examples/` against the
+  release on every host, once it is on both channels.
+- bench.yml compares the compile speed of the release with LLVM's own build
+  of the same version, and with Apple's clang on macOS
+  ([PGO](../design/pgo.md#what-it-buys)).
+
+`pixi run <task>` runs each stage the way CI does (pixi.toml). The builds
+themselves need CI-sized machines. Where each piece of the pipeline lives
+is in [contributing](contributing.md#where-things-are).
+
+## The xclang Command
+
+The [xclang command](../reference/xclang-command.md) is
+[unreleased](../design/roadmap.md#xclang-command). `node scripts/cli.ts`
+builds it for the hosts of the machine it runs on, with a released xclang
+(23.1.2.5, pinned in `scripts/common.ts`) as the C compiler and linker:
+both Linux and both Windows hosts from Linux x64, both macOS hosts from
+macOS. It checks what each binary loads at run time:
+
+| host | size | loads at run time |
+|---|---|---|
+| x86_64-unknown-linux-gnu | 3.1 MB | libc, libdl, libpthread, librt; glibc 2.16 |
+| aarch64-unknown-linux-gnu | 2.7 MB | libc, libdl, libpthread; glibc 2.17 |
+| x86_64-w64-mingw32 | 2.8 MB | kernel32, ntdll, advapi32, ws2_32, bcrypt, bcryptprimitives, crypt32, UCRT (`api-ms-win-crt-*`) |
+| aarch64-w64-mingw32 | 2.4 MB | the same |
+| aarch64-apple-darwin | 2.6 MB | libSystem, libiconv, Security, CoreFoundation; macOS 13.0 |
+| x86_64-apple-darwin | 2.9 MB | the same |
+
+cli.yml builds the binaries and tests each on a machine of its host
+([testing](testing.md#the-xclang-command)). `main.yml` with `cli` builds the
+program, and `scripts/package.ts --cli` puts it into the toolchain
+archives.
+
+Each dependency is there for a reason:
+
+- ureq for HTTP, with rustls and ring. ring rather than aws-lc-rs, because
+  it needs nothing but a C compiler to build, no CMake or NASM.
+- rustls-platform-verifier for the trust store of the system, with
+  webpki-roots as the fallback.
+- flate2 for the deflate of zip and the zlib of xar.
+- liblzma for xz; cargo's C compiler builds its C sources.
+- tar; serde and serde_json for the version table and the index; lexopt
+  for the command line.
+
+xar, pbzx, cpio and zip are read by xclang's own code, a few hundred
+lines.
+
+**The version table** is made by `xclang sdk update-table`, built with the
+`maintainer` feature, which the shipped program does not have. It appends
+what the vendors offer now, and reads the presets anew:
+
+```sh
+cd cli && cargo run --release --features maintainer -- sdk update-table --table sdk-versions.json
+```
+
+It is part of the program rather than a script, because it shares the
+readers of the program: it reads the SDK version out of each new Apple
+package, through xar, pbzx and cpio. It also shares the downloads, and the
+types of the table, which read and write the file alike.
 
 ## Before Target Archives Ship
 
@@ -111,50 +154,16 @@ Target archives for `xclang target add` are
 [planned](../design/roadmap.md#target-archives). Before a release can carry
 them, the pipeline needs:
 
-1. a stage that packs each target outside the six into
+1. A stage that packs each target outside the six into
    `xclang-target-<version>-<target>.tar.xz`, laid out as
    [the xclang command](../reference/xclang-command.md#targets) expects:
    `xclang/<target>/` (sysroot, libc++, libunwind, its licenses),
-   `xclang/lib/clang/<major>/lib/<target>/` (compiler-rt),
-   `xclang/bin/<spelling>.cfg` for every spelling of the triple (from
-   `config/`, as `scripts/common.ts` writes them), case-unique and without
-   links;
-2. the index, `xclang-targets-<version>.json`, with each archive's
-   sha256, size, unpacked size, tier and SDK;
-3. both in the draft release with the toolchains, and in `SHA256SUMS`;
-4. a test that adds each target to every host's toolchain and builds (and,
-   per tier, runs) a program for it.
-
-## Repository
-
-```
-cmake/caches/      what each build is: runtimes, the host toolchain, the
-                   instrumented one, the ASan libclang
-cmake/toolchain.cmake   building for a target with an xclang tree
-config/            the per-target clang config files
-scripts/           TypeScript, run by Node: bootstrap, runtimes (with the
-                   sysroots), toolchain, package, conda, bazel
-pgo/               the training (train.ts, its corpus) and remap.txt
-windows/alias.c    the launcher behind every name of llvm.exe
-cli/               the xclang command, in Rust; its SDK version table,
-                   sdk-versions.json
-patches/           changes to LLVM, a directory and a README each
-tests/             smoke.ts and libclang.ts, the per-host checks; bazel/
-                   and cmake/, the build systems' consumers; bench.ts,
-                   compile speed against other compilers; docs.ts, the
-                   docs' code blocks against examples/
-examples/          the projects the docs show, built by examples.yml
-docs/              this documentation: docs/en/<group>/<page>.md,
-                   published to docs.clice.io/xclang
-packages/          what xclang's users build with (packages/README.md):
-  bazel/           the Bazel module; scripts/bazel.ts makes its registry
-                   archive
-  cmake/           the CMake package (find_package, toolchain file,
-                   FetchContent download)
-  conda/           the conda packages' activation scripts; scripts/conda.ts
-                   makes the packages
-.github/workflows/ the workflows above
-```
-
-`pixi run <task>` runs each stage the way CI does (pixi.toml); the builds
-themselves need CI-sized machines.
+   `xclang/lib/clang/<major>/lib/<target>/` (compiler-rt), and
+   `xclang/bin/<spelling>.cfg` for every spelling of the triple. The config
+   files come from `config/`, as `scripts/common.ts` writes them,
+   case-unique and without links.
+2. The index, `xclang-targets-<version>.json`, with the sha256, size,
+   unpacked size, tier and SDK of each archive.
+3. Both in the draft release with the toolchains, and in `SHA256SUMS`.
+4. A test that adds each target to every host toolchain and builds a
+   program for it, and runs it as its tier says.

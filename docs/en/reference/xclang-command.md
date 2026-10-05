@@ -8,10 +8,9 @@ target archives are [planned](../design/roadmap.md#target-archives).
 :::
 
 `xclang` fetches what the toolchain does not carry: the vendor SDKs that
-cannot be redistributed, and targets beyond the six every toolchain has.
-It is written in Rust (`cli/`) and built for every host with xclang as its
-C compiler and linker ([Rust and Cargo](../integrations/cargo.md)). The
-plan is to ship it in every toolchain archive, as `bin/xclang`.
+cannot be redistributed, and targets beyond the six every toolchain has. The
+plan is to ship it in every toolchain archive, as `bin/xclang`. Why SDKs are
+fetched and not shipped is in [vendor SDKs](../design/vendor-sdks.md).
 
 ```sh
 xclang sdk list [macos|windows]
@@ -27,63 +26,60 @@ xclang --version
 
 ## Vendor SDKs
 
-`xclang sdk fetch` downloads an SDK from its vendor, checks each download
-against the size and sha256 its version table pins (three tries, as a
-download now and then comes short or damaged), and unpacks it into a
-directory of its own:
+`xclang sdk fetch` downloads an SDK from its vendor. It checks each
+download against the size and sha256 its version table pins, with three
+tries, since a download now and then comes short or damaged. Then it
+unpacks the SDK into a directory of its own:
 
 | SDK | directory | use |
 |---|---|---|
-| macOS | `<toolchain>/sdk/macos-<version>` | `clang --target=arm64-apple-macos -isysroot <dir>` |
-| MSVC and the Windows SDK | `<toolchain>/sdk/windows-msvc<version>-sdk<version>` | `clang-cl --target=x86_64-pc-windows-msvc /winsysroot <dir>`, `clang --target=x86_64-pc-windows-msvc -Xmicrosoft-windows-sys-root <dir>` |
+| macOS | `$XCLANG/sdk/macos-<version>` | `clang --target=arm64-apple-macos -isysroot <dir>` |
+| MSVC and the Windows SDK | `$XCLANG/sdk/windows-msvc<version>-sdk<version>` | `clang-cl --target=x86_64-pc-windows-msvc /winsysroot <dir>`, `clang --target=x86_64-pc-windows-msvc -Xmicrosoft-windows-sys-root <dir>` |
 
-`xclang sdk path` prints the directory that fetch, with the same options,
-fetches to: `-isysroot "$(xclang sdk path macos)"`. Where the toolchain is
-installed read-only, `--sdk-dir` or `XCLANG_SDK_DIR` names another directory
-for SDKs. `XCLANG_JOBS` sets how many threads unpack (one per CPU by
-default). An SDK's `.xclang-sdk.json`, written last, records what it was
-fetched from; `sdk list` calls a directory without one incomplete.
-
-Without `--accept-license` fetch prints the vendor's license terms and
-stops. xclang never distributes an SDK; the user downloads it from the
-vendor.
+| command or option | |
+|---|---|
+| `--accept-license` | without it, fetch prints the vendor's license terms and stops |
+| `sdk path` | prints the directory that fetch, with the same options, fetches to: `-isysroot "$(xclang sdk path macos)"` |
+| `sdk list` | the fetched SDKs; `.xclang-sdk.json`, written last, records what an SDK was fetched from, and a directory without it is listed as incomplete |
+| `--preset <image>` | the SDK versions of a GitHub runner image or label (`windows-2022`, `macos-15`); by default `windows-latest` and `macos-latest` |
+| `--version`, `--sdk-version`, `--msvc-version` | a version, whole or in part (`15`, `10.0.26100`, `14.44`), in place of the preset's; the newest that matches is taken |
+| `--sdk-dir <dir>` | another directory for SDKs, for a toolchain installed read-only |
+| `--links copy` | on Windows, copy instead of making junctions and hard links |
 
 **Versions.** `cli/sdk-versions.json`, built into the program, lists every
-version the vendors offer: 38 Windows SDKs (NuGet), 20 MSVC toolsets
-(Visual Studio's channels), 29 macOS SDK packages (Apple's software update
-catalogs), and **presets**, what GitHub's runner images build with. By
-default fetch takes the `windows-latest` and `macos-latest` presets, so a
-cross build matches what a workflow gets without naming an image;
-`--preset` names another image or label (`windows-2022`, whose MSVC 14.44
-still serves Windows 7 SP1 and 8.1; `macos-15`), and a version given whole
-or in part (`--version 15`, `--sdk-version 10.0.26100`,
-`--msvc-version 14.44`) replaces the preset's, the newest that matches
-taken. The macOS 27 SDK is listed but passed over by default. That rule
-dates from before 23.1.2.6, which links against it
-([patch 0009](patches.md)).
+version the vendors offer:
 
-**macOS** comes from a Command Line Tools package on `swcdn.apple.com` (no
-Apple ID): a xar archive whose payload is pbzx (xz chunks) of a cpio
-archive, read by xclang itself. Man pages, tools and Perl are left out. On
-Windows symlinks become junctions (to directories) and hard links (to
-files), which need no privilege; `--links copy` copies instead. 62 MB
-download, 610 MB unpacked.
+- 38 Windows SDKs from NuGet;
+- 20 MSVC toolsets from the Visual Studio channels;
+- 29 macOS SDK packages from Apple's software update catalogs;
+- presets: the versions GitHub's runner images build with, so a cross
+  build matches what a workflow gets. `windows-2022` has MSVC 14.44, whose
+  STL still serves Windows 7 SP1 and 8.1.
 
-**Windows** comes from Visual Studio's `.vsix` packages (the CRT and STL:
-headers, and per architecture the static and DLL runtimes' libraries) and
-NuGet's `Microsoft.Windows.SDK.CPP` packages, all zip archives, laid out
-as a `/winsysroot` as Visual Studio installs it. On a case-sensitive file
-system (Linux) links are added for the spellings Windows code uses
-(`windows.h`, `WinBase.h` as `winbase.h`, `LIBCMT.lib`, ...): 3.6k links.
-600 MB download for x64 and arm64, 1.8 GB unpacked.
+The macOS 27 SDK is listed, but passed over by default. That rule dates
+from before 23.1.2.6, which links against it ([patch 0009](patches.md)).
+
+**macOS** comes from a Command Line Tools package on `swcdn.apple.com`,
+without an Apple ID. Man pages, tools and Perl are left out. On Windows,
+symlinks become junctions (to directories) and hard links (to files),
+which need no privilege. The download is 62 MB, 610 MB unpacked.
+
+**Windows** comes from the `.vsix` packages of Visual Studio and NuGet's
+`Microsoft.Windows.SDK.CPP` packages, laid out as a `/winsysroot`, as
+Visual Studio installs it. The `.vsix` packages hold the CRT and STL: the
+headers, and per architecture the libraries of the static and DLL
+runtimes. On a case-sensitive file system, 3.6k links are added for the
+spellings Windows code uses. The download is 600 MB for x64 and arm64,
+1.8 GB unpacked.
 
 ## Targets
 
-`xclang target add` unpacks a target's archive into the toolchain: its
-directory (sysroot and runtimes), its compiler-rt, its config files. The
-archives of a release are listed in its index, as rustup's channel
-manifests list components. No release has an index yet
-([planned](../design/roadmap.md#target-archives)); this one is illustrative:
+`xclang target add` unpacks the archive of a target into the toolchain:
+its sysroot and runtimes, its compiler-rt, and its config files. The
+archives of a release are listed in its index, as the channel manifests of
+rustup list components. No release has an index yet
+([planned](../design/roadmap.md#target-archives)); this one is
+illustrative:
 
 ```json
 {
@@ -103,70 +99,39 @@ manifests list components. No release has an index yet
 }
 ```
 
-- The index is `xclang-targets-<version>.json`, an asset of the release of
-  the toolchain (`--index` or `XCLANG_TARGET_INDEX` name another, a URL or
-  a file). The toolchain's release comes from its CMake package; an index
-  of another release is refused.
-- `archive` is a URL, or a name next to the index; `sdk` is `macos`,
-  `windows` or null, and add says which SDK to fetch.
+- The index is `xclang-targets-<version>.json`, an asset of the release
+  of the toolchain. `--index` or `XCLANG_TARGET_INDEX` names another, a
+  URL or a file. The release of the toolchain comes from its CMake
+  package, and an index of another release is refused.
+- `archive` is a URL, or a name next to the index. `sdk` is `macos`,
+  `windows` or null; `target add` says which SDK to fetch.
 - An archive is a `.tar.xz` of regular files below `xclang/`, as the
-  toolchain archive's are, without links. add refuses to overwrite a file
-  that is not the target's own (`--force` does), and takes back what it
-  wrote when it fails.
-- What a target added is recorded in `lib/xclang/targets/<target>.json`;
-  remove deletes those files and the directories they leave empty.
-- The six built-in targets are listed as built in and cannot be removed.
+  toolchain archives are, without links. `target add` refuses to overwrite
+  a file that is not the target's own, unless given `--force`. It takes
+  back what it wrote when it fails.
+- What a target added is recorded in `lib/xclang/targets/<target>.json`.
+  `target remove` deletes those files, and the directories they leave
+  empty.
+- The six built-in targets are listed as built in, and cannot be removed.
 
 ## Network
 
-Every request says `User-Agent: xclang/<version>` and nothing else of the
-user. `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY` and `NO_PROXY` are honoured.
-TLS is rustls (with ring); certificates are checked against the system's
-trust store (Security.framework on macOS, the certificate store on
-Windows, the CA files of a Linux system, `SSL_CERT_FILE` included), so a CA
-a company installs is trusted too; a Linux system without CA files falls
-back to Mozilla's roots.
+Every request says `User-Agent: xclang/<version>`, and nothing else about
+the user. TLS is rustls, with ring. Certificates are checked against the
+trust store of the system: Security.framework on macOS, the certificate
+store on Windows, the CA files of a Linux system. So a CA that a company
+installs is trusted too. A Linux system without CA files falls back to
+Mozilla's roots.
 
-## Building
+## Environment
 
-`node scripts/cli.ts` builds the program for the hosts of the machine it
-runs on (Linux x64: both Linux and both Windows hosts; macOS: both macOS
-hosts) with a released xclang (23.1.2.5, pinned in `scripts/common.ts`),
-and checks what each binary loads at run time:
+| variable | |
+|---|---|
+| `XCLANG_SDK_DIR` | another directory for SDKs, as `--sdk-dir` |
+| `XCLANG_JOBS` | how many threads unpack; one per CPU by default |
+| `XCLANG_TARGET_INDEX` | another target index, as `--index` |
+| `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`, `NO_PROXY` | honoured |
+| `SSL_CERT_FILE` | a CA file, read on Linux |
 
-| host | size | loads at run time |
-|---|---|---|
-| x86_64-unknown-linux-gnu | 3.1 MB | libc, libdl, libpthread, librt; glibc 2.16 |
-| aarch64-unknown-linux-gnu | 2.7 MB | libc, libdl, libpthread; glibc 2.17 |
-| x86_64-w64-mingw32 | 2.8 MB | kernel32, ntdll, advapi32, ws2_32, bcrypt, bcryptprimitives, crypt32, UCRT (`api-ms-win-crt-*`) |
-| aarch64-w64-mingw32 | 2.4 MB | the same |
-| aarch64-apple-darwin | 2.6 MB | libSystem, libiconv, Security, CoreFoundation; macOS 13.0 |
-| x86_64-apple-darwin | 2.9 MB | the same |
-
-`.github/workflows/cli.yml` builds them and tests each on a machine of its
-host (`tests/cli.ts`): both SDKs fetched, C, C++ and Objective-C programs
-cross-compiled against them and run on macOS and Windows, targets added
-and removed with a test index. `main.yml` with `cli` builds the program
-(`cli.yml`), and `scripts/package.ts --cli` puts it into the toolchain
-archives. No release has been built with `cli` so far.
-
-Dependencies, each for a reason: ureq (HTTP) with rustls and ring (ring
-rather than aws-lc-rs: nothing but a C compiler to build it, no CMake or
-NASM), rustls-platform-verifier (the system's trust store) with
-webpki-roots (the fallback), flate2 (zip's deflate, xar's zlib), liblzma
-(xz; its C sources built by the C compiler cargo is given), tar, serde and
-serde_json (the version table, the index), lexopt (the command line). xar,
-pbzx, cpio and zip are read by xclang's own code, a few hundred lines.
-
-**The version table** is made by `xclang sdk update-table`, built with the
-`maintainer` feature (not in the shipped program), which appends what the
-vendors offer now and reads the presets anew:
-
-```sh
-cd cli && cargo run --release --features maintainer -- sdk update-table --table sdk-versions.json
-```
-
-It is part of the program rather than a script because it shares the
-program's readers (it reads the SDK version out of each new Apple package,
-xar, pbzx and cpio), its downloads and the table's types, which read and
-write the file alike.
+How the command is built, tested and maintained is in the
+[build pipeline](../dev/release-build.md#the-xclang-command).

@@ -19,9 +19,12 @@ Thanks for helping. The full guide is
   CHANGELOG.md's Unreleased section.
 - **Docs** are `docs/en/<group>/<page>.md`, published to
   [docs.clice.io/xclang](https://docs.clice.io/xclang) from `main`. Plain
-  and precise: what is, why, and the test that shows it.
+  and precise: what is, and why. What is not in a release has one status in
+  the roadmap; tests and CI runs are named on the testing page
+  ([the docs](docs/en/dev/contributing.md#the-docs)).
 - **Changes to LLVM** are patches in `patches/`, each with a README and a
-  check that fails without it ([patching LLVM](docs/en/dev/llvm-patches.md)).
+  check that fails without it
+  ([patching LLVM](docs/en/dev/llvm-patches.md)).
 
 Bugs and requests: [issues](https://github.com/clice-io/xclang/issues).
 Security issues: [SECURITY.md](SECURITY.md).

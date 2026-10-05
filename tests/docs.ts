@@ -5,7 +5,9 @@
 ///   repository, byte for byte (but for the final newline);
 /// - every relative link names a page that exists, and a heading of it
 ///   when it has an anchor, slugged as the docs site (VitePress) does, or
-///   an `<a id="...">` of it (the roadmap's rows);
+///   an `<a id="...">` of it (the roadmap's rows); so does every link into
+///   docs/en from the README, the CHANGELOG and the other top-level pages,
+///   as a file or as a docs.clice.io/xclang URL;
 /// - what is not shipped is said one way: a table's `status` column holds
 ///   one of the roadmap's six words, and the phrasings that left a status
 ///   unclear ("is to be", "being considered", a bare "**Missing.**") are
@@ -127,6 +129,30 @@ for (const [page, { lines }] of parsed) {
       } else if (anchor && !doc.ids.has(anchor)) {
         failures.push(`${where}: ${target}: no such heading`);
       }
+    }
+  });
+}
+
+/// Links into the docs from the repository's own pages, as files
+/// (docs/en/<group>/<page>.md#<id>) or as the published site
+/// (https://docs.clice.io/xclang/<group>/<page>#<id>).
+const SITE = "https://docs.clice.io/xclang/";
+for (const name of ["README.md", "README.zh-CN.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "packages/README.md"]) {
+  const file = path.join(ROOT, name);
+  if (!fs.existsSync(file)) continue;
+  fs.readFileSync(file, "utf8").split("\n").forEach((line, i) => {
+    for (const m of line.matchAll(/\]\(([^)\s]+)\)/g)) {
+      let target = m[1];
+      if (target.startsWith(SITE)) target = `docs/en/${target.slice(SITE.length)}`;
+      else if (/^[a-z]+:/.test(target)) continue;
+      else target = path.relative(ROOT, path.resolve(path.dirname(file), target));
+      if (!target.startsWith("docs/en/")) continue;
+      const [page, anchor] = target.split("#");
+      if (page === "docs/en" || page === "docs/en/") continue;
+      const doc = parsed.get(path.join(ROOT, page.endsWith(".md") ? page : `${page}.md`));
+      links++;
+      if (!doc) failures.push(`${name}:${i + 1}: ${m[1]}: no such page`);
+      else if (anchor && !doc.ids.has(anchor)) failures.push(`${name}:${i + 1}: ${m[1]}: no such heading`);
     }
   });
 }

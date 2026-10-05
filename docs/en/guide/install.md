@@ -1,20 +1,25 @@
 # Installation
 
-Four ways to get xclang, by how a project builds. Each gives the same
-toolchain of the same release; pick the one that fits the build, not the
-other way round.
+Four ways to get xclang. Each gives the same toolchain of the same
+release, so pick the one that fits the build.
 
 | way | for | what it downloads |
 |---|---|---|
-| [pixi or conda](#pixi-and-conda) | a developer's machine, CI, any build system | the host's toolchain, as a conda package |
-| [release archive](#archives) | anything: unpack and use | the host's toolchain |
-| [CMake FetchContent](#cmake-fetchcontent) | a CMake project that should configure with nothing installed | the host's toolchain, into the user's cache |
-| [Bazel registry](#bazel) | a Bazel project | the host's toolchain, and libclang if used, by sha256 |
+| [pixi or conda](#pixi-and-conda) | a developer machine, CI, any build system | the host toolchain, as a conda package |
+| [release archive](#archives) | anything: unpack and use | the host toolchain |
+| [CMake FetchContent](#cmake-fetchcontent) | a CMake project that configures with nothing installed | the host toolchain, into the cache of the user |
+| [Bazel registry](#bazel) | a Bazel project | the host toolchain, and libclang if used, by sha256 |
+
+In these docs, the *toolchain directory* is where the toolchain is
+installed or unpacked, `$XCLANG` in commands. Its `bin/` holds clang, lld
+and the other tools ([archive layout](../reference/layout.md)).
 
 ## pixi and conda
 
-From the [clice conda channel](https://conda.clice.io), with pixi:
+xclang is in the [clice conda channel](https://conda.clice.io). With
+pixi, a workspace names the channel and the release:
 
+<!-- file: examples/quickstart/pixi.toml -->
 ```toml
 [workspace]
 name = "hello"
@@ -25,38 +30,30 @@ platforms = ["linux-64", "linux-aarch64", "osx-64", "osx-arm64", "win-64", "win-
 xclang = "23.1.2.6.*"
 ```
 
-The package is the host's archive, every target included, under
-`$PREFIX/opt/xclang`, whose `bin/` the environment's activation puts first
-in `PATH`; nothing goes to `$PREFIX/bin`, so conda-forge's compilers stay as
-they are. There is one package per host: `linux-64`, `linux-aarch64`,
-`osx-64`, `osx-arm64`, `win-64` and `win-arm64`. `llvm-option-inc` (noarch)
-holds the option tables in `$PREFIX/include/llvm-options-td`.
+```sh
+pixi install
+```
 
-The package's version is the release's; its build number counts packaging
-fixes of that release. `23.1.2.6.*` takes the newest build of 23.1.2.6.
+- The package is the host archive, every target included, in
+  `$PREFIX/opt/xclang`. The activation of the environment puts its `bin/`
+  first in `PATH`. Nothing goes to `$PREFIX/bin`, so the compilers of
+  conda-forge stay as they are.
+- There is one package per host: `linux-64`, `linux-aarch64`, `osx-64`,
+  `osx-arm64`, `win-64` and `win-arm64`.
+- `23.1.2.6.*` takes the newest build of the release. The build number
+  counts packaging fixes ([versions](../reference/releases.md#versions)).
+- `llvm-option-inc`, a noarch package, holds the option tables in
+  `$PREFIX/include/llvm-options-td`.
 
-xclang is not a compiler for building conda-forge packages. conda-forge's
-own `clang`/`gcc` stacks link dynamically against packaged runtimes
-(`libcxx`, `libstdcxx`) and add them to a package's dependencies through
-`run_exports`; xclang links its runtimes into every program and has no
-`run_exports`, on purpose ([hermeticity](../design/hermeticity.md)).
-
-Tested by:
-[examples.yml](https://github.com/clice-io/xclang/blob/main/.github/workflows/examples.yml)
-installs this workspace from conda.clice.io on every host and runs the
-[quick start](quick-start.md); conda.yml tests each package before it is
-published.
+xclang is not a compiler for building conda-forge packages
+([why](../design/hermeticity.md#why-not-shared-runtimes)).
 
 ## Archives
 
-Every [GitHub release](https://github.com/clice-io/xclang/releases) has the
-toolchain for each host, `xclang-<version>-<host>.tar.xz`, 95 to 128 MB:
-clang, lld and the LLVM binary tools, FileCheck, xclang's CMake package and
-every target's sysroot and runtimes. The other assets (libclang, the
-option tables, the PGO profile) are in [releases](../reference/releases.md).
-
-An archive unpacks anywhere and is used from there: the toolchain is the
-directory `xclang/`. On Linux:
+Every [GitHub release](https://github.com/clice-io/xclang/releases) has
+the toolchain for each host, `xclang-<version>-<host>.tar.xz`, 95 to
+128 MB. It unpacks anywhere, and is used from there: the toolchain
+directory is `xclang/`. On Linux:
 
 ```sh
 v=23.1.2.6 h=x86_64-unknown-linux-gnu
@@ -67,9 +64,9 @@ tar -xf xclang-$v-$h.tar.xz
 xclang/bin/clang++ --target=aarch64-w64-mingw32 hello.cpp -o hello.exe
 ```
 
-On macOS the same, with `shasum -a 256 -c --ignore-missing SHA256SUMS`. On
-Windows, in PowerShell, whose `tar` is the system's own
-(`C:\Windows\System32\tar.exe`):
+On macOS, check the download with
+`shasum -a 256 -c --ignore-missing SHA256SUMS`. On Windows, use PowerShell,
+whose `tar` is the one of the system (`C:\Windows\System32\tar.exe`):
 
 ```powershell
 $v = "23.1.2.6"; $h = "x86_64-w64-mingw32"
@@ -81,11 +78,12 @@ tar -xf xclang-$v-$h.tar.xz
 xclang\bin\clang++ --target=aarch64-unknown-linux-gnu hello.cpp -o hello
 ```
 
-A Windows archive holds no symbolic links, so it unpacks without extra
-rights ([why](../design/toolchain.md#windows-launchers-not-links)). Put
-`xclang/bin` in `PATH`, or name the programs by their path.
-
-Tested by: examples.yml runs these commands on a machine of every host.
+`hello.cpp` is the one of the [quick start](quick-start.md). Put
+`xclang/bin` in `PATH`, or name the programs by their path. A Windows
+archive holds no symbolic links, so it unpacks without extra rights
+([launchers](../design/windows.md#the-launchers)). The other assets of a
+release, such as libclang, are listed in
+[releases](../reference/releases.md#assets).
 
 ## CMake FetchContent
 
@@ -102,33 +100,46 @@ FetchContent_MakeAvailable(xclang)
 include(${xclang_SOURCE_DIR}/packages/cmake/xclang.cmake)
 ```
 
-It checks the archive against the release's `SHA256SUMS` and unpacks it
-into the user's cache once per version and host. See
-[CMake](../integrations/cmake.md#without-xclang-installed).
+It checks the archive against the `SHA256SUMS` of the release, and unpacks
+it into the cache of the user, once per release and host. The whole
+project is in [CMake](../integrations/cmake.md#without-xclang-installed).
 
 ## Bazel
 
-From the clice registry, [bazel.clice.io](https://bazel.clice.io):
+The clice registry, [bazel.clice.io](https://bazel.clice.io), has the
+module. Add the registry to `.bazelrc`:
 
 ```
-# .bazelrc
 common --registry=https://bazel.clice.io/
 common --registry=https://bcr.bazel.build/
 ```
 
+Then depend on xclang in `MODULE.bazel`:
+
 ```python
-# MODULE.bazel
 bazel_dep(name = "xclang", version = "23.1.2.6")
 ```
 
-The module downloads the host's archive by the sha256 its release pins,
-and registers it as the C++ toolchain for every target. See
-[Bazel](../integrations/bazel.md).
+The module downloads the host archive by the sha256 that its release pins,
+and registers it as the C++ toolchain for every target. The whole project
+is in [Bazel](../integrations/bazel.md#set-up-a-project).
 
-## Versions
+## Check It Works
 
-A release is tagged `<llvm version>.<revision>`: `23.1.2.6` is the sixth
-build of LLVM 23.1.2. Nothing published is ever replaced; a rebuild is the
-next revision ([versions and releases](../reference/releases.md)). The
-[CHANGELOG](https://github.com/clice-io/xclang/blob/main/CHANGELOG.md)
-says what each release changed.
+`clang++ --version`, from `PATH` or from the toolchain directory, prints
+the clang version and `InstalledDir`, the `bin/` it runs from:
+
+```sh
+pixi run clang++ --version
+```
+
+The release, `23.1.2.6`, is tagged `<llvm version>.<revision>`
+([versions](../reference/releases.md#versions)). What each release changed
+is in the
+[CHANGELOG](https://github.com/clice-io/xclang/blob/main/CHANGELOG.md).
+
+## Next
+
+- [Quick Start](quick-start.md): programs for every target, and a CMake
+  project with `import std`.
+- [Cross-Compiling](cross-compiling.md).

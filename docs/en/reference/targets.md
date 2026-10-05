@@ -1,9 +1,14 @@
 # Targets and Tiers
 
+The hosts xclang runs on, the targets it builds for, and how each is tested.
+How to build for another target is in
+[cross-compiling](../guide/cross-compiling.md).
+
 ## Hosts
 
 A host is a machine the toolchain runs on. Each has its own archive, and
-every archive carries every target.
+every archive carries every target. The "tested on" column names the
+GitHub-hosted runner.
 
 | host | archive built on | tested on |
 |---|---|---|
@@ -26,11 +31,10 @@ every archive carries every target.
 | `x86_64-apple-darwin` | `x86_64-apple-macos`, `x86_64-apple-macosx` | the SDK's libSystem | macOS 13.0 or later | macOS hosts |
 
 All six are tier 1. The macOS targets build on macOS hosts only, because
-they need Apple's SDK, which comes from Xcode there. macOS from any host,
-with the SDK fetched from Apple by the user, is
-[in research](../design/roadmap.md#macos-any-host).
+they need Apple's SDK, which comes from Xcode there
+([macOS](../design/macos.md#the-sdk-is-xcode-s)).
 
-What each target has:
+## What Each Target Has
 
 | | Linux | Windows | macOS |
 |---|---|---|---|
@@ -38,7 +42,7 @@ What each target has:
 | unwinder | libunwind, static | libunwind, static | the system's (libSystem) |
 | compiler-rt builtins, profile | yes | yes | yes |
 | ASan, TSan, LSan, UBSan, libFuzzer | yes | no | yes |
-| libc++'s ASan build | yes | no | yes |
+| ASan libc++ | yes | no | yes |
 | linker | ld.lld | ld.lld (MinGW driver) | ld64.lld; `-fuse-ld=ld` for Apple's |
 
 ## Tiers
@@ -53,17 +57,9 @@ is tested, and so how much a release promises about it.
   simulators.
 - **Tier 3**: programs are compiled and linked for it, not run.
 
-What "its tests run on the target itself" means for today's six:
-
-- tests/smoke.ts builds C and C++ programs for every target on every host,
-  and runs those the machine can run (its own target; x86_64 macOS
-  programs on arm64 macOS through Rosetta; x86_64 Windows programs on
-  Windows on Arm).
-- bazel.yml builds tests/bazel on every host for every other target it
-  builds for, 22 host-to-target pairs, and runs the tests on a machine of
-  the target: Linux-built Windows programs on Windows, Windows-built Linux
-  programs on Linux, and so on. No emulator is involved.
-- examples.yml runs the quick start on every host.
+For today's six, that means programs built on every host run on a runner of
+their target, with no emulator
+([testing](../dev/testing.md#cross-compiling)).
 
 ## Not Yet Supported
 

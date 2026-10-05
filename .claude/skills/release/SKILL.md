@@ -64,8 +64,9 @@ before publishing.
      `VERSION` and the cache key in .github/workflows/examples.yml:
      `xclang = "<version>.*"`, `bazel_dep(... version = "<version>")`,
      archive names, sizes (`grep -rn <previous version> README* docs
-     examples .github/workflows/examples.yml` finds them); the run links
-     in docs/en that cite the release's runs;
+     examples .github/workflows/examples.yml` finds them); the "Runs for
+     <version>" table of docs/en/dev/testing.md, the one page that cites
+     CI runs;
    - CHANGELOG.md: Unreleased becomes `## [<version>](https://github.com/clice-io/xclang/releases/tag/<version>) — <date>`
      (the UTC date of publishing) with "Built by <bootstrap>.", and a new
      empty Unreleased.
@@ -74,8 +75,8 @@ before publishing.
    release and main names it: `gh workflow run examples.yml -R
    clice-io/xclang --ref main`. It runs the docs' commands and examples/
    as written against the published release on every host; link the run
-   from docs/en (quick start, installing, integrations) in place of the
-   previous release's.
+   in docs/en/dev/testing.md's runs table in place of the previous
+   release's.
 10. **bench.yml** (optional, for the notes or docs/en/design/pgo.md):
     `gh workflow run bench.yml -R clice-io/xclang --ref main -f
     pgo-run=<the release's main.yml run> -f shards='[1, 2, 3, 4, 5]'`,

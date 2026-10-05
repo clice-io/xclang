@@ -1,23 +1,26 @@
 # Versions and Releases
 
+How releases are numbered, what each one publishes, and how to check a
+download. What each release changed is in the
+[CHANGELOG](https://github.com/clice-io/xclang/blob/main/CHANGELOG.md).
+
 ## Versions
 
-A release is tagged `<llvm version>.<revision>`: `23.1.2.1` is the first
-build of LLVM 23.1.2, `23.1.2.6` the sixth. The version orders the way
-conda, Bazel and CMake order versions, and says which LLVM it is.
+A release is tagged `<llvm version>.<revision>`. `23.1.2.1` is the first
+build of LLVM 23.1.2, and `23.1.2.6` the sixth. The version sorts the way
+conda, Bazel and CMake sort versions, and says which LLVM it is.
 
 Nothing published is ever replaced. A fix to a release, even one that only
-rebuilds it, is the next revision; the workflow that drafts a release
+rebuilds it, is the next revision, and the workflow that drafts a release
 refuses a version that exists. So a version, and the sha256 of each of its
-archives, means one thing forever, which is what pinning by digest
-(Bazel's `versions.bzl`, CMake's download) relies on.
+archives, means one thing forever. Pinning by digest relies on that, in
+the `versions.bzl` of the Bazel module and in the CMake download.
 
-The conda package's version is the release's; its build number counts
-packaging fixes of that release, each the same toolchain packaged again.
-The Bazel module's version is the release's.
-
-What each release changed is in the
-[CHANGELOG](https://github.com/clice-io/xclang/blob/main/CHANGELOG.md).
+| where | version |
+|---|---|
+| GitHub release and tag | `23.1.2.6` |
+| conda package | `23.1.2.6`; the build number counts packaging fixes of the release, each the same toolchain packaged again |
+| Bazel module | `23.1.2.6` |
 
 ## Assets
 
@@ -27,7 +30,7 @@ same 17 assets:
 | asset | | size (23.1.2.6) |
 |---|---|---|
 | `xclang-<version>-<host>.tar.xz` | the toolchain, one per host, every target in each | 95 to 128 MB |
-| `libclang-<version>-<host>.tar.xz` | clang's and LLVM's static libraries and headers, one per host ([libclang](../features/libclang.md)) | 260 to 274 MB |
+| `libclang-<version>-<host>.tar.xz` | the static libraries and headers of clang and LLVM, one per host ([libclang](../features/libclang.md)) | 260 to 274 MB |
 | `libclang-<version>-<host>-asan.tar.xz` | their ASan build, for Linux x64 and macOS arm64 | 191, 210 MB |
 | `llvm-option-inc-<version>.tar.xz` | the option tables of clang, lld, llvm-lib and llvm-dlltool | 175 KB |
 | `xclang-<version>.profdata` | the PGO profile the release was built with | 52 MB |
@@ -39,31 +42,33 @@ The hosts are `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`,
 
 ## Checking a Download
 
-`SHA256SUMS` is written by the workflow that drafts the release, from the
-files it uploads. To check what was downloaded against it:
+The workflow that drafts the release writes `SHA256SUMS` from the files it
+uploads. This checks a download against it:
 
 ```sh
 gh release download 23.1.2.6 -R clice-io/xclang -p SHA256SUMS -p 'llvm-option-inc-*'
 sha256sum -c --ignore-missing SHA256SUMS
 ```
 
-The Bazel module checks every archive by the sha256 its `versions.bzl` pins,
-and CMake's `xclang.cmake` checks the toolchain against the release's
-`SHA256SUMS`. Both are as trustworthy as the release: an archive and the
-`SHA256SUMS` beside it could in principle be replaced together. A pin in
-`versions.bzl`, or a digest recorded in a project of its own, is not
-affected by that. Immutable releases are
-[planned](../design/roadmap.md#immutable-releases).
+The Bazel module checks every archive against the sha256 that its
+`versions.bzl` pins. The `xclang.cmake` of the CMake package checks the
+toolchain against the `SHA256SUMS` of the release.
+
+Both are as trustworthy as the release. An archive and the `SHA256SUMS`
+beside it could in principle be replaced together. A pin in `versions.bzl`,
+or a digest recorded in a project of its own, is not affected by that.
+Immutable releases are [planned](../design/roadmap.md#immutable-releases).
 
 ## Where Else a Release Is Published
 
-- **conda**: [conda.clice.io](https://conda.clice.io), the `xclang` package
-  per host and the noarch `llvm-option-inc`, made from the release's
-  archives after it is published ([Installation](../guide/install.md)).
-- **Bazel**: [bazel.clice.io](https://bazel.clice.io), the module of the
-  release's tag, published once it builds and tests with the published
-  archives ([Bazel](../integrations/bazel.md)).
-- **CMake**: the tag itself, which FetchContent checks out
+- **conda**: [conda.clice.io](https://conda.clice.io) has the `xclang`
+  package for each host, and the noarch `llvm-option-inc`. They are made
+  from the archives of the release after it is published
+  ([installation](../guide/install.md#pixi-and-conda)).
+- **Bazel**: [bazel.clice.io](https://bazel.clice.io) has the module of
+  the tag, published once it builds and tests with the published archives
+  ([Bazel](../integrations/bazel.md)).
+- **CMake**: FetchContent checks out the tag itself
   ([CMake](../integrations/cmake.md#without-xclang-installed)).
 
 How a release is built and tested is in the

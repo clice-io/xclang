@@ -79,6 +79,8 @@ dev:
     - contributing
     - file: release-build
       label: Build Pipeline
+    - file: testing
+      label: Testing
     - file: llvm-patches
       label: Patching LLVM
     - releasing

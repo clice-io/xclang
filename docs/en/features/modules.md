@@ -1,116 +1,202 @@
 # C++20 Modules and `import std`
 
-xclang builds C++20 modules in CMake and Bazel today, `import std`
-included, without CMake's experimental switches. This page says what a
-build has to get right for modules, how xclang does it, and where build
-caches go wrong.
+xclang builds C++20 modules in CMake and Bazel, `import std` included,
+without CMake's experimental switches. A module interface compiles to a
+*module file* (BMI, `.pcm` for clang), which every importer reads.
 
-## What a Module Build Needs
+## Usage
 
-A module interface compiles to a *module file* (BMI, `.pcm` for clang),
-which every importer reads. Three things follow:
+The example is a named module, `math`, with a partition, `math:ops`, and a
+program that imports both it and `std`. It is in
+[examples/modules](https://github.com/clice-io/xclang/tree/main/examples/modules).
 
-- **Order.** An importer can only be compiled after the module files it
-  imports exist, so the build has to know, before compiling, which source
-  provides and which imports which module. Both CMake and Bazel ask the
-  compiler: clang-scan-deps writes each source's dependencies in the P1689
-  format, and the build system orders the compiles by it.
+`math-ops.cppm` is the partition:
+
+```cpp
+export module math:ops;
+
+import std;
+
+export int perimeter(std::span<const int> sides) {
+    return std::accumulate(sides.begin(), sides.end(), 0);
+}
+```
+
+`math.cppm` is the primary interface, which exports the partition:
+
+```cpp
+export module math;
+
+export import :ops;
+import std;
+
+export std::string describe(std::string_view name, std::span<const int> sides) {
+    return std::format("{}: {} sides, perimeter {}", name, sides.size(), perimeter(sides));
+}
+```
+
+`main.cpp` imports both modules:
+
+```cpp
+import std;
+import math;
+
+int main() {
+    std::vector<int> triangle{3, 4, 5};
+    std::println("{}", describe("triangle", triangle));
+}
+```
+
+Each build below prints `triangle: 3 sides, perimeter 12`.
+
+### CMake
+
+`xclang::std` is the `std` module as a library to link. The C++ modules of
+the program are a `FILE_SET CXX_MODULES`:
+
+```cmake
+cmake_minimum_required(VERSION 3.28)
+project(shapes LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+find_package(xclang REQUIRED CONFIG)
+
+add_library(math STATIC)
+target_sources(math PUBLIC FILE_SET CXX_MODULES FILES math.cppm math-ops.cppm)
+target_link_libraries(math PUBLIC xclang::std)
+
+add_executable(shapes main.cpp)
+target_link_libraries(shapes PRIVATE math xclang::std)
+```
+
+```sh
+cmake -G Ninja -B build -DCMAKE_CXX_COMPILER=clang++
+cmake --build build
+./build/shapes
+```
+
+### Bazel
+
+`@xclang//bazel:std` is the `std` module, and `module_interfaces` holds
+the C++ modules of a `cc_library`:
+
+```python
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+cc_library(
+    name = "math",
+    features = ["cpp_modules"],
+    module_interfaces = [
+        "math.cppm",
+        "math-ops.cppm",
+    ],
+    deps = ["@xclang//bazel:std"],
+)
+
+cc_binary(
+    name = "shapes",
+    srcs = ["main.cpp"],
+    features = ["cpp_modules"],
+    deps = [
+        ":math",
+        "@xclang//bazel:std",
+    ],
+)
+```
+
+The `.bazelrc` is the one in
+[Bazel](../integrations/bazel.md#set-up-a-project), with
+`--experimental_cpp_modules`.
+
+```sh
+bazel run //:shapes
+```
+
+### Plain Clang
+
+Each interface compiles in one step to its object and its module file.
+`-fprebuilt-module-path=.` finds `std.pcm`, `math.pcm`, and `math-ops.pcm`
+for the partition `math:ops`:
+
+```sh
+std=$(dirname "$(clang++ -print-library-module-manifest-path)")/../share/libc++/v1/std.cppm
+clang++ -std=c++23 -O2 -Wno-reserved-module-identifier -c "$std" -fmodule-output=std.pcm -o std.o
+clang++ -std=c++23 -O2 -fprebuilt-module-path=. -c math-ops.cppm -fmodule-output=math-ops.pcm -o math-ops.o
+clang++ -std=c++23 -O2 -fprebuilt-module-path=. -c math.cppm -fmodule-output=math.pcm -o math.o
+clang++ -std=c++23 -O2 -fprebuilt-module-path=. -c main.cpp -o main.o
+clang++ main.o math.o math-ops.o std.o -o shapes
+./shapes
+```
+
+The first line finds the source of the `std` module. The module manifest of
+libc++ lists it as the `source-path` of the module `std`. Add
+`--target=<target>` to every line, the manifest included, to build for
+another target.
+
+## Options
+
+| | CMake | Bazel |
+|---|---|---|
+| `import std` | `target_link_libraries(<program> PRIVATE xclang::std)` | `deps = ["@xclang//bazel:std"]` |
+| C++ modules of a library | `target_sources(<lib> PUBLIC FILE_SET CXX_MODULES FILES ...)` | `module_interfaces = [...]`, `features = ["cpp_modules"]` |
+| language options of `std` | those of the directory that called `find_package(xclang)` | the build's `--cxxopt` |
+| a `std` with other options | `xclang_add_std(<name>)` | |
+| needs | CMake 3.28, Ninja 1.11, a Ninja generator | Bazel 9, `--experimental_cpp_modules` |
+
+## Behavior
+
+- **Scanning.** An importer compiles after the module files it imports, so
+  the build has to know which source provides and imports which module.
+  CMake and Bazel ask clang-scan-deps, which writes the dependencies of
+  each source in the P1689 format.
 - **Matching options.** clang refuses a module file built with other
   language options than its importer's: `-std`, GNU extensions,
   `-fno-exceptions`, `-fno-rtti`, and others that change what the code
-  means. Macros, include paths and optimization may differ. So a module is
-  built per set of language options, not once.
-- **The module file is an input.** An importer's object depends on the
-  content of the module files it read, not only on its own source and
-  command line.
-
-## `import std`
-
-
-libc++'s `std` and `std.compat` modules are sources in each target's
-directory, which clang names: `clang++ -print-library-module-manifest-path`
-prints `libc++.modules.json`, which lists them. Because of the matching
-rule, a prebuilt `std` module could only serve importers with exactly the
-options it was built with; xclang builds it for each build instead, with
-that build's options, as a library to link:
-
-| build system | `import std` | built with |
-|---|---|---|
-| CMake | `target_link_libraries(app PRIVATE xclang::std)` | the language options of the directory that called `find_package(xclang)` ([CMake](../integrations/cmake.md#import-std)) |
-| Bazel | `deps = ["@xclang//bazel:std"]`, `features = ["cpp_modules"]` | the build's `--cxxopt` ([Bazel](../integrations/bazel.md#what-the-toolchain-does)) |
-
-CMake has its own `import std` support, still behind the
-`CMAKE_EXPERIMENTAL_CXX_IMPORT_STD` gate in CMake 4.4, whose value changes
-with CMake's version. `xclang::std` needs only CMake 3.28's module support,
-which is not experimental: it is an ordinary library target whose sources
-are the module interfaces, so CMake scans and builds it as any other.
-
-A target with other language options (`-fno-exceptions`, say) needs a
-`std` of its own: `xclang_add_std(<name>)` in CMake. A target asking for a
-newer standard than `std` was built with gets `C++26 was disabled in
-precompiled file`.
-
-## By Hand
-
-
-The steps tests/smoke.ts runs on every host, for the host's target:
-
-```sh
-manifest=$(clang++ -print-library-module-manifest-path)
-std=$(dirname "$manifest")/../share/libc++/v1/std.cppm
-clang++ -std=c++23 -O2 -Wno-reserved-module-identifier --precompile "$std" -o std.pcm
-clang++ -std=c++23 -O2 -fmodule-file=std=std.pcm use_std.cpp std.pcm -o use_std
-```
-
-(smoke.ts takes the source's path from the manifest, `source-path` of the
-module named `std`.) With `--target=<triple>` on each command, the same
-builds another target's `std`.
+  means. Macros, include paths and optimization may differ. A target
+  asking for a newer standard than `std` was built with gets
+  `C++26 was disabled in precompiled file`.
+- **`std` is built per build.** A prebuilt `std` module could only serve
+  importers with exactly its options. So xclang builds it for each build,
+  with the options of that build, as a library to link.
+- **No experimental CMake switch.** CMake's own `import std` support is
+  behind `CMAKE_EXPERIMENTAL_CXX_IMPORT_STD` in CMake 4.4, whose value
+  changes with the CMake version. `xclang::std` is an ordinary library
+  whose sources are module interfaces, so it needs only the module support
+  of CMake 3.28.
 
 ## Build Caches and Modules
 
-A compile cache keyed on the source, the command line and the headers it
-includes misses the module files, which the command line names only by
-path (CMake passes them in a response file, `@<source>.modmap`). If the
-cache does not hash the module file's content, an importer is served the
-object it had before the module's interface changed.
+A compile cache keyed on the source, the command line and the included
+headers misses the module files. The command line names them only by path;
+CMake passes them in a response file, `@<source>.modmap`. If the cache
+does not hash the content of the module file, it serves an importer the
+object it had before the interface changed.
 
-examples.yml's `ccache` job runs the command lines CMake gives a module and
-its importer (`-fmodule-output=a.pcm`, and `-fmodule-file=a=a.pcm` in
-`@b.modmap`) three times, under two ccache versions: as is, again, and
-after the module's exported constant changed from 1 to 2.
-
-([the run](https://github.com/clice-io/xclang/actions/runs/37356757050)):
+CI runs the command lines CMake gives a module and its importer
+(`-fmodule-output=a.pcm`, and `-fmodule-file=a=a.pcm` in `@b.modmap`) three
+times, under two ccache versions: as is, again, and after the exported
+constant of the module changed from 1 to 2
+([testing](../dev/testing.md#c-20-modules)):
 
 | | module interface | importer, unchanged | importer, after the interface changed |
 |---|---|---|---|
 | ccache 4.13.6 | never cached (`unsupported_source_language`) | cache hit | **cache hit: the stale object, the program returns 1** |
 | ccache 4.14.1 | never cached | cache hit | cache miss, recompiled: the program returns 2 |
 
-So with ccache 4.13 or older, a module build can be silently wrong; with
-4.14 it is correct, but every module interface is compiled on every
-build, which in a modularized project is much of the work. The job fails
-when either version stops behaving as the table says, so the table stays
-true.
+With ccache 4.13 or older, a module build can be silently wrong. With 4.14
+it is correct, but every module interface is compiled on every build,
+which in a modularized project is much of the work.
 
-Bazel has no such problem by construction. Each action's key is the content
-of all its inputs, and an importer's inputs include the module files it
-reads, as declared outputs of the actions that made them. A changed
-interface gives a new module file, which changes the key of every importer;
-an unchanged one hits the cache. xclang's toolchains compile modules with
-paths relative to the execution root (`-fmodule-file-home-is-cwd`), so a
-module file is the same wherever it is built and a shared cache serves it to
-every checkout.
-
-## Tested By
-
-- tests/cmake (cmake.yml, every host, CMake 3.28 and the newest): a module
-  of partitions, `xclang::std` with `std.compat`, `xclang_add_std` with
-  `-fno-exceptions`, for the host and through the toolchain file for every
-  other target.
-- tests/bazel (bazel.yml, every host, and cross-built for every other
-  target): a module of partitions, a module importing another, `import std`.
-- examples.yml: `import std` in CMake and Bazel on every host, as the
-  [quick start](../guide/quick-start.md) does.
+Bazel has no such problem. The key of each action is the content of all
+its inputs, and the inputs of an importer include the module files it
+reads. A changed interface gives a new module file, which changes the key
+of every importer. xclang's toolchains compile modules with paths relative
+to the execution root (`-fmodule-file-home-is-cwd`). So a module file is
+the same wherever it is built, and a shared cache serves it to every
+checkout.
 
 ## Known Limitations
 
@@ -119,3 +205,9 @@ every checkout.
   Bazel 9.
 - CMake builds modules only with the Ninja and Ninja Multi-Config
   generators.
+
+## See Also
+
+- [CMake](../integrations/cmake.md#use-c-20-modules-and-import-std):
+  `xclang::std` and the options it is built with.
+- [Bazel](../integrations/bazel.md#use-c-20-modules-and-import-std).

@@ -79,12 +79,11 @@ What sets these targets apart:
 
 - **MSVC targets.** They are planned as first-class targets, as the MinGW
   ones are, and are being built on a branch. The default C runtime is
-  Microsoft's "hybrid CRT": the VC runtime and the STL linked statically,
-  and UCRT, part of Windows, dynamically. xclang adds compiler-rt for them:
-  the builtins, the profile runtime, UBSan, and AddressSanitizer and
-  libFuzzer for x64. The ASan runtime is a DLL on Windows. The MSVC and
-  Windows SDK versions are pinned, and are only ones the shipped clang
-  accepts.
+  Microsoft's "hybrid CRT": the VC runtime and the STL static, UCRT
+  dynamic. xclang adds compiler-rt: the builtins, the profile runtime and
+  UBSan, and for x64 AddressSanitizer, whose runtime is a DLL, and
+  libFuzzer. The MSVC and Windows SDK versions are pinned to ones the
+  shipped clang accepts.
 - **macOS from any host.** Apple's macOS SDK is in the Command Line Tools
   package on Apple's update servers, and needs no Apple ID to download.
   Whether building with it outside a Mac can be done well is in research

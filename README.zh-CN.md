@@ -93,7 +93,7 @@ bazel build --platforms=@xclang//platforms:x86_64-w64-mingw32 //...
 - Features：[Modules](https://docs.clice.io/xclang/features/modules)、[Sanitizers](https://docs.clice.io/xclang/features/sanitizers)、[Debugging](https://docs.clice.io/xclang/features/debugging)、[libclang](https://docs.clice.io/xclang/features/libclang)、[ThinLTO Cache](https://docs.clice.io/xclang/features/thinlto-cache)
 - Reference：[Targets](https://docs.clice.io/xclang/reference/targets)、[Compatibility](https://docs.clice.io/xclang/reference/compatibility)、[Archive Layout](https://docs.clice.io/xclang/reference/layout)、[CMake API](https://docs.clice.io/xclang/reference/cmake-api)、[Bazel API](https://docs.clice.io/xclang/reference/bazel-api)、[Releases](https://docs.clice.io/xclang/reference/releases)、[LLVM Patches](https://docs.clice.io/xclang/reference/patches)
 - Design：[Hermeticity](https://docs.clice.io/xclang/design/hermeticity)、[PGO](https://docs.clice.io/xclang/design/pgo)、[Roadmap](https://docs.clice.io/xclang/design/roadmap) 等
-- Development：[Contributing](https://docs.clice.io/xclang/dev/contributing)、[Build Pipeline](https://docs.clice.io/xclang/dev/release-build)、[Releasing](https://docs.clice.io/xclang/dev/releasing)
+- Development：[Contributing](https://docs.clice.io/xclang/dev/contributing)、[Build Pipeline](https://docs.clice.io/xclang/dev/release-build)、[Testing](https://docs.clice.io/xclang/dev/testing)、[Releasing](https://docs.clice.io/xclang/dev/releasing)
 - [CHANGELOG](CHANGELOG.md)、[贡献](CONTRIBUTING.md)、[安全](SECURITY.md)
 
 xclang 是为 [clice](https://github.com/clice-io/clice) 开发的，clice 的发布构建是它的第一个用户；[catter](https://github.com/clice-io/catter) 也用它构建。

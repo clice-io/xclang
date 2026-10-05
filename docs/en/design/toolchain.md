@@ -1,75 +1,92 @@
 # Toolchain Structure
 
-How the pieces of an archive fit together, and why: clang's config files
-instead of built-in defaults, one program for every tool, and plain
-directories for the sysroots.
+How the pieces of a toolchain archive fit together, and why.
+
+## Summary
+
+clang finds each target's sysroot and runtimes through a config file per
+target, not through defaults built into the compiler. clang, lld and most
+tools are one program. The sysroots are plain directories that any clang
+can use. For users, that means `--target` is the whole difference between
+a native and a cross build, and `--no-default-config` gives back a bare,
+upstream-like clang.
 
 ## A Config File per Target
 
-clang reads a config file for the target it compiles for: for
-`--target=aarch64-w64-mingw32` it looks for `aarch64-w64-windows-gnu.cfg`
-(its normalized spelling of the triple) next to its own program, and puts
-the options in it before the command line's. xclang writes one per target
-and per spelling of it into `bin/`:
+clang reads a config file for the target it compiles for. For
+`--target=aarch64-w64-mingw32`, it looks for `aarch64-w64-windows-gnu.cfg`
+next to its own program. That name is clang's normalized spelling of the
+triple. clang puts the options in the file before those of the command
+line. xclang writes one file per target, and per spelling of it, into
+`bin/`:
 
 | target | config files |
 |---|---|
 | Linux | `<arch>-unknown-linux-gnu.cfg`, `<arch>-pc-linux-gnu.cfg` |
-| Windows | `<arch>-w64-windows-gnu.cfg`, `<arch>-pc-windows-gnu.cfg` |
+| Windows (MinGW) | `<arch>-w64-windows-gnu.cfg`, `<arch>-pc-windows-gnu.cfg` |
 | macOS | `<arch>-apple-darwin.cfg`, `<arch>-apple-macos.cfg`, `<arch>-apple-macosx.cfg` (`arm64` and `aarch64` for arm64) |
 
-What each says
+Each says this
 ([config/](https://github.com/clice-io/xclang/tree/main/config)):
 
 | target | options |
 |---|---|
-| Linux | `--sysroot` of the target's directory, `-rtlib=compiler-rt -unwindlib=libunwind -stdlib=libc++`, `-static-libstdc++ -static-libgcc`, `-fuse-ld=lld` |
-| Windows | `--sysroot` of the target's directory, `-rtlib=compiler-rt -unwindlib=libunwind -stdlib=libc++`, `-fuse-ld=lld` (the sysroot has static libraries only) |
+| Linux | `--sysroot` of the target, `-rtlib=compiler-rt -unwindlib=libunwind -stdlib=libc++`, `-static-libstdc++ -static-libgcc`, `-fuse-ld=lld` |
+| Windows (MinGW) | `--sysroot` of the target, `-rtlib=compiler-rt -unwindlib=libunwind -stdlib=libc++`, `-fuse-ld=lld`; the sysroot has static libraries only |
 | macOS | xclang's libc++ headers (`-stdlib++-isystem`) and `libc++.a` ahead of the SDK's `libc++.tbd` (`-L`), `-mmacos-version-min=13.0`, `-fuse-ld=lld` |
 
-Paths are relative to the file (`<CFGDIR>`), so the tree works from
-wherever it is unpacked. The config files apply to native builds too: a
-plain `clang++ main.cpp` on Linux compiles against glibc 2.17 and links
-everything but glibc statically.
+Paths are relative to the file (`<CFGDIR>`), so the toolchain directory
+works wherever it is unpacked. The config files apply to native builds
+too. A plain `clang++ main.cpp` on Linux compiles against glibc 2.17, not
+the machine's glibc, and links everything but glibc statically.
 
-**Why config files, not built-in defaults.** clang can be built with
-defaults (`CLANG_DEFAULT_CXX_STDLIB`, `CLANG_DEFAULT_RTLIB`,
-`CLANG_DEFAULT_LINKER`, ...), and 23.1.2.1 was. Those defaults live in
-clang's driver, which is also in libclang, and tools built on libclang run
-the driver to understand other compilers' commands. clice does exactly
-that: given a `g++` command from a project's compilation database, it runs
-clang's driver in g++'s place to find the include paths. With the defaults
-built in, that `g++` command got libc++'s headers instead of libstdc++'s.
-Since 23.1.2.2 the defaults are gone and the config files carry them:
-`clang` from `bin/` reads its target's file, and libclang's driver, which
-has no `bin/` and no config file, behaves like upstream clang.
+### Why Not Built-In Defaults
 
-The same separation gives the bare compiler back on demand:
-`--no-default-config` skips the config file, for building against the
-system's own headers and libraries, as upstream clang would.
+clang can be built with defaults instead (`CLANG_DEFAULT_CXX_STDLIB`,
+`CLANG_DEFAULT_RTLIB`, `CLANG_DEFAULT_LINKER`, ...), and 23.1.2.1 was.
+Those defaults live in the clang driver, which is also in libclang. Tools
+built on libclang run the driver to understand other compilers' commands.
 
-Two details:
+clice does exactly that. Given a `g++` command from a compilation
+database, it runs the clang driver in place of g++ to find the include
+paths. With the defaults built in, that `g++` command got the headers of
+libc++ instead of libstdc++.
+
+Since 23.1.2.2 the defaults are gone, and the config files carry them, so no
+default needs a patched driver. `clang` from `bin/` reads the file for its
+target. The driver inside libclang has no `bin/` and no config file, so it
+behaves like upstream clang.
+
+### The Bare Compiler
+
+The same separation gives the bare compiler back on demand.
+`--no-default-config` skips the config file. clang then builds against the
+system's own headers and libraries, as upstream clang would. Use it to
+link against the system's libstdc++, for example.
+
+### Two Details
 
 - **clang-cl targets MSVC.** clang-cl looks for
   `<default target>-clang-cl.cfg`, then `<default target>.cfg`, before it
-  turns to the MSVC target, so it read the host's MinGW options and warned
-  about each. An empty `<spelling>-clang-cl.cfg` for every spelling stops it
-  (since 23.1.2.3).
-- **Bazel uses its own copy.** clang makes a config file's directory
-  absolute, and Bazel needs no absolute paths in its actions' outputs (the
-  dependency files would name the sandbox). The Bazel module writes each
-  config file again with paths relative to the execution root and passes
-  `--no-default-config --config=<file>`
-  ([the Bazel module](bazel-module.md)).
+  turns to the MSVC target. So it read the MinGW options of the host and
+  warned about each. An empty `<spelling>-clang-cl.cfg` for every spelling
+  stops that, since 23.1.2.3.
+- **Bazel uses its own copy.** clang makes the directory of a config file
+  absolute, and Bazel needs no absolute paths in the outputs of its
+  actions; the dependency files would name the sandbox. The Bazel module
+  writes each config file again with paths relative to the execution root
+  ([no absolute paths](bazel-module.md#no-absolute-paths)).
 
 ## One Program
 
-clang, lld and most of the tools (`llvm-ar`, `llvm-objcopy`, `dsymutil`,
+clang, lld and most tools (`llvm-ar`, `llvm-objcopy`, `dsymutil`,
 `llvm-gsymutil`, ...) are one program, `llvm`, built with LLVM's
-`LLVM_TOOL_LLVM_DRIVER_BUILD`. Each name is a link to it (on Windows, a
-small launcher), and it dispatches on the name it was started by. Every
-tool would otherwise carry its own copy of LLVM's libraries. When xclang
-switched to it, the archives shrank:
+`LLVM_TOOL_LLVM_DRIVER_BUILD`. Each name is a link to it, or on Windows a
+small [launcher](windows.md#the-launchers). The program dispatches on the
+name it was started by. Otherwise every tool carries its own copy of the
+LLVM libraries.
+
+When xclang switched to it, the archives shrank:
 
 | host | before | after |
 |---|---|---|
@@ -80,46 +97,42 @@ switched to it, the archives shrank:
 | Windows x64 | 540 MB (a zip) | 82 MB |
 | Windows arm64 | 521 MB (a zip) | 74 MB |
 
-(The same change dropped the Linux sysroots' locale archive and turned on
-identical code folding, so not all of it is the one program's; the
-Windows numbers also change from zip to `.tar.xz`.) A shared `libLLVM`
-would also have shared the code; it was rejected for speed: calls into it
-go through the dynamic linker's tables, and ThinLTO cannot optimize
-across its boundary.
+Not all of it came from the one program. The same change dropped the
+locale archive of the Linux sysroots and turned on identical code folding.
+The Windows archives also changed from zip to `.tar.xz`.
 
-A tool that reads clang's `-###` output sees a consequence: clang prints
-its compile job as
-
-```
-"/path/xclang/bin/llvm" "clang" "-cc1" ...
-```
-
-not `"/path/xclang/bin/clang" "-cc1" ...`. The driver runs the job as the
-program it is in, with the tool's name as the first argument; a parser
-that expects `-cc1` as the second word has to skip the name. clice met
-this in its first build with xclang and handles both forms.
+A shared `libLLVM` would also have shared the code. It was rejected for
+speed: calls into it go through the tables of the dynamic linker, and
+ThinLTO cannot optimize across its boundary.
 
 Some tools are outside the one program, built on their own:
 `llvm-profdata`, `llvm-cov`, `llvm-dwarfdump`, `llvm-strings` and
 `FileCheck`.
 
-## Windows: Launchers, Not Links
+### What `-###` Prints
 
-A Windows archive holds no symbolic links: Windows creates them only with
-developer mode or administrator rights, and conda packages for Windows
-cannot carry them. Every name of `llvm.exe` (`clang++.exe`, `ld.lld.exe`,
-...) is a small program,
-[`windows/alias.c`](https://github.com/clice-io/xclang/blob/main/windows/alias.c),
-that starts `llvm.exe <name> <arguments>`. Why the name goes in as an
-argument, and how the launcher keeps `llvm.exe` from outliving a killed
-build, is in [Windows](windows.md#the-launchers).
+A tool that reads the output of `clang -###` sees a consequence. clang
+prints its compile job like this:
+
+```
+"/path/xclang/bin/llvm" "clang" "-cc1" ...
+```
+
+It does not print `"/path/xclang/bin/clang" "-cc1" ...`. The driver runs
+the job as the program it is in, with the tool name as the first argument.
+A parser that expects `-cc1` as the second word has to skip the name.
+clice met this in its first build with xclang and handles both forms.
 
 ## Plain Directories
 
-A target's directory is a sysroot laid out the way clang's drivers
-expect, with libc++, libunwind and the GCC names in it, and compiler-rt
-is in clang's resource directory ([layout](../reference/layout.md)).
-Nothing is specific to xclang's clang: any clang of the same major version
-pointed at a target's directory with `--sysroot` and at the resource
-directory with `-resource-dir` cross-compiles with it, and the config files
-are plain text anyone can read to see what a target means.
+A sysroot is laid out the way the clang drivers expect, with libc++,
+libunwind and the [GCC library names](hermeticity.md#gcc-library-names)
+in it. compiler-rt is in the clang resource directory
+([archive layout](../reference/layout.md)). The sysroots hold what
+compiling and linking read, nothing else: headers, startup files and
+libraries, not glibc's programs, locales or gconv modules.
+
+Nothing in them is specific to xclang's clang. Any clang of the same major
+version, pointed at a sysroot with `--sysroot` and at the resource
+directory with `-resource-dir`, cross-compiles with it. The config files
+are plain text, so anyone can read what a target means.

@@ -2,13 +2,14 @@
 
 [中文](README.zh-CN.md) · [Documentation](https://docs.clice.io/xclang)
 
-Cross-compiling with clang the way rustup, cross-rs and cargo-zigbuild
-let Rust do it: one compiler for every target. Today every toolchain
-carries six common targets, prebuilt, and cross-compiling to them is a
-`--target` flag. Where it is going: more targets and the vendor SDKs that
-cannot be redistributed, fetched when a build needs them, and runtimes
-built from source on demand. None of that is in a release yet; the
-[roadmap](https://docs.clice.io/xclang/design/roadmap) gives each item's status.
+Cross-compiling with clang the way rustup, cross-rs and cargo-zigbuild let
+Rust do it: one compiler for every target. Today every toolchain carries six
+common targets, prebuilt, and cross-compiling to them is a `--target` flag.
+Where it is going: more targets and the vendor SDKs that cannot be
+redistributed, fetched when a build needs them, and runtimes built from
+source on demand. None of that is in a release yet; the
+[roadmap](https://docs.clice.io/xclang/design/roadmap) gives each item's
+status.
 
 It aims to be close to the current best practice for hermetic, modern C++
 builds: [why xclang](https://docs.clice.io/xclang/guide/why-xclang) makes
@@ -22,9 +23,9 @@ xclang/bin/clang++ --target=aarch64-w64-mingw32 main.cpp -o main.exe
 ```
 
 No `--sysroot`, no `-L`, no SDK to install: `bin/aarch64-w64-mingw32.cfg`,
-which clang reads for that target, points it at `xclang/aarch64-w64-mingw32/`,
-and it links the libc++, libunwind and compiler-rt built for that exact
-target.
+which clang reads for that target, points it at
+`xclang/aarch64-w64-mingw32/`, and it links the libc++, libunwind and
+compiler-rt built for that exact target.
 
 ## Targets
 
@@ -38,14 +39,16 @@ Not supported yet, each with its status in the roadmap:
 - **MSVC-ABI targets**, against the user's own MSVC and Windows SDK:
   [planned](https://docs.clice.io/xclang/design/roadmap#msvc).
 - **macOS targets from Linux or Windows**, with Apple's SDK fetched by the
-  user: [in research](https://docs.clice.io/xclang/design/roadmap#macos-any-host).
-- **musl targets** (Linux x64, arm64): [planned](https://docs.clice.io/xclang/design/roadmap#musl). Other Linux
+  user:
+  [in research](https://docs.clice.io/xclang/design/roadmap#macos-any-host).
+- **musl targets** (Linux x64, arm64):
+  [planned](https://docs.clice.io/xclang/design/roadmap#musl). Other Linux
   architectures, WebAssembly, Android, FreeBSD and bare metal:
   [considered](https://docs.clice.io/xclang/design/roadmap#targets).
 - **The `xclang` command** (`xclang sdk fetch`, `xclang target add`):
-  [unreleased](https://docs.clice.io/xclang/design/roadmap#xclang-command). It is in the repository and tested by
-  CI, but no release carries it, and no release publishes target archives
-  for it.
+  [unreleased](https://docs.clice.io/xclang/design/roadmap#xclang-command).
+  It is in the repository and tested by CI, but no release carries it, and
+  no release publishes target archives for it.
 
 ## Who it is for
 
@@ -56,9 +59,9 @@ that run wherever they are copied:
   every installation of its OS has and no one may redistribute: glibc on
   Linux (2.17 or later), libSystem and the system frameworks it uses on
   macOS, the OS's DLLs on Windows, UCRT included (Windows 10 and later).
-  Everything else, libc++, libc++abi, libunwind and the builtins among
-  them, is linked statically. At build time the only input from outside
-  the toolchain is, for macOS targets, the installed Xcode's SDK. Sanitizer
+  Everything else, libc++, libc++abi, libunwind and the builtins among them,
+  is linked statically. At build time the only input from outside the
+  toolchain is, for macOS targets, the installed Xcode's SDK. Sanitizer
   runtimes are the exception
   ([hermeticity](https://docs.clice.io/xclang/design/hermeticity)).
 - **Every piece is usable on its own.** The sysroots and runtimes are plain
@@ -91,9 +94,9 @@ xclang = "23.1.2.6.*"
 The environment puts xclang's `bin/` first in `PATH` and leaves
 conda-forge's compilers alone. Or take the archives from the
 [GitHub release](https://github.com/clice-io/xclang/releases) and unpack
-them anywhere. The [quick start](https://docs.clice.io/xclang/guide/quick-start)
-goes from here to programs for every target and a CMake project with
-`import std`.
+them anywhere. The
+[quick start](https://docs.clice.io/xclang/guide/quick-start) goes from here
+to programs for every target and a CMake project with `import std`.
 
 ## Use
 
@@ -126,29 +129,46 @@ bazel build --platforms=@xclang//platforms:x86_64-w64-mingw32 //...
 
 ## Documentation
 
-At [docs.clice.io/xclang](https://docs.clice.io/xclang), from [docs/en](docs/en):
+At [docs.clice.io/xclang](https://docs.clice.io/xclang), from
+[docs/en](docs/en):
 
-- Guide: [What is xclang?](https://docs.clice.io/xclang/guide/what-is-xclang),
-  [Quick Start](https://docs.clice.io/xclang/guide/quick-start), [Installation](https://docs.clice.io/xclang/guide/install),
+- Guide:
+  [What is xclang?](https://docs.clice.io/xclang/guide/what-is-xclang),
+  [Quick Start](https://docs.clice.io/xclang/guide/quick-start),
+  [Installation](https://docs.clice.io/xclang/guide/install),
   [Cross-Compiling](https://docs.clice.io/xclang/guide/cross-compiling),
-  [Why xclang?](https://docs.clice.io/xclang/guide/why-xclang), [Comparisons](https://docs.clice.io/xclang/guide/comparisons)
-  with zig cc, llvm-mingw, conda-forge and others, [FAQ](https://docs.clice.io/xclang/guide/faq)
-- Integrations: [CMake](https://docs.clice.io/xclang/integrations/cmake), [Bazel](https://docs.clice.io/xclang/integrations/bazel),
-  [Make and Meson](https://docs.clice.io/xclang/integrations/clang), [Cargo](https://docs.clice.io/xclang/integrations/cargo),
+  [Why xclang?](https://docs.clice.io/xclang/guide/why-xclang),
+  [Comparisons](https://docs.clice.io/xclang/guide/comparisons) with zig cc,
+  llvm-mingw, conda-forge and others,
+  [FAQ](https://docs.clice.io/xclang/guide/faq)
+- Integrations: [CMake](https://docs.clice.io/xclang/integrations/cmake),
+  [Bazel](https://docs.clice.io/xclang/integrations/bazel),
+  [Make and Meson](https://docs.clice.io/xclang/integrations/clang),
+  [Cargo](https://docs.clice.io/xclang/integrations/cargo),
   [CI](https://docs.clice.io/xclang/integrations/ci)
-- Features: [Modules](https://docs.clice.io/xclang/features/modules), [Sanitizers](https://docs.clice.io/xclang/features/sanitizers),
-  [Debugging](https://docs.clice.io/xclang/features/debugging), [libclang](https://docs.clice.io/xclang/features/libclang),
+- Features: [Modules](https://docs.clice.io/xclang/features/modules),
+  [Sanitizers](https://docs.clice.io/xclang/features/sanitizers),
+  [Debugging](https://docs.clice.io/xclang/features/debugging),
+  [libclang](https://docs.clice.io/xclang/features/libclang),
   [ThinLTO Cache](https://docs.clice.io/xclang/features/thinlto-cache)
-- Reference: [Targets](https://docs.clice.io/xclang/reference/targets), [Compatibility](https://docs.clice.io/xclang/reference/compatibility),
-  [Archive Layout](https://docs.clice.io/xclang/reference/layout), [CMake API](https://docs.clice.io/xclang/reference/cmake-api),
-  [Bazel API](https://docs.clice.io/xclang/reference/bazel-api), [Releases](https://docs.clice.io/xclang/reference/releases),
+- Reference: [Targets](https://docs.clice.io/xclang/reference/targets),
+  [Compatibility](https://docs.clice.io/xclang/reference/compatibility),
+  [Archive Layout](https://docs.clice.io/xclang/reference/layout),
+  [CMake API](https://docs.clice.io/xclang/reference/cmake-api),
+  [Bazel API](https://docs.clice.io/xclang/reference/bazel-api),
+  [Releases](https://docs.clice.io/xclang/reference/releases),
   [LLVM Patches](https://docs.clice.io/xclang/reference/patches)
-- Design: [Hermeticity](https://docs.clice.io/xclang/design/hermeticity), [PGO](https://docs.clice.io/xclang/design/pgo),
+- Design: [Hermeticity](https://docs.clice.io/xclang/design/hermeticity),
+  [PGO](https://docs.clice.io/xclang/design/pgo),
   [Roadmap](https://docs.clice.io/xclang/design/roadmap), and more
-- Development: [Contributing](https://docs.clice.io/xclang/dev/contributing),
-  [Build Pipeline](https://docs.clice.io/xclang/dev/release-build), [Releasing](https://docs.clice.io/xclang/dev/releasing)
-- [CHANGELOG](CHANGELOG.md), [contributing](CONTRIBUTING.md), [security](SECURITY.md)
+- Development:
+  [Contributing](https://docs.clice.io/xclang/dev/contributing),
+  [Build Pipeline](https://docs.clice.io/xclang/dev/release-build),
+  [Testing](https://docs.clice.io/xclang/dev/testing),
+  [Releasing](https://docs.clice.io/xclang/dev/releasing)
+- [CHANGELOG](CHANGELOG.md), [contributing](CONTRIBUTING.md),
+  [security](SECURITY.md)
 
 xclang is developed for [clice](https://github.com/clice-io/clice), whose
-release builds are its first user; [catter](https://github.com/clice-io/catter)
-builds with it too.
+release builds are its first user;
+[catter](https://github.com/clice-io/catter) builds with it too.

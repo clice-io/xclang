@@ -38,17 +38,17 @@ Built by 23.1.2.5.
   instead of minutes, with the same program: in Bazel,
   `--repo_env=XCLANG_THINLTO_CACHE=<dir>`, the module makes the directory
   and the toolchains' `thinlto_cache` feature passes it to the target's
-  linker ([docs/en/integrations/bazel.md](docs/en/integrations/bazel.md#the-thinlto-cache), with the
+  linker ([docs/en/integrations/bazel.md](docs/en/integrations/bazel.md#speed-up-libclang-links), with the
   `.bazelrc` and CI setup); in CMake, `-DXCLANG_THINLTO_CACHE=<dir>` (or the
   environment variable) before `find_package(xclang)`
-  ([docs/en/integrations/cmake.md](docs/en/integrations/cmake.md#the-thinlto-cache)).
+  ([docs/en/integrations/cmake.md](docs/en/integrations/cmake.md#speed-up-libclang-links)).
 - What users build with is under [`packages/`](packages): the Bazel module
   in `packages/bazel`, the CMake package in `packages/cmake`, the conda
   package's activation scripts in `packages/conda`. The module's labels
   (`@xclang//bazel:std`, ...) are the same and the registry's archive holds
   the same tree; a `git_override` of a commit needs `strip_prefix =
   "packages/bazel"` ([docs/en/integrations/bazel.md](docs/en/integrations/bazel.md)).
-- **Bazel cross-compiling** ([docs/en/integrations/bazel.md](docs/en/integrations/bazel.md#cross-compiling)):
+- **Bazel cross-compiling** ([docs/en/integrations/bazel.md](docs/en/integrations/bazel.md#build-for-another-target)):
   the module registers the host's toolchain for every target of its
   archive, and `@xclang//platforms:<triple>` (`x86_64-w64-mingw32`,
   `aarch64-unknown-linux-gnu`, ...) are platforms for them, with a C library
@@ -63,17 +63,17 @@ Built by 23.1.2.5.
   every target, the dSYM for macOS ones. Bazel: `xclang_debug_symbols`
   (`@xclang//bazel:debug_symbols.bzl`), and rules_cc's `generate_dsym_file`
   feature makes a macOS program's dSYM in its link, ThinLTO's code
-  included ([docs/en/integrations/bazel.md](docs/en/integrations/bazel.md#debug-symbols)); CMake:
-  `xclang_debug_symbols(<target>)` ([docs/en/integrations/cmake.md](docs/en/integrations/cmake.md#debug-symbols)).
+  included ([docs/en/integrations/bazel.md](docs/en/integrations/bazel.md#ship-debug-symbols-and-stripped-programs)); CMake:
+  `xclang_debug_symbols(<target>)` ([docs/en/integrations/cmake.md](docs/en/integrations/cmake.md#ship-debug-symbols)).
 - **Bazel: debug information that holds wherever the build ran.** Paths
   in it are relative to the execution root (`-ffile-compilation-dir=.`;
   Mach-O debug maps with `-oso_prefix`), and PE programs have no link time,
   so a program is the same bytes from any sandbox or checkout; debuggers
-  map `.` to the workspace's `bazel-<workspace>` ([docs/en/integrations/bazel.md](docs/en/integrations/bazel.md#debugging)).
+  map `.` to the workspace's `bazel-<workspace>` ([docs/en/integrations/bazel.md](docs/en/integrations/bazel.md#debug-in-gdb-lldb-and-vs-code)).
 - Bazel: a program's `.stripped` is a release's, by the target's object
   format: ELF and COFF `--strip-unneeded`, Mach-O `--strip-all`, not
   keeping the globals that misname local functions in macOS crash logs
-  ([docs/en/integrations/bazel.md](docs/en/integrations/bazel.md#what-the-toolchain-does)).
+  ([docs/en/features/debugging.md](docs/en/features/debugging.md#strip)).
 - Bazel: `@libclang` is the ASan build with `--features=asan`, libraries,
   headers and resource directory together; `xclang_resource_dir` lays the
   resource directory out in `lib/clang` next to a program's `bin/`

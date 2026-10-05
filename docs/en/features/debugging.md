@@ -1,110 +1,186 @@
 # Debugging and Debug Symbols
 
-Two things a toolchain decides about debugging: what paths a program's
-debug information names, so that a debugger finds the sources; and how a
-release's symbols are made and kept, so that a crash from the field can be
-read. xclang's tools for both are in every archive: `dsymutil`,
-`llvm-gsymutil`, `llvm-symbolizer`, `llvm-dwarfdump`.
+A shipped program is stripped, and its debug symbols are kept apart, to
+turn the addresses of a crash into functions and lines later. xclang makes
+them with its own tools, for every target: `llvm-gsymutil`, `dsymutil`,
+`llvm-symbolizer` and `llvm-dwarfdump` are in every toolchain directory.
 
-## Paths in Debug Information
+- **GSYM**, for every target: functions, inlining and line tables by
+  address, made from the DWARF by `llvm-gsymutil --convert`. It is about a
+  tenth of the size of the DWARF, and fast to look up. It is what a crash
+  reporter needs, and nothing more.
+- **dSYM**, for macOS targets: the bundle that Apple's tools and lldb
+  read, made by `dsymutil`.
 
-By default a compiler writes the absolute directory it ran in into the
-DWARF (`DW_AT_comp_dir`), and on macOS the linker writes the absolute path
-of every object file into the program's debug map, which is how lldb and
-dsymutil find the DWARF, left in the objects. So the same build in two
-directories gives two different programs, and a remote or sandboxed build
+## Usage
+
+The example is in
+[examples/debug-symbols](https://github.com/clice-io/xclang/tree/main/examples/debug-symbols).
+`tool.cpp` keeps `answer` out of line, so its address maps to one line:
+
+```cpp
+#include <cstdio>
+
+extern "C" [[gnu::noinline]] int answer(int x) { return x * 6 + 36; }
+
+int main(int argc, char**) { std::printf("%d\n", answer(argc)); }
+```
+
+### Plain Clang
+
+This builds a Linux x64 program, so the commands are the same on every
+host. The last one looks up the address of `answer` in the GSYM:
+
+```sh
+clang++ --target=x86_64-unknown-linux-gnu -gline-tables-only -O2 tool.cpp -o tool
+llvm-gsymutil --convert tool --out-file tool.gsym --num-threads=1
+llvm-gsymutil tool.gsym --address=0x$(llvm-nm tool | awk '$3 == "answer" { print $1 }')
+```
+
+It prints the function and its line, `answer @ <this directory>/tool.cpp:3`.
+For a macOS target, make the dSYM first, with `dsymutil tool -o tool.dSYM`,
+and convert the dSYM instead.
+
+### CMake
+
+`xclang_debug_symbols(<program>)` makes the symbols after each link of the
+CMake target `<program>`:
+
+```cmake
+cmake_minimum_required(VERSION 3.28)
+project(tool LANGUAGES CXX)
+
+find_package(xclang REQUIRED CONFIG)
+
+add_executable(tool tool.cpp)
+target_compile_options(tool PRIVATE -gline-tables-only)
+xclang_debug_symbols(tool)
+```
+
+```sh
+cmake -G Ninja -B build -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+./build/tool
+```
+
+The program prints `42`. `build/tool.gsym` is next to it, and for a macOS
+target `build/tool.dSYM` too.
+
+### Bazel
+
+The `xclang_debug_symbols` rule makes the GSYM, and the
+`generate_dsym_file` feature of rules_cc makes the dSYM in the link:
+
+```python
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@xclang//bazel:debug_symbols.bzl", "xclang_debug_symbols")
+
+cc_binary(
+    name = "tool",
+    srcs = ["tool.cpp"],
+    copts = ["-gline-tables-only"],
+    features = ["generate_dsym_file"],
+)
+
+xclang_debug_symbols(
+    name = "tool_symbols",
+    binary = ":tool",
+)
+```
+
+```sh
+bazel build --strip=never //:tool_symbols
+```
+
+`bazel-bin/tool.gsym` is the GSYM. The fastbuild mode strips debug
+information unless `--strip=never` is given.
+
+## Options
+
+| | CMake | Bazel |
+|---|---|---|
+| GSYM | `xclang_debug_symbols(<program>)` | `xclang_debug_symbols(name, binary)` |
+| dSYM, macOS targets | made by `xclang_debug_symbols` | `features = ["generate_dsym_file"]`, or `--apple_generate_dsym` |
+| extra llvm-gsymutil options | `GSYM_ARGS <option>...` | `gsymutil_args = [...]` |
+| llvm-gsymutil's warnings | `<program>.gsym.log` | output group `gsym_log` |
+| debug information | `-g`, or `-gline-tables-only` for functions and lines alone | the same, in `copts` |
+
+`--merged-functions` keeps every name of the functions that identical
+code folding merged.
+
+## Behavior
+
+- **Bazel builds have relative paths in debug information** (below), so a
+  program is the same bytes from every sandbox and every checkout.
+- **The dSYM comes from the link**, with the objects of ThinLTO (below).
+- **The GSYM comes from the dSYM** on macOS, and from the program
+  elsewhere. llvm-gsymutil runs on the host, also for another target.
+- **The strip for a shipped binary depends on the object format** (below).
+
+### Paths in Debug Information
+
+By default, a compiler writes the absolute directory it ran in into the
+DWARF (`DW_AT_comp_dir`). On macOS, the linker writes the absolute path of
+every object file into the debug map of the program, and lldb and dsymutil
+find the DWARF in the objects through it. So the same build in two
+directories gives two different programs. A remote or sandboxed build
 names directories that exist nowhere else.
 
 In Bazel, xclang's toolchains make every such path relative to the
 execution root:
 
-- compiles have `-ffile-compilation-dir=.`: the DWARF's compilation
-  directory (and coverage mappings') is `.`, its files `pkg/file.cpp` and
-  `external/<repository>/...`;
-- macOS links have `-Wl,-oso_prefix,.`: the debug map names its objects
-  `bazel-out/...`;
-- Windows links have `-Wl,--no-insert-timestamp`: a PE program has no
-  link time;
-- clang's own paths are relative (`-no-canonical-prefixes`).
+- Compiles have `-ffile-compilation-dir=.`. The compilation directory of
+  the DWARF, and of coverage mappings, is `.`, and its files are
+  `pkg/file.cpp` and `external/<repository>/...`.
+- macOS links have `-Wl,-oso_prefix,.`, so the debug map names its objects
+  `bazel-out/...`.
+- Windows links have `-Wl,--no-insert-timestamp`, so a PE program has no
+  link time.
+- clang names its own paths relatively (`-no-canonical-prefixes`).
 
-The program is then the same bytes from every sandbox and every checkout,
-debug information included, and a debugger needs one mapping, from `.` to
-the workspace's `bazel-<workspace>` link
-([Bazel](../integrations/bazel.md#debugging) has the gdb, lldb and VS Code
-settings). tests/bazel.ts builds a program with `-c dbg` in two checkouts
-and compares the bytes, and has gdb (Linux), lldb with and without the dSYM
-(macOS) and llvm-symbolizer (Linux, Windows) find its lines in the workspace
-and in an external repository, on every host
-([23.1.2.6](https://github.com/clice-io/xclang/actions/runs/37345631067)).
-
-CMake builds keep CMake's absolute paths; relative paths there are
+A debugger then needs one mapping, from `.` to the `bazel-<workspace>` link
+of the workspace
+([Bazel](../integrations/bazel.md#debug-in-gdb-lldb-and-vs-code)). CMake
+builds keep the absolute paths of CMake; relative paths there are
 [planned](../design/roadmap.md#cmake-relative-paths).
-
-## Debug Symbols for a Release
-
-A released program is stripped; its debug information is kept apart, to
-turn a crash's addresses into functions and lines later. Two formats:
-
-- **GSYM**, for every target: functions, inlining and line tables by
-  address, made from the DWARF by `llvm-gsymutil --convert`, about a tenth
-  of the DWARF's size, and fast to look up (`llvm-gsymutil tool.gsym
-  --address=<address>`). It is what a crash reporter needs and nothing
-  more.
-- **dSYM**, for macOS targets: the bundle Apple's tools and lldb read,
-  made by `dsymutil` from the objects the program's debug map points into.
-
-Both build systems make them after each link, with the toolchain's tools:
-`xclang_debug_symbols(<target>)` in CMake
-([CMake](../integrations/cmake.md#debug-symbols)), the
-`xclang_debug_symbols` rule and the `generate_dsym_file` feature in Bazel
-([Bazel](../integrations/bazel.md#debug-symbols)). By hand, as
-tests/smoke.ts does for every target:
-
-```sh
-clang++ -g -O1 -c main.cpp -o main.o
-clang++ main.o -o tool
-dsymutil tool -o tool.dSYM                               # macOS targets
-llvm-gsymutil --convert tool --out-file tool.gsym        # or tool.dSYM on macOS
-llvm-gsymutil tool.gsym --address=<address>
-```
-
-The program needs debug information: `-g`, or `-gline-tables-only` for
-functions and lines alone, which is what a GSYM keeps.
 
 ### Why a dSYM Comes from the Link
 
-A macOS program's DWARF is not in the program: the debug map points into
-the object files, and dsymutil collects it from them. With ThinLTO the
-objects that hold the program's code are the LTO backend's, which the
-linker writes to a temporary directory and deletes. A dSYM made after the
-link then misses every function that went through LTO: clice's nightly
-macOS symbols had no line of libclang until this was found.
+A macOS program does not contain its DWARF. Its debug map points into the
+object files, and dsymutil collects the DWARF from them. With ThinLTO, the
+objects that hold the code of the program are those of the LTO backend.
+The linker writes them to a temporary directory and deletes them. A dSYM
+made after the link then misses every function that went through LTO.
+clice's nightly macOS symbols had no line of libclang until this was
+found.
 
-So xclang makes the dSYM in the link: the link keeps the LTO objects
-(`-object_path_lto <dir>`), dsymutil runs right after it, in the same
-action, and the objects go. The link also keeps the names of functions
-that identical code folding merged in the debug map
-(`--keep-icf-stabs`), so a crash in a folded function names one of them
-and `--merged-functions` can list all. The dSYM and the program came out
-the same bytes with and without the ThinLTO cache, cold or warm, when this
-was checked by hand for 23.1.2.6 on arm64 and x86_64 macOS.
+So xclang makes the dSYM in the link. The link keeps the LTO objects
+(`-object_path_lto <dir>`), dsymutil runs right after it in the same
+action, and then the objects go. The link also keeps, in the debug map,
+the names of the functions that identical code folding merged
+(`--keep-icf-stabs`). A crash in a folded function then names one of them,
+and `--merged-functions` can list them all.
 
-`-object_path_lto` is also what clang's driver passes when it compiles and
-links in one command, and it exposed an lld bug: an empty LTO object's
-symbol took `main`'s unwind entry, so on arm64 a program built that way
-could not catch its own exceptions. xclang carries the fix,
-[patch 0007](../reference/patches.md), and that is what made ld64.lld usable
-for macOS targets at all ([macOS](../design/macos.md)).
+`-object_path_lto` is also what the clang driver passes when it compiles and
+links in one command. It exposed an lld bug, which
+[patch 0007](../reference/patches.md) fixes
+([macOS](../design/macos.md#the-patch-it-took)).
 
-## Strip
+### Strip
 
-Bazel's `<name>.stripped` is a release's strip by object format: ELF and
-COFF `--strip-unneeded`, Mach-O `--strip-all`, as Apple's `strip` does. On
-macOS a stripped program that keeps its global functions' names gives a
-crash log wrong names: `dladdr` names an address by the nearest preceding
-symbol, so a local function is reported as the global one before it. With
-`--strip-all`, the crash log has addresses only, and the dSYM or GSYM
-names them correctly.
+The `<name>.stripped` program of Bazel is stripped for shipping, by object
+format:
+
+- ELF and COFF: `--strip-unneeded`. The program loses its debug
+  information and every symbol no relocation needs.
+- Mach-O: `--strip-all`, as Apple's `strip` does: every symbol that dyld
+  does not bind, global functions included.
+
+On macOS, `dladdr` names an address by the nearest preceding symbol. A
+stripped program that keeps the names of its global functions gives a
+crash log wrong names: a local function is reported as the global one
+before it. With `--strip-all`, the crash log has addresses only, and the
+dSYM or GSYM names them correctly. `--stripopt` adds options to the strip.
 
 ## Not Yet Supported
 
@@ -116,9 +192,10 @@ names them correctly.
 ## Known Limitations
 
 - **GSYM files are not deterministic.** `llvm-gsymutil --convert` with its
-  default threads writes a different file each run from the same DWARF. On
-  one program, three runs gave three digests, 3,043,120 to 3,053,168 bytes.
-  The lookups agree; the layout does not. With `--num-threads=1` the file is
-  the same every run and about 0.6% smaller. Neither `xclang_debug_symbols`
-  passes it, so a release's GSYM cannot be compared byte for byte with a
-  rebuild's. Passing it is [planned](../design/roadmap.md#gsym-determinism).
+  default threads writes a different file each run from the same DWARF.
+  On one program, three runs gave three digests, 3,043,120 to 3,053,168
+  bytes. The lookups agree; the layout does not. With `--num-threads=1`
+  the file is the same every run, and about 0.6% smaller.
+  `xclang_debug_symbols` does not pass it, so the GSYM of a release cannot
+  be compared byte for byte with that of a rebuild. Passing it is
+  [planned](../design/roadmap.md#gsym-determinism).

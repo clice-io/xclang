@@ -1,7 +1,7 @@
 # Compatibility
 
-The oldest systems and tools xclang and the programs it builds work with,
-and what is not supported.
+The oldest systems and tools that xclang, and the programs it builds, work
+with.
 
 ## The Toolchain
 
@@ -17,7 +17,7 @@ and what is not supported.
 |---|---|
 | Linux x64, arm64 | glibc 2.17 or later: CentOS 7, Debian 8, Ubuntu 14.04 and every later distribution with glibc |
 | Windows x64, arm64 | Windows 10 or later, where UCRT is part of the OS |
-| macOS arm64, x64 | macOS 13.0 or later (`-mmacos-version-min=13.0` in the config file; one given on the command line comes after it and replaces it) |
+| macOS arm64, x64 | macOS 13.0 or later; a `-mmacos-version-min` on the command line comes after the config file's 13.0 and replaces it |
 
 What a program loads at run time is in
 [hermeticity](../design/hermeticity.md).
@@ -27,10 +27,10 @@ What a program loads at run time is in
 | tool | version | why |
 |---|---|---|
 | CMake | 3.28 or later | the first that builds C++20 modules without experimental switches; `find_package(xclang)` refuses older ones |
-| Ninja | 1.11 or later | what CMake requires to build C++20 modules; Ninja and Ninja Multi-Config are the generators that build them for these targets |
-| Bazel | 9 | the module's toolchains are rules_cc 0.2.25's; C++20 modules need `--experimental_cpp_modules` |
-| Xcode | one whose SDK ld64.lld reads; Xcode 27 needs 23.1.2.6 or later | the macOS 27 SDK's stubs list `arm64e.x1`, which ld64.lld reads from [patch 0009](patches.md) on |
-| Rust | Rust's `*-windows-gnullvm` targets for Windows (not `*-windows-gnu`) | see [Rust and cargo](../integrations/cargo.md) |
+| Ninja | 1.11 or later | what CMake requires to build C++20 modules; only the Ninja generators build them for these targets |
+| Bazel | 9, with rules_cc 0.2.25 | the toolchains are rules_cc 0.2.25's; C++20 modules need `--experimental_cpp_modules` |
+| Xcode | any whose SDK ld64.lld reads; Xcode 27 needs 23.1.2.6 or later | the macOS 27 SDK lists `arm64e.x1`, which ld64.lld reads with [patch 0009](patches.md) |
+| Rust | the `*-windows-gnullvm` targets for Windows, not `*-windows-gnu` | their std links libunwind and UCRT, as the MinGW sysroots have them ([Rust and Cargo](../integrations/cargo.md)) |
 
 ## Not Yet Supported
 
