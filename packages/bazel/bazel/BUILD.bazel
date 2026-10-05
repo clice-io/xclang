@@ -79,3 +79,13 @@ alias(
     )
     for target in TARGETS
 ]
+
+# The same with --features=asan, which @libclang follows (bazel/libclang.bzl).
+[
+    config_setting(
+        name = target + "-asan",
+        constraint_values = constraints(target),
+        values = {"features": "asan"},
+    )
+    for target in TARGETS
+]

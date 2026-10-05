@@ -31,7 +31,7 @@ def _xclang_impl(mctx):
     for target in TARGETS:
         xclang_libclang(name = "libclang_" + target, target = target, version = VERSION, sha256 = SHA256)
         xclang_libclang(name = "libclang_asan_" + target, asan = True, target = target, version = VERSION, sha256 = SHA256)
-    xclang_libclang_aliases(name = "libclang", prefix = "libclang_")
+    xclang_libclang_aliases(name = "libclang", prefix = "libclang_", asan_prefix = "libclang_asan_")
     xclang_libclang_aliases(name = "libclang_asan", prefix = "libclang_asan_")
     xclang_option_inc(name = "llvm_option_inc", version = VERSION, sha256 = SHA256)
     return mctx.extension_metadata(reproducible = True)

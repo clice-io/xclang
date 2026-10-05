@@ -245,26 +245,30 @@ exports_files(["lib/cmake/xclang/libclang.cmake"])
 
 """ + "\n".join(rules)
 
-def libclang_aliases(prefix):
+def libclang_aliases(prefix, asan_prefix = ""):
     """The BUILD file of @libclang: an alias of each of its targets to the one
-    of the target platform's repository, prefix + its triple."""
+    of the target platform's repository, prefix + its triple; with
+    --features=asan, asan_prefix + its triple, if given."""
     return """\
 load({libclang_bzl}, "libclang_alias_targets")
 
-libclang_alias_targets({prefix})
+libclang_alias_targets({prefix}, {asan_prefix})
 """.format(
         libclang_bzl = json.encode(str(Label("//bazel:libclang.bzl"))),
         prefix = json.encode(prefix),
+        asan_prefix = json.encode(asan_prefix),
     )
 
-def libclang_alias_targets(prefix):
-    """The aliases of libclang_aliases' BUILD file."""
+def libclang_alias_targets(prefix, asan_prefix = ""):
+    """The aliases of libclang_aliases' BUILD file. Libraries, headers and
+    resource directory switch together, the ASan build's (bazel/BUILD.bazel's
+    <triple>-asan, the more specific setting) or not."""
     for name in LIBRARIES + _OTHERS:
+        actual = {Label("//bazel:" + target): "@%s%s//:%s" % (prefix, target, name) for target in TARGETS}
+        if asan_prefix:
+            actual |= {Label("//bazel:%s-asan" % target): "@%s%s//:%s" % (asan_prefix, target, name) for target in TARGETS}
         native.alias(
             name = name,
-            actual = select(
-                {Label("//bazel:" + target): "@%s%s//:%s" % (prefix, target, name) for target in TARGETS},
-                no_match_error = "xclang has no libclang for the target platform",
-            ),
+            actual = select(actual, no_match_error = "xclang has no libclang for the target platform"),
             visibility = ["//visibility:public"],
         )

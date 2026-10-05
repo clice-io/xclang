@@ -36,6 +36,8 @@
 ///    through bazel-<workspace>.
 /// 10. A release's strip by the target's object format (the .stripped of a
 ///     program), for this host's target and another os's.
+/// 11. @libclang, its libraries and its resource directory, follow
+///     --features=asan.
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -448,6 +450,27 @@ if (!windows) {
     }
     check(ok && !runs.includes("not"), `strip for ${target}: hello.stripped has no debug information and ` +
       `${defined(stripped)} defined symbols of hello's ${defined(program)}${runs}`);
+  }
+}
+
+/// 11. @libclang follows --features=asan: the ASan build's libraries and
+/// resource directory where xclang has one (the tests too), and where it has
+/// none a build that says so.
+{
+  const workspace = path.join(common.ROOT, "tests", "bazel");
+  const inputs = (features: string[], target: string) =>
+    run(workspace, ["aquery", ...features, `mnemonic("CppLink|Symlink", ${target})`]).stdout;
+  const asanBuild = (text: string) => /libclang_asan_/.test(text);
+  if (["x86_64-unknown-linux-gnu", "aarch64-apple-darwin"].includes(host)) {
+    const plain = inputs([], "//libclang:libclang_test") + inputs([], "//libclang:resource_dir");
+    const asan = inputs(["--features=asan"], "//libclang:libclang_test") + inputs(["--features=asan"], "//libclang:resource_dir");
+    check(!asanBuild(plain) && asanBuild(asan), "--features=asan: @libclang's libraries and resource directory are the ASan build's");
+    bazel(workspace, ["test", "--features=asan", "//libclang:libclang_test", "//libclang:bin/resource_dir_test"]);
+    check(true, "--features=asan: libclang_test and resource_dir_test on @libclang pass");
+  } else {
+    const result = run(workspace, ["build", "--nobuild", "--features=asan", "//libclang:libclang_test"]);
+    check(result.status !== 0 && /has no ASan libclang/.test(result.stderr ?? ""),
+      "--features=asan: no ASan libclang for this host's target, and the build says so");
   }
 }
 

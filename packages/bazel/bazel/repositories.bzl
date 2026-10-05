@@ -161,13 +161,17 @@ cc_library per library of its CMake export files.""",
 )
 
 def _libclang_aliases_impl(rctx):
-    rctx.file("BUILD.bazel", libclang_aliases(rctx.attr.prefix))
+    rctx.file("BUILD.bazel", libclang_aliases(rctx.attr.prefix, rctx.attr.asan_prefix))
 
 xclang_libclang_aliases = repository_rule(
     implementation = _libclang_aliases_impl,
-    attrs = {"prefix": attr.string(mandatory = True)},
+    attrs = {
+        "prefix": attr.string(mandatory = True),
+        "asan_prefix": attr.string(doc = "With --features=asan, the repositories of the ASan build instead."),
+    },
     doc = """@libclang (@libclang_asan): every target of a libclang repository, of the
-target platform's (prefix + triple), which is fetched only when built for.""",
+target platform's (prefix + triple), which is fetched only when built for;
+@libclang's is the ASan build's (asan_prefix + triple) with --features=asan.""",
 )
 
 def _option_inc_impl(rctx):

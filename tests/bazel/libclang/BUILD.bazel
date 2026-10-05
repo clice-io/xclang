@@ -1,4 +1,5 @@
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("@xclang//bazel:resource_dir.bzl", "xclang_resource_dir")
 
 exports_files(["main.cpp"])
 
@@ -47,3 +48,15 @@ config_setting(
         "@platforms//cpu:aarch64",
     ],
 )
+
+# clang's resource directory where a tool on libclang looks for it, next to
+# bin/: the test asks clang for it from its own executable's path.
+cc_test(
+    name = "bin/resource_dir_test",
+    srcs = ["resource_dir.cpp"],
+    copts = ["-fno-rtti"],
+    data = [":resource_dir"],
+    deps = ["@libclang//:" + lib for lib in LIBRARIES + ["clangOptions"]],
+)
+
+xclang_resource_dir(name = "resource_dir")

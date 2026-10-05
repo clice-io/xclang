@@ -21,6 +21,7 @@ bazel_dep(name = "bazel_skylib", version = "1.8.0")
 xclang = use_extension("//bazel:extensions.bzl", "xclang")
 use_repo(
     xclang,
+    "libclang",
     "xclang_aarch64-apple-darwin",
     "xclang_aarch64-unknown-linux-gnu",
     "xclang_aarch64-w64-mingw32",
