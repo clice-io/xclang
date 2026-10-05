@@ -62,6 +62,10 @@ building them again.
 | `cmake` | cmake.yml | the CMake package with every host's archives |
 | `release` | release.yml | a draft release of everything, with `SHA256SUMS` |
 
+With `cli`, `package` also builds the [xclang command](cli.md) (cli.yml)
+and puts it into every toolchain archive; it is off until the command
+ships. cli.yml also runs on its own, testing the command on every host.
+
 A draft creates no tag; publishing it does, by hand. Publishing starts
 bazel.yml, which tests the release's module and publishes it to
 [bazel.clice.io](https://bazel.clice.io), and cmake.yml, which builds
@@ -82,6 +86,8 @@ scripts/           TypeScript, run by Node: bootstrap, runtimes (with the
                    sysroots), toolchain, package, conda, bazel
 pgo/               the training (train.ts, its corpus) and remap.txt
 windows/alias.c    the launcher behind every name of llvm.exe
+cli/               the xclang command, in Rust (docs/cli.md); its SDK
+                   version table, sdk-versions.json
 patches/           changes to LLVM, a directory and a README each
 tests/             smoke.ts and libclang.ts, the per-host checks; bazel/
                    and cmake/, the build systems' consumers; bench.ts,

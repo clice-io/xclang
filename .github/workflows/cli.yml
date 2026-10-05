@@ -6,13 +6,14 @@ name: cli
 # unless called with build-only, on a machine of each host
 # (tests/cli.ts): both vendor SDKs fetched, C, C++ and Objective-C
 # programs cross-compiled against them, target add and remove against a
-# test index; the programs run on macOS and Windows. Only the programs
-# leave a job, never an SDK.
+# test index; from Linux, cli/ itself cross-built with cargo for macOS and
+# the MSVC ABI against the SDKs (tests/cargo.ts). The programs run on macOS
+# and Windows. Only the programs leave a job, never an SDK.
 
 on:
   push:
     branches: [cli]
-    paths: [cli/**, scripts/cli.ts, scripts/common.ts, tests/cli.ts, tests/sdk/**, .github/workflows/cli.yml]
+    paths: [cli/**, scripts/cli.ts, scripts/common.ts, tests/cli.ts, tests/cargo.ts, tests/sdk/**, .github/workflows/cli.yml]
   workflow_dispatch:
   workflow_call:
     inputs:
@@ -99,6 +100,10 @@ jobs:
           echo "T=$T" >> "$GITHUB_ENV"
       - name: Test
         run: node tests/cli.ts --tree "$T" --out programs
+      # cargo with xclang for the SDKs' targets, from Linux (docs/rust.md).
+      - name: cargo for macOS and MSVC targets
+        if: ${{ matrix.host == 'x86_64-unknown-linux-gnu' }}
+        run: node tests/cargo.ts --tree "$T" --out programs
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:

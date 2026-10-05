@@ -97,11 +97,10 @@ pub fn unpack(packages: &[(Kind, PathBuf)], out: &Path, archs: &[&str]) -> Resul
         bail!("{}: no c/Include/<version>/um", packages[1].1.display())
     };
     // What each package gives, and names alike but for case.
-    let mut plans = vec![];
+    let mut items: Vec<(usize, usize, String)> = vec![];
     let mut seen: HashMap<String, String> = HashMap::new();
-    for (kind, path) in packages {
+    for (p, (kind, path)) in packages.iter().enumerate() {
         let zip = Zip::open(path)?;
-        let mut plan = vec![];
         for (i, m) in zip.members.iter().enumerate() {
             if m.is_dir() {
                 continue;
@@ -118,20 +117,32 @@ pub fn unpack(packages: &[(Kind, PathBuf)], out: &Path, archs: &[&str]) -> Resul
             if *first != rel {
                 eprintln!("{rel} and {first} differ only in case");
             }
-            plan.push((i, rel));
+            items.push((p, i, rel));
         }
-        plans.push((path.clone(), plan));
     }
+    let dirs: BTreeSet<&Path> = items
+        .iter()
+        .filter_map(|(_, _, rel)| Path::new(rel).parent())
+        .collect();
+    for dir in dirs {
+        fs::create_dir_all(out.join(dir)).context(out.join(dir).display())?;
+    }
+    // The members on every thread, each reading the packages on its own:
+    // creating files is what takes the time on Windows.
+    let jobs = crate::cpus().clamp(1, 16);
+    let shares: Vec<Vec<&(usize, usize, String)>> = (0..jobs)
+        .map(|k| items.iter().skip(k).step_by(jobs).collect())
+        .collect();
     let counted = Mutex::new((0u64, 0u64));
-    crate::parallel(&plans, crate::cpus(), |(path, plan)| {
-        let mut zip = Zip::open(path)?;
-        let mut dirs = HashSet::new();
-        for (i, rel) in plan {
+    crate::parallel(&shares, jobs, |share| {
+        let mut zips: HashMap<usize, Zip> = HashMap::new();
+        for (p, i, rel) in share {
+            let path = &packages[*p].1;
+            let zip = match zips.entry(*p) {
+                std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
+                std::collections::hash_map::Entry::Vacant(e) => e.insert(Zip::open(path)?),
+            };
             let dest = out.join(rel);
-            let dir = dest.parent().unwrap();
-            if dirs.insert(dir.to_path_buf()) {
-                fs::create_dir_all(dir).context(dir.display())?;
-            }
             let size = zip.members[*i].size;
             let mut file = BufWriter::new(File::create(&dest).context(dest.display())?);
             io::copy(&mut zip.read(*i)?, &mut file)

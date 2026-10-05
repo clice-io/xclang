@@ -3,7 +3,7 @@
 
 use std::collections::VecDeque;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom, Write};
+use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 
 use flate2::read::{GzDecoder, ZlibDecoder};
@@ -233,15 +233,6 @@ impl<R: Read> Cpio<R> {
         }
         self.left = 0;
         Ok(data)
-    }
-
-    pub fn copy_data(&mut self, out: &mut impl Write) -> Result<()> {
-        let n = io::copy(&mut (&mut self.inner).take(self.left), out)?;
-        if n != self.left {
-            bail!("cpio archive ends inside an entry");
-        }
-        self.left = 0;
-        Ok(())
     }
 }
 

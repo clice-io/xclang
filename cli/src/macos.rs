@@ -2,9 +2,9 @@
 //! of its payload, Library/Developer/CommandLineTools/SDKs/MacOSX<ver>.sdk.
 
 use std::collections::HashMap;
-use std::fs::{self, File};
-use std::io::BufWriter;
+use std::fs;
 use std::path::{MAIN_SEPARATOR, Path, PathBuf};
+use std::sync::{Mutex, mpsc};
 use std::time::Instant;
 
 use crate::links::{self, Links};
@@ -33,9 +33,63 @@ pub fn sdk_member(name: &str) -> Option<(&str, &str)> {
 }
 
 /// Unpack the SDK directory of the package into out, which exists and is
-/// empty; returns its name in the package (MacOSX26.5.sdk).
+/// empty; returns its name in the package (MacOSX26.5.sdk). Files are
+/// written on several threads (creating files is slow on Windows), but for
+/// hard links, which wait for each other.
 pub fn unpack(package: &Path, out: &Path, how: Links) -> Result<String> {
     let start = Instant::now();
+    let (tx, rx) = mpsc::sync_channel::<(PathBuf, Vec<u8>, u32)>(256);
+    let rx = Mutex::new(rx);
+    let failed: Mutex<Option<crate::Error>> = Mutex::new(None);
+    let (sdk, files, size, pending) = std::thread::scope(|s| {
+        for _ in 0..crate::cpus().clamp(1, 8) {
+            s.spawn(|| {
+                while let Ok((path, data, mode)) = rx.lock().unwrap().recv() {
+                    if let Err(e) = write_file(&path, &data, mode) {
+                        failed.lock().unwrap().get_or_insert(e);
+                    }
+                }
+            });
+        }
+        let read = read_payload(package, out, how, &tx);
+        drop(tx);
+        read
+    })?;
+    if let Some(e) = failed.into_inner().unwrap() {
+        return Err(e);
+    }
+    resolve_links(out, pending, how)?;
+    eprintln!(
+        "{files} files, {}, unpacked in {:.1} s",
+        mb(size),
+        start.elapsed().as_secs_f64()
+    );
+    Ok(sdk)
+}
+
+fn write_file(path: &Path, data: &[u8], mode: u32) -> Result<()> {
+    fs::write(path, data).context(path.display())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(mode & 0o755 | 0o644))?;
+    }
+    #[cfg(not(unix))]
+    let _ = mode;
+    Ok(())
+}
+
+type Read = (String, u64, u64, Vec<(PathBuf, String)>);
+
+/// The SDK's entries of the payload: directories made, files sent to the
+/// writers, hard links written here; (the SDK's name, files, bytes, the
+/// links still to make).
+fn read_payload(
+    package: &Path,
+    out: &Path,
+    how: Links,
+    tx: &mpsc::SyncSender<(PathBuf, Vec<u8>, u32)>,
+) -> Result<Read> {
     let mut xar = Xar::open(package)?;
     let mut cpio = Cpio::new(pkg::payload(xar.member("Payload")?)?);
     let (mut sdk, mut files, mut size) = (None::<String>, 0u64, 0u64);
@@ -88,44 +142,34 @@ pub fn unpack(package: &Path, out: &Path, how: Links) -> Result<String> {
             }
             continue;
         }
+        files += 1;
+        size += e.size;
+        if e.nlink <= 1 {
+            let data = cpio.read_data()?;
+            if tx.send((path, data, e.mode)).is_err() {
+                bail!("the writers stopped");
+            }
+            continue;
+        }
         // A hard link's data may come with one of its names only.
-        if e.nlink > 1 && e.size == 0 && inodes.contains_key(&e.inode) {
+        if e.size == 0 && inodes.contains_key(&e.inode) {
             fs::copy(&inodes[&e.inode], &path).context(path.display())?;
         } else {
-            let mut file = BufWriter::new(File::create(&path).context(path.display())?);
-            cpio.copy_data(&mut file)?;
-            drop(file);
+            write_file(&path, &cpio.read_data()?, e.mode)?;
             if e.size > 0 {
                 for other in empties.remove(&e.inode).unwrap_or_default() {
                     fs::copy(&path, &other).context(other.display())?;
                 }
-            }
-            if e.nlink > 1 {
-                if e.size > 0 {
-                    inodes.insert(e.inode, path.clone());
-                } else {
-                    empties.entry(e.inode).or_default().push(path.clone());
-                }
+                inodes.insert(e.inode, path.clone());
+            } else {
+                empties.entry(e.inode).or_default().push(path.clone());
             }
         }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&path, fs::Permissions::from_mode(e.mode & 0o755 | 0o644))?;
-        }
-        files += 1;
-        size += e.size;
     }
     let Some(sdk) = sdk else {
         bail!("{}: no SDK in the package", package.display())
     };
-    resolve_links(out, pending, how)?;
-    eprintln!(
-        "{files} files, {}, unpacked in {:.1} s",
-        mb(size),
-        start.elapsed().as_secs_f64()
-    );
-    Ok(sdk)
+    Ok((sdk, files, size, pending))
 }
 
 /// The links not made as symlinks: a junction to a directory and a hard

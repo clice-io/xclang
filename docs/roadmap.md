@@ -122,7 +122,8 @@ xclang sdk fetch windows --accept-license
 
 It is written in Rust (ureq, rustls with ring) and built for every host
 with xclang as its C compiler and linker, so it is xclang's first user for
-cargo (below).
+cargo (below). It exists, `cli/` ([the xclang command](cli.md)), and is
+built and tested by CI, not yet in a release.
 
 ## xclang for cargo
 
@@ -130,6 +131,8 @@ Planned: xclang as the C and C++ toolchain of cargo builds for other
 targets, the C compiler and the linker of crates with C code and of Rust's
 own targets, as cargo-zigbuild does with zig, with stock clang and the
 runtimes xclang ships.
+[Rust](rust.md) says how, from building the xclang command for every
+host, and for macOS and the MSVC ABI from Linux with the fetched SDKs.
 
 ## libc++ built on demand
 
