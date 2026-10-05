@@ -8,7 +8,7 @@
 ///
 /// The binaries go to <dir>/macos/<arch>/xclang and
 /// <dir>/msvc/<arch>/xclang.exe, where cli.yml's run jobs start them. What
-/// each target needs is docs/rust.md's.
+/// each target needs is docs/en/integrations/cargo.md's.
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";

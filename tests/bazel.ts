@@ -285,7 +285,7 @@ if (!windows) {
 }
 
 /// 7. The linker's ThinLTO cache on //libclang:libclang_test's link of
-/// libclang's bitcode, beside where docs/bazel.md puts it.
+/// libclang's bitcode, beside where docs/en/integrations/bazel.md puts it.
 {
   const workspace = path.join(common.ROOT, "tests", "bazel");
   const dir = windows ? "C:/xclang-thinlto-tests" : "/var/tmp/xclang-thinlto-tests";

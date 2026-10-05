@@ -127,7 +127,7 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
     # sandbox and checkout: paths relative to the execution root in a Mach-O
     # program's debug map (its objects' N_OSO entries), as in the DWARF
     # (-ffile-compilation-dir below), and no link time in a PE program.
-    # Debuggers map "." to the workspace's bazel-<name> (docs/bazel.md).
+    # Debuggers map "." to the workspace's bazel-<name> (docs/en/integrations/bazel.md).
     if t.os == "macos":
         link_flags.append("-Wl,-oso_prefix,.")
     elif t.os == "windows":

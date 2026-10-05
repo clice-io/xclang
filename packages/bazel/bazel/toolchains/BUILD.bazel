@@ -24,7 +24,7 @@ load("//bazel:unsupported.bzl", "xclang_unsupported_toolchain")
     xclang_unsupported_toolchain(
         name = "no-macos-sdk-on-" + host,
         message = ("xclang builds for macOS on macOS hosts only, where Xcode's macOS SDK is, " +
-                   "and not on %s (docs/bazel.md, Cross-compiling)") % host,
+                   "and not on %s (https://docs.clice.io/xclang/integrations/bazel#cross-compiling)") % host,
     )
     for host in HOSTS
     if TARGETS[host].os != "macos"

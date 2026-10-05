@@ -59,10 +59,25 @@ before publishing.
      packages/bazel/bazel/versions.bzl; `version = "<version>"` in
      packages/bazel/MODULE.bazel and tests/bazel/MODULE.bazel;
    - tests/bazel.ts: `previous` default → the release before this one;
-   - README.md, README.zh-CN.md, docs/install.md and docs/bazel.md:
+   - README.md, README.zh-CN.md, docs/en/ and examples/ (the pixi
+     workspace, FetchContent's `XCLANG_VERSION`, the Bazel module) and
+     `VERSION` and the cache key in .github/workflows/examples.yml:
      `xclang = "<version>.*"`, `bazel_dep(... version = "<version>")`,
-     archive names (`grep -rn <previous version>` finds them);
+     archive names, sizes (`grep -rn <previous version> README* docs
+     examples .github/workflows/examples.yml` finds them); the run links
+     in docs/en that cite the release's runs;
    - CHANGELOG.md: Unreleased becomes `## [<version>](https://github.com/clice-io/xclang/releases/tag/<version>) — <date>`
      (the UTC date of publishing) with "Built by <bootstrap>.", and a new
      empty Unreleased.
    Fast-forward main to `exp/<version>` first if the release came from it.
+9. **examples.yml**, once conda.clice.io and bazel.clice.io have the
+   release and main names it: `gh workflow run examples.yml -R
+   clice-io/xclang --ref main`. It runs the docs' commands and examples/
+   as written against the published release on every host; link the run
+   from docs/en (quick start, installing, integrations) in place of the
+   previous release's.
+10. **bench.yml** (optional, for the notes or docs/en/design/pgo.md):
+    `gh workflow run bench.yml -R clice-io/xclang --ref main -f
+    pgo-run=<the release's main.yml run> -f shards='[1, 2, 3, 4, 5]'`,
+    the release's own archives against LLVM's release builds, nothing
+    rebuilt.

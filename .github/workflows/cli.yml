@@ -105,7 +105,7 @@ jobs:
           echo "T=$T" >> "$GITHUB_ENV"
       - name: Test
         run: node tests/cli.ts --tree "$T" --out programs
-      # cargo with xclang for the SDKs' targets, from Linux (docs/rust.md).
+      # cargo with xclang for the SDKs' targets, from Linux (docs/en/integrations/cargo.md).
       - name: cargo for macOS and MSVC targets
         if: ${{ matrix.host == 'x86_64-unknown-linux-gnu' }}
         run: node tests/cargo.ts --tree "$T" --out programs
