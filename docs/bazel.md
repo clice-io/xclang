@@ -150,6 +150,44 @@ The program needs debug information (`-g`, or `-gline-tables-only` for
 functions and lines alone) and must not be stripped of it: fastbuild strips
 it unless `--strip=never`.
 
+## Debugging
+
+Every path the toolchain puts in a program's debug information is
+relative to the execution root, so the program is the same bytes from
+every sandbox and every checkout, debug information included:
+
+- compiles have `-ffile-compilation-dir=.`: the DWARF's compilation
+  directory (and coverage mappings') is `.`, its files `pkg/file.cpp` and
+  `external/<repository>/...`;
+- macOS links have `-Wl,-oso_prefix,.`: the debug map names its objects
+  `bazel-out/...`;
+- Windows links have `-Wl,--no-insert-timestamp`.
+
+A debugger needs one mapping, from `.` to the workspace's
+`bazel-<workspace>` link (`<workspace>` the name of the workspace's
+directory), which holds the workspace's sources and, under `external/`,
+the other repositories':
+
+```
+# gdb, in ~/.gdbinit or the session
+directory /path/to/workspace/bazel-workspace
+# lldb, in ~/.lldbinit or the session
+settings set target.source-map . /path/to/workspace/bazel-workspace
+```
+
+In VS Code, CodeLLDB takes `"sourceMap": {".":
+"${workspaceFolder}/bazel-workspace"}`, and the C/C++ extension with gdb
+`"setupCommands": [{"text": "directory
+${workspaceFolder}/bazel-workspace"}]`. On macOS lldb reads a program's
+dSYM ([above](#debug-symbols)) from anywhere; without one, it reads the
+objects the debug map names, relative to its working directory: run it in
+the workspace, whose `bazel-out` link holds them.
+
+tests/bazel.ts builds a program with `-c dbg` in two checkouts and compares
+the bytes, and has gdb (Linux), lldb with and without the dSYM (macOS) and
+llvm-symbolizer (Linux, Windows) find its lines in the workspace and in an
+external repository.
+
 ## Cross-compiling
 
 A build for another target names its platform:

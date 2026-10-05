@@ -164,9 +164,12 @@ The prebuilt runtimes stay the default.
 
 ## Reproducibility
 
-- **Reproducible links**, planned: the same inputs link to the same binary
-  wherever they are linked; on macOS, debug maps without the build's
-  directory (`-oso_prefix`), on Windows, no link timestamps.
+- **Reproducible links**, shipped for Bazel (Unreleased): the same inputs
+  link to the same binary wherever they are linked, debug information
+  relative to the execution root (`-ffile-compilation-dir=.`), on macOS
+  debug maps without the build's directory (`-oso_prefix`), on Windows no
+  link timestamps ([Bazel](bazel.md#debugging)). Planned: the same for
+  CMake builds, whose paths are the build tree's own.
 - **Immutable releases**, planned: GitHub releases whose assets cannot
   change once published, so neither can the `SHA256SUMS` that
   [CMake](cmake.md)'s download checks archives against.

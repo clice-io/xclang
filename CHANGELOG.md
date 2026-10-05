@@ -50,6 +50,11 @@ the [patches](docs/patches.md) of its tag.
   feature makes a macOS program's dSYM in its link, ThinLTO's code
   included ([docs/bazel.md](docs/bazel.md#debug-symbols)); CMake:
   `xclang_debug_symbols(<target>)` ([docs/cmake.md](docs/cmake.md#debug-symbols)).
+- **Bazel: debug information that holds wherever the build ran.** Paths
+  in it are relative to the execution root (`-ffile-compilation-dir=.`;
+  Mach-O debug maps with `-oso_prefix`), and PE programs have no link time,
+  so a program is the same bytes from any sandbox or checkout; debuggers
+  map `.` to the workspace's `bazel-<workspace>` ([docs/bazel.md](docs/bazel.md#debugging)).
 - Patches: **0009** added, ld64.lld reads the `.tbd` stubs of the macOS 27
   SDK (Xcode 27), which list `arm64e.x1`: macOS programs link against it
   (release/23.x's backport of llvm/llvm-project#222721, in 23.1.3).
