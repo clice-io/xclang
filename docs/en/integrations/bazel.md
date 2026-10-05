@@ -57,6 +57,7 @@ cc_binary(
 
 `main.cpp` is the one of the [CMake example](cmake.md#set-up-a-project).
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 bazel run //:hello
 ```
@@ -72,6 +73,7 @@ options have no per-platform form. The first gives a short output root,
 because the default one is too deep for Windows paths. The second makes
 runfiles symlinks rather than copies.
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```
 startup --output_user_root=C:/b
 startup --windows_enable_symlinks
@@ -83,6 +85,7 @@ startup --windows_enable_symlinks
 
 A build for another target names its platform:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 bazel build --platforms=@xclang//platforms:x86_64-w64-mingw32 //:hello
 ```
@@ -107,7 +110,7 @@ library constraint, Linux gets glibc and Windows MinGW.
   target. A test of another rule builds only where an execution platform has
   the os and cpu of the target, or anywhere with
   `--@bazel_tools//tools/test:incompatible_use_default_test_toolchain=false`,
-the former behaviour of Bazel.
+  the former behaviour of Bazel.
 
 ## Use C++20 Modules and `import std`
 
@@ -115,6 +118,7 @@ the former behaviour of Bazel.
 library to depend on. The C++ modules of a library are its
 `module_interfaces`, with the `cpp_modules` feature:
 
+<!-- excerpt: examples/modules/BUILD.bazel -->
 ```python
 cc_library(
     name = "math",
@@ -176,6 +180,7 @@ directory. Run it in the workspace, whose `bazel-out` link holds them.
 `xclang_debug_symbols` makes GSYM for every target, and the
 `generate_dsym_file` feature makes the dSYM of a macOS target in the link:
 
+<!-- excerpt: examples/debug-symbols/BUILD.bazel -->
 ```python
 load("@xclang//bazel:debug_symbols.bzl", "xclang_debug_symbols")
 
@@ -192,13 +197,14 @@ xclang_debug_symbols(
 )
 ```
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 bazel build --strip=never //:tool_symbols //:tool.stripped
 ```
 
 - `bazel-bin/tool.gsym` is the GSYM. llvm-gsymutil runs on the host, also
   for another target. Its warnings go to `tool.gsym.log`, in the output
-group `gsym_log`.
+  group `gsym_log`.
 - `bazel-bin/tool.dSYM`, for a macOS target, is in the output group
   `dsyms`. `--apple_generate_dsym` turns the feature on for the whole
   build.
@@ -213,6 +219,7 @@ functions that identical code folding merged.
 
 Name one cache directory per OS in the `.bazelrc` of the project:
 
+<!-- excerpt: examples/libclang/.bazelrc -->
 ```
 common:linux --repo_env=XCLANG_THINLTO_CACHE=/var/tmp/xclang-thinlto
 common:linux --sandbox_writable_path=/var/tmp/xclang-thinlto
@@ -233,6 +240,7 @@ try-import %workspace%/user.bazelrc
 `@libclang` is the libclang of the target platform, and `@llvm_option_inc`
 the option tables. Take them from the module extension in `MODULE.bazel`:
 
+<!-- excerpt: examples/libclang/MODULE.bazel -->
 ```python
 xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
 use_repo(xclang, "libclang", "llvm_option_inc")
@@ -250,6 +258,7 @@ Editors and language servers, such as clice and clangd, read
 bazel_dep(name = "compdb", version = "0.1.0", dev_dependency = True)
 ```
 
+<!-- not run: compdb's own CI, in the registry, runs it on the six hosts -->
 ```sh
 bazel run @compdb//:refresh
 bazel run @compdb//:refresh -- //:hello

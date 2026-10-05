@@ -8,6 +8,7 @@ come with xclang, so nothing else is needed.
 From the [quick start](quick-start.md) directory, with `hello.cpp` from
 there, build for Windows on Arm:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 pixi run clang++ -O2 --target=aarch64-w64-mingw32 hello.cpp -o hello-windows-arm64.exe
 ```
@@ -43,6 +44,7 @@ too ([targets](../reference/targets.md#targets)).
 
 Check what was built:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 pixi run llvm-readobj --file-headers hello-windows-arm64.exe
 ```

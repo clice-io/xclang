@@ -15,18 +15,32 @@ Windows ([why](#why-one-fixed-path)).
 
 ### CMake
 
-Set it before `find_package(xclang)`, or in the environment:
+Set it before `find_package(xclang)`, or in the environment. The tool of
+[libclang](libclang.md#cmake) sets it when it configures:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
-cmake -G Ninja -B build -DXCLANG_THINLTO_CACHE=/var/tmp/xclang-thinlto
+cmake -G Ninja -B build -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_PREFIX_PATH="$PWD/libclang" -DXCLANG_THINLTO_CACHE=/var/tmp/xclang-thinlto
+cmake --build build
 ```
 
-[libclang](libclang.md#cmake) has a whole tool built this way.
+The first link fills the cache. After a change, the link takes the code
+of the libraries from it:
+
+<!-- excerpt: .github/workflows/examples.yml -->
+```sh
+touch main.cpp
+cmake --build build
+```
 
 ### Bazel
 
-Name it in the `.bazelrc` of the project, with one path per OS:
+Name it in the `.bazelrc` of the project, with one path per OS, as
+[examples/libclang](https://github.com/clice-io/xclang/tree/main/examples/libclang)
+does:
 
+<!-- excerpt: examples/libclang/.bazelrc -->
 ```
 common:linux --repo_env=XCLANG_THINLTO_CACHE=/var/tmp/xclang-thinlto
 common:linux --sandbox_writable_path=/var/tmp/xclang-thinlto

@@ -37,7 +37,7 @@ it was built with if that is 20 or later.
 
 ## `toolchain.cmake`
 
-```sh
+```text
 cmake -G Ninja -B build --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake [-DXCLANG_TARGET=<target>]
 ```
 
@@ -70,6 +70,7 @@ Included before `project()`, from a FetchContent checkout of the tag of a
 release ([CMake](../integrations/cmake.md#without-xclang-installed) has
 the snippet):
 
+<!-- excerpt: examples/cmake-fetch/CMakeLists.txt -->
 ```cmake
 include(${xclang_SOURCE_DIR}/packages/cmake/xclang.cmake)
 ```

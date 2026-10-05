@@ -1,0 +1,18 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
+cc_binary(
+    name = "tool",
+    srcs = ["main.cpp"],
+    copts = ["-fno-rtti"],
+    deps = [
+        "@libclang//:clangBasic",
+        "@libclang//:clangLex",
+        "@libclang//:LLVMSupport",
+    ],
+)
+
+cc_binary(
+    name = "options",
+    srcs = ["options.cpp"],
+    deps = ["@llvm_option_inc"],
+)

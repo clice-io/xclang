@@ -7,8 +7,9 @@ holds, for six targets, the *sysroot* (the C library's headers and
 libraries) and the runtimes. Cross-compiling is a `--target` flag and
 nothing else:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
-clang++ --target=aarch64-w64-mingw32 main.cpp -o main.exe
+clang++ --target=aarch64-w64-mingw32 hello.cpp -o hello.exe
 ```
 
 The compiler is stock LLVM, with a few [patches](../reference/patches.md)

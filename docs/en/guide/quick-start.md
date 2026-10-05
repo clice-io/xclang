@@ -16,6 +16,7 @@ project with `import std`, for the host and for another target.
 
 The files are in the `examples/` directory of the repository:
 
+<!-- not run: CI checks out the repository instead -->
 ```sh
 git clone --depth 1 https://github.com/clice-io/xclang
 cd xclang/examples/quickstart
@@ -35,6 +36,7 @@ platforms = ["linux-64", "linux-aarch64", "osx-64", "osx-arm64", "win-64", "win-
 xclang = "23.1.2.6.*"
 ```
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 pixi install
 ```
@@ -63,6 +65,7 @@ int main() {
 
 Build it for this machine, and for each Linux and Windows target:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 pixi run clang++ -O2 hello.cpp -o hello
 ./hello
@@ -75,6 +78,7 @@ pixi run clang++ -O2 --target=aarch64-w64-mingw32 hello.cpp -o hello-windows-arm
 `./hello` prints `hello from xclang`. On a macOS host, build the macOS
 targets too:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 pixi run clang++ -O2 --target=aarch64-apple-darwin hello.cpp -o hello-macos-arm64
 pixi run clang++ -O2 --target=x86_64-apple-darwin hello.cpp -o hello-macos-x64
@@ -88,6 +92,7 @@ host, the first command writes `hello.exe`, because a MinGW link adds
 
 ## 3. Check What the Programs Need
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 pixi run llvm-readobj --needed-libs hello-linux-x64 hello-windows-x64.exe
 ```
@@ -154,6 +159,7 @@ int main() {
 }
 ```
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 pixi run cmake -G Ninja -S ../cmake -B build -DCMAKE_CXX_COMPILER=clang++
 pixi run cmake --build build
@@ -168,6 +174,7 @@ options, without an experimental CMake switch
 Build the same project for Windows on Arm. `XCLANG` is the toolchain
 directory that pixi installed:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 XCLANG=$PWD/.pixi/envs/default/opt/xclang
 pixi run cmake -G Ninja -S ../cmake -B build-aarch64-w64-mingw32 \

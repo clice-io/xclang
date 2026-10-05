@@ -12,7 +12,7 @@ cannot be redistributed, and targets beyond the six every toolchain has. The
 plan is to ship it in every toolchain archive, as `bin/xclang`. Why SDKs are
 fetched and not shipped is in [vendor SDKs](../design/vendor-sdks.md).
 
-```sh
+```text
 xclang sdk list [macos|windows]
 xclang sdk fetch macos --accept-license [--preset P] [--version V]
 xclang sdk fetch windows --accept-license [--preset P] [--msvc-version V] [--sdk-version V] [--arch x86_64,aarch64,x86]

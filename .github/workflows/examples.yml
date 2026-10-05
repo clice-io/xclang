@@ -3,9 +3,12 @@ name: examples
 # The docs' commands and examples/, run as written, as a user runs them, on
 # a machine of every host: against the published release the examples name,
 # from where users get it (conda.clice.io with pixi, the GitHub release's
-# archives, the tag with FetchContent, bazel.clice.io). The guide's quick
-# start and the integration pages cite these jobs; tests/docs.ts checks that
-# the files the docs show are examples/'s.
+# archives, the tag with FetchContent, bazel.clice.io). A page's command
+# block is lines of a step here, which tests/docs.ts checks
+# (`<!-- excerpt: .github/workflows/examples.yml -->`); the steps check what
+# the commands print against the examples' expected.txt. Programs built for
+# another target are uploaded, and on-target runs them on a runner of their
+# target, with nothing installed there.
 #
 #   by hand          after a release is on conda.clice.io and bazel.clice.io
 #                    and examples/ name it (the release skill)
@@ -16,7 +19,6 @@ on:
   push:
     paths:
       - "examples/**"
-      - "tests/docs.ts"
       - ".github/workflows/examples.yml"
 
 permissions:
@@ -26,31 +28,20 @@ env:
   VERSION: "23.1.2.6"
 
 jobs:
-  docs:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-      - run: node tests/docs.ts
-
-  # docs/en/guide/quick-start.md: pixi, programs for every target, CMake,
-  # Meson and Make (docs/en/integrations/clang.md).
+  # docs/en/guide/quick-start.md, install.md and cross-compiling.md with
+  # pixi; docs/en/integrations/clang.md (clang, Make, Meson) and cmake.md.
   quickstart:
     name: quickstart (${{ matrix.host }})
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { host: x86_64-unknown-linux-gnu, os: ubuntu-24.04, cross: aarch64-w64-mingw32 }
-          - { host: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm, cross: aarch64-w64-mingw32 }
-          - { host: x86_64-w64-mingw32, os: windows-2025, cross: aarch64-unknown-linux-gnu }
-          - { host: aarch64-w64-mingw32, os: windows-11-arm, cross: aarch64-unknown-linux-gnu }
-          - { host: aarch64-apple-darwin, os: macos-15, cross: aarch64-w64-mingw32 }
-          - { host: x86_64-apple-darwin, os: macos-15-intel, cross: aarch64-w64-mingw32 }
+          - { host: x86_64-unknown-linux-gnu, os: ubuntu-24.04 }
+          - { host: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm }
+          - { host: x86_64-w64-mingw32, os: windows-2025 }
+          - { host: aarch64-w64-mingw32, os: windows-11-arm }
+          - { host: aarch64-apple-darwin, os: macos-15 }
+          - { host: x86_64-apple-darwin, os: macos-15-intel }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     defaults:
@@ -61,17 +52,20 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: prefix-dev/setup-pixi@v0.10.2
-        with:
-          pixi-version: v0.71.1
-          run-install: false
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
       - name: CMake, Ninja and Meson
         run: python -m pip install "cmake>=3.28" "ninja>=1.11" meson
+      # docs/en/integrations/ci.md, "Get the Toolchain".
+      - uses: prefix-dev/setup-pixi@v0.10.2
+        with:
+          pixi-version: v0.71.1
+          run-install: false
       - name: Install
-        run: pixi install
+        run: |
+          pixi install
+          pixi run clang++ --version
       - name: Programs for every target
         run: |
           pixi run clang++ -O2 hello.cpp -o hello
@@ -84,25 +78,75 @@ jobs:
             pixi run clang++ -O2 --target=aarch64-apple-darwin hello.cpp -o hello-macos-arm64
             pixi run clang++ -O2 --target=x86_64-apple-darwin hello.cpp -o hello-macos-x64
           fi
+          ./hello | tr -d '\r' | diff expected.txt -
       - name: What they load
         run: |
           pixi run llvm-readobj --needed-libs hello-linux-x64 hello-windows-x64.exe
           programs=(hello-linux-x64 hello-linux-arm64 hello-windows-x64.exe hello-windows-arm64.exe)
           [[ "$RUNNER_OS" == macOS ]] && programs+=(hello-macos-arm64 hello-macos-x64)
-          pixi run llvm-readobj --needed-libs "${programs[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
+          pixi run llvm-readobj --needed-libs "${programs[@]}" | tee needed.txt >> "$GITHUB_STEP_SUMMARY"
+          if grep -iE 'libstdc\+\+|libc\+\+|libgcc|libunwind|winpthread' needed.txt; then
+            echo "::error::a program loads a C++ runtime"; exit 1
+          fi
+      - name: Check what was built
+        run: |
+          pixi run llvm-readobj --file-headers hello-windows-arm64.exe
+          pixi run llvm-readobj --file-headers hello-windows-arm64.exe | tr -d '\r' > headers.txt
+          grep -x 'Format: COFF-ARM64' headers.txt
+          grep -x 'Arch: aarch64' headers.txt
+      # docs/en/integrations/clang.md and guide/what-is-xclang.md: clang from
+      # PATH, as pixi's activation puts xclang's bin/ first.
+      - name: Clang
+        run: |
+          export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
+          clang++ --target=aarch64-w64-mingw32 hello.cpp -o hello.exe
+          clang++ -O2 hello.cpp -o hello
+          clang++ -O2 --target=x86_64-unknown-linux-gnu hello.cpp -o hello-linux-x64
+          clang++ -O2 --target=aarch64-unknown-linux-gnu hello.cpp -o hello-linux-arm64
+          clang++ -O2 --target=x86_64-w64-mingw32 hello.cpp -o hello-windows-x64.exe
+          clang++ -O2 --target=aarch64-w64-mingw32 hello.cpp -o hello-windows-arm64.exe
+          ./hello | tr -d '\r' | diff expected.txt -
       - name: CMake
         run: |
           pixi run cmake -G Ninja -S ../cmake -B build -DCMAKE_CXX_COMPILER=clang++
           pixi run cmake --build build
           ./build/hello
+          ./build/hello | tr -d '\r' | diff ../cmake/expected.txt -
       - name: CMake, another target
         run: |
           XCLANG=$PWD/.pixi/envs/default/opt/xclang
-          pixi run cmake -G Ninja -S ../cmake -B build-${{ matrix.cross }} \
-              --toolchain "$XCLANG/lib/cmake/xclang/toolchain.cmake" -DXCLANG_TARGET=${{ matrix.cross }}
-          pixi run cmake --build build-${{ matrix.cross }}
-          pixi run llvm-readobj --file-headers build-${{ matrix.cross }}/hello* | grep -m2 -E 'Format|Arch'
-      # xclang's bin/ first in PATH, as pixi's activation puts it.
+          pixi run cmake -G Ninja -S ../cmake -B build-aarch64-w64-mingw32 \
+              --toolchain "$XCLANG/lib/cmake/xclang/toolchain.cmake" -DXCLANG_TARGET=aarch64-w64-mingw32
+          pixi run cmake --build build-aarch64-w64-mingw32
+          pixi run llvm-readobj --file-headers build-aarch64-w64-mingw32/hello.exe | grep -m2 -E 'Format|Arch'
+      - name: CMake, a Linux target
+        if: runner.os == 'Windows'
+        run: |
+          XCLANG=$PWD/.pixi/envs/default/opt/xclang
+          pixi run cmake -G Ninja -S ../cmake -B build-aarch64-unknown-linux-gnu \
+              --toolchain "$XCLANG/lib/cmake/xclang/toolchain.cmake" -DXCLANG_TARGET=aarch64-unknown-linux-gnu
+          pixi run cmake --build build-aarch64-unknown-linux-gnu
+      # docs/en/integrations/cmake.md and reference/cmake-api.md, from the
+      # project's own directory.
+      - name: CMake, in the project
+        working-directory: examples/cmake
+        run: |
+          export PATH="$PWD/../quickstart/.pixi/envs/default/opt/xclang/bin:$PATH"
+          cmake -G Ninja -B build -DCMAKE_CXX_COMPILER=clang++
+          cmake --build build
+          ./build/hello
+          ./build/hello | tr -d '\r' | diff expected.txt -
+      - name: CMake, the toolchain file
+        working-directory: examples/cmake
+        run: |
+          XCLANG=$PWD/../quickstart/.pixi/envs/default/opt/xclang
+          rm -rf build
+          cmake -G Ninja -B build --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake
+          cmake --build build
+          ./build/hello | tr -d '\r' | diff expected.txt -
+          cmake -G Ninja -B build-aarch64-w64-mingw32 --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake \
+              -DXCLANG_TARGET=aarch64-w64-mingw32
+          cmake --build build-aarch64-w64-mingw32
       - name: Meson
         working-directory: examples/meson
         run: |
@@ -110,8 +154,16 @@ jobs:
           CXX=clang++ meson setup build
           meson compile -C build
           ./build/hello
-          meson setup build-${{ matrix.cross }} --cross-file cross/${{ matrix.cross }}.ini
-          meson compile -C build-${{ matrix.cross }}
+          ./build/hello | tr -d '\r' | diff ../quickstart/expected.txt -
+          meson setup build-aarch64-w64-mingw32 --cross-file cross/aarch64-w64-mingw32.ini
+          meson compile -C build-aarch64-w64-mingw32
+      - name: Meson, a Linux target
+        if: runner.os == 'Windows'
+        working-directory: examples/meson
+        run: |
+          export PATH="$PWD/../quickstart/.pixi/envs/default/opt/xclang/bin:$PATH"
+          meson setup build-aarch64-unknown-linux-gnu --cross-file cross/aarch64-unknown-linux-gnu.ini
+          meson compile -C build-aarch64-unknown-linux-gnu
       - name: Make
         if: runner.os != 'Windows'
         working-directory: examples/make
@@ -119,10 +171,37 @@ jobs:
           export PATH="$PWD/../quickstart/.pixi/envs/default/opt/xclang/bin:$PATH"
           make CXX=clang++
           ./hello
-          rm hello
-          make CXX="clang++ --target=aarch64-unknown-linux-gnu"
+          ./hello | diff ../quickstart/expected.txt -
+          make -B CXX="clang++ --target=aarch64-unknown-linux-gnu"
+      - name: Programs to run on their targets
+        run: |
+          stage() {  # <target> <what> <program> <expected.txt>
+            local dir=$RUNNER_TEMP/programs/$1/$2-${{ matrix.host }}
+            mkdir -p "$dir" && cp "$3" "$dir/" && cp "$4" "$dir/expected.txt"
+          }
+          stage x86_64-unknown-linux-gnu clang hello-linux-x64 expected.txt
+          stage aarch64-unknown-linux-gnu clang hello-linux-arm64 expected.txt
+          stage x86_64-w64-mingw32 clang hello-windows-x64.exe expected.txt
+          stage aarch64-w64-mingw32 clang hello-windows-arm64.exe expected.txt
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            stage aarch64-apple-darwin clang hello-macos-arm64 expected.txt
+            stage x86_64-apple-darwin clang hello-macos-x64 expected.txt
+          fi
+          stage aarch64-w64-mingw32 cmake build-aarch64-w64-mingw32/hello.exe ../cmake/expected.txt
+          stage aarch64-w64-mingw32 meson ../meson/build-aarch64-w64-mingw32/hello.exe expected.txt
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            stage aarch64-unknown-linux-gnu cmake build-aarch64-unknown-linux-gnu/hello ../cmake/expected.txt
+            stage aarch64-unknown-linux-gnu meson ../meson/build-aarch64-unknown-linux-gnu/hello expected.txt
+          else
+            stage aarch64-unknown-linux-gnu make ../make/hello expected.txt
+          fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: programs-quickstart-${{ matrix.host }}
+          path: ${{ runner.temp }}/programs
+          if-no-files-found: error
 
-  # docs/en/integrations/cmake.md, "Without xclang installed".
+  # docs/en/integrations/cmake.md, "Without xclang Installed".
   fetch:
     name: fetch (${{ matrix.host }})
     strategy:
@@ -161,8 +240,22 @@ jobs:
           cmake -G Ninja -B build
           cmake --build build
           ./build/hello
+          ./build/hello | tr -d '\r' | diff ../cmake/expected.txt -
+      - name: Another target
+        env:
+          XCLANG_CACHE_DIR: ${{ runner.temp }}/xclang
+        run: |
+          cmake -G Ninja -B build-x86_64-w64-mingw32 -DXCLANG_TARGET=x86_64-w64-mingw32
+          cmake --build build-x86_64-w64-mingw32
+          dir=$RUNNER_TEMP/programs/x86_64-w64-mingw32/fetch-${{ matrix.host }}
+          mkdir -p "$dir" && cp build-x86_64-w64-mingw32/hello.exe "$dir/" && cp ../cmake/expected.txt "$dir/"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: programs-fetch-${{ matrix.host }}
+          path: ${{ runner.temp }}/programs
+          if-no-files-found: error
 
-  # docs/en/guide/install.md, "Archives".
+  # docs/en/guide/install.md, "Archives", and reference/releases.md.
   archive:
     name: archive (${{ matrix.host }})
     strategy:
@@ -181,34 +274,55 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - name: Linux
-        if: runner.os == 'Linux'
+      - name: Linux x64
+        if: matrix.host == 'x86_64-unknown-linux-gnu'
         shell: bash
         working-directory: examples/quickstart
         run: |
-          v=$VERSION h=${{ matrix.host }}
+          v=23.1.2.6 h=x86_64-unknown-linux-gnu
           curl -LO https://github.com/clice-io/xclang/releases/download/$v/xclang-$v-$h.tar.xz
           curl -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
           sha256sum -c --ignore-missing SHA256SUMS
           tar -xf xclang-$v-$h.tar.xz
           xclang/bin/clang++ --target=aarch64-w64-mingw32 hello.cpp -o hello.exe
           xclang/bin/clang++ hello.cpp -o hello
-          ./hello
-      - name: macOS
-        if: runner.os == 'macOS'
+          ./hello | diff expected.txt -
+      - name: Linux arm64, macOS
+        if: matrix.host != 'x86_64-unknown-linux-gnu' && runner.os != 'Windows'
         shell: bash
         working-directory: examples/quickstart
         run: |
           v=$VERSION h=${{ matrix.host }}
           curl -LO https://github.com/clice-io/xclang/releases/download/$v/xclang-$v-$h.tar.xz
           curl -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
-          shasum -a 256 -c --ignore-missing SHA256SUMS
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            shasum -a 256 -c --ignore-missing SHA256SUMS
+          else
+            sha256sum -c --ignore-missing SHA256SUMS
+          fi
           tar -xf xclang-$v-$h.tar.xz
           xclang/bin/clang++ --target=aarch64-w64-mingw32 hello.cpp -o hello.exe
           xclang/bin/clang++ hello.cpp -o hello
-          ./hello
-      - name: Windows
-        if: runner.os == 'Windows'
+          ./hello | diff expected.txt -
+      - name: Windows x64
+        if: matrix.host == 'x86_64-w64-mingw32'
+        shell: pwsh
+        working-directory: examples/quickstart
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          $v = "23.1.2.6"; $h = "x86_64-w64-mingw32"
+          curl.exe -LO https://github.com/clice-io/xclang/releases/download/$v/xclang-$v-$h.tar.xz
+          curl.exe -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
+          $sum = (Get-FileHash xclang-$v-$h.tar.xz -Algorithm SHA256).Hash.ToLower()
+          if (-not (Select-String -SimpleMatch -Quiet "$sum  xclang-$v-$h.tar.xz" SHA256SUMS)) { throw "sha256 mismatch" }
+          tar -xf xclang-$v-$h.tar.xz
+          xclang\bin\clang++ --target=aarch64-unknown-linux-gnu hello.cpp -o hello
+          xclang\bin\clang++ hello.cpp -o hello.exe
+          if ((.\hello.exe) -ne "hello from xclang") { throw "hello.exe printed something else" }
+          (Get-Command tar).Source
+      - name: Windows arm64
+        if: matrix.host == 'aarch64-w64-mingw32'
         shell: pwsh
         working-directory: examples/quickstart
         run: |
@@ -219,27 +333,36 @@ jobs:
           curl.exe -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
           $sum = (Get-FileHash xclang-$v-$h.tar.xz -Algorithm SHA256).Hash.ToLower()
           if (-not (Select-String -SimpleMatch -Quiet "$sum  xclang-$v-$h.tar.xz" SHA256SUMS)) { throw "sha256 mismatch" }
-          (Get-Command tar).Source
           tar -xf xclang-$v-$h.tar.xz
           xclang\bin\clang++ --target=aarch64-unknown-linux-gnu hello.cpp -o hello
           xclang\bin\clang++ hello.cpp -o hello.exe
-          .\hello.exe
+          if ((.\hello.exe) -ne "hello from xclang") { throw "hello.exe printed something else" }
+      - name: A download checked with gh
+        if: matrix.host == 'x86_64-unknown-linux-gnu'
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download 23.1.2.6 -R clice-io/xclang -p SHA256SUMS -p 'llvm-option-inc-*'
+          sha256sum -c --ignore-missing SHA256SUMS
 
-  # docs/en/integrations/bazel.md, from bazel.clice.io.
+  # docs/en/integrations/bazel.md and the Bazel sections of the feature
+  # pages, from bazel.clice.io.
   bazel:
     name: bazel (${{ matrix.host }})
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { host: x86_64-unknown-linux-gnu, os: ubuntu-24.04, cross: x86_64-w64-mingw32 }
-          - { host: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm, cross: x86_64-w64-mingw32 }
-          - { host: x86_64-w64-mingw32, os: windows-2025, cross: aarch64-unknown-linux-gnu }
-          - { host: aarch64-w64-mingw32, os: windows-11-arm, cross: aarch64-unknown-linux-gnu }
-          - { host: aarch64-apple-darwin, os: macos-15, cross: x86_64-w64-mingw32 }
-          - { host: x86_64-apple-darwin, os: macos-15-intel, cross: x86_64-w64-mingw32 }
+          - { host: x86_64-unknown-linux-gnu, os: ubuntu-24.04 }
+          - { host: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm }
+          - { host: x86_64-w64-mingw32, os: windows-2025 }
+          - { host: aarch64-w64-mingw32, os: windows-11-arm }
+          - { host: aarch64-apple-darwin, os: macos-15 }
+          - { host: x86_64-apple-darwin, os: macos-15-intel }
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 90
     defaults:
       run:
         shell: bash
@@ -254,15 +377,330 @@ jobs:
       - run: npm install -g @bazel/bazelisk
       - name: Startup options (Windows)
         if: runner.os == 'Windows'
-        shell: pwsh
         run: |
-          Set-Content "$env:USERPROFILE\.bazelrc" "startup --output_user_root=C:/b`nstartup --windows_enable_symlinks"
+          cat > "$USERPROFILE/.bazelrc" <<'EOF'
+          startup --output_user_root=C:/b
+          startup --windows_enable_symlinks
+          EOF
       - name: Build and run
         run: |
-          bazel build //...
           bazel run //:hello
+          bazel run //:hello | tr -d '\r' | diff ../cmake/expected.txt -
       - name: Another target
-        run: bazel build --platforms=@xclang//platforms:${{ matrix.cross }} //...
+        run: |
+          bazel build --platforms=@xclang//platforms:x86_64-w64-mingw32 //:hello
+          dir=$RUNNER_TEMP/programs/x86_64-w64-mingw32/bazel-${{ matrix.host }}
+          mkdir -p "$dir" && cp bazel-bin/hello.exe "$dir/" && cp ../cmake/expected.txt "$dir/"
+      - name: A Linux target
+        if: runner.os == 'Windows'
+        run: |
+          bazel build --platforms=@xclang//platforms:aarch64-unknown-linux-gnu //:hello
+          dir=$RUNNER_TEMP/programs/aarch64-unknown-linux-gnu/bazel-${{ matrix.host }}
+          mkdir -p "$dir" && cp bazel-bin/hello "$dir/" && cp ../cmake/expected.txt "$dir/"
+          bazel shutdown
+      # docs/en/features/modules.md.
+      - name: Modules
+        working-directory: examples/modules
+        run: |
+          bazel run //:shapes | tr -d '\r' | diff expected.txt -
+          bazel run //:shapes
+          bazel build --platforms=@xclang//platforms:x86_64-w64-mingw32 //:shapes
+          dir=$RUNNER_TEMP/programs/x86_64-w64-mingw32/bazel-modules-${{ matrix.host }}
+          mkdir -p "$dir" && cp bazel-bin/shapes.exe expected.txt "$dir/"
+          bazel shutdown
+      # docs/en/features/sanitizers.md: the programs report and fail.
+      - name: Sanitizers
+        if: runner.os != 'Windows'
+        working-directory: examples/sanitizers
+        run: |
+          bazel run //:overflow | diff expected.txt -
+          set +e
+          {
+          bazel run -c dbg --features=asan //:overflow
+          bazel run -c dbg --features=tsan //:race
+          } > reports.txt 2>&1
+          set -e
+          cat reports.txt
+          grep 'ERROR: AddressSanitizer: container-overflow' reports.txt
+          grep 'WARNING: ThreadSanitizer: data race' reports.txt
+          bazel shutdown
+      # docs/en/features/debugging.md.
+      - name: Debug symbols
+        working-directory: examples/debug-symbols
+        run: |
+          bazel build --strip=never //:tool_symbols //:tool.stripped
+          ls -l bazel-bin/ | tee -a "$GITHUB_STEP_SUMMARY"
+          test -s bazel-bin/tool.gsym
+          test -s bazel-bin/tool.stripped
+          bazel shutdown
+      # docs/en/features/libclang.md and thinlto-cache.md: the libclang of
+      # the host, and the ThinLTO cache its .bazelrc names.
+      - name: libclang
+        working-directory: examples/libclang
+        run: |
+          bazel run //:tool
+          bazel run //:tool | tr -d '\r' > tool.txt
+          grep -E '^clang version 23\.' tool.txt
+          grep -x 'tokens 9 zlib 1 zstd 1' tool.txt
+          bazel run //:options
+          bazel run //:options | grep -E '^clang has [0-9]+ options'
+          cache=/var/tmp/xclang-thinlto; [[ "$RUNNER_OS" == Windows ]] && cache=C:/xclang-thinlto
+          entries=$(ls "$cache" | grep -c llvmcache-)
+          echo "Bazel, ThinLTO cache: $entries entries" >> "$GITHUB_STEP_SUMMARY"
+          test "$entries" -gt 0
+          bazel shutdown
+      - uses: actions/upload-artifact@v7
+        with:
+          name: programs-bazel-${{ matrix.host }}
+          path: ${{ runner.temp }}/programs
+          if-no-files-found: error
+
+  # The feature pages' examples with pixi: docs/en/features/modules.md,
+  # sanitizers.md, debugging.md, libclang.md and thinlto-cache.md, by hand
+  # and with CMake.
+  features:
+    name: features (${{ matrix.host }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { host: x86_64-unknown-linux-gnu, os: ubuntu-24.04 }
+          - { host: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm }
+          - { host: x86_64-w64-mingw32, os: windows-2025 }
+          - { host: aarch64-w64-mingw32, os: windows-11-arm }
+          - { host: aarch64-apple-darwin, os: macos-15 }
+          - { host: x86_64-apple-darwin, os: macos-15-intel }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: python -m pip install "cmake>=3.28" "ninja>=1.11"
+      - uses: prefix-dev/setup-pixi@v0.10.2
+        with:
+          pixi-version: v0.71.1
+          run-install: false
+      - name: Modules
+        working-directory: examples/modules
+        run: |
+          pixi install
+          export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
+          std=$(dirname "$(clang++ -print-library-module-manifest-path)")/../share/libc++/v1/std.cppm
+          clang++ -std=c++23 -O2 -Wno-reserved-module-identifier -c "$std" -fmodule-output=std.pcm -o std.o
+          clang++ -std=c++23 -O2 -fprebuilt-module-path=. -c math-ops.cppm -fmodule-output=math-ops.pcm -o math-ops.o
+          clang++ -std=c++23 -O2 -fprebuilt-module-path=. -c math.cppm -fmodule-output=math.pcm -o math.o
+          clang++ -std=c++23 -O2 -fprebuilt-module-path=. -c main.cpp -o main.o
+          clang++ main.o math.o math-ops.o std.o -o shapes
+          ./shapes
+          ./shapes | tr -d '\r' | diff expected.txt -
+          cmake -G Ninja -B build -DCMAKE_CXX_COMPILER=clang++
+          cmake --build build
+          ./build/shapes
+          ./build/shapes | tr -d '\r' | diff expected.txt -
+          XCLANG=$PWD/.pixi/envs/default/opt/xclang
+          cmake -G Ninja -B build-x86_64-w64-mingw32 --toolchain "$XCLANG/lib/cmake/xclang/toolchain.cmake" \
+              -DXCLANG_TARGET=x86_64-w64-mingw32
+          cmake --build build-x86_64-w64-mingw32
+          dir=$RUNNER_TEMP/programs/x86_64-w64-mingw32/modules-${{ matrix.host }}
+          mkdir -p "$dir" && cp build-x86_64-w64-mingw32/shapes.exe expected.txt "$dir/"
+      - name: Sanitizers
+        if: runner.os != 'Windows'
+        working-directory: examples/sanitizers
+        run: |
+          pixi install
+          export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
+          asan=$(dirname "$(clang++ -print-library-module-manifest-path)")/asan
+          clang++ -fsanitize=address -g -O1 overflow.cpp -o overflow-plain
+          clang++ -fsanitize=address -isystem "$asan/include" -nostdlib++ "$asan/libc++.a" -g -O1 overflow.cpp -o overflow
+          clang++ -fsanitize=thread -g -O1 race.cpp -o race
+          clang++ -fsanitize=fuzzer -g -O1 fuzz.cpp -o fuzz
+          ./overflow-plain | diff expected.txt -
+          set +e
+          ./overflow 2> overflow.txt; overflow=$?
+          ./race 2> race.txt; race=$?
+          ./fuzz -runs=1000 2> fuzz.txt; fuzz=$?
+          set -e
+          cat overflow.txt race.txt
+          tail -n 3 fuzz.txt
+          test "$overflow" = 1
+          grep 'ERROR: AddressSanitizer: container-overflow' overflow.txt
+          grep 'overflow.cpp:8' overflow.txt
+          test "$race" = 66
+          grep 'WARNING: ThreadSanitizer: data race' race.txt
+          test "$fuzz" = 0
+          grep 'Done 1000 runs' fuzz.txt
+          cmake -G Ninja -B build-asan -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              "-DCMAKE_CXX_FLAGS=-fsanitize=address -isystem $asan/include" \
+              "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address -nostdlib++ $asan/libc++.a"
+          cmake --build build-asan
+          set +e
+          ./build-asan/overflow 2> build-asan.txt; status=$?
+          set -e
+          cat build-asan.txt
+          test "$status" = 1
+          grep 'ERROR: AddressSanitizer: container-overflow' build-asan.txt
+      - name: Debug symbols
+        working-directory: examples/debug-symbols
+        run: |
+          pixi install
+          export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
+          clang++ --target=x86_64-unknown-linux-gnu -gline-tables-only -O2 tool.cpp -o tool
+          llvm-gsymutil --convert tool --out-file tool.gsym --num-threads=1
+          llvm-gsymutil tool.gsym --address=0x$(llvm-nm tool | awk '$3 == "answer" { print $1 }')
+          llvm-gsymutil tool.gsym --address=0x$(llvm-nm tool | awk '$3 == "answer" { print $1 }') | grep -E 'answer @ .*tool\.cpp:3'
+          cmake -G Ninja -B build -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+          ./build/tool
+          ./build/tool | tr -d '\r' | diff expected.txt -
+          ls -l build | tee -a "$GITHUB_STEP_SUMMARY"
+          test -s build/tool.gsym
+          [[ "$RUNNER_OS" != macOS ]] || test -d build/tool.dSYM
+          program=build/tool; [[ -f build/tool.exe ]] && program=build/tool.exe
+          address=$(llvm-nm "$program" | awk '$3 == "answer" || $3 == "_answer" { print $1 }')
+          llvm-gsymutil build/tool.gsym --address=0x$address | tee lookup.txt
+          grep -E 'answer @ .*tool\.cpp:3' lookup.txt
+          dir=$RUNNER_TEMP/programs/x86_64-unknown-linux-gnu/debug-symbols-${{ matrix.host }}
+          mkdir -p "$dir" && cp tool expected.txt "$dir/"
+      - name: libclang and the ThinLTO cache, Linux x64
+        if: matrix.host == 'x86_64-unknown-linux-gnu'
+        working-directory: examples/libclang
+        run: |
+          pixi install
+          export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
+          v=23.1.2.6 h=x86_64-unknown-linux-gnu
+          curl -LO https://github.com/clice-io/xclang/releases/download/$v/libclang-$v-$h.tar.xz
+          curl -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
+          sha256sum -c --ignore-missing SHA256SUMS
+          tar -xf libclang-$v-$h.tar.xz
+          start=$SECONDS
+          cmake -G Ninja -B build -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_PREFIX_PATH="$PWD/libclang" -DXCLANG_THINLTO_CACHE=/var/tmp/xclang-thinlto
+          cmake --build build
+          ./build/tool
+          echo "CMake, configure and build: $((SECONDS - start)) s" >> "$GITHUB_STEP_SUMMARY"
+          start=$SECONDS
+          touch main.cpp
+          cmake --build build
+          echo "CMake, the build after touching main.cpp: $((SECONDS - start)) s" >> "$GITHUB_STEP_SUMMARY"
+          ./build/tool | tr -d '\r' > tool.txt
+          grep -E '^clang version 23\.' tool.txt
+          grep -x 'tokens 9 zlib 1 zstd 1' tool.txt
+          entries=$(ls /var/tmp/xclang-thinlto | grep -c llvmcache-)
+          echo "CMake, ThinLTO cache: $entries entries" >> "$GITHUB_STEP_SUMMARY"
+          test "$entries" -gt 0
+      - name: libclang and the ThinLTO cache
+        if: matrix.host != 'x86_64-unknown-linux-gnu'
+        working-directory: examples/libclang
+        run: |
+          pixi install
+          export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
+          v=$VERSION h=${{ matrix.host }}
+          curl -LO https://github.com/clice-io/xclang/releases/download/$v/libclang-$v-$h.tar.xz
+          curl -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
+          prefix=$PWD/libclang cache=/var/tmp/xclang-thinlto
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            shasum -a 256 -c --ignore-missing SHA256SUMS
+            tar -xf libclang-$v-$h.tar.xz
+          elif [[ "$RUNNER_OS" == Windows ]]; then
+            sha256sum -c --ignore-missing SHA256SUMS
+            /c/Windows/System32/tar.exe -xf libclang-$v-$h.tar.xz
+            prefix=$(pwd -W)/libclang cache=C:/xclang-thinlto
+          else
+            sha256sum -c --ignore-missing SHA256SUMS
+            tar -xf libclang-$v-$h.tar.xz
+          fi
+          start=$SECONDS
+          cmake -G Ninja -B build -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_PREFIX_PATH="$prefix" -DXCLANG_THINLTO_CACHE=$cache
+          cmake --build build
+          echo "CMake, configure and build: $((SECONDS - start)) s" >> "$GITHUB_STEP_SUMMARY"
+          start=$SECONDS
+          touch main.cpp
+          cmake --build build
+          echo "CMake, the build after touching main.cpp: $((SECONDS - start)) s" >> "$GITHUB_STEP_SUMMARY"
+          ./build/tool | tr -d '\r' > tool.txt
+          cat tool.txt
+          grep -E '^clang version 23\.' tool.txt
+          grep -x 'tokens 9 zlib 1 zstd 1' tool.txt
+          entries=$(ls "$cache" | grep -c llvmcache-)
+          echo "CMake, ThinLTO cache: $entries entries" >> "$GITHUB_STEP_SUMMARY"
+          test "$entries" -gt 0
+      - uses: actions/upload-artifact@v7
+        with:
+          name: programs-features-${{ matrix.host }}
+          path: ${{ runner.temp }}/programs
+          if-no-files-found: error
+
+  # docs/en/integrations/cargo.md: Rust programs for Windows, and for Linux
+  # arm64, linked by xclang from Linux and macOS.
+  cargo:
+    name: cargo (${{ matrix.host }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { host: x86_64-unknown-linux-gnu, os: ubuntu-24.04 }
+          - { host: aarch64-apple-darwin, os: macos-15 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: examples/cargo
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: prefix-dev/setup-pixi@v0.10.2
+        with:
+          pixi-version: v0.71.1
+          run-install: false
+      - name: Windows
+        run: |
+          pixi install
+          export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
+          rustup toolchain install
+          cargo build --release --target x86_64-pc-windows-gnullvm
+          cargo build --release --target aarch64-pc-windows-gnullvm
+          llvm-readobj --needed-libs target/x86_64-pc-windows-gnullvm/release/hello.exe
+          git diff --exit-code Cargo.lock
+          for arch in x86_64 aarch64; do
+            llvm-readobj --needed-libs target/$arch-pc-windows-gnullvm/release/hello.exe | tee needed.txt
+            grep -i 'api-ms-win-crt' needed.txt
+            if grep -iE 'libunwind|libc\+\+|libgcc|winpthread' needed.txt; then
+              echo "::error::hello.exe for $arch loads a runtime DLL"; exit 1
+            fi
+          done
+      - name: Linux arm64
+        run: |
+          export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
+          rustup target add aarch64-unknown-linux-gnu
+          export CC_aarch64_unknown_linux_gnu=clang CXX_aarch64_unknown_linux_gnu=clang++ AR_aarch64_unknown_linux_gnu=llvm-ar
+          export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=clang
+          export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-Clink-arg=--target=aarch64-unknown-linux-gnu -Clink-arg=-l:libunwind.a"
+          cargo build --release --target aarch64-unknown-linux-gnu
+          llvm-readobj --needed-libs target/aarch64-unknown-linux-gnu/release/hello
+      - name: Programs to run on their targets
+        run: |
+          stage() {  # <target> <program>
+            local dir=$RUNNER_TEMP/programs/$1/cargo-${{ matrix.host }}
+            mkdir -p "$dir" && cp "$2" expected.txt "$dir/"
+          }
+          stage x86_64-w64-mingw32 target/x86_64-pc-windows-gnullvm/release/hello.exe
+          stage aarch64-w64-mingw32 target/aarch64-pc-windows-gnullvm/release/hello.exe
+          stage aarch64-unknown-linux-gnu target/aarch64-unknown-linux-gnu/release/hello
+      - uses: actions/upload-artifact@v7
+        with:
+          name: programs-cargo-${{ matrix.host }}
+          path: ${{ runner.temp }}/programs
+          if-no-files-found: error
 
   # docs/en/features/modules.md, "Build caches and modules": what ccache
   # does with the command lines CMake gives a module and its importer
@@ -316,3 +754,82 @@ jobs:
           build "k = 2"
           stale=no; [[ $status == 1 ]] && stale=yes
           [[ $stale == ${{ matrix.stale }} ]] || { echo "::error::ccache ${{ matrix.ccache }}: stale object $stale, docs/en/features/modules.md says ${{ matrix.stale }}"; exit 1; }
+
+  # docs/en/integrations/ci.md, "Build on One Runner, Run on Another", as it
+  # is there: a program built on Linux, run on Windows on Arm.
+  build:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: examples/quickstart
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: prefix-dev/setup-pixi@v0.10.2
+        with:
+          pixi-version: v0.71.1
+          manifest-path: examples/quickstart/pixi.toml
+      - run: pixi run clang++ -O2 --target=aarch64-w64-mingw32 hello.cpp -o hello.exe
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-arm64
+          path: examples/quickstart/hello.exe
+
+  run:
+    needs: build
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: windows-arm64
+      - run: ./hello.exe
+        shell: bash
+
+  # Every program the jobs above built for another target, run on a runner
+  # of that target with nothing installed: its output against the
+  # expected.txt of its example.
+  on-target:
+    name: on-target (${{ matrix.target }})
+    needs: [quickstart, fetch, bazel, features, cargo]
+    if: ${{ !cancelled() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-24.04 }
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm }
+          - { target: x86_64-w64-mingw32, os: windows-2025 }
+          - { target: aarch64-w64-mingw32, os: windows-11-arm }
+          - { target: aarch64-apple-darwin, os: macos-15 }
+          - { target: x86_64-apple-darwin, os: macos-15-intel }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: programs-*
+          merge-multiple: true
+          path: programs
+      - name: Run
+        shell: bash
+        run: |
+          shopt -s nullglob
+          ran=0 failed=0
+          echo "| program, built by | prints |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          for dir in programs/${{ matrix.target }}/*/; do
+            for program in "$dir"*; do
+              [[ $program == */expected.txt ]] && continue
+              chmod +x "$program"
+              output=$("$program" 2>&1 | tr -d '\r') || { echo "::error::$program failed"; failed=1; }
+              echo "| \`${program#programs/*/}\` | $output |" >> "$GITHUB_STEP_SUMMARY"
+              if [[ "$output" != "$(tr -d '\r' < "$dir/expected.txt")" ]]; then
+                echo "::error::$program printed '$output', not what $dir/expected.txt says"; failed=1
+              fi
+              ran=$((ran + 1))
+            done
+          done
+          echo "$ran programs ran"
+          test "$ran" -gt 0
+          test "$failed" = 0

@@ -1,0 +1,22 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+cc_library(
+    name = "math",
+    features = ["cpp_modules"],
+    module_interfaces = [
+        "math.cppm",
+        "math-ops.cppm",
+    ],
+    deps = ["@xclang//bazel:std"],
+)
+
+cc_binary(
+    name = "shapes",
+    srcs = ["main.cpp"],
+    features = ["cpp_modules"],
+    deps = [
+        ":math",
+        "@xclang//bazel:std",
+    ],
+)

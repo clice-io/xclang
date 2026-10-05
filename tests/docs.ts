@@ -1,8 +1,17 @@
 /// Checks of docs/ that need no build:
 ///
-/// - the files the docs show are the files examples.yml builds: every code
-///   block under a `<!-- file: <path> -->` line must be that file of the
-///   repository, byte for byte (but for the final newline);
+/// - the files and commands the docs show are the ones CI runs. A code
+///   block under `<!-- file: <path> -->` must be that file of the
+///   repository, byte for byte (but for the final newline). A block under
+///   `<!-- excerpt: <path> -->` must be consecutive lines of it, indented
+///   alike: a command block is a step of .github/workflows/examples.yml, a
+///   fragment a part of a file in examples/;
+/// - every command block (sh, powershell, yaml) of a page outside dev/ has
+///   one of those markers, or `<!-- not run: <why> -->` saying why CI does
+///   not run it;
+/// - every directory of examples/ is built by examples.yml and shown by a
+///   page, and its pixi.toml and .bazelversion are those of the quick start
+///   and the Bazel example, so a release changes one version of each;
 /// - every relative link names a page that exists, and a heading of it
 ///   when it has an anchor, slugged as the docs site (VitePress) does, or
 ///   an `<a id="...">` of it (the roadmap's rows); so does every link into
@@ -81,35 +90,109 @@ const failures: string[] = [];
 const pages = markdown(DOCS);
 const parsed = new Map(pages.map((p) => [p, parse(p)]));
 
+/// Whether `block` is consecutive lines of `file`, all indented by what
+/// indents the first (a step's lines in a YAML `run: |`, a list item).
+function excerptOf(block: string[], file: string[]): boolean {
+  outer: for (let i = 0; i + block.length <= file.length; i++) {
+    const first = file[i]!;
+    if (!first.endsWith(block[0]!)) continue;
+    const indent = first.slice(0, first.length - block[0]!.length);
+    if (indent.trim() !== "") continue;
+    for (let k = 1; k < block.length; k++) {
+      const line = file[i + k]!;
+      if (block[k] === "" ? line.trim() !== "" : line !== indent + block[k]) continue outer;
+    }
+    return true;
+  }
+  return false;
+}
+
+/// Command blocks: what a reader runs, which CI must run as written.
+const COMMANDS = new Set(["sh", "bash", "console", "powershell", "pwsh", "yaml", "yml"]);
+
 let blocks = 0;
+let excerpts = 0;
+let unrun = 0;
+const shown = new Set<string>();
 for (const page of pages) {
   const lines = fs.readFileSync(page, "utf8").split("\n");
+  const dev = path.relative(DOCS, page).split(path.sep).includes("dev");
+  let fence = "";
   for (let i = 0; i < lines.length; i++) {
-    const marker = /^\s*<!-- file: (\S+) -->\s*$/.exec(lines[i]);
-    if (!marker) continue;
     const where = `${path.relative(ROOT, page)}:${i + 1}`;
+    const open = /^(\s*)(`{3,}|~{3,})(\S*)/.exec(lines[i]!);
+    if (open && fence) {
+      if (open[2]!.startsWith(fence)) fence = "";
+      continue;
+    }
+    if (open) {
+      fence = open[2]!;
+      /// The marker, on the last non-blank line before the block.
+      let k = i - 1;
+      while (k >= 0 && lines[k]!.trim() === "") k--;
+      const marked = k >= 0 && /^\s*<!-- (file|excerpt|not run): .*-->\s*$/.test(lines[k]!);
+      if (!dev && COMMANDS.has(open[3]!.toLowerCase()) && !marked) {
+        failures.push(`${where}: a ${open[3]} block without a file, excerpt or not run marker`);
+      }
+      continue;
+    }
+    if (fence) continue;
+    if (/^\s*<!-- not run: \S.*-->\s*$/.test(lines[i]!)) {
+      unrun++;
+      continue;
+    }
+    const marker = /^\s*<!-- (file|excerpt): (\S+) -->\s*$/.exec(lines[i]!);
+    if (!marker) continue;
+    const [kind, name] = [marker[1]!, marker[2]!];
     let j = i + 1;
-    while (j < lines.length && lines[j].trim() === "") j++;
-    const fence = /^(\s*)(`{3,}|~{3,})/.exec(lines[j] ?? "");
-    if (!fence) {
+    while (j < lines.length && lines[j]!.trim() === "") j++;
+    const block = /^(\s*)(`{3,}|~{3,})/.exec(lines[j] ?? "");
+    if (!block) {
       failures.push(`${where}: no code block after the marker`);
       continue;
     }
     /// The block's lines, without the indentation of its fence (a block in
     /// a list item).
-    const [indent, ticks] = [fence[1], fence[2]];
+    const [indent, ticks] = [block[1]!, block[2]!];
     const body: string[] = [];
-    for (j++; j < lines.length && !lines[j].startsWith(indent + ticks); j++) {
-      body.push(lines[j].startsWith(indent) ? lines[j].slice(indent.length) : lines[j]);
+    for (j++; j < lines.length && !lines[j]!.startsWith(indent + ticks); j++) {
+      body.push(lines[j]!.startsWith(indent) ? lines[j]!.slice(indent.length) : lines[j]!);
     }
-    const file = path.join(ROOT, marker[1]);
+    const file = path.join(ROOT, name);
     if (!fs.existsSync(file)) {
-      failures.push(`${where}: ${marker[1]} does not exist`);
+      failures.push(`${where}: ${name} does not exist`);
       continue;
     }
+    shown.add(name);
     const want = fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n").replace(/\n$/, "");
-    if (body.join("\n") !== want) failures.push(`${where}: the block is not ${marker[1]}`);
-    blocks++;
+    if (kind === "file") {
+      if (body.join("\n") !== want) failures.push(`${where}: the block is not ${name}`);
+      blocks++;
+    } else {
+      if (!body.length || !excerptOf(body, want.split("\n"))) failures.push(`${where}: the block is not lines of ${name}`);
+      excerpts++;
+    }
+  }
+}
+
+/// examples/: each directory built by examples.yml and shown by a page,
+/// with the quick start's pixi.toml and the Bazel example's .bazelversion.
+const EXAMPLES = path.join(ROOT, "examples");
+const workflow = fs.readFileSync(path.join(ROOT, ".github", "workflows", "examples.yml"), "utf8");
+const same: [string, string][] = [
+  ["pixi.toml", "examples/quickstart/pixi.toml"],
+  [".bazelversion", "examples/bazel/.bazelversion"],
+];
+for (const dir of fs.readdirSync(EXAMPLES, { withFileTypes: true })) {
+  if (!dir.isDirectory()) continue;
+  const name = `examples/${dir.name}`;
+  if (!new RegExp(`${name}(?![\\w-])`).test(workflow)) failures.push(`${name}: not built by examples.yml`);
+  if (![...shown].some((f) => f.startsWith(`${name}/`))) failures.push(`${name}: no page shows a file of it`);
+  for (const [file, model] of same) {
+    const p = path.join(EXAMPLES, dir.name, file);
+    if (fs.existsSync(p) && fs.readFileSync(p, "utf8") !== fs.readFileSync(path.join(ROOT, model), "utf8")) {
+      failures.push(`${name}/${file}: not the same as ${model}`);
+    }
   }
 }
 
@@ -198,6 +281,6 @@ if (failures.length) {
   process.exit(1);
 }
 console.log(
-  `ok: ${blocks} code blocks are their files, ${links} links reach their pages and headings, ` +
-    `${statuses} status cells are status words`,
+  `ok: ${blocks} code blocks are their files, ${excerpts} are lines of them (${unrun} not run, each saying why), ` +
+    `${links} links reach their pages and headings, ${statuses} status cells are status words`,
 );

@@ -1,0 +1,1 @@
+triangle: 3 sides, perimeter 12

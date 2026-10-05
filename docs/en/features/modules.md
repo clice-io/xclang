@@ -9,9 +9,13 @@ without CMake's experimental switches. A module interface compiles to a
 The example is a named module, `math`, with a partition, `math:ops`, and a
 program that imports both it and `std`. It is in
 [examples/modules](https://github.com/clice-io/xclang/tree/main/examples/modules).
+The CMake and plain clang commands below run in that directory, in a
+`pixi shell` after `pixi install`, which puts xclang's `bin/` first in
+`PATH`.
 
 `math-ops.cppm` is the partition:
 
+<!-- file: examples/modules/math-ops.cppm -->
 ```cpp
 export module math:ops;
 
@@ -24,6 +28,7 @@ export int perimeter(std::span<const int> sides) {
 
 `math.cppm` is the primary interface, which exports the partition:
 
+<!-- file: examples/modules/math.cppm -->
 ```cpp
 export module math;
 
@@ -37,6 +42,7 @@ export std::string describe(std::string_view name, std::span<const int> sides) {
 
 `main.cpp` imports both modules:
 
+<!-- file: examples/modules/main.cpp -->
 ```cpp
 import std;
 import math;
@@ -47,13 +53,19 @@ int main() {
 }
 ```
 
-Each build below prints `triangle: 3 sides, perimeter 12`.
+Each build below makes a program that prints this:
+
+<!-- file: examples/modules/expected.txt -->
+```
+triangle: 3 sides, perimeter 12
+```
 
 ### CMake
 
 `xclang::std` is the `std` module as a library to link. The C++ modules of
 the program are a `FILE_SET CXX_MODULES`:
 
+<!-- file: examples/modules/CMakeLists.txt -->
 ```cmake
 cmake_minimum_required(VERSION 3.28)
 project(shapes LANGUAGES CXX)
@@ -71,10 +83,23 @@ add_executable(shapes main.cpp)
 target_link_libraries(shapes PRIVATE math xclang::std)
 ```
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 cmake -G Ninja -B build -DCMAKE_CXX_COMPILER=clang++
 cmake --build build
 ./build/shapes
+```
+
+For another target, use the toolchain file of the toolchain directory
+([CMake](../integrations/cmake.md#build-for-another-target)). `xclang::std`
+is then built for that target too:
+
+<!-- excerpt: .github/workflows/examples.yml -->
+```sh
+XCLANG=$PWD/.pixi/envs/default/opt/xclang
+cmake -G Ninja -B build-x86_64-w64-mingw32 --toolchain "$XCLANG/lib/cmake/xclang/toolchain.cmake" \
+    -DXCLANG_TARGET=x86_64-w64-mingw32
+cmake --build build-x86_64-w64-mingw32
 ```
 
 ### Bazel
@@ -82,6 +107,7 @@ cmake --build build
 `@xclang//bazel:std` is the `std` module, and `module_interfaces` holds
 the C++ modules of a `cc_library`:
 
+<!-- file: examples/modules/BUILD.bazel -->
 ```python
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
@@ -107,12 +133,42 @@ cc_binary(
 )
 ```
 
-The `.bazelrc` is the one in
-[Bazel](../integrations/bazel.md#set-up-a-project), with
-`--experimental_cpp_modules`.
+::: details MODULE.bazel and .bazelrc
 
+<!-- file: examples/modules/MODULE.bazel -->
+```python
+module(name = "shapes")
+
+bazel_dep(name = "rules_cc", version = "0.2.25")
+bazel_dep(name = "xclang", version = "23.1.2.6")
+```
+
+The `.bazelrc` is the one of [Bazel](../integrations/bazel.md#set-up-a-project),
+with `--experimental_cpp_modules`:
+
+<!-- file: examples/modules/.bazelrc -->
+```
+common --registry=https://bazel.clice.io/
+common --registry=https://bcr.bazel.build/
+common --enable_platform_specific_config
+# The C++ toolchain is xclang's; rules_cc's detection of another is off.
+common --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
+# import std: libc++'s modules are built with these options, and so are
+# their importers.
+common --cxxopt=-std=c++23 --host_cxxopt=-std=c++23
+common --experimental_cpp_modules
+common:windows --enable_runfiles
+```
+
+:::
+
+The second command builds the program for Windows x64, as
+`bazel-bin/shapes.exe`:
+
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 bazel run //:shapes
+bazel build --platforms=@xclang//platforms:x86_64-w64-mingw32 //:shapes
 ```
 
 ### Plain Clang
@@ -121,6 +177,7 @@ Each interface compiles in one step to its object and its module file.
 `-fprebuilt-module-path=.` finds `std.pcm`, `math.pcm`, and `math-ops.pcm`
 for the partition `math:ops`:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 std=$(dirname "$(clang++ -print-library-module-manifest-path)")/../share/libc++/v1/std.cppm
 clang++ -std=c++23 -O2 -Wno-reserved-module-identifier -c "$std" -fmodule-output=std.pcm -o std.o

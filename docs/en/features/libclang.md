@@ -12,6 +12,7 @@ The example is a small tool that lexes a line of C++ with clang's own
 classes. It is in
 [examples/libclang](https://github.com/clice-io/xclang/tree/main/examples/libclang):
 
+<!-- file: examples/libclang/main.cpp -->
 ```cpp
 // Lexes a line of C++ with libclang's own classes, and reports the
 // compression the LLVM libraries were built with.
@@ -51,9 +52,11 @@ It prints the clang version, then `tokens 9 zlib 1 zstd 1`.
 
 ### CMake
 
-libclang comes as a release archive, not from conda or FetchContent. On
-Linux x64, this downloads and checks it:
+libclang comes as a release archive, not from conda or FetchContent. In
+`examples/libclang`, in a `pixi shell` after `pixi install`, this
+downloads, checks and unpacks it on Linux x64:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 v=23.1.2.6 h=x86_64-unknown-linux-gnu
 curl -LO https://github.com/clice-io/xclang/releases/download/$v/libclang-$v-$h.tar.xz
@@ -68,6 +71,7 @@ other hosts are in [releases](../reference/releases.md#assets).
 The tool finds libclang with `find_package(Clang)`. `find_package(xclang)`
 adds the [ThinLTO cache](thinlto-cache.md) to its links:
 
+<!-- file: examples/libclang/CMakeLists.txt -->
 ```cmake
 cmake_minimum_required(VERSION 3.28)
 project(tool LANGUAGES CXX)
@@ -82,6 +86,7 @@ target_include_directories(tool SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS} ${CLANG_INCL
 target_link_libraries(tool PRIVATE clangBasic clangLex LLVMSupport)
 ```
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 cmake -G Ninja -B build -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_PREFIX_PATH="$PWD/libclang" -DXCLANG_THINLTO_CACHE=/var/tmp/xclang-thinlto
@@ -95,6 +100,7 @@ cmake --build build
 the link interface that the CMake packages of LLVM and clang give it:
 system libraries, zlib and zstd. A Bazel target names only what it uses:
 
+<!-- excerpt: examples/libclang/BUILD.bazel -->
 ```python
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 
@@ -110,13 +116,42 @@ cc_binary(
 )
 ```
 
-`MODULE.bazel` takes the repository from the module extension:
+`MODULE.bazel` takes the repositories from the module extension of xclang:
 
+<!-- file: examples/libclang/MODULE.bazel -->
 ```python
+module(name = "tool")
+
+bazel_dep(name = "rules_cc", version = "0.2.25")
+bazel_dep(name = "xclang", version = "23.1.2.6")
+
 xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
-use_repo(xclang, "libclang")
+use_repo(xclang, "libclang", "llvm_option_inc")
 ```
 
+::: details .bazelrc
+
+It names the [ThinLTO cache](thinlto-cache.md#bazel):
+
+<!-- file: examples/libclang/.bazelrc -->
+```
+common --registry=https://bazel.clice.io/
+common --registry=https://bcr.bazel.build/
+common --enable_platform_specific_config
+# The C++ toolchain is xclang's; rules_cc's detection of another is off.
+common --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
+common:windows --enable_runfiles
+# The linker's ThinLTO cache: one path per OS, the same on every machine.
+common:linux --repo_env=XCLANG_THINLTO_CACHE=/var/tmp/xclang-thinlto
+common:linux --sandbox_writable_path=/var/tmp/xclang-thinlto
+common:macos --repo_env=XCLANG_THINLTO_CACHE=/var/tmp/xclang-thinlto
+common:windows --repo_env=XCLANG_THINLTO_CACHE=C:/xclang-thinlto
+try-import %workspace%/user.bazelrc
+```
+
+:::
+
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 bazel run //:tool
 ```
@@ -201,8 +236,9 @@ dependency.
 lld (ELF, COFF, MachO, MinGW, wasm), of llvm-lib and of llvm-dlltool. They
 are the TableGen output of the same build, for tools that parse those
 command lines without linking LLVM. Each `.inc` file expands `OPTION(...)`
-once per option:
+once per option. `options.cpp` counts the options of clang:
 
+<!-- file: examples/libclang/options.cpp -->
 ```cpp
 #include <cstdio>
 
@@ -213,6 +249,22 @@ int main() {
 #undef OPTION
     std::printf("clang has %d options\n", count);
 }
+```
+
+In Bazel, it depends on `@llvm_option_inc`, as `BUILD.bazel` has it:
+
+<!-- excerpt: examples/libclang/BUILD.bazel -->
+```python
+cc_binary(
+    name = "options",
+    srcs = ["options.cpp"],
+    deps = ["@llvm_option_inc"],
+)
+```
+
+<!-- excerpt: .github/workflows/examples.yml -->
+```sh
+bazel run //:options
 ```
 
 The same tables are the conda package `llvm-option-inc`, in

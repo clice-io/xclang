@@ -1,23 +1,32 @@
 name: docs
 
-# docs/ to docs.clice.io/xclang: clice-io/docs's sync action copies docs/en
-# into that repository as en/xclang, in a pull request that merges itself
-# once the site builds. On every push to main that changes docs/; checks
-# first that the docs' code blocks are examples/'s files and that their
-# links reach pages and headings (tests/docs.ts).
+# tests/docs.ts on every branch: the docs' files and command blocks are
+# examples/'s files and examples.yml's steps, their links reach pages and
+# headings, their status cells are status words. On main, then, docs/ to
+# docs.clice.io/xclang: clice-io/docs's sync action copies docs/en into that
+# repository as en/xclang, in a pull request that merges itself once the
+# site builds (none when nothing changed).
 
 on:
   push:
-    branches: [main]
     paths:
       - "docs/**"
+      - "examples/**"
+      - "tests/docs.ts"
+      - ".github/workflows/**"
+      - "README.md"
+      - "README.zh-CN.md"
+      - "CHANGELOG.md"
+      - "CONTRIBUTING.md"
+      - "SECURITY.md"
+      - "packages/README.md"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  publish:
+  check:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -27,6 +36,15 @@ jobs:
         with:
           node-version: 24
       - run: node tests/docs.ts
+
+  publish:
+    needs: check
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: clice-io/docs@main
         with:
           project: xclang

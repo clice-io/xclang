@@ -9,8 +9,12 @@ programs link.
 
 The examples are in
 [examples/sanitizers](https://github.com/clice-io/xclang/tree/main/examples/sanitizers).
+The CMake and plain clang commands below run in that directory, in a
+`pixi shell` after `pixi install`, on a Linux or macOS host.
+
 `overflow.cpp` reads past the end of a string, but within its capacity:
 
+<!-- file: examples/sanitizers/overflow.cpp -->
 ```cpp
 #include <cstdio>
 #include <string>
@@ -27,6 +31,7 @@ int main(int argc, char**) {
 
 `race.cpp` has a data race:
 
+<!-- file: examples/sanitizers/race.cpp -->
 ```cpp
 #include <thread>
 
@@ -41,6 +46,7 @@ int main() {
 
 `fuzz.cpp` is a libFuzzer target:
 
+<!-- file: examples/sanitizers/fuzz.cpp -->
 ```cpp
 #include <cstddef>
 #include <cstdint>
@@ -62,6 +68,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 The ASan libc++ is in the `asan` directory next to the module manifest of
 libc++: `usr/lib/asan` of the sysroot on Linux, `lib/asan` on macOS.
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 asan=$(dirname "$(clang++ -print-library-module-manifest-path)")/asan
 clang++ -fsanitize=address -g -O1 overflow.cpp -o overflow-plain
@@ -82,26 +89,77 @@ string, so ASan sees nothing wrong.
 
 ### CMake
 
-An ASan build takes the ASan libc++ in its compile and link flags.
-`xclang::std` picks up `CMAKE_CXX_FLAGS`, so `import std` matches:
+An ASan build takes the ASan libc++ in its compile and link flags, with
+`$asan` from above:
 
+<!-- file: examples/sanitizers/CMakeLists.txt -->
+```cmake
+cmake_minimum_required(VERSION 3.28)
+project(sanitizers LANGUAGES CXX)
+
+add_executable(overflow overflow.cpp)
+```
+
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 cmake -G Ninja -B build-asan -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     "-DCMAKE_CXX_FLAGS=-fsanitize=address -isystem $asan/include" \
     "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address -nostdlib++ $asan/libc++.a"
 cmake --build build-asan
-./build-asan/overflow
 ```
+
+`./build-asan/overflow` reports the container-overflow. `xclang::std`
+picks up `CMAKE_CXX_FLAGS`, so in a project with `import std` the module
+matches.
 
 ### Bazel
 
 The sanitizers are features of the whole build. `--features=asan` compiles
 and links with the ASan libc++:
 
+<!-- file: examples/sanitizers/BUILD.bazel -->
+```python
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
+cc_binary(
+    name = "overflow",
+    srcs = ["overflow.cpp"],
+)
+
+cc_binary(
+    name = "race",
+    srcs = ["race.cpp"],
+)
+```
+
+::: details MODULE.bazel and .bazelrc
+
+<!-- file: examples/sanitizers/MODULE.bazel -->
+```python
+module(name = "sanitizers")
+
+bazel_dep(name = "rules_cc", version = "0.2.25")
+bazel_dep(name = "xclang", version = "23.1.2.6")
+```
+
+<!-- file: examples/sanitizers/.bazelrc -->
+```
+common --registry=https://bazel.clice.io/
+common --registry=https://bcr.bazel.build/
+# The C++ toolchain is xclang's; rules_cc's detection of another is off.
+common --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
+```
+
+:::
+
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 bazel run -c dbg --features=asan //:overflow
 bazel run -c dbg --features=tsan //:race
 ```
+
+The first reports the container-overflow, the second the data race. Both
+end with the exit code of the program.
 
 ## Options
 

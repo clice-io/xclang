@@ -30,6 +30,7 @@ platforms = ["linux-64", "linux-aarch64", "osx-64", "osx-arm64", "win-64", "win-
 xclang = "23.1.2.6.*"
 ```
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 pixi install
 ```
@@ -55,6 +56,7 @@ the toolchain for each host, `xclang-<version>-<host>.tar.xz`, 95 to
 128 MB. It unpacks anywhere, and is used from there: the toolchain
 directory is `xclang/`. On Linux:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 v=23.1.2.6 h=x86_64-unknown-linux-gnu
 curl -LO https://github.com/clice-io/xclang/releases/download/$v/xclang-$v-$h.tar.xz
@@ -68,6 +70,7 @@ On macOS, check the download with
 `shasum -a 256 -c --ignore-missing SHA256SUMS`. On Windows, use PowerShell,
 whose `tar` is the one of the system (`C:\Windows\System32\tar.exe`):
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```powershell
 $v = "23.1.2.6"; $h = "x86_64-w64-mingw32"
 curl.exe -LO https://github.com/clice-io/xclang/releases/download/$v/xclang-$v-$h.tar.xz
@@ -90,6 +93,7 @@ release, such as libclang, are listed in
 A CMake project can download the toolchain itself, before `project()`, so
 it configures on a machine with nothing but CMake and Ninja:
 
+<!-- excerpt: examples/cmake-fetch/CMakeLists.txt -->
 ```cmake
 set(XCLANG_VERSION 23.1.2.6)
 include(FetchContent)
@@ -109,6 +113,7 @@ project is in [CMake](../integrations/cmake.md#without-xclang-installed).
 The clice registry, [bazel.clice.io](https://bazel.clice.io), has the
 module. Add the registry to `.bazelrc`:
 
+<!-- excerpt: examples/bazel/.bazelrc -->
 ```
 common --registry=https://bazel.clice.io/
 common --registry=https://bcr.bazel.build/
@@ -116,6 +121,7 @@ common --registry=https://bcr.bazel.build/
 
 Then depend on xclang in `MODULE.bazel`:
 
+<!-- excerpt: examples/bazel/MODULE.bazel -->
 ```python
 bazel_dep(name = "xclang", version = "23.1.2.6")
 ```
@@ -129,6 +135,7 @@ is in [Bazel](../integrations/bazel.md#set-up-a-project).
 `clang++ --version`, from `PATH` or from the toolchain directory, prints
 the clang version and `InstalledDir`, the `bin/` it runs from:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 pixi run clang++ --version
 ```

@@ -13,16 +13,19 @@ It is a recipe of cargo settings per target. A helper that sets them,
 
 - xclang's `bin/` first in `PATH`, as `pixi shell` has it
   ([installation](../guide/install.md)).
-- rustup, with the standard library of each target:
-  `rustup target add x86_64-pc-windows-gnullvm`.
+- rustup, with the standard library of each target. In the example,
+  `rustup toolchain install` installs what `rust-toolchain.toml` names;
+  elsewhere, `rustup target add <Rust target>` adds one.
 
 ## Build for Windows from Linux or macOS
 
 The example is a Rust program that calls a C function, in
 [examples/cargo](https://github.com/clice-io/xclang/tree/main/examples/cargo).
+Its commands run in that directory, in a `pixi shell` after `pixi install`.
 `.cargo/config.toml` makes xclang the linker of the Windows targets, and the
 C compiler of their crates:
 
+<!-- file: examples/cargo/.cargo/config.toml -->
 ```toml
 # xclang's clang, first in PATH (pixi shell, or an unpacked xclang/bin), links
 # Rust's MinGW targets and compiles crates' C code for them. Build scripts,
@@ -45,6 +48,7 @@ AR_aarch64_pc_windows_gnullvm = "llvm-ar"
 
 `rust-toolchain.toml` pins the Rust release and adds both targets:
 
+<!-- file: examples/cargo/rust-toolchain.toml -->
 ```toml
 [toolchain]
 channel = "1.99.0"
@@ -54,6 +58,7 @@ targets = ["x86_64-pc-windows-gnullvm", "aarch64-pc-windows-gnullvm"]
 
 `Cargo.toml` uses the `cc` crate in `build.rs`:
 
+<!-- file: examples/cargo/Cargo.toml -->
 ```toml
 [package]
 name = "hello"
@@ -67,6 +72,7 @@ cc = "1"
 
 `build.rs` compiles the C file:
 
+<!-- file: examples/cargo/build.rs -->
 ```rust
 fn main() {
     cc::Build::new().file("src/hello.c").compile("hello");
@@ -75,6 +81,7 @@ fn main() {
 
 `src/hello.c` writes a greeting:
 
+<!-- file: examples/cargo/src/hello.c -->
 ```c
 #include <stdio.h>
 
@@ -89,6 +96,7 @@ int hello(char* buffer, int size) {
 
 `src/main.rs` calls it:
 
+<!-- file: examples/cargo/src/main.rs -->
 ```rust
 use std::ffi::{CStr, c_char, c_int};
 
@@ -106,6 +114,7 @@ fn main() {
 }
 ```
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 rustup toolchain install
 cargo build --release --target x86_64-pc-windows-gnullvm
@@ -115,7 +124,12 @@ llvm-readobj --needed-libs target/x86_64-pc-windows-gnullvm/release/hello.exe
 
 The program needs only Windows DLLs and UCRT (`api-ms-win-crt-*`): no
 libunwind, libc++, libgcc or winpthread. Copied to Windows 10 or later, it
-prints `hello from C, linked by xclang`.
+prints this:
+
+<!-- file: examples/cargo/expected.txt -->
+```
+hello from C, linked by xclang
+```
 
 The Windows targets of Rust for xclang are the `*-windows-gnullvm` ones.
 Their std links libunwind and UCRT, as xclang's MinGW sysroots have them.
@@ -136,9 +150,11 @@ The `*-windows-gnu` targets link libgcc and msvcrt instead.
 Every target needs the linker, the `--target` of the linker, and the C
 compiler of its crates. These are environment variables; the
 `.cargo/config.toml` above is the same for the Windows targets. For Linux
-arm64:
+arm64, from a Linux x64 or macOS host:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
+rustup target add aarch64-unknown-linux-gnu
 export CC_aarch64_unknown_linux_gnu=clang CXX_aarch64_unknown_linux_gnu=clang++ AR_aarch64_unknown_linux_gnu=llvm-ar
 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=clang
 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-Clink-arg=--target=aarch64-unknown-linux-gnu -Clink-arg=-l:libunwind.a"
@@ -190,6 +206,7 @@ CI runs this recipe from Linux; no release supports it.
 Use the macOS settings above, and name the fetched SDK. rustc passes
 `SDKROOT` to the linker, and the `cc` crate passes it to clang:
 
+<!-- not run: in research, and the xclang command is unreleased; cli.yml runs this recipe through tests/cargo.ts -->
 ```sh
 export SDKROOT=$(xclang sdk path macos)
 ```
@@ -208,6 +225,7 @@ It uses the hybrid CRT: the VC runtime linked statically, and UCRT as a
 system DLL. That is the default of the planned MSVC targets. For
 `x86_64-pc-windows-msvc`:
 
+<!-- not run: planned, and the xclang command is unreleased; cli.yml runs this recipe through tests/cargo.ts -->
 ```sh
 W=$(xclang sdk path windows)
 export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=lld-link

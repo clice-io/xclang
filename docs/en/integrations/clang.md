@@ -11,6 +11,7 @@ Requires: xclang's `bin/` in `PATH` ([installation](../guide/install.md)).
 These are the commands of the [quick start](../guide/quick-start.md), for
 its `hello.cpp`:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 clang++ -O2 hello.cpp -o hello
 clang++ -O2 --target=x86_64-unknown-linux-gnu hello.cpp -o hello-linux-x64
@@ -45,14 +46,23 @@ or links gets it. The project is
 <!-- file: examples/make/Makefile -->
 ```make
 # make CXX=clang++
-# make CXX="clang++ --target=aarch64-unknown-linux-gnu"
+# make -B CXX="clang++ --target=aarch64-unknown-linux-gnu"
 hello: hello.cpp
 	$(CXX) $(CXXFLAGS) -O2 hello.cpp -o $@ $(LDFLAGS)
 ```
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 make CXX=clang++
-make CXX="clang++ --target=aarch64-unknown-linux-gnu"
+./hello
+```
+
+For another target, `-B` rebuilds `hello`, which make would otherwise
+take as up to date:
+
+<!-- excerpt: .github/workflows/examples.yml -->
+```sh
+make -B CXX="clang++ --target=aarch64-unknown-linux-gnu"
 ```
 
 A build that makes static libraries also takes `AR=llvm-ar` and
@@ -65,9 +75,11 @@ The project is
 [examples/meson](https://github.com/clice-io/xclang/tree/main/examples/meson).
 For the host, Meson finds the compiler through `CXX`:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 CXX=clang++ meson setup build
 meson compile -C build
+./build/hello
 ```
 
 For another target, a cross file names the compiler with `--target`, and
@@ -89,6 +101,7 @@ cpu = 'aarch64'
 endian = 'little'
 ```
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 meson setup build-aarch64-w64-mingw32 --cross-file cross/aarch64-w64-mingw32.ini
 meson compile -C build-aarch64-w64-mingw32

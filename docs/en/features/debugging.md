@@ -16,8 +16,11 @@ them with its own tools, for every target: `llvm-gsymutil`, `dsymutil`,
 
 The example is in
 [examples/debug-symbols](https://github.com/clice-io/xclang/tree/main/examples/debug-symbols).
-`tool.cpp` keeps `answer` out of line, so its address maps to one line:
+The CMake and plain clang commands below run in that directory, in a
+`pixi shell` after `pixi install`. `tool.cpp` keeps `answer` out of line,
+so its address maps to one line:
 
+<!-- file: examples/debug-symbols/tool.cpp -->
 ```cpp
 #include <cstdio>
 
@@ -31,6 +34,7 @@ int main(int argc, char**) { std::printf("%d\n", answer(argc)); }
 This builds a Linux x64 program, so the commands are the same on every
 host. The last one looks up the address of `answer` in the GSYM:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 clang++ --target=x86_64-unknown-linux-gnu -gline-tables-only -O2 tool.cpp -o tool
 llvm-gsymutil --convert tool --out-file tool.gsym --num-threads=1
@@ -46,6 +50,7 @@ and convert the dSYM instead.
 `xclang_debug_symbols(<program>)` makes the symbols after each link of the
 CMake target `<program>`:
 
+<!-- file: examples/debug-symbols/CMakeLists.txt -->
 ```cmake
 cmake_minimum_required(VERSION 3.28)
 project(tool LANGUAGES CXX)
@@ -57,20 +62,22 @@ target_compile_options(tool PRIVATE -gline-tables-only)
 xclang_debug_symbols(tool)
 ```
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 cmake -G Ninja -B build -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ./build/tool
 ```
 
-The program prints `42`. `build/tool.gsym` is next to it, and for a macOS
-target `build/tool.dSYM` too.
+The program prints `42`. `build/tool.gsym` is next to it, and on a macOS
+host `build/tool.dSYM` too.
 
 ### Bazel
 
 The `xclang_debug_symbols` rule makes the GSYM, and the
 `generate_dsym_file` feature of rules_cc makes the dSYM in the link:
 
+<!-- file: examples/debug-symbols/BUILD.bazel -->
 ```python
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@xclang//bazel:debug_symbols.bzl", "xclang_debug_symbols")
@@ -88,11 +95,33 @@ xclang_debug_symbols(
 )
 ```
 
-```sh
-bazel build --strip=never //:tool_symbols
+::: details MODULE.bazel and .bazelrc
+
+<!-- file: examples/debug-symbols/MODULE.bazel -->
+```python
+module(name = "tool")
+
+bazel_dep(name = "rules_cc", version = "0.2.25")
+bazel_dep(name = "xclang", version = "23.1.2.6")
 ```
 
-`bazel-bin/tool.gsym` is the GSYM. The fastbuild mode strips debug
+<!-- file: examples/debug-symbols/.bazelrc -->
+```
+common --registry=https://bazel.clice.io/
+common --registry=https://bcr.bazel.build/
+# The C++ toolchain is xclang's; rules_cc's detection of another is off.
+common --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
+```
+
+:::
+
+<!-- excerpt: .github/workflows/examples.yml -->
+```sh
+bazel build --strip=never //:tool_symbols //:tool.stripped
+```
+
+`bazel-bin/tool.gsym` is the GSYM, and `bazel-bin/tool.stripped` the
+program to ship ([strip](#strip)). The fastbuild mode strips debug
 information unless `--strip=never` is given.
 
 ## Options

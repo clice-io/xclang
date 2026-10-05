@@ -45,6 +45,7 @@ The hosts are `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`,
 The workflow that drafts the release writes `SHA256SUMS` from the files it
 uploads. This checks a download against it:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 gh release download 23.1.2.6 -R clice-io/xclang -p SHA256SUMS -p 'llvm-option-inc-*'
 sha256sum -c --ignore-missing SHA256SUMS

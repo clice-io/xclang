@@ -45,6 +45,7 @@ int main() {
 With xclang's `bin/` first in `PATH`, as `pixi shell` has it, name the
 compiler and build:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 cmake -G Ninja -B build -DCMAKE_CXX_COMPILER=clang++
 cmake --build build
@@ -60,6 +61,7 @@ through `PATH`. Without `PATH`, use the toolchain file of the toolchain
 directory, `$XCLANG` below. It sets the compilers, the binary tools and the
 location of the package at once:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 cmake -G Ninja -B build --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake
 ```
@@ -68,6 +70,7 @@ cmake -G Ninja -B build --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake
 
 `XCLANG_TARGET` names the target, with the toolchain file:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 cmake -G Ninja -B build-aarch64-w64-mingw32 --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake \
     -DXCLANG_TARGET=aarch64-w64-mingw32
@@ -117,6 +120,7 @@ add_executable(hello main.cpp)
 target_link_libraries(hello PRIVATE xclang::std)
 ```
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 cmake -G Ninja -B build
 cmake --build build
@@ -126,7 +130,13 @@ cmake --build build
 `xclang.cmake` checks the archive against the `SHA256SUMS` of the release,
 and unpacks it into the cache of the user, once per release and host.
 Another build tree of the same release and host downloads nothing but the
-checkout. `-DXCLANG_TARGET=<target>` builds for another target here too.
+checkout. `-DXCLANG_TARGET=<target>` builds for another target here too:
+
+<!-- excerpt: .github/workflows/examples.yml -->
+```sh
+cmake -G Ninja -B build-x86_64-w64-mingw32 -DXCLANG_TARGET=x86_64-w64-mingw32
+cmake --build build-x86_64-w64-mingw32
+```
 
 | variable | |
 |---|---|
@@ -147,6 +157,7 @@ The C++ modules of the program are a `FILE_SET CXX_MODULES`, scanned by
 clang-scan-deps. `cmake_minimum_required(VERSION 3.28)` turns on the
 scanning of C++20 targets (CMP0155):
 
+<!-- excerpt: examples/modules/CMakeLists.txt -->
 ```cmake
 add_library(math STATIC)
 target_sources(math PUBLIC FILE_SET CXX_MODULES FILES math.cppm math-ops.cppm)
@@ -165,12 +176,13 @@ importer's ([matching options](../features/modules.md#behavior)). So:
 - It asks its importers for its standard: C++23, or the
   `CMAKE_CXX_STANDARD` it was built with if that is 20 or later.
 - A CMake target with other language options links a `std` of its own,
-  whose `PUBLIC` options reach its importers:
+  whose `PUBLIC` options reach its importers. It links `std_noexcept`
+  instead of `xclang::std`:
 
+  <!-- excerpt: tests/cmake/noexcept/CMakeLists.txt -->
   ```cmake
   xclang_add_std(std_noexcept)
   target_compile_options(std_noexcept PUBLIC -fno-exceptions)
-  target_link_libraries(kernel PRIVATE std_noexcept)
   ```
 
 Before putting ccache in front of the compiler, read
@@ -182,6 +194,7 @@ Before putting ccache in front of the compiler, read
 after each of its links: `<program>.gsym` next to it, and for a macOS
 target `<program>.dSYM` too.
 
+<!-- excerpt: examples/debug-symbols/CMakeLists.txt -->
 ```cmake
 add_executable(tool tool.cpp)
 target_compile_options(tool PRIVATE -gline-tables-only)
@@ -201,14 +214,11 @@ A tool on libclang finds it with `find_package(Clang)`, with
 
 ## Speed Up libclang Links
 
-Name a directory for the ThinLTO cache, and a link after the first takes
-seconds:
-
-```sh
-cmake -G Ninja -B build -DXCLANG_THINLTO_CACHE=/var/tmp/xclang-thinlto
-```
-
-`find_package(xclang)` makes the directory at configure time. It adds the
+Name a directory for the ThinLTO cache when configuring,
+`-DXCLANG_THINLTO_CACHE=/var/tmp/xclang-thinlto`, and a link after the
+first takes seconds ([libclang](../features/libclang.md#cmake) has a whole
+tool built this way). `find_package(xclang)` makes the directory at
+configure time. It adds the
 cache flag to every link of the directory that called it, and of its
 subdirectories ([the ThinLTO cache](../features/thinlto-cache.md)).
 

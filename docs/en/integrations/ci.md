@@ -11,19 +11,23 @@ Requires: a GitHub Actions workflow, with the hosted runners of
 
 **pixi.** With the workspace of the [quick start](../guide/quick-start.md):
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```yaml
 - uses: prefix-dev/setup-pixi@v0.10.2
   with:
     pixi-version: v0.71.1
     run-install: false
-- run: pixi install
-- run: pixi run clang++ -O2 --target=x86_64-w64-mingw32 hello.cpp -o hello.exe
+- name: Install
+  run: |
+    pixi install
+    pixi run clang++ --version
 ```
 
 **CMake with FetchContent.** The project downloads the toolchain itself
 ([CMake](cmake.md#without-xclang-installed)). Keep the download between
 runs by putting `XCLANG_CACHE_DIR` in a cache entry keyed on the release:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```yaml
 - uses: actions/cache@v6
   with:
@@ -51,6 +55,7 @@ misses the cache, and does not get the outputs of the old one.
 restores them on every run, and saves them only on `main`, once per merge.
 Pull requests then do not churn the cache space of the repository:
 
+<!-- not run: clice's CI, linked above, runs it -->
 ```yaml
 - uses: actions/cache/restore@v6
   with:
@@ -83,6 +88,7 @@ needs.
 **The ThinLTO cache alone**, for CMake, or for a project without the disk
 cache: key it on the xclang release.
 
+<!-- not run: xclang's examples keep no ThinLTO cache between runs -->
 ```yaml
 - uses: actions/cache@v6
   with:
@@ -106,25 +112,35 @@ your ccache version does first
 
 A Linux runner builds for every Linux and Windows target. The programs and
 tests then run on a runner of their target, with nothing installed there:
-they need nothing but the OS. One job builds and uploads the programs:
+they need nothing but the OS. One job builds the program of the
+[quick start](../guide/quick-start.md), in `examples/quickstart`, for
+Windows on Arm, and uploads it:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```yaml
 build:
   runs-on: ubuntu-24.04
+  defaults:
+    run:
+      working-directory: examples/quickstart
   steps:
     - uses: actions/checkout@v7
+      with:
+        persist-credentials: false
     - uses: prefix-dev/setup-pixi@v0.10.2
       with:
         pixi-version: v0.71.1
+        manifest-path: examples/quickstart/pixi.toml
     - run: pixi run clang++ -O2 --target=aarch64-w64-mingw32 hello.cpp -o hello.exe
     - uses: actions/upload-artifact@v7
       with:
         name: windows-arm64
-        path: hello.exe
+        path: examples/quickstart/hello.exe
 ```
 
-Another job, on a runner of the target, downloads and runs them:
+Another job, on a runner of the target, downloads and runs it:
 
+<!-- excerpt: .github/workflows/examples.yml -->
 ```yaml
 run:
   needs: build
