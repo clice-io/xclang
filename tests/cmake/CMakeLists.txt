@@ -31,8 +31,10 @@ enable_testing()
 find_package(xclang REQUIRED CONFIG)
 if(CMAKE_HOST_WIN32)
     set(XCLANG_GSYMUTIL "${XCLANG_ROOT}/bin/llvm-gsymutil.exe")
+    set(XCLANG_READOBJ "${XCLANG_ROOT}/bin/llvm-readobj.exe")
 else()
     set(XCLANG_GSYMUTIL "${XCLANG_ROOT}/bin/llvm-gsymutil")
+    set(XCLANG_READOBJ "${XCLANG_ROOT}/bin/llvm-readobj")
 endif()
 
 # After find_package: xclang::std is built with what the directory ends

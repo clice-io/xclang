@@ -1,7 +1,8 @@
 # find_package(xclang): import std and import std.compat for a build that
 # xclang's clang compiles, as a library to link.
 #
-#   xclang::std         libc++'s std and std.compat modules, built for the
+#   xclang::std         libc++'s std and std.compat modules (for an MSVC
+#                       target, those of Microsoft's STL), built for the
 #                       build's target with the settings of the directory
 #                       that called find_package(xclang), as they stand at
 #                       the end of its CMakeLists.txt
@@ -12,7 +13,8 @@
 #   xclang_debug_symbols(<target> [GSYM_ARGS <option>...])
 #                       after each link of <target>, its GSYM next to it,
 #                       and for a macOS target its dSYM, by the toolchain's
-#                       llvm-gsymutil and dsymutil
+#                       llvm-gsymutil and dsymutil; nothing for an MSVC
+#                       target, whose link writes the PDB
 #   XCLANG_ROOT         the toolchain's directory
 #   XCLANG_THINLTO_CACHE
 #                       set: the directory of the linker's ThinLTO cache
@@ -54,10 +56,24 @@ if(NOT CXX IN_LIST _xclang_languages)
     return()
 endif()
 
+get_filename_component(XCLANG_ROOT "${CMAKE_CXX_COMPILER}" DIRECTORY)
+get_filename_component(XCLANG_ROOT "${XCLANG_ROOT}/.." ABSOLUTE)
+
 # libc++'s module manifest of the target, from the compiler: the sources of
-# std and std.compat, and the directory they include from.
+# std and std.compat, and the directory they include from. For an MSVC
+# target, the STL's (modules.json, std.ixx), in the toolset of the SDK the
+# config files read, which clang does not report.
 get_property(_xclang_manifest GLOBAL PROPERTY XCLANG_STD_MANIFEST)
-if(NOT _xclang_manifest)
+if(NOT _xclang_manifest AND CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
+    file(GLOB _xclang_manifest "${XCLANG_ROOT}/sdk/windows/VC/Tools/MSVC/*/modules/modules.json")
+    if(NOT _xclang_manifest)
+        set(xclang_FOUND FALSE)
+        set(xclang_NOT_FOUND_MESSAGE
+            "no modules.json of Microsoft's STL in ${XCLANG_ROOT}/sdk/windows: fetch the SDK again with this xclang")
+        return()
+    endif()
+    set_property(GLOBAL PROPERTY XCLANG_STD_MANIFEST "${_xclang_manifest}")
+elseif(NOT _xclang_manifest)
     set(_xclang_args "")
     if(CMAKE_CXX_COMPILER_TARGET)
         list(APPEND _xclang_args "--target=${CMAKE_CXX_COMPILER_TARGET}")
@@ -82,32 +98,60 @@ if(NOT _xclang_manifest)
     set_property(GLOBAL PROPERTY XCLANG_STD_MANIFEST "${_xclang_manifest}")
 endif()
 
-get_filename_component(XCLANG_ROOT "${CMAKE_CXX_COMPILER}" DIRECTORY)
-get_filename_component(XCLANG_ROOT "${XCLANG_ROOT}/.." ABSOLUTE)
-
 if(NOT COMMAND xclang_add_std)
     function(xclang_add_std name)
         get_property(_manifest GLOBAL PROPERTY XCLANG_STD_MANIFEST)
         get_filename_component(_dir "${_manifest}" DIRECTORY)
         file(READ "${_manifest}" _json)
-        string(JSON _count LENGTH "${_json}" modules)
-        math(EXPR _last "${_count} - 1")
         set(_sources "")
         set(_includes "")
-        foreach(_i RANGE ${_last})
-            string(JSON _source GET "${_json}" modules ${_i} source-path)
-            get_filename_component(_source "${_dir}/${_source}" ABSOLUTE)
-            list(APPEND _sources "${_source}")
-            string(JSON _n ERROR_VARIABLE _none LENGTH "${_json}" modules ${_i} local-arguments system-include-directories)
-            if(_n)
-                math(EXPR _n "${_n} - 1")
-                foreach(_j RANGE ${_n})
-                    string(JSON _include GET "${_json}" modules ${_i} local-arguments system-include-directories ${_j})
-                    get_filename_component(_include "${_dir}/${_include}" ABSOLUTE)
-                    list(APPEND _includes "${_include}")
-                endforeach()
-            endif()
-        endforeach()
+        # The warnings libc++'s own build turns off for them.
+        set(_options -Wno-reserved-module-identifier -Wno-reserved-user-defined-literal)
+        string(JSON _library ERROR_VARIABLE _none GET "${_json}" library)
+        if(_library STREQUAL "microsoft/STL")
+            # Microsoft's, {"module-sources": ["std.ixx", ...]}: sources
+            # clang takes for C++ by their name only, so copied as .cppm,
+            # which include the STL's headers in the module's purview. The
+            # copies include <malloc.h> before the module too, with the C
+            # headers: for arm64, clang 23 otherwise takes the _alloca of
+            # <malloc.h>, included in the purview, for a second declaration.
+            string(JSON _count LENGTH "${_json}" module-sources)
+            math(EXPR _last "${_count} - 1")
+            foreach(_i RANGE ${_last})
+                string(JSON _source GET "${_json}" module-sources ${_i})
+                get_filename_component(_stem "${_source}" NAME_WLE)
+                set(_copy "${CMAKE_CURRENT_BINARY_DIR}/${name}/${_stem}.cppm")
+                file(READ "${_dir}/${_source}" _text)
+                string(REPLACE "\n#include <intrin.h>\n" "\n#include <intrin.h>\n#include <malloc.h>\n" _text "${_text}")
+                set(_old "")
+                if(EXISTS "${_copy}")
+                    file(READ "${_copy}" _old)
+                endif()
+                if(NOT _old STREQUAL _text)
+                    file(WRITE "${_copy}" "${_text}")
+                endif()
+                set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_dir}/${_source}")
+                list(APPEND _sources "${_copy}")
+            endforeach()
+            list(APPEND _options -Wno-include-angled-in-module-purview)
+        else()
+            string(JSON _count LENGTH "${_json}" modules)
+            math(EXPR _last "${_count} - 1")
+            foreach(_i RANGE ${_last})
+                string(JSON _source GET "${_json}" modules ${_i} source-path)
+                get_filename_component(_source "${_dir}/${_source}" ABSOLUTE)
+                list(APPEND _sources "${_source}")
+                string(JSON _n ERROR_VARIABLE _none LENGTH "${_json}" modules ${_i} local-arguments system-include-directories)
+                if(_n)
+                    math(EXPR _n "${_n} - 1")
+                    foreach(_j RANGE ${_n})
+                        string(JSON _include GET "${_json}" modules ${_i} local-arguments system-include-directories ${_j})
+                        get_filename_component(_include "${_dir}/${_include}" ABSOLUTE)
+                        list(APPEND _includes "${_include}")
+                    endforeach()
+                endif()
+            endforeach()
+        endif()
         list(REMOVE_DUPLICATES _includes)
         list(GET _sources 0 _first)
         get_filename_component(_base "${_first}" DIRECTORY)
@@ -115,8 +159,7 @@ if(NOT COMMAND xclang_add_std)
         add_library(${name} STATIC EXCLUDE_FROM_ALL)
         target_sources(${name} PUBLIC FILE_SET CXX_MODULES BASE_DIRS "${_base}" FILES ${_sources})
         target_include_directories(${name} SYSTEM PRIVATE ${_includes})
-        # The warnings libc++'s own build turns off for them.
-        target_compile_options(${name} PRIVATE -Wno-reserved-module-identifier -Wno-reserved-user-defined-literal)
+        target_compile_options(${name} PRIVATE ${_options})
         # Importers start from the standard it is built with.
         get_target_property(_standard ${name} CXX_STANDARD)
         if(NOT _standard OR _standard STREQUAL "98" OR _standard LESS 20)
@@ -142,6 +185,10 @@ if(NOT COMMAND xclang_add_std)
     # points into: the link keeps ThinLTO's in <target>.lto for it, as
     # clang keeps them when it compiles and links in one command.
     function(xclang_debug_symbols target)
+        # MSVC targets have CodeView, in the PDB the link writes.
+        if(CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
+            return()
+        endif()
         cmake_parse_arguments(PARSE_ARGV 1 _arg "" "" "GSYM_ARGS")
         get_filename_component(_bin "${CMAKE_CXX_COMPILER}" DIRECTORY)
         if(CMAKE_HOST_WIN32)
@@ -186,6 +233,9 @@ if(XCLANG_THINLTO_CACHE)
     if(APPLE)
         # ld64.lld (and Apple's ld, with libLTO).
         set(_xclang_cache "LINKER:-cache_path_lto,${_xclang_cache}")
+    elseif(CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
+        # lld-link.
+        set(_xclang_cache "LINKER:/lldltocache:${_xclang_cache}")
     else()
         # lld for ELF and for COFF (MinGW).
         set(_xclang_cache "LINKER:--thinlto-cache-dir=${_xclang_cache}")

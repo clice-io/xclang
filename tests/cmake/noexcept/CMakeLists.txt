@@ -3,6 +3,10 @@
 # load into them.)
 xclang_add_std(std_noexcept)
 target_compile_options(std_noexcept PUBLIC -fno-exceptions)
+# Microsoft's STL throws unless told not to.
+if(CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
+    target_compile_definitions(std_noexcept PUBLIC _HAS_EXCEPTIONS=0)
+endif()
 
 add_executable(noexcept_test main.cpp)
 target_link_libraries(noexcept_test PRIVATE std_noexcept)
