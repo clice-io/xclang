@@ -16,6 +16,7 @@ manifest lists them (`XCLANG_PATCHES` in `lib/cmake/xclang/libclang.cmake`).
 | [`0006-libcxx-format-buffer-full`](../patches/0006-libcxx-format-buffer-full/README.md) | `std::format_to` into a container no longer writes past its 256-code-unit stack buffer after an argument whose length is a multiple of 256 |
 | [`0007-lld-macho-empty-section-unwind`](../patches/0007-lld-macho-empty-section-unwind/README.md) | ld64.lld keeps a function's unwind entry when an empty section's symbol shares its address: ThinLTO programs linked by one clang command catch their exceptions on arm64 macOS |
 | [`0008-preprocessed-raw-string-lines`](../patches/0008-preprocessed-raw-string-lines/README.md) | `clang -E` writes a raw string literal's CRLF line breaks as `\n`, what they mean, and counts its lines: its output, compiled (build caches such as xmake's), gives the same strings and line numbers |
+| [`0009-textapi-arm64e-x1`](../patches/0009-textapi-arm64e-x1/README.md) | ld64.lld reads the macOS 27 SDK's `.tbd` stubs, which list `arm64e.x1`: macOS programs link against Xcode 27's SDK (release/23.x's backport, in 23.1.3) |
 
 0005 (ASan's container checks in libc++'s ODR signature) was in 23.1.2.3
 and 23.1.2.4; libc++'s ASan build replaced it in 23.1.2.5.

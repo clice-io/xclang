@@ -246,6 +246,28 @@ run(tool("dsymutil"), ["--version"]);
   if (!/ld64\.lld/.test(result.stderr ?? "")) failures.push(`clang ${args.join(" ")} does not link with ld64.lld`);
 }
 
+/// ld64.lld reads .tbd stubs listing arm64e.x1, as the macOS 27 SDK's do
+/// (patches/0009), on every host: a dylib linked against such a libSystem.
+{
+  const sdk = path.join(work, "sdk-arm64e-x1");
+  fs.mkdirSync(path.join(sdk, "usr", "lib"), { recursive: true });
+  fs.writeFileSync(path.join(sdk, "usr", "lib", "libSystem.tbd"), `--- !tapi-tbd
+tbd-version:      4
+targets:          [ arm64-macos, arm64e-macos, arm64e.x1-macos ]
+install-name:     '/usr/lib/libSystem.B.dylib'
+current-version:  1351
+exports:
+  - targets:      [ arm64-macos, arm64e-macos, arm64e.x1-macos ]
+    symbols:      [ _puts ]
+...
+`);
+  const object = path.join(work, "arm64e-x1.o");
+  if (run(tool("clang"), ["--target=arm64-apple-macos", "-c", write("arm64e-x1.c", "int puts(const char*);\nint hello(void) { return puts(\"hello\"); }\n"), "-o", object]) !== undefined) {
+    run(tool("ld64.lld"), ["-syslibroot", sdk, "-lSystem", "-dylib", "-arch", "arm64", "-platform_version", "macos", "15", "27",
+      object, "-o", path.join(work, "libarm64e-x1.dylib")]);
+  }
+}
+
 /// clang-cl takes none of the host target's config file (empty
 /// <target>-clang-cl.cfg files): no unknown-argument warnings.
 {
