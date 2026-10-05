@@ -8,5 +8,6 @@ set(LLVM_USE_SANITIZER Address CACHE STRING "")
 set(LLVM_ENABLE_ASSERTIONS ON CACHE BOOL "" FORCE)
 set(LLVM_ENABLE_LTO OFF CACHE STRING "" FORCE)
 set(LLVM_ENABLE_PROJECTS "clang;clang-tools-extra" CACHE STRING "" FORCE)
-set(LLVM_TARGETS_TO_BUILD "X86;AArch64;ARM;RISCV" CACHE STRING "" FORCE)
+# LLVM_TARGETS_TO_BUILD is clang.cmake's, all: the archive's headers and
+# libraries are the release's.
 set(LLVM_DISTRIBUTIONS "Development" CACHE STRING "" FORCE)
