@@ -34,6 +34,8 @@
 ///    checkout, and gdb, lldb (with and without a dSYM) and llvm-symbolizer
 ///    find a source of this repository and one of an external repository
 ///    through bazel-<workspace>.
+/// 10. A release's strip by the target's object format (the .stripped of a
+///     program), for this host's target and another os's.
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -116,6 +118,14 @@ function check(ok: boolean, line: string): void {
   console.log(`${ok ? "ok" : "FAILED"}: ${line}`);
   report.push(`| ${ok ? "ok" : "**failed**"} | ${line} |`);
   if (!ok) process.exitCode = 1;
+}
+
+/// The toolchain repository of this host, as a workspace has it fetched.
+function toolchainDir(workspace: string): string {
+  const external = path.join(run(workspace, ["info", "output_base"]).stdout.trim(), "external");
+  const name = fs.readdirSync(external).find((n) => n.endsWith(`+xclang_${host}`));
+  if (!name) common.fail(`no xclang_${host} repository in ${external}`);
+  return path.join(external, name);
 }
 
 /// The checkout without what is not the module's or the tests'.
@@ -407,6 +417,37 @@ if (!windows) {
     const found = files.filter((f) => !path.isAbsolute(f) && fs.existsSync(path.join(sources, f)));
     check(addresses.every(Boolean) && found.some((f) => f === "debug/main.cpp") && found.some((f) => f.endsWith("/greeter.cpp") && f.startsWith("external/")),
       `llvm-symbolizer: main in debug/main.cpp, greet in external/.../greeter.cpp, both under bazel-<workspace> (${files.join(", ")})`);
+  }
+}
+
+/// 10. A release's strip by the target's object format: //cpp:hello with
+/// -c dbg has debug information, its .stripped none; a Mach-O one keeps no
+/// defined symbol but its header's (Apple's strip, not -x), an ELF or COFF
+/// one fewer, those relocations need. For this host's target, run too, and
+/// for another os's, built here.
+{
+  const workspace = path.join(common.ROOT, "tests", "bazel");
+  const exe = windows ? ".exe" : "";
+  const tool = (name: string) => path.join(toolchainDir(workspace), "bin", `${name}${exe}`);
+  for (const [target, platforms] of [[host, []], [cross, [`--platforms=@xclang//platforms:${cross}`]]] as const) {
+    bazel(workspace, ["build", "-c", "dbg", ...platforms, "//cpp:hello", "//cpp:hello.stripped"]);
+    /// <name>.stripped next to the program (hello.exe on Windows).
+    const program = path.join(workspace, run(workspace, ["cquery", "-c", "dbg", ...platforms, "--output=files", "//cpp:hello"]).stdout.trim());
+    const stripped = path.join(path.dirname(program), "hello.stripped");
+    const sections = (file: string) => spawnSync(tool("llvm-objdump"), ["--section-headers", file], { encoding: "utf8" }).stdout ?? "";
+    const debug = (file: string) => /\s(\.debug_info|__debug_info|\.zdebug_info)\s/.test(sections(file));
+    /// Defined symbols; a Mach-O program keeps its header's, which dyld uses.
+    const defined = (file: string) => (spawnSync(tool("llvm-nm"), ["--defined-only", file], { encoding: "utf8" }).stdout ?? "")
+      .split("\n").filter((l) => l.trim() && !/ __mh_execute_header$/.test(l)).length;
+    const macho = target.includes("apple");
+    const ok = (macho || debug(program)) && !debug(stripped) && (macho ? defined(stripped) === 0 : defined(stripped) < defined(program));
+    let runs = "";
+    if (target === host) {
+      const result = spawnSync(stripped, [], { encoding: "utf8" });
+      runs = result.status === 0 && /hello from xclang/.test(result.stdout ?? "") ? ", and runs" : ", but does not run";
+    }
+    check(ok && !runs.includes("not"), `strip for ${target}: hello.stripped has no debug information and ` +
+      `${defined(stripped)} defined symbols of hello's ${defined(program)}${runs}`);
   }
 }
 

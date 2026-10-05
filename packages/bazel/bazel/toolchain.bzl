@@ -150,6 +150,9 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
     # The linker's ThinLTO cache, where XCLANG_THINLTO_CACHE names one, in
     # the spelling of the target's linker (bazel/thinlto_cache.bzl).
     thinlto_cache = [Label("@xclang_thinlto_cache//:" + ("mach_o" if t.os == "macos" else "lld"))]
+
+    # A release's strip by the target's object format (bazel/BUILD.bazel).
+    strip = [Label("//bazel:strip_all" if t.os == "macos" else "//bazel:strip_unneeded")]
     opt_link_flags = []
     if macos_native:
         # The sanitizers' runtimes are shared libraries on macOS, which the
@@ -177,7 +180,7 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
         cpu = t.cpu,
         cxx_builtin_include_directories = builtin_dirs,
         dbg_compile_flags = ["-g"],
-        extra_enabled_features = thinlto_cache + (gc_sections if t.os == "linux" else []),
+        extra_enabled_features = thinlto_cache + strip + (gc_sections if t.os == "linux" else []),
         extra_known_features = (gc_sections if t.os == "windows" else []) +
                                ([Label("//bazel/dsym:generate_dsym_file")] if dsym_link else []),
         host_system_name = host,

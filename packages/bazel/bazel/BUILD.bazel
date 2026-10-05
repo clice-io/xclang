@@ -27,6 +27,38 @@ cc_args(
     args = ["-Wl,--gc-sections"],
 )
 
+# A release's strip (cc_binary's <name>.stripped; --stripopt adds to it), by
+# the target's object format, on by default (bazel/toolchain.bzl): an ELF or
+# COFF program loses its debug information and the symbols no relocation
+# needs; a Mach-O one every symbol dyld does not bind, as Apple's strip does,
+# its global functions too, whose names dladdr would otherwise give to the
+# addresses of the local ones in a crash log.
+cc_feature(
+    name = "strip_unneeded",
+    args = [":strip_unneeded_args"],
+    feature_name = "release_strip",
+    visibility = ["//visibility:public"],
+)
+
+cc_args(
+    name = "strip_unneeded_args",
+    actions = ["@rules_cc//cc/toolchains/actions:strip"],
+    args = ["--strip-unneeded"],
+)
+
+cc_feature(
+    name = "strip_all",
+    args = [":strip_all_args"],
+    feature_name = "release_strip",
+    visibility = ["//visibility:public"],
+)
+
+cc_args(
+    name = "strip_all_args",
+    actions = ["@rules_cc//cc/toolchains/actions:strip"],
+    args = ["--strip-all"],
+)
+
 # import std and import std.compat: libc++'s modules of the target platform,
 # from the host's toolchain (bazel/toolchain.bzl). A target importing them
 # depends on this and has the cpp_modules feature.
