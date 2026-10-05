@@ -25,7 +25,10 @@ description: Move xclang to a new LLVM release (e.g. 23.1.2 → 23.1.3 or 24.1.0
      build logs);
    - `OPTION_TABLES` in scripts/toolchain.ts: the generated `.inc` paths
      move between versions;
-   - pgo/remap.txt, if mangled names of the profile changed.
+   - pgo/remap.txt, if mangled names of the profile changed;
+   - `LIBRARIES` in packages/bazel/bazel/libclang.bzl, @libclang's names
+     before any archive is fetched: a libclang archive with a library it
+     lacks fails to load (bazel.yml of the run says which).
    lib/clang/<major> and the Bazel module's resource directory follow the
    tree by themselves.
 4. **Bootstrap**: the previous xclang release builds the new LLVM. If a

@@ -104,12 +104,18 @@ Bazel, from the clice registry [bazel.clice.io](https://bazel.clice.io):
 bazel_dep(name = "xclang", version = "23.1.2.5")
 ```
 
+and, from 23.1.2.6 on, another target is a platform:
+
+```sh
+bazel build --platforms=@xclang//platforms:x86_64-w64-mingw32 //...
+```
+
 ## Documentation
 
 - [Installing](docs/install.md): pixi and conda, the release archives, versions
 - [Using clang](docs/clang.md): targets and config files, GCC's library names, sanitizers, `import std` by hand
 - [CMake](docs/cmake.md): `find_package(xclang)`, `xclang::std`, other targets, downloading the toolchain with FetchContent
-- [Bazel](docs/bazel.md): the module, its toolchain, C++20 modules and sanitizers
+- [Bazel](docs/bazel.md): the module, its toolchains, cross-compiling, C++20 modules and sanitizers
 - [libclang and the option tables](docs/libclang.md): for tools built on clang
 - [Hosts, targets and layout](docs/layout.md), and the limits
 - [How a release is built](docs/build.md): the PGO pipeline, the tests, the workflows, the repository

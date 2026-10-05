@@ -33,7 +33,9 @@
      pass (tests/smoke.ts);
    - a small tool on libclang, found through `find_package(Clang)`, builds
      and runs (tests/libclang.ts);
-   - tests/bazel builds and tests with the Bazel module (bazel.yml), and
+   - tests/bazel builds and tests with the Bazel module (bazel.yml; the
+     published release's is cross-compiled for every other target too, and
+     run on a machine of it), and
      tests/cmake with the CMake package, by PATH, for every other target,
      and downloaded by FetchContent, with CMake 3.28 and the newest
      (cmake.yml).

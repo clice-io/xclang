@@ -152,9 +152,11 @@ The prebuilt runtimes stay the default.
 - **A ThinLTO link cache**, planned: a switch in the Bazel module and the
   CMake package that keeps the backend compiles of ThinLTO links, so a
   relink after a small change redoes only what changed.
-- **More targets from CMake and Bazel**, planned: the Bazel module
-  registers the host's toolchain only, and would register one per target;
-  both build systems would take fetched targets as they come.
+- **More targets from CMake and Bazel**, planned: both build systems
+  would take fetched targets as they come, and the Bazel module the vendor
+  SDKs. Its toolchains build for every target of the host's archive today
+  (`--platforms=@xclang//platforms:<triple>`), the macOS ones from macOS
+  hosts.
 
 ## Reproducibility
 

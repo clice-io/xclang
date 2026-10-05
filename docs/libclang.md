@@ -63,7 +63,10 @@ them (system libraries, zlib, zstd), so a target names only what it uses;
 `:headers` and `:resource_dir` are there too. Its code compiles with
 `-fno-rtti`, and the toolchain of the same release links the ThinLTO
 bitcode. `@libclang_asan` is the ASan build, for Linux x64 and macOS arm64,
-used with `--features=asan`.
+used with `--features=asan`. Both are the target platform's: built for
+another target ([cross-compiling](bazel.md#cross-compiling)), a tool links
+that target's archive, which is downloaded only then;
+`@libclang_<triple>` is one target's.
 
 ```starlark
 xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
@@ -71,7 +74,7 @@ use_repo(xclang, "libclang", "libclang_asan", "llvm_option_inc")
 ```
 
 `--repo_env=XCLANG_LIBCLANG_ROOT=<libclang>` (`XCLANG_LIBCLANG_ASAN_ROOT`)
-uses an unpacked archive instead of the release's.
+uses an unpacked archive of the host's instead of the release's.
 
 ## The option tables
 

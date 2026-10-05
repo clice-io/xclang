@@ -68,6 +68,12 @@ Bazel，来自 clice 的模块仓库 [bazel.clice.io](https://bazel.clice.io)：
 bazel_dep(name = "xclang", version = "23.1.2.5")
 ```
 
+23.1.2.6 起，换个 platform 就是另一个目标：
+
+```sh
+bazel build --platforms=@xclang//platforms:x86_64-w64-mingw32 //...
+```
+
 ## 文档
 
 文档为英文：
@@ -75,7 +81,7 @@ bazel_dep(name = "xclang", version = "23.1.2.5")
 - [Installing](docs/install.md)：pixi 和 conda、release 压缩包、版本号
 - [Using clang](docs/clang.md)：目标平台和配置文件、GCC 的库名、sanitizer、手动 `import std`
 - [CMake](docs/cmake.md)：`find_package(xclang)`、`xclang::std`、其它目标平台、用 FetchContent 下载工具链
-- [Bazel](docs/bazel.md)：模块、工具链、C++20 模块和 sanitizer
+- [Bazel](docs/bazel.md)：模块、工具链、交叉编译、C++20 模块和 sanitizer
 - [libclang and the option tables](docs/libclang.md)：给基于 clang 的工具用
 - [Hosts, targets and layout](docs/layout.md)：主机平台、目标平台、目录结构和限制
 - [How a release is built](docs/build.md)：PGO 流程、测试、workflow、仓库结构

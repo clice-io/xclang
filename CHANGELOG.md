@@ -24,6 +24,16 @@ the [patches](docs/patches.md) of its tag.
   (`@xclang//bazel:std`, ...) are the same and the registry's archive holds
   the same tree; a `git_override` of a commit needs `strip_prefix =
   "packages/bazel"` ([docs/bazel.md](docs/bazel.md)).
+- **Bazel cross-compiling** ([docs/bazel.md](docs/bazel.md#cross-compiling)):
+  the module registers the host's toolchain for every target of its
+  archive, and `@xclang//platforms:<triple>` (`x86_64-w64-mingw32`,
+  `aarch64-unknown-linux-gnu`, ...) are platforms for them, with a C library
+  constraint (`@xclang//platforms/libc`); `bazel build
+  --platforms=@xclang//platforms:x86_64-w64-mingw32 //...` builds for Windows
+  from Linux with nothing downloaded but the host's toolchain. The macOS
+  targets build on macOS hosts only, and say so elsewhere. `@libclang`,
+  `@libclang_asan` and `@xclang//bazel:std` are the target platform's; a
+  target's libclang is downloaded only by a build for it.
 - Bazel: the module loads archives without libc++'s ASan build (releases
   before 23.1.2.5) too.
 - The README keeps to what xclang is and where it is going; the rest is
