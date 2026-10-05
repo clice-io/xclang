@@ -8,6 +8,10 @@
 ///   llvm-option-inc-<version>    Linux x64 only: clang's, lld's, llvm-lib's
 ///                                and llvm-dlltool's option tables
 ///
+/// With --cli <dir>, the toolchain carries xclang's own command, bin/xclang,
+/// from <dir>/cli-<host> (scripts/cli.ts); without it, as until it ships,
+/// it does not.
+///
 /// A Windows toolchain has no links at all: its aliases are small programs
 /// (windows/alias.c, put there by scripts/toolchain.ts), and the Linux
 /// sysroots have none (scripts/sysroot.ts). No two paths differ only in
@@ -22,9 +26,10 @@ const { values } = parseArgs({
   options: {
     host: { type: "string" },
     revision: { type: "string", default: "1" },
+    cli: { type: "string" },
   },
 });
-if (!values.host) common.fail("--host <triple> [--revision <n>]");
+if (!values.host) common.fail("--host <triple> [--revision <n>] [--cli <dir>]");
 const host = common.target(values.host);
 const version = `${common.LLVM_VERSION}.${values.revision}`;
 const out = path.join(common.WORK, "out");
@@ -52,6 +57,13 @@ common.writeCMakePackage(path.join(tree, "lib", "cmake", "xclang"), version);
 const bin = path.join(tree, "bin");
 if (host.os === "mingw") fs.copyFileSync(path.join(bin, "llvm-windres.exe"), path.join(bin, "windres.exe"));
 else fs.symlinkSync("llvm", path.join(bin, "windres"));
+if (values.cli) {
+  const name = host.os === "mingw" ? "xclang.exe" : "xclang";
+  const built = path.join(values.cli, `cli-${host.triple}`, name);
+  if (!fs.existsSync(built)) common.fail(`missing ${built}`);
+  fs.copyFileSync(built, path.join(bin, name));
+  fs.chmodSync(path.join(bin, name), 0o755);
+}
 const files = fs.readdirSync(tree, { recursive: true }) as string[];
 if (host.os === "mingw") {
   const links = files.filter((f) => fs.lstatSync(path.join(tree, f)).isSymbolicLink());

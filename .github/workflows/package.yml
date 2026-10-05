@@ -1,7 +1,8 @@
 name: package
 
 # One host's release archives (scripts/package.ts), as the dist-<host>
-# artifact.
+# artifact; with cli-run, the toolchain carries xclang's own command from
+# that run's cli-build-* artifacts (cli.yml).
 
 on:
   workflow_call:
@@ -18,6 +19,9 @@ on:
       toolchain-run:
         type: string
         required: true
+      cli-run:
+        type: string
+        default: ""
 
 jobs:
   package:
@@ -46,11 +50,19 @@ jobs:
           merge-multiple: true
           run-id: ${{ inputs.toolchain-run }}
           github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v8
+        if: ${{ inputs.cli-run != '' }}
+        with:
+          pattern: cli-build-*
+          path: work/cli
+          merge-multiple: true
+          run-id: ${{ inputs.cli-run }}
+          github-token: ${{ github.token }}
       - name: Package
         run: |
           mkdir -p work/out
           for archive in work/artifacts/*.tar.zst; do zstd -dc "$archive" | tar -C work/out -xf -; done
-          pixi run package --host ${{ inputs.host }} --revision ${{ inputs.revision }}
+          pixi run package --host ${{ inputs.host }} --revision ${{ inputs.revision }} ${{ inputs.cli-run != '' && '--cli work/cli' || '' }}
           ls -la work/dist | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v7
         with:

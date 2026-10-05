@@ -1,0 +1,42 @@
+[package]
+name = "xclang"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+description = "Fetches what an xclang toolchain does not carry: vendor SDKs, more targets"
+license = "Apache-2.0"
+repository = "https://github.com/clice-io/xclang"
+publish = false
+
+[features]
+# `xclang sdk update-table`, which appends what the vendors offer to
+# sdk-versions.json; for maintainers, not in the shipped binary.
+maintainer = ["dep:regex-lite", "serde_json/preserve_order"]
+
+[dependencies]
+# HTTPS: rustls with ring (no NASM or CMake to build it), the system's trust
+# store through rustls-platform-verifier, Mozilla's roots (webpki-roots)
+# where the system has none; HTTPS_PROXY / NO_PROXY from the environment.
+ureq = { version = "3.4", default-features = false, features = ["rustls", "platform-verifier"] }
+# sha256, from the ring rustls uses already.
+ring = "0.17"
+# deflate (zip), zlib (xar's table of contents), gzip (Apple's catalogs).
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+# xz (pbzx chunks, .tar.xz), liblzma's C sources built with the C compiler
+# cargo is given: xclang's.
+liblzma = { version = "0.4", default-features = false, features = ["static"] }
+tar = { version = "0.4", default-features = false }
+lexopt = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+regex-lite = { version = "0.1", optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Whether the system has CA certificates at all (SSL_CERT_FILE and
+# SSL_CERT_DIR included); rustls-platform-verifier reads the same.
+rustls-native-certs = "0.8"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

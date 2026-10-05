@@ -77,6 +77,11 @@ run(tool("clang"), ["--version"]);
 /// Windows, programs that start it). FileCheck stands alone.
 const programs = [tool("llvm"), tool("clang"), tool("ld.lld"), tool("llvm-ar"), tool("FileCheck")];
 if (process.platform === "darwin") programs.push(path.join(tree, "lib", "libLTO.dylib"));
+/// xclang's own command, in the archives that carry it (scripts/cli.ts).
+if (fs.existsSync(tool("xclang"))) {
+  programs.push(tool("xclang"));
+  run(tool("xclang"), ["--version"]);
+}
 for (const file of programs) {
   const program = path.basename(file);
   if (!fs.existsSync(file)) {

@@ -39,6 +39,16 @@ export const SOURCES = {
     url: `${XCLANG}/23.1.2.3/xclang-23.1.2.3-aarch64-apple-darwin.tar.xz`,
     sha256: "745351169a32200215acd2bc4f2573ed3627ed4dc27d93c1fd978badc39186b8",
   },
+  /// What builds xclang's own command (scripts/cli.ts): a released
+  /// toolchain, the C compiler and linker of every host's binary.
+  "cli-linux": {
+    url: `${XCLANG}/23.1.2.5/xclang-23.1.2.5-x86_64-unknown-linux-gnu.tar.xz`,
+    sha256: "45b833478833a95ec45a025928df52aef45f14fdbd84e934ea31fe885364ccfc",
+  },
+  "cli-macos": {
+    url: `${XCLANG}/23.1.2.5/xclang-23.1.2.5-aarch64-apple-darwin.tar.xz`,
+    sha256: "2a6be7da6a01700e518e9f5ba085cfb1ed7ba3a7fa8ac7a7e5d0756d1d84a08e",
+  },
   /// Compression for the toolchain (compressed debug sections, profiles),
   /// linked statically.
   "zlib": {

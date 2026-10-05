@@ -14,6 +14,9 @@ name: main
 #   bazel          the Bazel module with every host's archives (bazel.yml)
 #   cmake          the CMake package with every host's archives (cmake.yml)
 #   release        a draft release of everything (needs the profile)
+#
+# With cli, the package stage builds xclang's own command (cli.yml) and puts
+# it into every toolchain archive; off until it ships.
 
 on:
   workflow_dispatch:
@@ -46,6 +49,10 @@ on:
         description: Release revision, the last component of <llvm version>.<revision>
         type: string
         default: "1"
+      cli:
+        description: Put xclang's own command (cli/) into the toolchain archives
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -103,8 +110,15 @@ jobs:
       mode: asan
       runtimes-run: ${{ github.run_id }}
 
+  cli:
+    if: ${{ inputs.cli && contains(inputs.stages, 'package') }}
+    uses: ./.github/workflows/cli.yml
+    with:
+      revision: ${{ inputs.revision }}
+      build-only: true
+
   package:
-    needs: [runtimes, toolchain, asan]
+    needs: [runtimes, toolchain, asan, cli]
     if: ${{ !cancelled() && contains(inputs.stages, 'package') && !contains(needs.*.result, 'failure') }}
     strategy:
       fail-fast: false
@@ -116,6 +130,7 @@ jobs:
       revision: ${{ inputs.revision }}
       runtimes-run: ${{ github.run_id }}
       toolchain-run: ${{ needs.toolchain.result == 'success' && github.run_id || inputs.reuse-run }}
+      cli-run: ${{ needs.cli.result == 'success' && github.run_id || '' }}
 
   test:
     needs: package
