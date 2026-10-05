@@ -90,6 +90,37 @@ cmake --build build-aarch64-w64-mingw32
 - Tests built for another target run on a machine of that target, not on
   the host.
 
+## Build for MSVC Targets
+
+::: warning Unreleased
+The [MSVC targets](../design/roadmap.md#msvc) are in no release.
+:::
+
+`x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc` build with the
+Windows SDK that the toolchain's `xclang` fetched
+([MSVC targets](clang.md#msvc-targets)). Without it, the toolchain file
+stops and says how to fetch it:
+
+<!-- not run: unreleased; msvc.yml builds tests/cmake this way, through tests/msvc.ts -->
+```sh
+$XCLANG/bin/xclang sdk fetch windows --accept-license
+cmake -G Ninja -B build-msvc --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake \
+    -DXCLANG_TARGET=x86_64-pc-windows-msvc
+cmake --build build-msvc
+```
+
+- The compilers are clang and clang++, not clang-cl. `WIN32` is true,
+  `MSVC` false, and `CMAKE_CXX_SIMULATE_ID` is `MSVC`, so a project's
+  `if(MSVC)` options, written for cl's command line, stay out
+  ([why](../design/windows.md#msvc-targets)).
+- The C runtime is the hybrid CRT in every configuration:
+  `CMAKE_MSVC_RUNTIME_LIBRARY` is `MultiThreaded` unless set. Other values
+  work too; CMake's own default would load the VC runtime's DLLs.
+- `xclang::std` is the `std` and `std.compat` of Microsoft's STL.
+- A link writes a PDB when it has `-g`: Debug and RelWithDebInfo do; a
+  target given `-g` in another configuration needs it in
+  `target_link_options` too.
+
 ## Without xclang Installed
 
 A project can download the toolchain itself, before `project()`, so it
@@ -239,7 +270,7 @@ subdirectories ([the ThinLTO cache](../features/thinlto-cache.md)).
 
 | | status |
 |---|---|
-| [MSVC-ABI targets](../design/roadmap.md#msvc) for `XCLANG_TARGET` | Planned |
+| [MSVC-ABI targets](../design/roadmap.md#msvc) for `XCLANG_TARGET` | Unreleased |
 | [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | In research |
 | [Relative paths in debug information](../design/roadmap.md#cmake-relative-paths), as Bazel builds have | Planned |
 | [Fetched targets](../design/roadmap.md#fetched-targets-in-build-systems) beyond the six | Planned |

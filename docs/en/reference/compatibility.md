@@ -36,15 +36,16 @@ What a program loads at run time is in
 
 | | status |
 |---|---|
-| [MSVC-ABI targets](../design/roadmap.md#msvc) (`*-pc-windows-msvc`), with their sanitizers | Planned |
+| [MSVC-ABI targets](../design/roadmap.md#msvc) (`*-pc-windows-msvc`), with their sanitizers | Unreleased |
 | [macOS targets from Linux or Windows hosts](../design/roadmap.md#macos-any-host) | In research |
 | [MemorySanitizer](../design/roadmap.md#msan) | Planned |
 | [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
 
-clang, clang-cl and lld-link already build for `*-pc-windows-msvc` against
-the user's own MSVC and Windows SDK, as upstream clang does. xclang's
-config files and runtimes for those targets come with the
-[planned](../design/roadmap.md#msvc) MSVC targets.
+In a release, clang, clang-cl and lld-link build for `*-pc-windows-msvc`
+against an installed Visual Studio, as upstream clang does. With the
+[unreleased](../design/roadmap.md#msvc) MSVC targets they build against the
+SDK the `xclang` command fetches instead, and `--no-default-config` looks
+for Visual Studio as before.
 
 ## Known Limitations
 

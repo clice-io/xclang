@@ -113,7 +113,7 @@ vendor by the user. None of it is in a release:
 |---|---|
 | [The `xclang` command](../design/roadmap.md#xclang-command), which fetches vendor SDKs | Unreleased |
 | [Target archives for `xclang target add`](../design/roadmap.md#target-archives) | Planned |
-| [MSVC-ABI targets](../design/roadmap.md#msvc) | Planned |
+| [MSVC-ABI targets](../design/roadmap.md#msvc) | Unreleased |
 | [musl targets](../design/roadmap.md#musl) | Planned |
 | [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | In research |
 | [WebAssembly](../design/roadmap.md#wasm), [more Linux architectures](../design/roadmap.md#linux-architectures), [Android](../design/roadmap.md#android) | Considered |

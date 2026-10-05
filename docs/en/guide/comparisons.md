@@ -171,7 +171,7 @@ libclang.
 | | status | who has it |
 |---|---|---|
 | [musl targets](../design/roadmap.md#musl) | Planned | zig cc |
-| [MSVC-ABI targets](../design/roadmap.md#msvc) | Planned | clang-cl with Visual Studio |
+| [MSVC-ABI targets](../design/roadmap.md#msvc) | Unreleased | clang-cl with Visual Studio |
 | [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | In research | zig cc |
 | [Android](../design/roadmap.md#android), [WebAssembly](../design/roadmap.md#wasm), [the BSDs](../design/roadmap.md#freebsd), [bare metal](../design/roadmap.md#bare-metal) | Considered | the NDK, wasi-sdk, zig cc |
 | [iOS and Apple's other devices](../design/roadmap.md#ios) | In research | Xcode |

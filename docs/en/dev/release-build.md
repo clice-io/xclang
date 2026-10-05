@@ -7,7 +7,10 @@ steps for cutting one are in [releasing](releasing.md).
 ## The Stages
 
 1. **Runtimes.** A bootstrap clang builds the sysroot, libc++, libc++abi,
-   libunwind and compiler-rt of every target, and the ASan libc++.
+   libunwind and compiler-rt of every target, and the ASan libc++. The
+   compiler-rt of the [unreleased](../design/roadmap.md#msvc) MSVC targets
+   is built with clang-cl against a Windows SDK fetched in the job by
+   `xclang`; only the libraries leave it.
 2. **Instrumented compiler.** The bootstrap clang builds a clang and lld
    with frontend instrumentation, on Linux x64.
 3. **Training.** The instrumented toolchain compiles a fixed training set
@@ -67,6 +70,7 @@ of building them again.
 | `test` | test.yml | every host's archives, checked on a machine of that host |
 | `bazel` | bazel.yml | the Bazel module with every host's archives |
 | `cmake` | cmake.yml | the CMake package with every host's archives |
+| `msvc` | msvc.yml | the MSVC targets with every host's archives; needs `cli` |
 | `release` | release.yml | a draft release of everything, with `SHA256SUMS` |
 
 With `cli`, the `package` stage also builds the

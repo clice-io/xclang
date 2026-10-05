@@ -219,11 +219,35 @@ normal one only in `_LIBCPP_INSTRUMENTED_WITH_ASAN`. That macro also turns
 on the container checks of `std::string`. Every piece of the C++ of the
 program is then instrumented the same way, and the reports are real.
 
+## MSVC Targets
+
+::: warning Unreleased
+Part of the [MSVC targets](../design/roadmap.md#msvc), which are in no
+release.
+:::
+
+The MSVC targets carry UBSan, and for x64 ASan and libFuzzer, as
+compiler-rt has them for Windows. clang names their libraries itself,
+with `-fsanitize=`, from `lib/clang/<major>/lib/windows`. There is no ASan
+libc++: the C++ library is Microsoft's STL.
+
+- **ASan's runtime is a DLL**, `clang_rt.asan_dynamic-x86_64.dll`, also for
+  a program with the static CRT. Copy it next to the program. It loads
+  `vcruntime140.dll`, as compiler-rt builds it with the DLL CRT.
+- The hybrid CRT, `/MD` and the static CRT all work with ASan.
+- arm64 Windows has no ASan or libFuzzer in LLVM 23.
+
+<!-- not run: unreleased; msvc.yml runs these, through tests/msvc.ts, and their programs on Windows -->
+```sh
+clang++ --target=x86_64-pc-windows-msvc -fsanitize=address -g -O1 asan.cpp -o asan.exe
+clang --target=aarch64-pc-windows-msvc -fsanitize=undefined -O1 ubsan.c -o ubsan.exe
+```
+
 ## Not Yet Supported
 
 | | status |
 |---|---|
-| [Sanitizers for MSVC targets](../design/roadmap.md#msvc), part of the MSVC targets | Planned |
+| [Sanitizers for MSVC targets](../design/roadmap.md#msvc), part of the MSVC targets | Unreleased |
 | [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
 | [MemorySanitizer](../design/roadmap.md#msan) | Planned |
 

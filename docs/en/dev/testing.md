@@ -32,6 +32,7 @@ here instead of naming tests.
 | examples.yml | after publishing, and on pushes that change `examples/` or the workflow | the commands and `examples/` of the docs, as written; the programs for other targets on their runners |
 | docs.yml | pushes that change the docs, `examples/`, `tests/docs.ts` or a workflow, on every branch | `tests/docs.ts`; on `main`, then publishing to docs.clice.io |
 | cli.yml | by hand, and with `cli` in main.yml | the [unreleased](../design/roadmap.md#xclang-command) `xclang` command: `tests/cli.ts`, `tests/cargo.ts` |
+| main.yml, stage `msvc` (msvc.yml) | with `cli`, as the archives then carry `xclang` | the [unreleased](../design/roadmap.md#msvc) MSVC targets: `tests/msvc.ts` |
 | bench.yml | by hand, for the notes or the docs | compile speed against LLVM's and Apple's builds (`tests/bench.ts`) |
 
 How the stages fit together is in the [build pipeline](release-build.md).
@@ -53,8 +54,10 @@ How the stages fit together is in the [build pipeline](release-build.md).
   `-latomic`, `-lgcc`, `-lgcc_eh`, `-lgcc_s`, `-lssp` on Windows,
   `-lstdc++`, and `windres`.
 - The checks each [LLVM patch](../reference/patches.md) was made against.
-  For example, `--target=<arch>-pc-windows-msvc` finds Visual Studio on the
-  Windows runners (patch 0004).
+  For example, `--no-default-config --target=<arch>-pc-windows-msvc` finds
+  Visual Studio on the Windows runners (patch 0004).
+- The MSVC targets: their compiler-rt is there, and without a fetched SDK
+  clang and a plain clang-cl stop and name `sdk/windows`.
 - ASan, TSan and libFuzzer on Linux and macOS hosts. An overflow within
   the capacity of a `std::string` is reported, and a program that shares
   the `std::filesystem` instantiations of `libc++.a` gets no false report
@@ -179,6 +182,31 @@ then:
 
 From Linux, `tests/cargo.ts` builds `cli/` with cargo for macOS and the MSVC
 ABI against the fetched SDKs ([Rust and Cargo](../integrations/cargo.md)).
+
+## MSVC Targets
+
+The MSVC targets are [unreleased](../design/roadmap.md#msvc). msvc.yml
+tests them with a run's archives, from Linux x64, macOS arm64 and Windows
+x64 hosts. On each, `tests/msvc.ts`:
+
+- checks that clang and clang-cl stop without the SDK and name
+  `sdk/windows`;
+- fetches the SDK of `windows-latest` with the archive's `xclang`, and
+  windows-2022's for x64, and switches between them with `sdk use`;
+- builds, for x64 and arm64, C and C++ (exceptions, threads,
+  `<filesystem>`, `<format>`) with clang, clang++ and clang-cl, `__int128`
+  division, a Win32 program, ThinLTO, debug information, UBSan, the profile
+  runtime, and for x64 ASan with the static and the DLL CRT and libFuzzer;
+- checks the DLLs each program imports: the hybrid CRT imports UCRT's API
+  sets and no `vcruntime140.dll` or `msvcp140.dll`; `/MD` and
+  `-fms-runtime-lib=dll` import both; all-static, `/MTd` and
+  `-fms-runtime-lib=static_dbg` import neither; none imports a debug DLL;
+- builds `tests/cmake` for both targets through the toolchain file, and
+  from Linux kotatsu and its tests for x64.
+
+The programs of every host then run on windows-2025 and windows-11-arm,
+and kotatsu's tests in its source tree. Only programs leave a job, never
+anything of the SDK.
 
 ## The Feature Examples
 

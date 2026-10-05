@@ -69,13 +69,13 @@ other toolchains serve these:
 
 | | status | today, use |
 |---|---|---|
-| [MSVC-ABI targets](../design/roadmap.md#msvc), against your own MSVC and Windows SDK | Planned | clang-cl with Visual Studio |
+| [MSVC-ABI targets](../design/roadmap.md#msvc), against your own MSVC and Windows SDK | Unreleased | clang-cl with Visual Studio |
 | [musl targets](../design/roadmap.md#musl) | Planned | zig cc, or a musl cross toolchain |
 | [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | In research | a Mac |
 | [Android, WebAssembly, bare metal, more Linux architectures](../design/roadmap.md#targets) | Considered | the NDK, wasi-sdk, zig cc, or a GCC cross toolchain |
 | [iOS and Apple's other devices](../design/roadmap.md#ios) | In research | Xcode |
 | [MemorySanitizer](../design/roadmap.md#msan) | Planned | |
-| [Sanitizers for MSVC targets](../design/roadmap.md#msvc) | Planned | |
+| [Sanitizers for MSVC targets](../design/roadmap.md#msvc) | Unreleased | |
 | [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered | |
 
 ## Known Limitations

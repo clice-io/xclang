@@ -26,9 +26,9 @@ must be xclang's `clang++`. It finds the package through `PATH`
 
 | name | kind | |
 |---|---|---|
-| `xclang::std` | CMake target | a static library of the `std` and `std.compat` modules of libc++, for the build's target; built only when something links it ([language options](../integrations/cmake.md#use-c-20-modules-and-import-std)) |
+| `xclang::std` | CMake target | a static library of the `std` and `std.compat` modules of libc++ (of Microsoft's STL for the [unreleased](../design/roadmap.md#msvc) MSVC targets), for the build's target; built only when something links it ([language options](../integrations/cmake.md#use-c-20-modules-and-import-std)) |
 | `xclang_add_std(<name>)` | function | another such library; its `PUBLIC` options reach its importers |
-| `xclang_debug_symbols(<program> [GSYM_ARGS <option>...])` | function | after each link of the CMake target `<program>`: `<program>.gsym` next to it, with the output of llvm-gsymutil in `<program>.gsym.log`; for a macOS target, `<program>.dSYM` first ([debugging](../features/debugging.md#usage)) |
+| `xclang_debug_symbols(<program> [GSYM_ARGS <option>...])` | function | after each link of the CMake target `<program>`: `<program>.gsym` next to it, with the output of llvm-gsymutil in `<program>.gsym.log`; for a macOS target, `<program>.dSYM` first ([debugging](../features/debugging.md#usage)); nothing for an MSVC target, whose link writes a PDB |
 | `XCLANG_ROOT` | variable | the toolchain directory |
 | `XCLANG_THINLTO_CACHE` | cache variable | an absolute directory for the ThinLTO cache of the linker; its first value comes from the environment variable of the same name ([the ThinLTO cache](../features/thinlto-cache.md#usage)) |
 
@@ -43,7 +43,7 @@ cmake -G Ninja -B build --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake [-D
 
 | variable | |
 |---|---|
-| `XCLANG_TARGET` | `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-w64-mingw32`, `aarch64-w64-mingw32`, `aarch64-apple-darwin` or `x86_64-apple-darwin`; the host's by default. macOS targets build on macOS only |
+| `XCLANG_TARGET` | `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-w64-mingw32`, `aarch64-w64-mingw32`, `aarch64-apple-darwin` or `x86_64-apple-darwin`; the host's by default. macOS targets build on macOS only. [Unreleased](../design/roadmap.md#msvc): `x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc` |
 | `XCLANG_ROOT` | the toolchain directory, when the file is used from outside one |
 
 It sets the C, C++ and ASM compilers, and the binary tools, to those of the
@@ -63,6 +63,14 @@ programs on the host. The other macOS architecture is
 `CMAKE_OSX_ARCHITECTURES`, which CMake does not treat as cross-compiling.
 The sysroot, C++ library, runtimes and linker come from the config file of
 the target, not from this file.
+
+For an MSVC target, it stops unless the toolchain's `sdk/windows` has the
+SDK for the target. It sets `llvm-rc` as the RC compiler, which CMake runs
+on the output of the target's clang. `CMAKE_MSVC_RUNTIME_LIBRARY` is
+`MultiThreaded` unless set, and a link with `MultiThreadedDebug` or
+`MultiThreadedDebugDLL` gets `/nodefaultlib:ucrt.lib`. The SDK is
+`CMAKE_FIND_ROOT_PATH`, except on a Windows host for its own architecture,
+which is no cross build to CMake.
 
 ## `xclang.cmake`
 

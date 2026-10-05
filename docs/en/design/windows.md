@@ -1,8 +1,10 @@
 # Windows
 
-The Windows targets, `x86_64-w64-mingw32` and `aarch64-w64-mingw32`, are
-MinGW-w64 on UCRT. The Windows toolchains are MinGW programs built on
-Linux.
+The Windows targets of a release, `x86_64-w64-mingw32` and
+`aarch64-w64-mingw32`, are MinGW-w64 on UCRT. The MSVC-ABI targets,
+`x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc`, are
+[unreleased](roadmap.md#msvc). The Windows toolchains are MinGW programs
+built on Linux.
 
 ## Summary
 
@@ -11,7 +13,8 @@ and its programs need nothing but Windows 10 or later. The toolchain
 archives hold no symbolic links, so every tool name is a small launcher;
 that costs a process start per compile. lld's `--gc-sections` drops some
 static initializers for MinGW targets, so the Bazel module leaves it off
-there. MSVC-ABI targets are planned.
+there. The MSVC targets build against the SDK the user fetches, with the
+VC runtime and the STL linked statically and UCRT from Windows.
 
 ## MinGW and MSVC
 
@@ -31,14 +34,73 @@ later, and has the C99 and later functions that msvcrt lacks. It is what
 MSVC programs use too. Programs need Windows 10 or later.
 
 MinGW is not the only Windows ABI people need. Libraries built with MSVC,
-COM-heavy code and vendor SDKs expect the MSVC ABI. MSVC-ABI targets are
-[planned](roadmap.md#msvc) as first-class targets, and are in no release.
+COM-heavy code and vendor SDKs expect the MSVC ABI. So the MSVC targets
+are first-class targets too ([unreleased](roadmap.md#msvc)). Until a
+release has them, use clang-cl with Visual Studio for the MSVC ABI.
 
-They build against the user's own MSVC and Windows SDK, fetched from
-Microsoft by the user ([vendor SDKs](vendor-sdks.md)). The VC runtime and
-the STL are linked statically and UCRT dynamically, which Microsoft calls
-the "hybrid CRT". Until then, use clang-cl with Visual Studio for the MSVC
-ABI.
+## MSVC Targets
+
+The MSVC targets build against Microsoft's CRT, STL and Windows SDK, which
+the user fetches from Microsoft with `xclang sdk fetch windows`
+([vendor SDKs](vendor-sdks.md)). How to use them is in
+[MSVC targets](../integrations/clang.md#msvc-targets).
+
+**The SDK through the config files.** No archive can hold the SDK, so
+the config files of the targets hold no path to one. They include a file
+that the fetch writes into the SDK it fetched, through the fixed path
+`sdk/windows` of the toolchain, a link to the SDK in use
+([config files](toolchain.md#a-config-file-per-target)). That file names
+the SDK and its versions for clang (`-Xmicrosoft-windows-sys-root`) and
+for clang-cl (`/winsysroot`). Config files have no conditions, so without
+an SDK clang stops at the include, naming the file it could not open. It
+never falls back to an installed Visual Studio or to the headers of the
+machine.
+
+**The hybrid CRT.** The VC runtime and the STL are linked statically, as
+`/MT` has them, and UCRT comes from `ucrtbase.dll`, a component of Windows
+10 and later. Microsoft calls this the hybrid CRT. A program then loads
+only Windows' DLLs, as the [hermeticity](hermeticity.md) rule asks, and
+shares one heap, one `errno` and one stdio with every DLL it loads. The
+config files say it in every object: `/nodefaultlib:libucrt.lib` and
+`/defaultlib:ucrt.lib`. So lld-link honours it also when CMake has it link
+on its own. `/MD` takes `ucrt.lib` anyway. The debug CRTs need
+`/nodefaultlib:ucrt.lib` on the link itself, as lld-link reads an object's
+directives in order and the objects name `ucrt.lib` first.
+
+**compiler-rt.** xclang builds it for both targets with clang-cl, against
+windows-2022's SDK (MSVC 14.44), as newer toolsets link libraries of older
+ones. It is in `lib/clang/<major>/lib/windows/clang_rt.<name>-<arch>.lib`,
+the one directory lld-link searches by itself. Neither clang driver links
+the builtins for MSVC targets, so the config files name them in every
+object too; otherwise `__int128` division does not link. The builtins name
+no C runtime (`/Zl`); the profile runtime is built `/MT`, and ASan's DLL
+`/MD`, as compiler-rt builds them for Windows.
+
+**clang-cl.** A plain `clang-cl` reads the config file of its default
+target, `<host triple>-clang-cl.cfg`, before it turns to the MSVC target.
+xclang makes that file the clang-cl file of the MSVC target of the host's
+architecture, so `clang-cl` builds against the fetched SDK with no
+`--target`.
+
+**Visual Studio on Windows hosts.** With the config files, a Windows host
+builds against the fetched SDK too, not an installed Visual Studio: the
+SDK is pinned, and the build is the same on every host.
+`--no-default-config` gives clang's own lookup of Visual Studio, which
+[patch 0004](../reference/patches.md) makes work for the MinGW-built clang.
+
+**CMake uses clang, not clang-cl.** The CMake package compiles and links
+the MSVC targets with clang++, as it does every other target. CMake then
+links through the clang driver, so every link reads the config file. With
+clang-cl, CMake runs lld-link itself, which reads no config file, and
+wants `mt` for manifests, which xclang does not have (`llvm-mt` needs
+libxml2). The Bazel module is planned the same way
+([roadmap](roadmap.md#msvc-bazel)).
+
+**`import std` from the STL.** clang 23 builds `std.ixx` and
+`std.compat.ixx` of Microsoft's STL. For arm64 it takes the `_alloca` of
+`<malloc.h>`, which the STL includes inside the module, for a second
+declaration; the CMake package's copy of `std.ixx` includes `<malloc.h>`
+before the module, with the other C headers.
 
 ## The Launchers
 
@@ -123,7 +185,8 @@ sent upstream as llvm/llvm-project#226794.
 
 | | status |
 |---|---|
-| [MSVC-ABI targets, x64 and arm64, with their sanitizers](roadmap.md#msvc) | Planned |
+| [MSVC-ABI targets, x64 and arm64, with their sanitizers](roadmap.md#msvc) | Unreleased |
+| [MSVC targets in the Bazel module](roadmap.md#msvc-bazel) | Planned |
 | [Windows x86 (MSVC)](roadmap.md#windows-x86-msvc) | In research |
 | [Windows 7 and XP](roadmap.md#windows-7) | In research |
 | [Windows x86 (MinGW)](roadmap.md#windows-x86-mingw) | Considered |

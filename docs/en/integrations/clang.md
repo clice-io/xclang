@@ -37,6 +37,57 @@ Build scripts written for GCC keep working. `-latomic`, `-lgcc`,
 `-lstdc++` means libc++; `windres` is `llvm-windres`
 ([GCC library names](../design/hermeticity.md#gcc-library-names)).
 
+## MSVC Targets
+
+::: warning Unreleased
+The MSVC targets are in no release
+([roadmap](../design/roadmap.md#msvc)). They need the Windows SDK, which
+the `xclang` command fetches, and no release carries that command either.
+:::
+
+`x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc` build against
+Microsoft's CRT, STL and Windows SDK. Fetch them once, accepting
+Microsoft's license; then they build from every host:
+
+<!-- not run: unreleased; msvc.yml runs these, through tests/msvc.ts, from Linux, macOS and Windows -->
+```sh
+xclang sdk fetch windows --accept-license
+clang++ -O2 --target=x86_64-pc-windows-msvc hello.cpp -o hello-msvc-x64.exe
+clang-cl /O2 /EHsc hello.cpp
+clang-cl /O2 /EHsc --target=aarch64-pc-windows-msvc hello.cpp
+```
+
+A plain `clang-cl` builds for the MSVC target of the host's architecture.
+Without the SDK, clang stops and names the file it looks for in the
+toolchain's `sdk/windows`. `xclang sdk use` picks another fetched SDK
+([the xclang command](../reference/xclang-command.md#the-sdk-in-use)).
+
+By default a program links the VC runtime and the STL statically, and
+UCRT from Windows: it loads Windows' DLLs and UCRT's API sets
+(`api-ms-win-crt-*`), no `vcruntime140.dll` or `msvcp140.dll`. That is
+Microsoft's hybrid CRT ([why](../design/windows.md#msvc-targets)). The
+other C runtimes are explicit:
+
+| C runtime | clang, clang++ | clang-cl |
+|---|---|---|
+| hybrid, the default | | `/MT`, the default |
+| the DLLs: `vcruntime140.dll`, `msvcp140.dll` | `-fms-runtime-lib=dll` | `/MD` |
+| all static, UCRT too | `-Wl,/nodefaultlib:ucrt.lib -llibucrt` | `/link /nodefaultlib:ucrt.lib libucrt.lib` |
+| the static debug CRT | `-fms-runtime-lib=static_dbg -Wl,/nodefaultlib:ucrt.lib` | `/MTd /link /nodefaultlib:ucrt.lib` |
+
+The debug CRTs are Visual Studio's, for the machine that built the
+program. `/MDd` loads `ucrtbased.dll`, which only Visual Studio installs.
+
+- `xclang sdk fetch windows --preset windows-2022` fetches the MSVC and
+  Windows SDK of that runner image (MSVC 14.44) instead of the latest.
+- On macOS, clang-cl takes an input such as `/Users/me/hello.cpp` for its
+  `/U` option. Put inputs after `--`, or name them with `/Tp`.
+- `--no-default-config` gives clang's own lookup of an installed Visual
+  Studio, without the fetched SDK.
+- The sanitizers of the MSVC targets are in
+  [sanitizers](../features/sanitizers.md#msvc-targets), CMake in
+  [CMake](cmake.md#build-for-msvc-targets).
+
 ## Make
 
 The target goes into the name of the compiler, so every rule that compiles

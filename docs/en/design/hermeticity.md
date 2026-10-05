@@ -171,7 +171,7 @@ themselves ([Rust and Cargo](../integrations/cargo.md)).
 |---|---|
 | [A pinned macOS SDK, fetched from Apple by the user](roadmap.md#macos-any-host) | In research |
 | [musl targets](roadmap.md#musl), for fully static Linux programs | Planned |
-| [MSVC targets](roadmap.md#msvc), with Microsoft's "hybrid CRT": the VC runtime and the STL static, UCRT dynamic | Planned |
+| [MSVC targets](roadmap.md#msvc), with Microsoft's "hybrid CRT": the VC runtime and the STL static, UCRT dynamic | Unreleased |
 
 Planned targets keep the same rule.
 

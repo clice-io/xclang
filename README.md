@@ -36,8 +36,9 @@ and so build on macOS hosts only.
 
 Not supported yet, each with its status in the roadmap:
 
-- **MSVC-ABI targets**, against the user's own MSVC and Windows SDK:
-  [planned](https://docs.clice.io/xclang/design/roadmap#msvc).
+- **MSVC-ABI targets**, against Microsoft's CRT, STL and Windows SDK, which
+  the user fetches with the `xclang` command:
+  [unreleased](https://docs.clice.io/xclang/design/roadmap#msvc).
 - **macOS targets from Linux or Windows**, with Apple's SDK fetched by the
   user:
   [in research](https://docs.clice.io/xclang/design/roadmap#macos-any-host).

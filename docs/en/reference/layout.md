@@ -19,7 +19,14 @@ xclang/
   lib/cmake/xclang/        the CMake package
   lib/libLTO.dylib         macOS hosts: LTO for the system's ld (-fuse-ld=ld)
   <target>/                the sysroot of each target (below)
+  sdk/                     not in the archive: the vendor SDKs that the
+                           unreleased xclang command fetches, and
+                           sdk/windows, sdk/macos, those in use
 ```
+
+The [unreleased](../design/roadmap.md#msvc) MSVC targets have no
+sysroot: their compiler-rt is `lib/clang/<major>/lib/windows`, their C and
+C++ libraries are the fetched SDK's.
 
 ## Sysroots
 

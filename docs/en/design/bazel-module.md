@@ -82,9 +82,9 @@ toolchain found".
 
 The toolchains ask a platform for its os and cpu only. The platforms of the
 module add a C library constraint (`glibc`, `mingw`, `macosx`) for
-`select()`. The [planned](roadmap.md#msvc) MSVC and musl targets share an os
-and cpu with today's targets, and get toolchains of their own through that
-constraint.
+`select()`. The MSVC and musl targets share an os and cpu with today's targets, and
+get toolchains of their own through that constraint. Both are planned in
+the module: [MSVC](roadmap.md#msvc-bazel) and [musl](roadmap.md#musl).
 
 ## rules_cc's Config, Copied
 

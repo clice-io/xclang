@@ -51,7 +51,7 @@ license.
 | <a id="linux"></a>Linux x64, arm64 | glibc 2.17 | the toolchain | 1 | Supported |
 | <a id="mingw"></a>Windows x64, arm64 (MinGW) | mingw-w64, UCRT | the toolchain | 1 | Supported |
 | <a id="macos"></a>macOS arm64, x64, from macOS hosts | Apple's SDK | Xcode | 1 | Supported |
-| <a id="msvc"></a>Windows x64, arm64 (MSVC), with their sanitizers | Microsoft's CRT and STL, Windows SDK | the user (SDK) | 1 | Planned |
+| <a id="msvc"></a>Windows x64, arm64 (MSVC), with their sanitizers | Microsoft's CRT and STL, Windows SDK | the user (SDK) | 1 | Unreleased |
 | <a id="macos-any-host"></a>macOS arm64, x64, from Linux and Windows hosts | Apple's SDK | the user (SDK) | 1 | In research |
 | <a id="musl"></a>Linux x64, arm64 (musl) | musl | xclang | 1 | Planned |
 | <a id="windows-x86-msvc"></a>Windows x86 (MSVC) | Microsoft's CRT and STL, Windows SDK | the user (SDK) | 1 | In research |
@@ -77,13 +77,16 @@ license.
 
 What sets these targets apart:
 
-- **MSVC targets.** They are planned as first-class targets, as the MinGW
-  ones are, and are being built on a branch. The default C runtime is
-  Microsoft's "hybrid CRT": the VC runtime and the STL static, UCRT
-  dynamic. xclang adds compiler-rt: the builtins, the profile runtime and
-  UBSan, and for x64 AddressSanitizer, whose runtime is a DLL, and
-  libFuzzer. The MSVC and Windows SDK versions are pinned to ones the
-  shipped clang accepts.
+- **MSVC targets.** First-class targets, as the MinGW ones are, on `main`
+  and in no release. The default C runtime is Microsoft's "hybrid CRT":
+  the VC runtime and the STL static, UCRT dynamic. xclang builds their
+  compiler-rt: the builtins, the profile runtime and UBSan, and for x64
+  AddressSanitizer, whose runtime is a DLL, and libFuzzer. The MSVC and
+  Windows SDK versions are pinned to ones the shipped clang accepts, and
+  the user fetches them with the [`xclang` command](#xclang-command), so a
+  release with them carries the command too
+  ([Windows](windows.md#msvc-targets)). CMake builds them; the Bazel module
+  does not yet ([below](#msvc-bazel)).
 - **macOS from any host.** Apple's macOS SDK is in the Command Line Tools
   package on Apple's update servers, and needs no Apple ID to download.
   Whether building with it outside a Mac can be done well is in research
@@ -117,6 +120,7 @@ What sets these targets apart:
 | <a id="xclang-command"></a>The `xclang` command: `xclang sdk fetch` for the vendor SDKs | Unreleased |
 | <a id="target-archives"></a>Target archives and a release index, for `xclang target add` | Planned |
 | <a id="fetched-targets-in-build-systems"></a>Fetched targets and vendor SDKs in the CMake package and the Bazel module | Planned |
+| <a id="msvc-bazel"></a>The MSVC targets in the Bazel module, with the Windows SDK fetched by a repository rule | Planned |
 
 `xclang` is a program in Rust (`cli/`), built for every host with xclang as
 its C compiler and linker. CI builds and tests it on every host, but no
@@ -134,7 +138,12 @@ it in every toolchain archive.
   manifests are: archive, sha256, size, tier and the SDK it needs.
 - The CMake package and the Bazel module take fetched targets as they
   come. Today their toolchains build for the six targets of the host's
-  archive.
+  archive, and the CMake package for the MSVC targets with the fetched
+  SDK.
+- The plan for the MSVC targets in the Bazel module: a repository rule
+  fetches the Windows SDK once the user accepts its license in
+  `MODULE.bazel`, and the targets build with the GNU-style clang of the
+  other toolchains.
 
 ## Runtimes and Tools
 

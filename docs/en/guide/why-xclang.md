@@ -115,7 +115,7 @@ FetchContent or the Bazel registry.
 
 | | status |
 |---|---|
-| [MSVC-ABI targets](../design/roadmap.md#msvc) | Planned |
+| [MSVC-ABI targets](../design/roadmap.md#msvc) | Unreleased |
 | [musl targets](../design/roadmap.md#musl), for fully static Linux programs | Planned |
 | [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | In research |
 | [More Linux architectures, WebAssembly, Android, BSDs, bare metal](../design/roadmap.md#targets) | Considered |

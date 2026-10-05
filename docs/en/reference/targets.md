@@ -29,21 +29,25 @@ GitHub-hosted runner.
 | `aarch64-w64-mingw32` | `aarch64-w64-windows-gnu`, `aarch64-pc-windows-gnu` | mingw-w64 with UCRT | Windows 10 or later | every host |
 | `aarch64-apple-darwin` | `arm64-apple-darwin`, `arm64-apple-macos`, `aarch64-apple-macosx`, ... | the SDK's libSystem | macOS 13.0 or later | macOS hosts |
 | `x86_64-apple-darwin` | `x86_64-apple-macos`, `x86_64-apple-macosx` | the SDK's libSystem | macOS 13.0 or later | macOS hosts |
+| `x86_64-pc-windows-msvc`, [unreleased](../design/roadmap.md#msvc) | `x86_64-unknown-windows-msvc` | Microsoft's CRT and STL, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches |
+| `aarch64-pc-windows-msvc`, [unreleased](../design/roadmap.md#msvc) | `aarch64-unknown-windows-msvc` | Microsoft's CRT and STL, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches |
 
 All six are tier 1. The macOS targets build on macOS hosts only, because
 they need Apple's SDK, which comes from Xcode there
-([macOS](../design/macos.md#the-sdk-is-xcode-s)).
+([macOS](../design/macos.md#the-sdk-is-xcode-s)). The MSVC targets are
+tier 1 too: CI runs their programs on Windows x64 and arm64 runners
+([MSVC targets](../integrations/clang.md#msvc-targets)).
 
 ## What Each Target Has
 
-| | Linux | Windows | macOS |
-|---|---|---|---|
-| libc++, libc++abi | static | static | static (not the system's `libc++.dylib`) |
-| unwinder | libunwind, static | libunwind, static | the system's (libSystem) |
-| compiler-rt builtins, profile | Supported | Supported | Supported |
-| ASan, TSan, LSan, UBSan, libFuzzer | Supported | Considered | Supported |
-| ASan libc++ | Supported | Considered | Supported |
-| linker | ld.lld | ld.lld (MinGW driver) | ld64.lld; `-fuse-ld=ld` for Apple's |
+| | Linux | Windows (MinGW) | macOS | Windows (MSVC) |
+|---|---|---|---|---|
+| C++ library | libc++, libc++abi, static | libc++, libc++abi, static | libc++, libc++abi, static (not the system's `libc++.dylib`) | Microsoft's STL, static |
+| unwinder | libunwind, static | libunwind, static | the system's (libSystem) | the VC runtime's, static |
+| compiler-rt builtins, profile | Supported | Supported | Supported | Unreleased |
+| ASan, TSan, LSan, UBSan, libFuzzer | Supported | Considered | Supported | Unreleased: UBSan; ASan and libFuzzer for x64 |
+| ASan libc++ | Supported | Considered | Supported | none: the STL |
+| linker | ld.lld | ld.lld (MinGW driver) | ld64.lld; `-fuse-ld=ld` for Apple's | lld-link |
 
 Sanitizers for the MinGW targets are
 [considered](../design/roadmap.md#mingw-sanitizers); those of the MSVC
@@ -69,7 +73,7 @@ their target, with no emulator
 
 | | status |
 |---|---|
-| [Sanitizers for MSVC targets](../design/roadmap.md#msvc), with the MSVC targets | Planned |
+| [MSVC targets](../design/roadmap.md#msvc), with their sanitizers | Unreleased |
 | [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
 | [macOS targets from Linux and Windows hosts](../design/roadmap.md#macos-any-host) | In research |
 

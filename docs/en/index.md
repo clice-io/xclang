@@ -55,12 +55,13 @@ and digest. CI builds and tests it from `main`
 
 <!-- END CAPABILITY -->
 
-<!-- BEGIN CAPABILITY: planned -->
+<!-- BEGIN CAPABILITY: unreleased -->
 
 **MSVC-ABI targets**
 
-Windows x64 and arm64 with Microsoft's CRT and STL, from every host, with
-their sanitizers ([roadmap](./design/roadmap.md#msvc)).
+Windows x64 and arm64 with Microsoft's CRT and STL, fetched by the xclang
+command, from every host, with their sanitizers. CI builds and runs them
+from `main` ([roadmap](./design/roadmap.md#msvc)).
 
 <!-- END CAPABILITY -->
 

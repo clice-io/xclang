@@ -21,6 +21,32 @@ the [patches](docs/en/reference/patches.md) of its tag.
   target run on a runner of that target. tests/docs.ts checks that the
   docs show those files and the commands examples.yml runs, and that their
   links reach pages and headings.
+- **MSVC targets**, `x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc`,
+  against Microsoft's CRT, STL and Windows SDK, which the toolchain's own
+  `xclang sdk fetch windows --accept-license` fetches into its `sdk/`
+  ([MSVC targets](docs/en/integrations/clang.md#msvc-targets)), from every
+  host: config files for clang and clang-cl. By default the hybrid CRT:
+  the VC runtime and the STL linked statically, UCRT Windows' own DLL, so
+  a program loads no `vcruntime140.dll`; the DLLs (`/MD`), all-static and
+  the static debug CRT on request. compiler-rt for both, built by xclang
+  in `lib/clang/23/lib/windows`: the builtins (named in every object, so
+  `__int128` division links), the profile runtime, UBSan, and for x64
+  AddressSanitizer (a DLL) and libFuzzer. They need the `xclang` command
+  in the archives.
+- A plain `clang-cl`, and `clang --target=<arch>-pc-windows-msvc`, build
+  with the fetched SDK, and without it stop and name `sdk/windows`, where
+  they took an installed Visual Studio; `--no-default-config` looks for one
+  as before.
+- `xclang sdk`: the SDK in use is `sdk/windows` (and `sdk/macos`), a link
+  to the one fetched last; `xclang sdk use <name>` switches. A Windows SDK
+  holds the config files that name it, the STL's `std` modules and the
+  static runtime's PDBs
+  ([the xclang command](docs/en/reference/xclang-command.md#the-sdk-in-use)).
+- CMake: `XCLANG_TARGET=x86_64-pc-windows-msvc` (or aarch64) builds with
+  clang and clang++ and the hybrid CRT (`CMAKE_MSVC_RUNTIME_LIBRARY`
+  `MultiThreaded` unless set); `xclang::std` is the STL's `std` and
+  `std.compat` for them
+  ([CMake](docs/en/integrations/cmake.md#build-for-msvc-targets)).
 
 ## [23.1.2.6](https://github.com/clice-io/xclang/releases/tag/23.1.2.6) — 2026-10-05
 

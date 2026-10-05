@@ -16,9 +16,11 @@ xclang never redistributes a vendor SDK. Its design is that the user fetches
 it from the vendor, by a pinned version and digest, after accepting the
 vendor's license. The command for that is
 [unreleased](roadmap.md#xclang-command). The targets that need it are
-[planned](roadmap.md#msvc) (MSVC) and
+[unreleased](roadmap.md#msvc) (MSVC) and
 [in research](roadmap.md#macos-any-host) (macOS from Linux and Windows
-hosts).
+hosts). The SDK in use is a link in the toolchain's `sdk/`, so config
+files name a fixed path while versions change
+([the SDK in use](../reference/xclang-command.md#the-sdk-in-use)).
 
 ## Why Fetch, Not Ship
 
