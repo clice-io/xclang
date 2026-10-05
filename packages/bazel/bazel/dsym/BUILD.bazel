@@ -1,0 +1,33 @@
+load("@rules_cc//cc/toolchains:args.bzl", "cc_args")
+load("@rules_cc//cc/toolchains:feature.bzl", "cc_feature")
+
+# The dSYM of a macOS program, from its link: rules_cc's generate_dsym_file
+# feature (--apple_generate_dsym, or features = ["generate_dsym_file"]) makes
+# cc_binary declare <name>.dSYM, in the output group dsyms, and this has the
+# toolchain's dsym_link.sh write it with dsymutil (bazel/repositories.bzl).
+# (rules_cc validates a format key of env as the variable's own name.)
+cc_feature(
+    name = "generate_dsym_file",
+    args = [
+        ":dsym",
+        ":dsym_binary",
+    ],
+    feature_name = "generate_dsym_file",
+    visibility = ["//visibility:public"],
+)
+
+cc_args(
+    name = "dsym",
+    actions = ["@rules_cc//cc/toolchains/actions:link_executable_actions"],
+    env = {"XCLANG_DSYM": "{dsym_path}"},
+    format = {"dsym_path": "@rules_cc//cc/toolchains/variables:dsym_path"},
+    requires_not_none = "@rules_cc//cc/toolchains/variables:dsym_path",
+)
+
+cc_args(
+    name = "dsym_binary",
+    actions = ["@rules_cc//cc/toolchains/actions:link_executable_actions"],
+    env = {"XCLANG_DSYM_BINARY": "{output_execpath}"},
+    format = {"output_execpath": "@rules_cc//cc/toolchains/variables:output_execpath"},
+    requires_not_none = "@rules_cc//cc/toolchains/variables:output_execpath",
+)

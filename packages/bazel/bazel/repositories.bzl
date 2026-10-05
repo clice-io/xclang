@@ -42,6 +42,27 @@ _SCAN_DEPS_BAT = """\
 "%~dp0bin\\clang-scan-deps.exe" -format=p1689 -- "%~dp0bin\\clang++.exe" %* > "%DEPS_SCANNER_OUTPUT_FILE%"\r
 """
 
+# The linker of macOS targets (link_tool): clang, and for a link with the
+# generate_dsym_file feature (bazel/dsym), which names the dSYM and the
+# program in XCLANG_DSYM and XCLANG_DSYM_BINARY, the program's dSYM by
+# dsymutil. The debug map points into the link's objects, so dsymutil runs
+# in the same action, where they are; ThinLTO's are kept for it beside the
+# dSYM, as clang keeps them when it compiles and links in one command, and
+# the functions identical code folding merged keep their entries in the
+# debug map (--keep-icf-stabs), so the dSYM has their names too.
+_DSYM_LINK_SH = """\
+#!/bin/sh
+dir=$(dirname "$0")
+[ -n "$XCLANG_DSYM" ] || exec "$dir/bin/clang" "$@"
+lto="$XCLANG_DSYM.lto"
+rm -rf "$lto" && mkdir -p "$lto" &&
+    "$dir/bin/clang" "$@" "-Wl,-object_path_lto,$lto" -Wl,--keep-icf-stabs &&
+    "$dir/bin/dsymutil" "$XCLANG_DSYM_BINARY" -o "$XCLANG_DSYM"
+status=$?
+rm -rf "$lto"
+exit $status
+"""
+
 def _toolchain_impl(rctx):
     host = rctx.attr.host
     local = rctx.getenv("XCLANG_ROOT")
@@ -69,6 +90,8 @@ def _toolchain_impl(rctx):
             root,
             clang_version,
         ))
+    if TARGETS[host].os == "macos":
+        rctx.file("dsym_link.sh", _DSYM_LINK_SH, executable = True)
     if TARGETS[host].os == "windows":
         rctx.file("scan_deps.bat", _SCAN_DEPS_BAT)
     else:
@@ -189,8 +212,9 @@ xclang_unix_config = repository_rule(
 xclang's patches: Windows names for MinGW's executables and DLLs
 (rules_cc-mingw.patch), and xclang's defaults (rules_cc-xclang.patch): static
 linking unless a target asks for the supports_dynamic_linker feature, other
-repositories' headers as system headers (external_include_paths), and the
-sanitizer features' link flags (sanitizer_link_flags). Its loads are rules_cc's
+repositories' headers as system headers (external_include_paths), the
+sanitizer features' link flags (sanitizer_link_flags), and a program of the
+links' own (link_tool). Its loads are rules_cc's
 public files, so a copy works from here; no consumer needs an override of
 rules_cc.""",
 )

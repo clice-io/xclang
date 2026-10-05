@@ -1,0 +1,61 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@xclang//bazel:debug_symbols.bzl", "xclang_debug_symbols")
+
+# Debug symbols, which tests/bazel.ts builds and checks: a program's GSYM,
+# and on macOS the dSYM its link makes. Manual: they need --strip=never in
+# fastbuild, which otherwise strips the programs of their DWARF.
+cc_binary(
+    name = "hello",
+    srcs = ["hello.cpp"],
+    copts = ["-g"],
+    features = ["generate_dsym_file"],
+)
+
+xclang_debug_symbols(
+    name = "hello_symbols",
+    binary = ":hello",
+    tags = ["manual"],
+)
+
+# The same, linked with identical code folding: twin_a and twin_b, merged,
+# both in the GSYM (--merged-functions) and, on macOS, in the dSYM.
+cc_binary(
+    name = "hello_icf",
+    srcs = ["hello.cpp"],
+    copts = [
+        "-g",
+        "-ffunction-sections",
+    ],
+    features = ["generate_dsym_file"],
+    linkopts = ["-Wl,--icf=all"],
+)
+
+xclang_debug_symbols(
+    name = "hello_icf_symbols",
+    binary = ":hello_icf",
+    gsymutil_args = ["--merged-functions"],
+    tags = ["manual"],
+)
+
+# A tool on libclang, whose code ThinLTO generates in the link: its debug
+# information reaches the dSYM and the GSYM too.
+cc_binary(
+    name = "lexer",
+    srcs = ["//libclang:main.cpp"],
+    copts = [
+        "-fno-rtti",
+        "-g",
+    ],
+    features = ["generate_dsym_file"],
+    deps = [
+        "@libclang//:clangBasic",
+        "@libclang//:clangLex",
+        "@libclang//:LLVMSupport",
+    ],
+)
+
+xclang_debug_symbols(
+    name = "lexer_symbols",
+    binary = ":lexer",
+    tags = ["manual"],
+)

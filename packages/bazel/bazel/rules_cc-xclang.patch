@@ -1,6 +1,41 @@
 --- a/cc/private/toolchain/unix_cc_toolchain_config.bzl
 +++ b/cc/private/toolchain/unix_cc_toolchain_config.bzl
-@@ -677,7 +677,9 @@
+@@ -277,6 +277,34 @@
+         implies = ["archiver_flags", "linker_param_file"],
+     ))
+ 
++    # The links' own program (link_tool) in place of the compiler's, with
++    # the features the legacy action configs of links imply.
++    if ctx.attr.link_tool:
++        link_implies = [
++            "strip_debug_symbols",
++            "linkstamps",
++            "output_execpath_flags",
++            "runtime_library_search_directories",
++            "library_search_directories",
++            "libraries_to_link",
++            "user_link_flags",
++            "legacy_link_flags",
++            "linker_param_file",
++            "fission_support",
++            "sysroot",
++        ]
++        action_configs.append(action_config(
++            action_name = ACTION_NAMES.cpp_link_executable,
++            tools = [tool(path = ctx.attr.link_tool)],
++            implies = link_implies + ["force_pic_flags"],
++        ))
++        for action_name in [ACTION_NAMES.cpp_link_dynamic_library, ACTION_NAMES.cpp_link_nodeps_dynamic_library]:
++            action_configs.append(action_config(
++                action_name = action_name,
++                tools = [tool(path = ctx.attr.link_tool)],
++                implies = ["build_interface_libraries", "dynamic_library_linker_tool", "shared_flag"] + link_implies,
++            ))
++
+     llvm_cov = ctx.attr.tool_paths.get("llvm-cov")
+     if llvm_cov:
+         llvm_cov_action = action_config(
+@@ -677,7 +705,9 @@
          provides = ["profile"],
      )
  
@@ -11,7 +46,7 @@
  
      user_compile_flags_feature = feature(
          name = "user_compile_flags",
-@@ -1177,6 +1179,9 @@
+@@ -1177,6 +1207,9 @@
                  ],
              ),
          ],
@@ -21,7 +56,7 @@
      )
  
      strip_debug_symbols_feature = feature(
-@@ -1756,10 +1761,10 @@
+@@ -1756,10 +1789,10 @@
          specific_compile_flags = [
              "-fsanitize=address",
              "-fno-common",
@@ -34,7 +69,7 @@
      )
  
      lsan_feature = _sanitizer_feature(
-@@ -1770,7 +1775,7 @@
+@@ -1770,7 +1803,7 @@
          ],
          specific_link_flags = [
              "-fsanitize=leak",
@@ -43,7 +78,7 @@
      )
  
      tsan_feature = _sanitizer_feature(
-@@ -1780,7 +1785,7 @@
+@@ -1780,7 +1813,7 @@
          ],
          specific_link_flags = [
              "-fsanitize=thread",
@@ -52,7 +87,7 @@
      )
  
      ubsan_feature = _sanitizer_feature(
-@@ -1790,7 +1795,7 @@
+@@ -1790,7 +1823,7 @@
          ],
          specific_link_flags = [
              "-fsanitize=undefined",
@@ -61,7 +96,7 @@
      )
  
      # If you have Xcode + the CLT installed the version defaults can be
-@@ -2152,6 +2157,11 @@
+@@ -2152,6 +2185,13 @@
          "opt_compile_flags": attr.string_list(),
          "opt_link_flags": attr.string_list(),
          "supports_start_end_lib": attr.bool(),
@@ -70,6 +105,8 @@
 +        # The asan feature's own: the ASan build of libc++.
 +        "asan_compile_flags": attr.string_list(),
 +        "asan_link_flags": attr.string_list(),
++        # The program of link actions, if not tool_paths' gcc.
++        "link_tool": attr.string(),
          "target_libc": attr.string(mandatory = True),
          "target_system_name": attr.string(mandatory = True),
          "tool_paths": attr.string_dict(),

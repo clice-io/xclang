@@ -74,9 +74,13 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
     resource = "lib/clang/" + clang_version
     config = "cfg/%s.cfg" % target
 
+    # macOS targets link through dsym_link.sh, which makes the dSYM of a
+    # link with the generate_dsym_file feature (bazel/dsym).
+    dsym_link = ["dsym_link.sh"] if t.os == "macos" else []
+
     native.filegroup(
         name = name + "_bin",
-        srcs = native.glob(["bin/**"]),
+        srcs = native.glob(["bin/**"]) + dsym_link,
     )
     native.filegroup(
         name = name + "_compiler_files",
@@ -164,9 +168,11 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
         cxx_builtin_include_directories = builtin_dirs,
         dbg_compile_flags = ["-g"],
         extra_enabled_features = thinlto_cache + (gc_sections if t.os == "linux" else []),
-        extra_known_features = gc_sections if t.os == "windows" else [],
+        extra_known_features = (gc_sections if t.os == "windows" else []) +
+                               ([Label("//bazel/dsym:generate_dsym_file")] if dsym_link else []),
         host_system_name = host,
         link_flags = link_flags,
+        link_tool = dsym_link[0] if dsym_link else "",
         opt_compile_flags = ["-O2", "-DNDEBUG", "-ffunction-sections", "-fdata-sections"],
         opt_link_flags = opt_link_flags,
         sanitizer_link_flags = sanitizer_link_flags,

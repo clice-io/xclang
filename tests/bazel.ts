@@ -27,6 +27,9 @@
 ///    libclang's bitcode: the directory made by the module, again once
 ///    gone; a second link takes every module's code from it; the program is
 ///    the same without it.
+/// 8. Debug symbols by xclang_debug_symbols: GSYM, and dSYM on macOS, with
+///    the lines of the program's code and of libclang's after ThinLTO; for
+///    the target of another os too.
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -305,6 +308,35 @@ if (!windows) {
   bazel(workspace, ["build", ...flags, "//libclang:libclang_test"]);
   check(fs.existsSync(dir), `ThinLTO cache: ${dir} made again once gone`);
   fs.rmSync(dir, { recursive: true, force: true });
+}
+
+/// 8. Debug symbols: tests/bazel/symbols' programs, not stripped, with
+/// xclang_debug_symbols' GSYM (and on macOS the dSYM of the link), read by
+/// the toolchain's llvm-gsymutil: main at its line of hello.cpp, and in the
+/// tool on libclang the code ThinLTO generated from libclang's Lexer.cpp.
+/// Also for the target of another os, by this host's llvm-gsymutil.
+{
+  const workspace = path.join(common.ROOT, "tests", "bazel");
+  const symbols = ["--strip=never", "//symbols:hello_symbols", "//symbols:hello_icf_symbols", "//symbols:lexer_symbols"];
+  const other = bazel(workspace, ["build", `--platforms=@xclang//platforms:${cross}`, ...symbols]);
+  check(other.executed > 0, `debug symbols: GSYM of the programs for ${cross}`);
+  bazel(workspace, ["build", ...symbols]);
+  const external = path.join(run(workspace, ["info", "output_base"]).stdout.trim(), "external");
+  const toolchain = fs.readdirSync(external).find((name) => name.endsWith(`+xclang_${host}`));
+  const gsymutil = path.join(external, toolchain ?? "", "bin", `llvm-gsymutil${windows ? ".exe" : ""}`);
+  const bin = path.join(workspace, "bazel-bin", "symbols");
+  const programs = [
+    ["hello", /hello\.cpp:9\b/, "main at hello.cpp:9"],
+    ["hello_icf", /twin_a[\s\S]*twin_b|twin_b[\s\S]*twin_a/, "main and both functions identical code folding merged"],
+    ["lexer", /clang[\\/]lib[\\/]Lex[\\/]Lexer\.cpp/, "main and libclang's Lexer.cpp"],
+  ] as const;
+  for (const [program, wanted, what] of programs) {
+    const dump = spawnSync(gsymutil, [path.join(bin, `${program}.gsym`)], { encoding: "utf8", maxBuffer: 1 << 30 });
+    const dsym = process.platform !== "darwin" ||
+      fs.existsSync(path.join(bin, `${program}.dSYM`, "Contents", "Resources", "DWARF", program));
+    check(dump.status === 0 && /"main"/.test(dump.stdout) && wanted.test(dump.stdout) && dsym,
+      `debug symbols: ${program}.gsym${process.platform === "darwin" ? ` from ${program}.dSYM` : ""} has ${what}`);
+  }
 }
 
 if (process.env.GITHUB_STEP_SUMMARY) {
