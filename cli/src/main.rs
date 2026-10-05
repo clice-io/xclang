@@ -139,10 +139,12 @@ xclang: fetches what the toolchain does not carry.
   xclang sdk fetch windows --accept-license [--preset P] [--msvc-version V]
           [--sdk-version V] [--arch x86_64,aarch64,x86]
       the MSVC runtime and STL and the Windows SDK, from Microsoft, as a
-      /winsysroot: clang-cl --target=x86_64-pc-windows-msvc
-      /winsysroot \"$(xclang sdk path windows)\"
+      /winsysroot, which the toolchain's MSVC targets then use:
+      clang++ --target=x86_64-pc-windows-msvc, clang-cl
   xclang sdk path macos|windows [the options of fetch]
       where the SDK fetch would fetch is
+  xclang sdk use <name>
+      use another fetched SDK of its vendor (fetch uses the one it fetched)
   xclang sdk remove <name>
       remove a fetched SDK (its name as sdk list shows it)
   xclang target list

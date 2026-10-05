@@ -35,7 +35,10 @@ pub fn member(kind: Kind, name: &str, version: &str) -> Option<String> {
     match kind {
         // Headers, and an architecture's own libraries and link-option
         // objects (setargv.obj, ...), not those for Store apps, UWP or
-        // enclaves; no debug symbols.
+        // enclaves, with the PDBs of the static runtime, which its objects
+        // name (libcpmt.amd64.pdb): a debug link finds them next to the
+        // libraries rather than warn (LNK4099), and a debugger steps into
+        // the runtime.
         Kind::Crt => {
             let rest = name.strip_prefix("Contents/")?;
             let (toolset, tail) = rest.strip_prefix("VC/Tools/MSVC/")?.split_once('/')?;
@@ -45,8 +48,15 @@ pub fn member(kind: Kind, name: &str, version: &str) -> Option<String> {
             if tail.strip_prefix("include/").is_some_and(|f| !f.is_empty()) {
                 return Some(rest.to_string());
             }
+            // The STL's std and std.compat modules (std.ixx, modules.json).
+            if tail
+                .strip_prefix("modules/")
+                .is_some_and(|f| !f.is_empty() && !f.contains('/'))
+            {
+                return Some(rest.to_string());
+            }
             let (arch, file) = tail.strip_prefix("lib/")?.split_once('/')?;
-            let library = [".lib", ".obj"]
+            let library = [".lib", ".obj", ".pdb"]
                 .iter()
                 .any(|ext| file.len() > 4 && file.ends_with(ext));
             (matches!(arch, "x64" | "arm64" | "x86") && !file.contains('/') && library)
@@ -205,6 +215,42 @@ pub fn unpack(packages: &[(Kind, PathBuf)], out: &Path, archs: &[&str]) -> Resul
         sdk_version: version,
         toolset,
     })
+}
+
+/// clang's config files for the SDK at dir, one per architecture and driver,
+/// which the toolchain's own (bin/<triple>.cfg, bin/<triple>-clang-cl.cfg)
+/// read through the SDK directory's alias, <sdk dir>/windows: the
+/// /winsysroot is the directory the file is in, as clang reaches it.
+pub fn write_configs(dir: &Path, archs: &[String], u: &Unpacked, what: &str) -> Result<()> {
+    for arch in archs {
+        let triple = match arch.as_str() {
+            "x86" => "i686-pc-windows-msvc".to_string(),
+            a => format!("{a}-pc-windows-msvc"),
+        };
+        let head = format!("# {what}, for {triple}: written by xclang sdk fetch windows.\n");
+        let files = [
+            (
+                format!("{triple}.cfg"),
+                format!(
+                    "{head}-Xmicrosoft-windows-sys-root <CFGDIR>\n\
+                     -Xmicrosoft-visualc-tools-version {}\n\
+                     -Xmicrosoft-windows-sdk-version {}\n",
+                    u.toolset, u.sdk_version
+                ),
+            ),
+            (
+                format!("{triple}-clang-cl.cfg"),
+                format!(
+                    "{head}/winsysroot <CFGDIR>\n/vctoolsversion {}\n/winsdkversion {}\n",
+                    u.toolset, u.sdk_version
+                ),
+            ),
+        ];
+        for (name, text) in files {
+            fs::write(dir.join(&name), text).context(dir.join(&name).display())?;
+        }
+    }
+    Ok(())
 }
 
 /// Spellings in use that no header writes, Microsoft's documentation's
@@ -473,11 +519,21 @@ mod tests {
             Some("VC/Tools/MSVC/14.44.35207/lib/x64/libcmt.lib")
         );
         assert_eq!(
+            crt("Contents/VC/Tools/MSVC/14.44.35207/modules/std.ixx").as_deref(),
+            Some("VC/Tools/MSVC/14.44.35207/modules/std.ixx")
+        );
+        assert_eq!(
             crt("Contents/VC/Tools/MSVC/14.44.35207/lib/x64/store/msvcrt.lib"),
             None
         );
         assert_eq!(
-            crt("Contents/VC/Tools/MSVC/14.44.35207/lib/x64/libcmt.pdb"),
+            crt("Contents/VC/Tools/MSVC/14.44.35207/lib/x64/libcpmt.amd64.pdb").as_deref(),
+            Some("VC/Tools/MSVC/14.44.35207/lib/x64/libcpmt.amd64.pdb")
+        );
+        assert_eq!(
+            crt(
+                "Contents/VC/Tools/MSVC/14.44.35207/lib/x64/enclave/libvcruntime.amd64.enclave.pdb"
+            ),
             None
         );
         assert_eq!(

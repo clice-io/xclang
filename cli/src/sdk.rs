@@ -4,11 +4,16 @@
 //!
 //!   <sdk dir>/macos-<version>/                  -isysroot
 //!   <sdk dir>/windows-msvc<v>-sdk<v>/           /winsysroot
+//!   <sdk dir>/macos, <sdk dir>/windows          the one in use
 //!
 //! The SDK directory is <toolchain>/sdk, or --sdk-dir / $XCLANG_SDK_DIR for
 //! a toolchain installed where its user cannot write. Each SDK records
 //! what it was fetched from in .xclang-sdk.json, written last: a directory
-//! without it is incomplete.
+//! without it is incomplete. The SDK in use, the last fetched or the one
+//! `sdk use` names, is a link with the vendor's name (a junction on
+//! Windows), the fixed path the toolchain's config files read: a Windows
+//! SDK holds config files for the MSVC targets of each of its
+//! architectures, which name it (windows::write_configs).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -90,13 +95,25 @@ pub fn main(a: &mut Args) -> Result<()> {
         }
         ["remove", name] => {
             a.allow(&[])?;
-            let dir = sdk_dir(a)?.join(name);
-            if !links::is_safe(Path::new(name)) || name.contains(['/', '\\']) || !dir.is_dir() {
-                bail!("no SDK {name} in {}", sdk_dir(a)?.display());
+            let root = sdk_dir(a)?;
+            let dir = fetched(&root, name)?;
+            for vendor in [Vendor::Macos, Vendor::Windows] {
+                if links::alias_of(&root, vendor.name()).as_deref() == Some(name) {
+                    links::remove_alias(&root, vendor.name()).context(root.display())?;
+                }
             }
             links::remove_tree(&dir).context(dir.display())?;
             eprintln!("removed {}", dir.display());
             Ok(())
+        }
+        ["use", name] => {
+            a.allow(&[])?;
+            let root = links::canonical(&sdk_dir(a)?)?;
+            let dir = fetched(&root, name)?;
+            let Some(record) = read_record(&dir) else {
+                bail!("{} is incomplete: fetch it again", dir.display())
+            };
+            use_sdk(&root, &record.kind, name)
         }
         #[cfg(feature = "maintainer")]
         ["update-table"] => {
@@ -125,6 +142,26 @@ pub fn sdk_dir(a: &Args) -> Result<PathBuf> {
         Ok(t) => Ok(t.root.join("sdk")),
         Err(e) => bail!("{e}; or name a directory for SDKs with --sdk-dir or XCLANG_SDK_DIR"),
     }
+}
+
+/// The directory of a fetched SDK, by its name.
+fn fetched(root: &Path, name: &str) -> Result<PathBuf> {
+    let dir = root.join(name);
+    if !links::is_safe(Path::new(name))
+        || name.contains(['/', '\\'])
+        || !dir.is_dir()
+        || links::is_link(&dir)
+    {
+        bail!("no SDK {name} in {}", root.display());
+    }
+    Ok(dir)
+}
+
+/// Make the fetched SDK `name` the one in use: the link <root>/<vendor>.
+fn use_sdk(root: &Path, vendor: &str, name: &str) -> Result<()> {
+    links::set_alias(root, vendor, name).context(root.join(vendor).display())?;
+    eprintln!("{} is {name}", root.join(vendor).display());
+    Ok(())
 }
 
 pub fn read_record(dir: &Path) -> Option<Record> {
@@ -352,6 +389,8 @@ fn fetch(a: &Args, table: &Table, vendor: Vendor) -> Result<()> {
             fresh_dir(&dir)?;
             let archs_ref: Vec<&str> = archs.iter().map(String::as_str).collect();
             let unpacked = windows::unpack(&files, &dir, &archs_ref)?;
+            let what = format!("MSVC {msvc} and the Windows SDK {sdk}");
+            windows::write_configs(&dir, archs, &unpacked, &what)?;
             Record {
                 kind: "windows".into(),
                 version: None,
@@ -373,9 +412,18 @@ fn fetch(a: &Args, table: &Table, vendor: Vendor) -> Result<()> {
         links::remove_tree(&cache).context(cache.display())?;
     }
     eprintln!("fetched {name} in {:.1} s", start.elapsed().as_secs_f64());
+    use_sdk(&root, vendor.name(), &name)?;
     let d = dir.display();
+    // The toolchain's config files read <toolchain>/sdk/windows.
+    let own = Toolchain::find(a.value("root"))
+        .ok()
+        .and_then(|t| links::canonical(&t.root.join("sdk")).ok())
+        .is_some_and(|s| s == root);
     match vendor {
         Vendor::Macos => eprintln!("  clang --target=arm64-apple-macos -isysroot \"{d}\" ..."),
+        Vendor::Windows if own => eprintln!(
+            "  clang --target=x86_64-pc-windows-msvc ...\n  clang-cl --target=x86_64-pc-windows-msvc ..."
+        ),
         Vendor::Windows => eprintln!(
             "  clang-cl --target=x86_64-pc-windows-msvc /winsysroot \"{d}\" -fuse-ld=lld ...\n  \
              clang --target=x86_64-pc-windows-msvc -Xmicrosoft-windows-sys-root \"{d}\" -fuse-ld=lld ..."
@@ -399,10 +447,18 @@ fn list(table: &Table, vendor: Option<Vendor>, root: Option<&Path>) -> Result<()
         }
     }
     let Some(root) = root else { return Ok(()) };
+    let active: Vec<String> = [Vendor::Macos, Vendor::Windows]
+        .iter()
+        .filter_map(|v| links::alias_of(root, v.name()))
+        .collect();
     let mut fetched: Vec<(String, Option<Record>)> = match fs::read_dir(root) {
         Ok(entries) => entries
             .filter_map(|e| e.ok())
-            .filter(|e| e.path().is_dir() && !e.file_name().to_string_lossy().starts_with('.'))
+            .filter(|e| {
+                e.path().is_dir()
+                    && !links::is_link(&e.path())
+                    && !e.file_name().to_string_lossy().starts_with('.')
+            })
             .map(|e| {
                 (
                     e.file_name().to_string_lossy().into_owned(),
@@ -430,7 +486,12 @@ fn list(table: &Table, vendor: Option<Vendor>, root: Option<&Path>) -> Result<()
                 r.archs.join(", ")
             ),
         };
-        println!("  {name:36} {what}");
+        let mark = if active.contains(&name) {
+            " (in use)"
+        } else {
+            ""
+        };
+        println!("  {name:36} {what}{mark}");
     }
     Ok(())
 }

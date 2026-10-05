@@ -172,6 +172,50 @@ pub fn case_insensitive(dir: &Path) -> io::Result<bool> {
     Ok(insensitive)
 }
 
+/// Whether path is a link: a symlink, or on Windows a junction.
+pub fn is_link(path: &Path) -> bool {
+    fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink())
+}
+
+/// The name of the directory next to it that the link dir/name points to.
+pub fn alias_of(dir: &Path, name: &str) -> Option<String> {
+    let link = dir.join(name);
+    if !is_link(&link) {
+        return None;
+    }
+    let target = fs::read_link(&link).ok()?;
+    Some(target.file_name()?.to_string_lossy().into_owned())
+}
+
+/// Point dir/name at dir/target, a directory next to it, replacing the link
+/// that was there: a relative symlink, or on Windows a junction (which
+/// needs no privilege, and holds the absolute path).
+pub fn set_alias(dir: &Path, name: &str, target: &str) -> io::Result<()> {
+    let link = dir.join(name);
+    if fs::symlink_metadata(&link).is_ok() && !is_link(&link) {
+        return Err(io::Error::other(format!(
+            "{} is not a link xclang made",
+            link.display()
+        )));
+    }
+    remove_alias(dir, name)?;
+    if cfg!(windows) {
+        junction(&dir.join(target), &link)
+    } else {
+        symlink(target, &link)
+    }
+}
+
+/// Remove the link dir/name, if there is one.
+pub fn remove_alias(dir: &Path, name: &str) -> io::Result<()> {
+    let link = dir.join(name);
+    if !is_link(&link) {
+        return Ok(());
+    }
+    // A junction is a directory; a symlink on Windows may be either.
+    fs::remove_file(&link).or_else(|_| fs::remove_dir(&link))
+}
+
 /// Remove dir and what is below it, if it exists (links, not what they
 /// point to).
 pub fn remove_tree(dir: &Path) -> io::Result<()> {
