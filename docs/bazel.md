@@ -99,6 +99,13 @@ with `--batch`.
   the sanitizers' runtimes are shared libraries, the feature links in the
   absolute path of the toolchain's: those links alone depend on the
   checkout.
+- **Strip**: a program's `.stripped` (`bazel build //pkg:tool.stripped`)
+  is a release's, by the target's object format: an ELF or COFF program
+  loses its debug information and every symbol no relocation needs
+  (`--strip-unneeded`); a Mach-O one every symbol dyld does not bind
+  (`--strip-all`, what Apple's `strip` does), its global functions too,
+  whose names `dladdr` would otherwise give to the local ones' addresses in
+  a crash log. `--stripopt` adds to them.
 
 ```starlark
 cc_library(

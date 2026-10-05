@@ -55,6 +55,16 @@ the [patches](docs/patches.md) of its tag.
   Mach-O debug maps with `-oso_prefix`), and PE programs have no link time,
   so a program is the same bytes from any sandbox or checkout; debuggers
   map `.` to the workspace's `bazel-<workspace>` ([docs/bazel.md](docs/bazel.md#debugging)).
+- Bazel: a program's `.stripped` is a release's, by the target's object
+  format: ELF and COFF `--strip-unneeded`, Mach-O `--strip-all`, not
+  keeping the globals that misname local functions in macOS crash logs
+  ([docs/bazel.md](docs/bazel.md#what-the-toolchain-does)).
+- Bazel: `@libclang` is the ASan build with `--features=asan`, libraries,
+  headers and resource directory together; `xclang_resource_dir` lays the
+  resource directory out in `lib/clang` next to a program's `bin/`
+  ([docs/libclang.md](docs/libclang.md#bazel)).
+- libclang: `clang-tidy/clang-tidy-config.h`, as clang-tidy's build
+  generates it for xclang's configuration.
 - Patches: **0009** added, ld64.lld reads the `.tbd` stubs of the macOS 27
   SDK (Xcode 27), which list `arm64e.x1`: macOS programs link against it
   (release/23.x's backport of llvm/llvm-project#222721, in 23.1.3).
