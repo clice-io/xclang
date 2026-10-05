@@ -109,6 +109,47 @@ cc_library(
 )
 ```
 
+## Debug symbols
+
+`xclang_debug_symbols` makes a program's debug symbols for its release with
+the toolchain's own tools: GSYM for every target, and the dSYM for macOS
+ones.
+
+```starlark
+load("@xclang//bazel:debug_symbols.bzl", "xclang_debug_symbols")
+
+cc_binary(
+    name = "tool",
+    srcs = ["main.cpp"],
+    copts = ["-gline-tables-only"],
+    features = ["generate_dsym_file"],
+)
+
+xclang_debug_symbols(
+    name = "tool_symbols",
+    binary = ":tool",
+)
+```
+
+- `tool.gsym`: functions, inlining and lines by address, about a tenth of
+  the DWARF's size; `llvm-gsymutil tool.gsym --address=<address>` looks one
+  up. The toolchain's llvm-gsymutil converts the program's DWARF, on the
+  platform the build runs on, also for another target. Its warnings go to
+  `tool.gsym.log` (output group `gsym_log`); `gsymutil_args =
+  ["--merged-functions"]` keeps every name of the functions identical code
+  folding merged.
+- `tool.dSYM`, for a macOS target: dsymutil reads the objects the debug map
+  points into, so it runs in the link, where they are, ThinLTO's included.
+  rules_cc's `generate_dsym_file` feature (on the `cc_binary`, or
+  `--apple_generate_dsym` for the build) has `cc_binary` declare it
+  (output group `dsyms`) and the toolchain write it, with the names of the
+  functions identical code folding merged (`--keep-icf-stabs`). The GSYM
+  comes from it.
+
+The program needs debug information (`-g`, or `-gline-tables-only` for
+functions and lines alone) and must not be stripped of it: fastbuild strips
+it unless `--strip=never`.
+
 ## Cross-compiling
 
 A build for another target names its platform:

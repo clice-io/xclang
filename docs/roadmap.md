@@ -176,7 +176,7 @@ The prebuilt runtimes stay the default.
 - **LLVM 23.1.3 and 24.x**, planned: each as it is released, with the
   [patches](patches.md) checked against it. 23.1.3 has the fix for the
   `arm64e.x1` architecture in the `.tbd` files of the macOS 27 SDK, which
-  ld64.lld 23.1.2 rejects.
+  ld64.lld 23.1.2 rejects; patches/0009 carries it until then.
 - **BOLT**, in research: clang and lld of the Linux hosts optimized by BOLT
   on top of PGO and ThinLTO.
 

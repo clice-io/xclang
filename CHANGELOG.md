@@ -43,6 +43,16 @@ the [patches](docs/patches.md) of its tag.
   targets build on macOS hosts only, and say so elsewhere. `@libclang`,
   `@libclang_asan` and `@xclang//bazel:std` are the target platform's; a
   target's libclang is downloaded only by a build for it.
+- **Debug symbols** for a program's release, by the toolchain's own
+  dsymutil and llvm-gsymutil (names of `llvm` in every archive): GSYM for
+  every target, the dSYM for macOS ones. Bazel: `xclang_debug_symbols`
+  (`@xclang//bazel:debug_symbols.bzl`), and rules_cc's `generate_dsym_file`
+  feature makes a macOS program's dSYM in its link, ThinLTO's code
+  included ([docs/bazel.md](docs/bazel.md#debug-symbols)); CMake:
+  `xclang_debug_symbols(<target>)` ([docs/cmake.md](docs/cmake.md#debug-symbols)).
+- Patches: **0009** added, ld64.lld reads the `.tbd` stubs of the macOS 27
+  SDK (Xcode 27), which list `arm64e.x1`: macOS programs link against it
+  (release/23.x's backport of llvm/llvm-project#222721, in 23.1.3).
 - Bazel: the module loads archives without libc++'s ASan build (releases
   before 23.1.2.5) too.
 - The README keeps to what xclang is and where it is going; the rest is

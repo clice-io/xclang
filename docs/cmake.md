@@ -153,6 +153,26 @@ target_sources(geometry PUBLIC FILE_SET CXX_MODULES FILES geometry.cppm geometry
 target_link_libraries(geometry PUBLIC xclang::std)
 ```
 
+## Debug symbols
+
+`xclang_debug_symbols(<target>)` makes a program's debug symbols for its
+release after each of its links, with the toolchain's own tools:
+
+```cmake
+add_executable(tool main.cpp)
+target_compile_options(tool PRIVATE -gline-tables-only)
+xclang_debug_symbols(tool)
+```
+
+- `tool.gsym` next to the program: functions, inlining and lines by
+  address, about a tenth of the DWARF's size; `llvm-gsymutil tool.gsym
+  --address=<address>` looks one up. llvm-gsymutil's warnings go to
+  `tool.gsym.log`; `GSYM_ARGS --merged-functions` keeps every name of the
+  functions identical code folding merged.
+- `tool.dSYM` for a macOS target, made first, and the GSYM's source:
+  dsymutil reads the objects the debug map points into, and the link keeps
+  ThinLTO's for it in `<build dir>/tool.lto`.
+
 ## libclang
 
 A tool on libclang finds it with `find_package(Clang)`; see
@@ -198,7 +218,7 @@ need none of the old entries, starts an empty one.
 
 | file | |
 |---|---|
-| `xclang-config.cmake` | `find_package(xclang)`: `xclang::std`, `xclang_add_std()`, `XCLANG_ROOT`, the ThinLTO cache |
+| `xclang-config.cmake` | `find_package(xclang)`: `xclang::std`, `xclang_add_std()`, `xclang_debug_symbols()`, `XCLANG_ROOT`, the ThinLTO cache |
 | `xclang-config-version.cmake` | the release (toolchain archives only): `find_package(xclang 23.1)` |
 | `toolchain.cmake` | the tree as the build's toolchain, `XCLANG_TARGET` |
 | `xclang.cmake` | in `packages/cmake/` only: the download before `project()` |
