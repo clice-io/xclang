@@ -167,9 +167,6 @@ jobs:
         if: matrix.host == 'x86_64-unknown-linux-gnu' && matrix.target == 'x86_64-w64-mingw32'
         run: |
           node tests/bazel-cross.ts registry kotatsu "$RUNNER_TEMP/kotatsu"
-          # kotatsu's tests include <BaseTsd.h>, MinGW-w64's basetsd.h, which
-          # only Windows finds by that name: until kotatsu spells it so.
-          grep -rl '<BaseTsd.h>' "$RUNNER_TEMP/kotatsu/tests" | xargs -r sed -i 's/<BaseTsd.h>/<basetsd.h>/'
           node tests/bazel-cross.ts build "${{ matrix.target }}" "$RUNNER_TEMP/out/${{ matrix.host }}/kotatsu" \
             --workspace "$RUNNER_TEMP/kotatsu" -- --@bazel_tools//tools/test:incompatible_use_default_test_toolchain=false
       - uses: actions/upload-artifact@v7
