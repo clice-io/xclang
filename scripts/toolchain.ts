@@ -250,6 +250,11 @@ if (mode !== "instrumented") {
   for (const header of ["CoroutineStmtBuilder.h", "TypeLocBuilder.h", "TreeTransform.h"]) {
     fs.copyFileSync(path.join(src, "clang", "lib", "Sema", header), path.join(sema, header));
   }
+  /// clang-tidy-config.h, which clang-tidy's build generates from how
+  /// cmake/caches/clang.cmake configures it (no static analyzer, no
+  /// query-based checks), and its installed headers include.
+  fs.copyFileSync(path.join(build, "tools", "clang", "tools", "extra", "clang-tidy", "clang-tidy-config.h"),
+    path.join(dest, "include", "clang-tidy", "clang-tidy-config.h"));
   const manifest = {
     LLVM_VERSION: common.LLVM_VERSION,
     TARGET_TRIPLE: host.triple,

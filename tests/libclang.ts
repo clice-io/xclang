@@ -26,6 +26,17 @@ for (const header of ["sanitizer/asan_interface.h", "fuzzer/FuzzedDataProvider.h
   }
 }
 
+/// clang-tidy's headers with the configuration header its build generated,
+/// as xclang configures it: they compile.
+const tidyConfig = path.join(libclang, "include", "clang-tidy", "clang-tidy-config.h");
+if (!fs.existsSync(tidyConfig) || !/#define CLANG_TIDY_ENABLE_STATIC_ANALYZER 0/.test(fs.readFileSync(tidyConfig, "utf8"))) {
+  common.fail(`libclang has no ${tidyConfig} without the static analyzer`);
+}
+const tidy = spawnSync(path.join(tree, "bin", `clang++${exe}`),
+  ["-std=c++17", "-fno-rtti", "-fsyntax-only", "-I", path.join(libclang, "include"), "-x", "c++", "-"],
+  { input: "#include \"clang-tidy/ClangTidyForceLinker.h\"\n#include \"clang-tidy/ClangTidyModule.h\"\n", encoding: "utf8" });
+if (tidy.status !== 0) common.fail(`clang-tidy's headers do not compile:\n${tidy.stderr}`);
+
 common.run("cmake", [
   "-G", "Ninja", "-S", path.join(common.ROOT, "tests", "libclang"), "-B", build,
   "-DCMAKE_BUILD_TYPE=Release",
