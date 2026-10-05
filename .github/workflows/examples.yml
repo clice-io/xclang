@@ -195,7 +195,9 @@ jobs:
           else
             stage aarch64-unknown-linux-gnu make ../make/hello expected.txt
           fi
+      # What the steps before a failure built still runs on its target.
       - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
         with:
           name: programs-quickstart-${{ matrix.host }}
           path: ${{ runner.temp }}/programs
@@ -249,7 +251,9 @@ jobs:
           cmake --build build-x86_64-w64-mingw32
           dir=$RUNNER_TEMP/programs/x86_64-w64-mingw32/fetch-${{ matrix.host }}
           mkdir -p "$dir" && cp build-x86_64-w64-mingw32/hello.exe "$dir/" && cp ../cmake/expected.txt "$dir/"
+      # What the steps before a failure built still runs on its target.
       - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
         with:
           name: programs-fetch-${{ matrix.host }}
           path: ${{ runner.temp }}/programs
@@ -446,10 +450,12 @@ jobs:
           bazel run //:options | grep -E '^clang has [0-9]+ options'
           cache=/var/tmp/xclang-thinlto; [[ "$RUNNER_OS" == Windows ]] && cache=C:/xclang-thinlto
           entries=$(ls "$cache" | grep -c llvmcache-)
-          echo "Bazel, ThinLTO cache: $entries entries" >> "$GITHUB_STEP_SUMMARY"
+          echo "Bazel, ThinLTO cache: $entries entries" | tee -a "$GITHUB_STEP_SUMMARY"
           test "$entries" -gt 0
           bazel shutdown
+      # What the steps before a failure built still runs on its target.
       - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
         with:
           name: programs-bazel-${{ matrix.host }}
           path: ${{ runner.temp }}/programs
@@ -592,16 +598,16 @@ jobs:
               -DCMAKE_PREFIX_PATH="$PWD/libclang" -DXCLANG_THINLTO_CACHE=/var/tmp/xclang-thinlto
           cmake --build build
           ./build/tool
-          echo "CMake, configure and build: $((SECONDS - start)) s" >> "$GITHUB_STEP_SUMMARY"
+          echo "CMake, configure and build: $((SECONDS - start)) s" | tee -a "$GITHUB_STEP_SUMMARY"
           start=$SECONDS
           touch main.cpp
           cmake --build build
-          echo "CMake, the build after touching main.cpp: $((SECONDS - start)) s" >> "$GITHUB_STEP_SUMMARY"
+          echo "CMake, the build after touching main.cpp: $((SECONDS - start)) s" | tee -a "$GITHUB_STEP_SUMMARY"
           ./build/tool | tr -d '\r' > tool.txt
           grep -E '^clang version 23\.' tool.txt
           grep -x 'tokens 9 zlib 1 zstd 1' tool.txt
           entries=$(ls /var/tmp/xclang-thinlto | grep -c llvmcache-)
-          echo "CMake, ThinLTO cache: $entries entries" >> "$GITHUB_STEP_SUMMARY"
+          echo "CMake, ThinLTO cache: $entries entries" | tee -a "$GITHUB_STEP_SUMMARY"
           test "$entries" -gt 0
       - name: libclang and the ThinLTO cache
         if: matrix.host != 'x86_64-unknown-linux-gnu'
@@ -628,19 +634,21 @@ jobs:
           cmake -G Ninja -B build -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release \
               -DCMAKE_PREFIX_PATH="$prefix" -DXCLANG_THINLTO_CACHE=$cache
           cmake --build build
-          echo "CMake, configure and build: $((SECONDS - start)) s" >> "$GITHUB_STEP_SUMMARY"
+          echo "CMake, configure and build: $((SECONDS - start)) s" | tee -a "$GITHUB_STEP_SUMMARY"
           start=$SECONDS
           touch main.cpp
           cmake --build build
-          echo "CMake, the build after touching main.cpp: $((SECONDS - start)) s" >> "$GITHUB_STEP_SUMMARY"
+          echo "CMake, the build after touching main.cpp: $((SECONDS - start)) s" | tee -a "$GITHUB_STEP_SUMMARY"
           ./build/tool | tr -d '\r' > tool.txt
           cat tool.txt
           grep -E '^clang version 23\.' tool.txt
           grep -x 'tokens 9 zlib 1 zstd 1' tool.txt
           entries=$(ls "$cache" | grep -c llvmcache-)
-          echo "CMake, ThinLTO cache: $entries entries" >> "$GITHUB_STEP_SUMMARY"
+          echo "CMake, ThinLTO cache: $entries entries" | tee -a "$GITHUB_STEP_SUMMARY"
           test "$entries" -gt 0
+      # What the steps before a failure built still runs on its target.
       - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
         with:
           name: programs-features-${{ matrix.host }}
           path: ${{ runner.temp }}/programs
@@ -704,7 +712,9 @@ jobs:
           stage x86_64-w64-mingw32 target/x86_64-pc-windows-gnullvm/release/hello.exe
           stage aarch64-w64-mingw32 target/aarch64-pc-windows-gnullvm/release/hello.exe
           stage aarch64-unknown-linux-gnu target/aarch64-unknown-linux-gnu/release/hello
+      # What the steps before a failure built still runs on its target.
       - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
         with:
           name: programs-cargo-${{ matrix.host }}
           path: ${{ runner.temp }}/programs

@@ -187,8 +187,8 @@ checks what the page says it prints:
 
 - **Sanitizers**, on Linux and macOS hosts: by hand, with CMake and with
   Bazel. ASan with the ASan libc++ reports the container-overflow and exits
-  1; without it, no report. TSan reports the data race and exits 66.
-  libFuzzer runs 1000 inputs.
+  1; without it, no report. TSan reports the data race and exits 66. On
+  macOS, both abort after the report. libFuzzer runs 1000 inputs.
 - **Debug symbols**, on every host: a GSYM by hand, looked up by the
   address of a function, and with `xclang_debug_symbols` in CMake (with the
   dSYM on macOS) and in Bazel.
