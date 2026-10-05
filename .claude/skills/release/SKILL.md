@@ -38,7 +38,8 @@ before publishing.
 5. **Notes.** Write them as the earlier releases' are (`gh release view
    23.1.2.4 -R clice-io/xclang`): what it was built by, then what changed
    for users; take the items from CHANGELOG.md's Unreleased section.
-6. **Publish** (ask first; it creates the tag at the draft's commit):
+6. **Publish** (ask first; it creates the tag at the draft's commit). Every
+   release's title is its version alone:
    ```sh
    gh release edit <version> -R clice-io/xclang --title <version> \
      --notes-file notes.md --draft=false --latest
@@ -58,8 +59,10 @@ before publishing.
      packages/bazel/bazel/versions.bzl; `version = "<version>"` in
      packages/bazel/MODULE.bazel and tests/bazel/MODULE.bazel;
    - tests/bazel.ts: `previous` default → the release before this one;
-   - README.md and README.zh-CN.md: `xclang = "<version>.*"`,
-     `bazel_dep(... version = "<version>")`;
+   - README.md, README.zh-CN.md, docs/install.md and docs/bazel.md:
+     `xclang = "<version>.*"`, `bazel_dep(... version = "<version>")`,
+     archive names (`grep -rn <previous version>` finds them);
    - CHANGELOG.md: Unreleased becomes `## [<version>](https://github.com/clice-io/xclang/releases/tag/<version>) — <date>`
-     with "Built by <bootstrap>.", and a new empty Unreleased.
+     (the UTC date of publishing) with "Built by <bootstrap>.", and a new
+     empty Unreleased.
    Fast-forward main to `exp/<version>` first if the release came from it.

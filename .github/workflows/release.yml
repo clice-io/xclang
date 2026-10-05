@@ -52,6 +52,6 @@ jobs:
           (cd dist && sha256sum * > SHA256SUMS)
           cat dist/SHA256SUMS | tee -a "$GITHUB_STEP_SUMMARY"
           gh release create "$version" -R "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" \
-            --title "xclang $version" \
+            --title "$version" \
             --notes "LLVM $llvm, build run https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
             dist/*
