@@ -40,10 +40,14 @@ they need Apple's SDK, which comes from Xcode there
 |---|---|---|---|
 | libc++, libc++abi | static | static | static (not the system's `libc++.dylib`) |
 | unwinder | libunwind, static | libunwind, static | the system's (libSystem) |
-| compiler-rt builtins, profile | yes | yes | yes |
-| ASan, TSan, LSan, UBSan, libFuzzer | yes | no | yes |
-| ASan libc++ | yes | no | yes |
+| compiler-rt builtins, profile | Supported | Supported | Supported |
+| ASan, TSan, LSan, UBSan, libFuzzer | Supported | Considered | Supported |
+| ASan libc++ | Supported | Considered | Supported |
 | linker | ld.lld | ld.lld (MinGW driver) | ld64.lld; `-fuse-ld=ld` for Apple's |
+
+Sanitizers for the MinGW targets are
+[considered](../design/roadmap.md#mingw-sanitizers); those of the MSVC
+targets are part of the [MSVC targets](../design/roadmap.md#msvc).
 
 ## Tiers
 

@@ -529,13 +529,13 @@ jobs:
           set -e
           cat overflow.txt race.txt
           tail -n 3 fuzz.txt
-          # ASan exits with 1; on macOS, where abort_on_error is its default,
-          # it aborts.
-          want=1; [[ "$RUNNER_OS" == macOS ]] && want=134
-          test "$overflow" = "$want"
+          # ASan exits with 1 and TSan with 66; on macOS, where
+          # abort_on_error is the default, a report ends in an abort.
+          asan_exit=1 tsan_exit=66; [[ "$RUNNER_OS" == macOS ]] && asan_exit=134 tsan_exit=134
+          test "$overflow" = "$asan_exit"
           grep 'ERROR: AddressSanitizer: container-overflow' overflow.txt
           grep 'overflow.cpp:8' overflow.txt
-          test "$race" = 66
+          test "$race" = "$tsan_exit"
           grep 'WARNING: ThreadSanitizer: data race' race.txt
           test "$fuzz" = 0
           grep 'Done 1000 runs' fuzz.txt
@@ -547,7 +547,7 @@ jobs:
           ./build-asan/overflow 2> build-asan.txt; status=$?
           set -e
           cat build-asan.txt
-          test "$status" = "$want"
+          test "$status" = "$asan_exit"
           grep 'ERROR: AddressSanitizer: container-overflow' build-asan.txt
       - name: Debug symbols
         working-directory: examples/debug-symbols

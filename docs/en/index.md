@@ -36,3 +36,66 @@ features:
     details: Every release is pinned by sha256. Bazel builds carry no absolute paths, so one cache serves every checkout.
     link: ./design/bazel-module
 ---
+
+## Beyond the Release
+
+The cards above are what a release has today. xclang's vision goes
+further, the way rustup goes for Rust: every target, fetched when a build
+needs it, and vendor SDKs fetched from the vendor. None of the items below
+is in a release. The [roadmap](./design/roadmap.md) has one row for each,
+with its status.
+
+<!-- BEGIN CAPABILITY: unreleased -->
+
+**The xclang command**
+
+Fetches Apple's and Microsoft's SDKs from the vendor, by a pinned version
+and digest. CI builds and tests it from `main`
+([roadmap](./design/roadmap.md#xclang-command)).
+
+<!-- END CAPABILITY -->
+
+<!-- BEGIN CAPABILITY: planned -->
+
+**MSVC-ABI targets**
+
+Windows x64 and arm64 with Microsoft's CRT and STL, from every host, with
+their sanitizers ([roadmap](./design/roadmap.md#msvc)).
+
+<!-- END CAPABILITY -->
+
+<!-- BEGIN CAPABILITY: planned -->
+
+**Target archives**
+
+Targets beyond the six, each an archive that `xclang target add` fetches
+([roadmap](./design/roadmap.md#target-archives)).
+
+<!-- END CAPABILITY -->
+
+<!-- BEGIN CAPABILITY: planned -->
+
+**musl targets**
+
+Fully static Linux programs, for x64 and arm64
+([roadmap](./design/roadmap.md#musl)).
+
+<!-- END CAPABILITY -->
+
+<!-- BEGIN CAPABILITY: in-research -->
+
+**macOS targets from Linux and Windows**
+
+With Apple's SDK, fetched from Apple by the user
+([roadmap](./design/roadmap.md#macos-any-host)).
+
+<!-- END CAPABILITY -->
+
+<!-- BEGIN CAPABILITY: considered -->
+
+**WebAssembly, Android, more Linux architectures**
+
+WASI targets, Android with the NDK of the user, and Linux beyond x64 and
+arm64 ([roadmap](./design/roadmap.md#targets)).
+
+<!-- END CAPABILITY -->

@@ -154,7 +154,10 @@ run:
 ```
 
 In Bazel, the build job uses `--platforms=@xclang//platforms:<target>`
-and uploads the test binaries with their runfiles. The runners for each
+and uploads the test binaries with their runfiles. xclang's own CI runs
+every example of these docs this way: what each host built for another
+target runs on a runner of that target
+([testing](../dev/testing.md#cross-compiling)). The runners for each
 target:
 
 | target | runner |
