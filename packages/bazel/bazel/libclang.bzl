@@ -10,9 +10,32 @@ load(":hosts.bzl", "TARGETS")
 # aliases of @libclang. An archive with another fails to load, for this list
 # to be brought up to date.
 LIBRARIES = [
+    "LLVMAArch64AsmParser",
+    "LLVMAArch64Desc",
+    "LLVMAArch64Disassembler",
+    "LLVMAArch64Info",
+    "LLVMAArch64Utils",
+    "LLVMAMDGPUAsmParser",
+    "LLVMAMDGPUDesc",
+    "LLVMAMDGPUDisassembler",
+    "LLVMAMDGPUInfo",
+    "LLVMAMDGPUUtils",
+    "LLVMARMAsmParser",
+    "LLVMARMDesc",
+    "LLVMARMDisassembler",
+    "LLVMARMInfo",
+    "LLVMARMUtils",
+    "LLVMAVRAsmParser",
+    "LLVMAVRDesc",
+    "LLVMAVRDisassembler",
+    "LLVMAVRInfo",
     "LLVMAggressiveInstCombine",
     "LLVMAnalysis",
     "LLVMAsmParser",
+    "LLVMBPFAsmParser",
+    "LLVMBPFDesc",
+    "LLVMBPFDisassembler",
+    "LLVMBPFInfo",
     "LLVMBinaryFormat",
     "LLVMBitReader",
     "LLVMBitstreamReader",
@@ -31,27 +54,79 @@ LIBRARIES = [
     "LLVMFrontendHLSL",
     "LLVMFrontendOffloading",
     "LLVMFrontendOpenMP",
+    "LLVMHexagonAsmParser",
+    "LLVMHexagonDesc",
+    "LLVMHexagonDisassembler",
+    "LLVMHexagonInfo",
     "LLVMIRReader",
     "LLVMInstCombine",
+    "LLVMLanaiAsmParser",
+    "LLVMLanaiDesc",
+    "LLVMLanaiDisassembler",
+    "LLVMLanaiInfo",
+    "LLVMLoongArchAsmParser",
+    "LLVMLoongArchDesc",
+    "LLVMLoongArchDisassembler",
+    "LLVMLoongArchInfo",
     "LLVMMC",
     "LLVMMCDisassembler",
     "LLVMMCParser",
+    "LLVMMSP430AsmParser",
+    "LLVMMSP430Desc",
+    "LLVMMSP430Disassembler",
+    "LLVMMSP430Info",
+    "LLVMMipsAsmParser",
+    "LLVMMipsDesc",
+    "LLVMMipsDisassembler",
+    "LLVMMipsInfo",
+    "LLVMNVPTXDesc",
+    "LLVMNVPTXInfo",
     "LLVMObject",
     "LLVMObjectYAML",
     "LLVMOption",
     "LLVMPlugins",
+    "LLVMPowerPCAsmParser",
+    "LLVMPowerPCDesc",
+    "LLVMPowerPCDisassembler",
+    "LLVMPowerPCInfo",
     "LLVMProfileData",
+    "LLVMRISCVAsmParser",
+    "LLVMRISCVDesc",
+    "LLVMRISCVDisassembler",
+    "LLVMRISCVInfo",
     "LLVMRemarks",
+    "LLVMSPIRVDesc",
+    "LLVMSPIRVInfo",
     "LLVMScalarOpts",
+    "LLVMSparcAsmParser",
+    "LLVMSparcDesc",
+    "LLVMSparcDisassembler",
+    "LLVMSparcInfo",
     "LLVMSupport",
     "LLVMSymbolize",
+    "LLVMSystemZAsmParser",
+    "LLVMSystemZDesc",
+    "LLVMSystemZDisassembler",
+    "LLVMSystemZInfo",
     "LLVMTargetParser",
     "LLVMTextAPI",
     "LLVMTransformUtils",
+    "LLVMVEAsmParser",
+    "LLVMVEDesc",
+    "LLVMVEDisassembler",
+    "LLVMVEInfo",
+    "LLVMWebAssemblyAsmParser",
+    "LLVMWebAssemblyDesc",
+    "LLVMWebAssemblyDisassembler",
+    "LLVMWebAssemblyInfo",
     "LLVMWindowsDriver",
     "LLVMX86AsmParser",
     "LLVMX86Desc",
+    "LLVMX86Disassembler",
     "LLVMX86Info",
+    "LLVMXCoreDesc",
+    "LLVMXCoreDisassembler",
+    "LLVMXCoreInfo",
     "clangAPINotes",
     "clangAST",
     "clangASTMatchers",
@@ -115,7 +190,16 @@ LIBRARIES = [
 ]
 
 # What else every archive has (zlib: not macOS's, which links the system's).
-_OTHERS = ["headers", "resource_dir", "zlib", "lib/cmake/xclang/libclang.cmake"]
+_OTHERS = [
+    "headers",
+    "resource_dir",
+    "zlib",
+    "lib/cmake/xclang/libclang.cmake",
+    "AllTargetsInfos",
+    "AllTargetsDescs",
+    "AllTargetsAsmParsers",
+    "AllTargetsDisassemblers",
+]
 
 def _unquote(value):
     value = value.strip()
@@ -206,6 +290,34 @@ cc_library(
             srcs = json.encode(locations),
             linkopts = json.encode(linkopts),
             deps = json.encode(deps),
+        ))
+    # CMake's components of every target's MC layer: the libraries of the
+    # targets Targets.def, AsmParsers.def and Disassemblers.def list, which
+    # InitializeAllTargetInfos, InitializeAllTargetMCs, InitializeAllAsmParsers
+    # and InitializeAllDisassemblers register. Incompatible where the archive
+    # has not every one (before 23.1.2.6).
+    for name, file, macro, library in [
+        ("AllTargetsInfos", "Targets.def", "LLVM_TARGET", "LLVM%sInfo"),
+        ("AllTargetsDescs", "Targets.def", "LLVM_TARGET", "LLVM%sDesc"),
+        ("AllTargetsAsmParsers", "AsmParsers.def", "LLVM_ASM_PARSER", "LLVM%sAsmParser"),
+        ("AllTargetsDisassemblers", "Disassemblers.def", "LLVM_DISASSEMBLER", "LLVM%sDisassembler"),
+    ]:
+        listed = [
+            library % line.strip()[len(macro) + 1:-1]
+            for line in rctx.read("include/llvm/Config/" + file).splitlines()
+            if line.strip().startswith(macro + "(") and line.strip().endswith(")")
+        ]
+        missing = [lib for lib in listed if lib not in [_name(t) for t in targets]]
+        rules.append("""\
+cc_library(
+    name = {name},
+    deps = {deps},
+    target_compatible_with = {incompatible},
+)
+""".format(
+            name = json.encode(name),
+            deps = json.encode([":" + lib for lib in listed if lib not in missing]),
+            incompatible = json.encode(["@platforms//:incompatible"] if missing else []),
         ))
     if zlib:
         rules.append("""\

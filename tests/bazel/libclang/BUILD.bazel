@@ -19,6 +19,24 @@ cc_test(
     deps = ["@libclang//:" + lib for lib in LIBRARIES],
 )
 
+# Every target's MC layer, registered and looked up by triple
+# (tests/libclang's targets.cpp); skipped with archives that have not every
+# target's (@libclang//:AllTargetsInfos and the like are incompatible).
+cc_test(
+    name = "targets_test",
+    srcs = ["targets.cpp"],
+    copts = ["-fno-rtti"],
+    deps = [
+        "@libclang//:AllTargetsAsmParsers",
+        "@libclang//:AllTargetsDescs",
+        "@libclang//:AllTargetsDisassemblers",
+        "@libclang//:AllTargetsInfos",
+        "@libclang//:LLVMMC",
+        "@libclang//:LLVMSupport",
+        "@libclang//:LLVMTargetParser",
+    ],
+)
+
 # The ASan build with assertions, published for Linux x64 and macOS arm64.
 cc_test(
     name = "libclang_asan_test",
