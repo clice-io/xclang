@@ -127,16 +127,16 @@ pub fn unpack(packages: &[(Kind, PathBuf)], out: &Path, archs: &[&str]) -> Resul
     for dir in dirs {
         fs::create_dir_all(out.join(dir)).context(out.join(dir).display())?;
     }
-    // The members on every thread, each reading the packages on its own:
-    // creating files is what takes the time on Windows.
-    let jobs = crate::cpus().clamp(1, 16);
-    let shares: Vec<Vec<&(usize, usize, String)>> = (0..jobs)
-        .map(|k| items.iter().skip(k).step_by(jobs).collect())
-        .collect();
+    // The members on every thread, each reading the packages on its own
+    // (creating files is what takes the time on Windows), a run of them
+    // each, so that threads mostly write to directories of their own.
+    let jobs = crate::cpus().clamp(1, 8);
+    let shares: Vec<&[(usize, usize, String)]> =
+        items.chunks(items.len().div_ceil(jobs).max(1)).collect();
     let counted = Mutex::new((0u64, 0u64));
     crate::parallel(&shares, jobs, |share| {
         let mut zips: HashMap<usize, Zip> = HashMap::new();
-        for (p, i, rel) in share {
+        for (p, i, rel) in share.iter() {
             let path = &packages[*p].1;
             let zip = match zips.entry(*p) {
                 std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),

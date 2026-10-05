@@ -33,7 +33,8 @@ directory of its own:
 `xclang sdk path` prints the directory that fetch, with the same options,
 fetches to: `-isysroot "$(xclang sdk path macos)"`. Where the toolchain is
 installed read-only, `--sdk-dir` or `XCLANG_SDK_DIR` names another
-directory for SDKs. An SDK's `.xclang-sdk.json`, written last, records
+directory for SDKs. `XCLANG_JOBS` sets how many threads unpack (one per CPU by
+default). An SDK's `.xclang-sdk.json`, written last, records
 what it was fetched from; `sdk list` calls a directory without one
 incomplete.
 

@@ -121,16 +121,16 @@ pub fn fetch_pinned(url: &str, sha256: &str, size: Option<u64>, dest: &Path) -> 
             Ok((got, _)) if got == sha256 => return Ok(()),
             Ok((got, _)) => {
                 let _ = fs::remove_file(dest);
-                failure = format!("sha256 {got}, expected {sha256}");
+                failure = format!("{url}: sha256 {got}, expected {sha256}");
             }
             Err(e) => failure = e.0,
         }
         if attempt < 3 {
-            eprintln!("{url}: {failure}; trying again");
+            eprintln!("{failure}; trying again");
             std::thread::sleep(Duration::from_secs(2 << attempt));
         }
     }
-    bail!("{url}: {failure}")
+    bail!("{failure}")
 }
 
 /// Stream url to dest; its sha256 and size. Short of the expected size, it

@@ -111,8 +111,15 @@ pub fn parallel<T: Sync, R: Send>(
         .collect()
 }
 
+/// How many threads unpack: $XCLANG_JOBS, or one per CPU.
 pub fn cpus() -> usize {
-    std::thread::available_parallelism().map_or(4, |n| n.get())
+    match std::env::var("XCLANG_JOBS")
+        .ok()
+        .and_then(|j| j.parse().ok())
+    {
+        Some(jobs) if jobs > 0 => jobs,
+        _ => std::thread::available_parallelism().map_or(4, |n| n.get()),
+    }
 }
 
 /// Megabytes, as the vendors count them.

@@ -48,6 +48,14 @@ jobs:
           node-version: 24
       - name: Build
         run: node scripts/cli.ts ${{ inputs.revision && format('--revision {0}', inputs.revision) || '' }}
+      - name: rustfmt, clippy, unit tests
+        if: ${{ matrix.machine == 'linux' }}
+        working-directory: cli
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          cargo clippy --all-targets --features maintainer -- -D warnings
+          cargo test --features maintainer
       - uses: actions/upload-artifact@v7
         with:
           name: cli-build-${{ matrix.machine }}
