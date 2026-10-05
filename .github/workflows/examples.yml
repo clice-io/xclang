@@ -258,10 +258,19 @@ jobs:
         run: bazel build --platforms=@xclang//platforms:${{ matrix.cross }} //...
 
   # docs/en/features/modules.md, "Build caches and modules": what ccache
-  # does with the command lines CMake gives a module and its importer. The
-  # job fails when ccache no longer serves the stale object, so the page
-  # gets updated.
+  # does with the command lines CMake gives a module and its importer
+  # (the module file named in a response file), built three times: as is,
+  # again, and after the module's interface changed. ccache 4.13.6 serves
+  # the importer's stale object; the job fails when a version's behaviour
+  # differs from what the page says, so the page gets updated.
   ccache:
+    name: ccache (${{ matrix.ccache }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { ccache: "4.13.6", stale: "yes" }
+          - { ccache: "4.14.1", stale: "no" }
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
@@ -280,20 +289,23 @@ jobs:
       - name: A module, an importer, ccache
         run: |
           export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
-          pixi exec --spec "ccache>=4.13" ccache --version | head -1
+          ccache() { pixi exec --spec "ccache==${{ matrix.ccache }}" ccache "$@"; }
+          ccache --version | head -1
           mkdir modules && cd modules
           printf 'export module a;\nexport constexpr int k = 1;\n' > a.cppm
           printf 'import a;\nint main() { return k; }\n' > b.cpp
           echo "-fmodule-file=a=a.pcm" > b.modmap
           export CCACHE_DIR=$PWD/cache
           build() {
-            pixi exec --spec "ccache>=4.13" ccache clang++ -std=c++20 -O2 -x c++-module a.cppm -c -o a.o -fmodule-output=a.pcm
-            pixi exec --spec "ccache>=4.13" ccache clang++ -std=c++20 -O2 -c b.cpp -o b.o @b.modmap
+            ccache clang++ -std=c++20 -O2 -x c++-module a.cppm -c -o a.o -fmodule-output=a.pcm
+            ccache clang++ -std=c++20 -O2 -c b.cpp -o b.o @b.modmap
             clang++ a.o b.o -o b
+            ./b && status=0 || status=$?
+            echo "$1: exit $status; $(ccache --print-stats | grep -E '^(direct_cache_hit|preprocessed_cache_hit|cache_miss|unsupported_source_language)' | tr '\t\n' '= ')" | tee -a "$GITHUB_STEP_SUMMARY"
           }
-          build; ./b && first=0 || first=$?
+          build "k = 1"
+          build "k = 1 again"
           sed -i 's/k = 1/k = 2/' a.cppm
-          build; ./b && second=0 || second=$?
-          pixi exec --spec "ccache>=4.13" ccache --print-stats | grep -E '^(direct_cache_hit|unsupported_source_language)' | tee -a "$GITHUB_STEP_SUMMARY"
-          echo "k = 1: exit $first; k = 2: exit $second" | tee -a "$GITHUB_STEP_SUMMARY"
-          [[ $first == 1 && $second == 1 ]] || { echo "::error::ccache no longer serves the stale object: update docs/en/features/modules.md"; exit 1; }
+          build "k = 2"
+          stale=no; [[ $status == 1 ]] && stale=yes
+          [[ $stale == ${{ matrix.stale }} ]] || { echo "::error::ccache ${{ matrix.ccache }}: stale object $stale, docs/en/features/modules.md says ${{ matrix.stale }}"; exit 1; }
