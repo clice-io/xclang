@@ -1,8 +1,8 @@
-# FAQ and troubleshooting
+# FAQ and Troubleshooting
 
 The things that surprise people, by symptom.
 
-## Linking and running
+## Linking and Running
 
 ### A `std::exception` from my shared library is not caught
 
@@ -11,8 +11,8 @@ caught in another is caught by `catch (...)`, not by
 `catch (const std::exception&)`. Every shared object linked by xclang has
 its own libc++, and so its own `type_info` for `std::exception`, which
 libc++ compares by address there. Windows compares by name and catches it.
-Link the code into one program, or keep C++ types and exceptions inside
-each shared object behind a C interface
+Link the code into one program, or keep C++ types and exceptions inside each
+shared object behind a C interface
 ([one libc++ per shared object](../design/hermeticity.md#one-libc-per-shared-object)).
 
 ### Bazel tests crash at start-up with a double free
@@ -55,7 +55,7 @@ output with its extension when cross-compiling (`-o hello.exe`).
 
 Rust's standard library links with `-nodefaultlibs` and asks for
 `-lgcc_s`, which is an empty archive in xclang's sysroots. Name libunwind:
-`-Clink-arg=-l:libunwind.a` ([Rust and cargo](../integrations/cargo.md)).
+`-Clink-arg=-l:libunwind.a` ([Rust and Cargo](../integrations/cargo.md)).
 
 ### I want the system's headers and libstdc++, not xclang's
 
@@ -63,7 +63,8 @@ Rust's standard library links with `-nodefaultlibs` and asks for
 compiler, which uses the system's headers and libraries as upstream clang
 does.
 
-## Cross-compiling
+## Cross-Compiling
+
 
 ### `'Windows.h' file not found` from Linux, but it builds on Windows
 
@@ -73,14 +74,15 @@ everywhere ([Windows](../design/windows.md#case-sensitive-headers)).
 
 ### A macOS target fails on Linux or Windows
 
-The macOS targets build against Xcode's SDK, so on macOS hosts only, today
-([macOS](../design/macos.md)). Building for macOS from other hosts, with
-the SDK fetched from Apple, is in research.
+The macOS targets build against Xcode's SDK, so on macOS hosts only
+([macOS](../design/macos.md)). Building for macOS from other hosts, with the
+SDK fetched from Apple, is
+[in research](../design/roadmap.md#macos-any-host).
 
 ### Linking against the macOS 27 SDK fails: "malformed file", "arm64e.x1"
 
 Xcode 27's SDK lists an architecture LLVM 23.1.2 does not know; 23.1.2.6
-and later carry the fix ([patch 0009](../design/patches.md)).
+and later carry the fix ([patch 0009](../reference/patches.md)).
 
 ### Test registrations disappear from Windows release builds
 
@@ -89,7 +91,7 @@ sections for MinGW targets. The Bazel module leaves it off for Windows; in
 another build, do not pass `-Wl,--gc-sections` for Windows targets
 ([Windows](../design/windows.md#gc-sections-and-static-initializers)).
 
-## Sanitizers and debugging
+## Sanitizers and Debugging
 
 ### ASan reports a container-overflow that is not there
 
@@ -115,9 +117,9 @@ deleted. Make it in the link: `xclang_debug_symbols` in CMake, the
 
 clang prints its compile job as `".../llvm" "clang" "-cc1" ...`, the
 multi-call program with the tool's name first. Skip the name
-([the toolchain's shape](../design/toolchain.md#one-program)).
+([toolchain structure](../design/toolchain.md#one-program)).
 
-## Build speed and caches
+## Build Speed and Caches
 
 ### Linking a tool on libclang takes minutes every time
 
@@ -130,7 +132,8 @@ the ThinLTO cache, `XCLANG_THINLTO_CACHE`
 The sandbox lets a link write the directory only with
 `--sandbox_writable_path=<dir>`, and a directory under `/tmp` is the
 action's private `/tmp`, lost after the link. Use `/var/tmp/...` with
-`--sandbox_writable_path` ([Bazel](../integrations/bazel.md#the-thinlto-cache)).
+`--sandbox_writable_path`
+([Bazel](../integrations/bazel.md#the-thinlto-cache)).
 
 ### ccache gives a wrong program after a module's interface changed
 
@@ -145,7 +148,7 @@ The `std` module was built with other language options than the importer:
 (Bazel), or give the target a `std` of its own (`xclang_add_std`)
 ([CMake](../integrations/cmake.md#import-std)).
 
-## Windows hosts
+## Windows Hosts
 
 ### Bazel fails with paths too long
 

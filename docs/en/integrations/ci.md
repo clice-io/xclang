@@ -2,12 +2,14 @@
 
 xclang on GitHub Actions: getting the toolchain onto a runner, keeping what
 is slow to rebuild between runs, and building for one target on another
-target's runner. The snippets are from workflows that run them:
-xclang's [examples.yml](https://github.com/clice-io/xclang/blob/main/.github/workflows/examples.yml)
-and [bazel.yml](https://github.com/clice-io/xclang/blob/main/.github/workflows/bazel.yml),
-and clice's [native-test.yml](https://github.com/clice-io/clice/blob/main/.github/workflows/native-test.yml).
+target's runner. The snippets are from workflows that run them: xclang's
+[examples.yml](https://github.com/clice-io/xclang/blob/main/.github/workflows/examples.yml)
+and
+[bazel.yml](https://github.com/clice-io/xclang/blob/main/.github/workflows/bazel.yml),
+and clice's
+[native-test.yml](https://github.com/clice-io/clice/blob/main/.github/workflows/native-test.yml).
 
-## Getting the toolchain
+## Getting the Toolchain
 
 **pixi.** With the workspace of the [quick start](../guide/quick-start.md):
 
@@ -98,15 +100,15 @@ new xclang release changes every link's input, so none of the old entries
 can be used; with the version in the key its entry starts empty
 ([the ThinLTO cache](../features/thinlto-cache.md)).
 
-**ccache** is safe for code without C++20 modules. With modules, check
-what your ccache version does first
+**ccache** is safe for code without C++20 modules. With modules, check what
+your ccache version does first
 ([C++20 modules](../features/modules.md#build-caches-and-modules)).
 
-## Building for another target's runner
+## Building on One Runner, Running on Another
 
 A Linux runner builds for every Linux and Windows target; the programs and
-tests run on a runner of the target. xclang's own bazel.yml does this for
-22 host-to-target pairs: one job builds with
+tests run on a runner of the target. xclang's own bazel.yml does this for 22
+host-to-target pairs: one job builds with
 `--platforms=@xclang//platforms:<target>` and uploads the test binaries,
 another, on a runner of the target, downloads and runs them. Linux-built
 Windows programs run on `windows-2025` and `windows-11-arm`, with nothing

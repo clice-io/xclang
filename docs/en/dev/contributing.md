@@ -5,7 +5,7 @@ times with PGO and ThinLTO, plus six targets' runtimes. Most contributions
 are to the scripts, the build integrations, the tests or the docs, and
 most of them are checked on CI, not on a laptop.
 
-## Where things are
+## Where Things Are
 
 ```
 scripts/           TypeScript, run by Node 24: bootstrap, runtimes and
@@ -23,8 +23,7 @@ docs/en/           this site
 .github/workflows/ CI; main.yml runs a release's stages
 ```
 
-[How a release is built](../design/release-build.md) has the stages and the
-workflows.
+The [build pipeline](release-build.md) has the stages and the workflows.
 
 ## Building
 
@@ -79,20 +78,21 @@ touches:
 | the xclang command | tests/cli.ts, tests/cargo.ts (cli.yml) |
 | the docs' commands, examples/ | examples.yml |
 
-## The docs
+## The Docs
 
 The docs are `docs/en/<group>/<page>.md`, published to
-[docs.clice.io/xclang](https://docs.clice.io/xclang) by clice-io/docs's
-sync action when `main` changes; `docs/en/sidebar.yaml` orders the pages.
-To preview, copy `docs/en` into a checkout of
+[docs.clice.io/xclang](https://docs.clice.io/xclang) by clice-io/docs's sync
+action when `main` changes; `docs/en/sidebar.yaml` orders the pages. To
+preview, copy `docs/en` into a checkout of
 [clice-io/docs](https://github.com/clice-io/docs) as `en/xclang` and run its
-VitePress build (`npm install && npm run build`); the build fails on a
-dead link. A code block under `<!-- file: <path> -->` must be that file of
-the repository, which tests/docs.ts checks.
+VitePress build (`npm install && npm run build`); the build fails on a dead
+link. A code block under `<!-- file: <path> -->` must be that file of the
+repository, which tests/docs.ts checks.
 
 ## Reporting
 
-Bugs and questions: [GitHub issues](https://github.com/clice-io/xclang/issues).
-A bug in clang, lld or libc++ itself is reported upstream, to LLVM; xclang
-carries a fix as a patch until upstream has one. Security issues: see
+Bugs and questions:
+[GitHub issues](https://github.com/clice-io/xclang/issues). A bug in clang,
+lld or libc++ itself is reported upstream, to LLVM; xclang carries a fix as
+a patch until upstream has one. Security issues: see
 [SECURITY.md](https://github.com/clice-io/xclang/blob/main/SECURITY.md).

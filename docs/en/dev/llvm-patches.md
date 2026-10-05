@@ -1,13 +1,13 @@
-# Patching and upgrading LLVM
+# Patching and Upgrading LLVM
 
 xclang builds LLVM's release source with the changes in
 [`patches/`](https://github.com/clice-io/xclang/tree/main/patches). The
 maintainers' step lists are the llvm-patch and llvm-upgrade skills in
 [.claude/skills](https://github.com/clice-io/xclang/tree/main/.claude/skills);
 this page is the same, for people. What each patch does is in
-[patches](../design/patches.md).
+[LLVM patches](../reference/patches.md).
 
-## The rules a patch follows
+## The Rules a Patch Follows
 
 - **Applied without fuzz.** `scripts/common.ts` applies every
   `patches/NNNN-name/*.patch` in directory order right after unpacking the
@@ -24,7 +24,7 @@ this page is the same, for people. What each patch does is in
 - `*.patch` files are `-text` in `.gitattributes`: git does not convert
   their line endings, and an editor must not either.
 
-## Adding one
+## Adding One
 
 1. `patches/NNNN-short-name/` with `NNNN.patch` (against the release
    source, paths `a/…` and `b/…`, as `git diff` writes them) and
@@ -35,8 +35,8 @@ this page is the same, for people. What each patch does is in
 3. Add the check to tests/smoke.ts, and confirm it on CI on an
    `exp/<name>` branch: a main.yml run with and without the patch, a
    toolchain without PGO for a quick A/B.
-4. Docs: the table in [patches](../design/patches.md), and a CHANGELOG
-   Unreleased entry.
+4. Docs: the table in [LLVM patches](../reference/patches.md), and a
+   CHANGELOG Unreleased entry.
 5. Report or send it upstream when the maintainers agree to; record the
    link in its README.
 

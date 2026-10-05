@@ -1,4 +1,4 @@
-# Plain clang, Make and Meson
+# Plain Clang, Make and Meson
 
 Any build that runs a compiler by name works with xclang: put xclang's
 `bin/` first in `PATH` (pixi does) or name the programs by their path, and
@@ -8,7 +8,8 @@ written on every host by
 ([the run for 23.1.2.6](https://github.com/clice-io/xclang/actions/runs/37354730630)),
 Make on Linux and macOS hosts.
 
-## clang
+## Clang
+
 
 ```sh
 clang++ -O2 hello.cpp -o hello
@@ -34,8 +35,9 @@ What the config files decide, so that a command does not:
 
 `--no-default-config` drops all of it and gives the bare compiler, for
 building against the system's own headers and libraries as upstream clang
-would. [The toolchain's shape](../design/toolchain.md#a-config-file-per-target)
-says why the choices are config files and not built in.
+would.
+[Toolchain structure](../design/toolchain.md#a-config-file-per-target) says
+why the choices are config files and not built in.
 
 Build scripts written for GCC keep working: `-latomic`, `-lgcc`, `-lgcc_eh`,
 `-lgcc_s` and on Windows `-lssp` find empty archives, the functions being in
@@ -44,9 +46,10 @@ links fully static Linux programs; `windres` is `llvm-windres`
 ([GCC library names](../design/hermeticity.md#gcc-library-names)).
 tests/smoke.ts checks each on every host.
 
-libc++ is built with hardening mode `none`. The mode is a per-translation-unit
-macro, so a debug build opts in with `-D_LIBCPP_HARDENING_MODE=...`
-(tests/smoke.ts builds with `_LIBCPP_HARDENING_MODE_DEBUG`).
+libc++ is built with hardening mode `none`. The mode is a
+per-translation-unit macro, so a debug build opts in with
+`-D_LIBCPP_HARDENING_MODE=...` (tests/smoke.ts builds with
+`_LIBCPP_HARDENING_MODE_DEBUG`).
 
 ## Make
 
@@ -106,7 +109,8 @@ meson compile -C build-aarch64-w64-mingw32
 `cross/aarch64-unknown-linux-gnu.ini` is the same for Linux on Arm, without
 `windres`, with `system = 'linux'`.
 
-## More
+## See Also
+
 
 - Sanitizers, and the ASan build of libc++ an ASan program links:
   [sanitizers](../features/sanitizers.md).

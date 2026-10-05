@@ -4,7 +4,7 @@ What changed for xclang's users in each release. Releases are tagged
 `<llvm version>.<revision>`; every one of them has the same assets (the
 toolchain, libclang and its ASan build, the option tables, the profile and
 `SHA256SUMS`, see [Installing](docs/en/guide/install.md)), and LLVM's source with
-the [patches](docs/en/design/patches.md) of its tag.
+the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 

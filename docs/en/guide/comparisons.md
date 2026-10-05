@@ -5,7 +5,7 @@ where xclang differs, in both directions. Facts are as of 2026-10-06 and
 come from each project's own documentation, linked; corrections are
 welcome as [issues](https://github.com/clice-io/xclang/issues).
 
-## In one table
+## In One Table
 
 | | what it is | targets out of the box | sysroots and SDKs | C++ runtime in programs | Linux programs run on | build systems | compiler built with PGO |
 |---|---|---|---|---|---|---|---|
@@ -34,13 +34,17 @@ was shown to work. It differs from xclang in how it gets there:
   what a target needs the first time, then caches it
   ([overview](https://ziglang.org/learn/overview/)). That is how it fits
   dozens of targets in a 55 MB download. xclang ships the six targets'
-  runtimes prebuilt (no first-build delay, the same bytes for everyone)
-  and is to fetch other targets as prebuilt archives.
+  runtimes prebuilt: no first-build delay, the same bytes for everyone.
+  Fetching other targets as prebuilt archives is
+  [planned](../design/roadmap.md#target-archives).
 - **It has more targets today**: musl, any glibc version per target
   (`x86_64-linux-gnu.2.17`), the BSDs, WASI, and macOS from any host with
   Apple's libc headers and a `libSystem` stub
   ([0.17.0 release notes](https://ziglang.org/download/0.17.0/release-notes.html)).
-  xclang has none of these yet.
+  xclang has none of these: musl targets are
+  [planned](../design/roadmap.md#musl), a newer glibc and the BSDs
+  [considered](../design/roadmap.md#glibc-newer), macOS from any host
+  [in research](../design/roadmap.md#macos-any-host).
 - **Its clang is Zig's.** 0.17.0 has LLVM 22, with loop vectorization
   disabled to work around a regression since 0.16.0; xclang follows LLVM's
   releases with stock clang, built with PGO and ThinLTO.
@@ -59,18 +63,19 @@ above are as they were then.
 ## cargo-zigbuild and cross-rs
 
 [cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild) makes zig cc
-cargo's C compiler and linker; its README lists Linux and macOS targets,
-and a glibc version per target. [cross-rs](https://github.com/cross-rs/cross)
+cargo's C compiler and linker; its README lists Linux and macOS targets, and
+a glibc version per target. [cross-rs](https://github.com/cross-rs/cross)
 runs cargo inside Docker or Podman images that hold a GCC cross toolchain
-per target, and `cross test` runs tests under QEMU; its default images
-have glibc 2.31 (2.17 in `:centos` ones), and it provides no images for
-Apple targets "due to licensing reasons".
+per target, and `cross test` runs tests under QEMU; its default images have
+glibc 2.31 (2.17 in `:centos` ones), and it provides no images for Apple
+targets "due to licensing reasons".
 
-xclang is to do for cargo what cargo-zigbuild does, with stock clang and
-xclang's runtimes; today that is a documented recipe, not a helper
-([Rust and cargo](../integrations/cargo.md)). Unlike cross-rs, it needs no
-container and runs natively on Windows and macOS hosts; unlike cross-rs, it
-runs no tests under emulation.
+xclang works with cargo as cargo-zigbuild's zig does, with stock clang and
+xclang's runtimes. Today that is a documented recipe
+([Rust and Cargo](../integrations/cargo.md)); a helper like cargo-zigbuild's
+is [considered](../design/roadmap.md#cargo-helper). Unlike cross-rs, it
+needs no container and runs natively on Windows and macOS hosts; unlike
+cross-rs, it runs no tests under emulation.
 
 ## llvm-mingw
 
@@ -82,10 +87,10 @@ mingw-w64 as llvm-mingw does. llvm-mingw has more Windows architectures
 Windows, ASan on x86, and Control Flow Guard. It links libc++ and libunwind
 as DLLs unless `-static` is given
 ([#333](https://github.com/mstorsjo/llvm-mingw/issues/333)); xclang links
-them in. Its releases are built with PGO and ThinLTO too. It has no Linux
-or macOS targets.
+them in. Its releases are built with PGO and ThinLTO too. It has no Linux or
+macOS targets.
 
-## conda-forge's compilers
+## conda-forge's Compilers
 
 conda-forge's `cxx-compiler` is GCC on Linux, clang on macOS and MSVC on
 Windows, made to build conda packages: the C++ runtime is a shared library
@@ -98,44 +103,45 @@ wrong for a program that leaves it. xclang is a conda package too, but is
 not a compiler for conda-forge packages: it links its runtimes into every
 program and has no `run_exports`.
 
-## LLVM's release binaries
+## LLVM's Release Binaries
 
 [LLVM's releases](https://github.com/llvm/llvm-project/releases/tag/llvmorg-23.1.2)
 are clang, lld and the runtimes for the host, built with PGO and ThinLTO on
 Linux and macOS (`clang/cmake/caches/Release.cmake`) and with PGO on
 Windows, where LTO is off. They carry no sysroot for another target, so a
 cross build needs one from elsewhere, and their own size is 0.9 to 2 GB an
-archive. xclang 23.1.2.1 was built by them; xclang's archives are 95 to
-128 MB, carry six targets, and run on glibc 2.17. On compile speed they
-are close: [Why xclang](why-xclang.md#fast) has the numbers.
+archive. xclang 23.1.2.1 was built by them; xclang's archives are 95 to 128
+MB, carry six targets, and run on glibc 2.17. On compile speed they are
+close on Linux and macOS; [PGO](../design/pgo.md#what-it-buys) has the
+numbers.
 
-## Distribution clang and GCC cross toolchains
+## Distribution Clang and GCC Cross Toolchains
 
 On Debian, `crossbuild-essential-arm64` brings `aarch64-linux-gnu-g++` and
 an arm64 glibc of the distribution's version
 ([packages.debian.org](https://packages.debian.org/trixie/crossbuild-essential-arm64)),
-`g++-mingw-w64` a MinGW GCC; apt.llvm.org has every clang version. They
-are the default on a Linux machine and well maintained. Their programs
-need the distribution's glibc or newer and `libstdc++.so.6`, a MinGW GCC's
-need `libstdc++-6.dll` and `libgcc_s_seh-1.dll` unless linked with
-`-static`, each target is another set of packages, and they exist on Linux
-only.
+`g++-mingw-w64` a MinGW GCC; apt.llvm.org has every clang version. They are
+the default on a Linux machine and well maintained. Their programs need the
+distribution's glibc or newer and `libstdc++.so.6`, a MinGW GCC's need
+`libstdc++-6.dll` and `libgcc_s_seh-1.dll` unless linked with `-static`,
+each target is another set of packages, and they exist on Linux only.
 
-## Android NDK and wasi-sdk: the precedents
+## Android NDK and wasi-sdk: The Precedents
 
 Both are one clang with bundled sysroots, the shape xclang has for desktop
-targets. The [NDK](https://developer.android.com/ndk/guides/other_build_systems)
-takes the target and API level in `--target=aarch64-linux-android21`, and
-its libc++ is static by default in CMake. Its
+targets. The
+[NDK](https://developer.android.com/ndk/guides/other_build_systems) takes
+the target and API level in `--target=aarch64-linux-android21`, and its
+libc++ is static by default in CMake. Its
 [C++ library support](https://developer.android.com/ndk/guides/cpp-support)
-page states the rule xclang's static runtimes also follow: "you can only
-use a static variant of the C++ runtime if you have one and only one
-shared library in your application". [wasi-sdk](https://github.com/WebAssembly/wasi-sdk)
-is "builds configured to set the default target and sysroot", which is
-what a config file per target does in xclang. Android's own clang is
-built with PGO, LTO and BOLT.
+page states the rule xclang's static runtimes also follow: "you can only use
+a static variant of the C++ runtime if you have one and only one shared
+library in your application".
+[wasi-sdk](https://github.com/WebAssembly/wasi-sdk) is "builds configured to
+set the default target and sysroot", which is what a config file per target
+does in xclang. Android's own clang is built with PGO, LTO and BOLT.
 
-## Bazel toolchains
+## Bazel Toolchains
 
 [toolchains_llvm](https://github.com/bazel-contrib/toolchains_llvm)
 downloads LLVM's release for the host; it cross-compiles with a sysroot the
@@ -147,13 +153,23 @@ the sysroots itself, registers a toolchain per (host, target) pair, keeps
 its actions free of absolute paths, and adds `import std`, sanitizer
 features and libclang.
 
-## What xclang does not do
+## Not Yet Supported
 
-- Targets beyond the six: no musl, Android, iOS, WebAssembly, BSDs or
-  bare metal yet; zig cc, the NDK and wasi-sdk have them.
-- MSVC-ABI targets, and macOS from Linux or Windows: in research.
-- Run tests for other targets under emulation, as cross-rs does.
-- Older Windows (msvcrt, Windows 7), as llvm-mingw does.
-- A shared C++ runtime across shared libraries.
-- Build runtimes from source with other options (MemorySanitizer, libc++
-  hardening, a libc++ ABI of one's own): planned.
+| | status | who has it |
+|---|---|---|
+| [musl targets](../design/roadmap.md#musl) | Planned | zig cc |
+| [MSVC-ABI targets](../design/roadmap.md#msvc) | Planned | clang-cl with Visual Studio |
+| [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | In research | zig cc |
+| [Android](../design/roadmap.md#android), [WebAssembly](../design/roadmap.md#wasm), [the BSDs](../design/roadmap.md#freebsd), [bare metal](../design/roadmap.md#bare-metal) | Considered | the NDK, wasi-sdk, zig cc |
+| [iOS and Apple's other devices](../design/roadmap.md#ios) | In research | Xcode |
+| [Windows 7 and XP](../design/roadmap.md#windows-7) | In research | llvm-mingw's msvcrt variant |
+| [Runtimes built from source with other options: MemorySanitizer, libc++ hardening, an ABI of one's own](../design/roadmap.md#libc-on-demand) | Planned | zig cc builds its runtimes on first use |
+
+## Known Limitations
+
+- **No tests under emulation.** Programs built for another target run on a
+  machine of that target; xclang has nothing like `cross test`.
+- **No msvcrt.** The MinGW targets use UCRT, which needs Windows 10 or
+  later; an msvcrt variant is [not planned](../design/roadmap.md#msvcrt).
+- **No shared C++ runtime across shared libraries.** It is
+  [not planned](../design/roadmap.md#shared-runtime).

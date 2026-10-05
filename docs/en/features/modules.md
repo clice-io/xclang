@@ -1,11 +1,11 @@
-# C++20 modules and import std
+# C++20 Modules and `import std`
 
 xclang builds C++20 modules in CMake and Bazel today, `import std`
 included, without CMake's experimental switches. This page says what a
 build has to get right for modules, how xclang does it, and where build
 caches go wrong.
 
-## What a module build needs
+## What a Module Build Needs
 
 A module interface compiles to a *module file* (BMI, `.pcm` for clang),
 which every importer reads. Three things follow:
@@ -24,7 +24,8 @@ which every importer reads. Three things follow:
   content of the module files it read, not only on its own source and
   command line.
 
-## import std
+## `import std`
+
 
 libc++'s `std` and `std.compat` modules are sources in each target's
 directory, which clang names: `clang++ -print-library-module-manifest-path`
@@ -49,7 +50,8 @@ A target with other language options (`-fno-exceptions`, say) needs a
 newer standard than `std` was built with gets `C++26 was disabled in
 precompiled file`.
 
-## By hand
+## By Hand
+
 
 The steps tests/smoke.ts runs on every host, for the host's target:
 
@@ -64,7 +66,7 @@ clang++ -std=c++23 -O2 -fmodule-file=std=std.pcm use_std.cpp std.pcm -o use_std
 module named `std`.) With `--target=<triple>` on each command, the same
 builds another target's `std`.
 
-## Build caches and modules
+## Build Caches and Modules
 
 A compile cache keyed on the source, the command line and the headers it
 includes misses the module files, which the command line names only by
@@ -90,23 +92,16 @@ build, which in a modularized project is much of the work. The job fails
 when either version stops behaving as the table says, so the table stays
 true.
 
-Bazel has no such problem by construction. Each action's key is the
-content of all its inputs, and an importer's inputs include the module
-files it reads, as declared outputs of the actions that made them. A
-changed interface gives a new module file, which changes the key of every
-importer; an unchanged one hits the cache. xclang's toolchains compile
-modules with paths relative to the execution root
-(`-fmodule-file-home-is-cwd`), so a module file is the same wherever it is
-built and a shared cache serves it to every checkout.
+Bazel has no such problem by construction. Each action's key is the content
+of all its inputs, and an importer's inputs include the module files it
+reads, as declared outputs of the actions that made them. A changed
+interface gives a new module file, which changes the key of every importer;
+an unchanged one hits the cache. xclang's toolchains compile modules with
+paths relative to the execution root (`-fmodule-file-home-is-cwd`), so a
+module file is the same wherever it is built and a shared cache serves it to
+every checkout.
 
-## Not supported
-
-- Header units (`import <vector>;`): neither CMake nor Bazel builds them
-  here.
-- Bazel's module support is behind `--experimental_cpp_modules` in Bazel 9.
-- Generators other than Ninja and Ninja Multi-Config, in CMake.
-
-## Tested by
+## Tested By
 
 - tests/cmake (cmake.yml, every host, CMake 3.28 and the newest): a module
   of partitions, `xclang::std` with `std.compat`, `xclang_add_std` with
@@ -116,3 +111,11 @@ built and a shared cache serves it to every checkout.
   target): a module of partitions, a module importing another, `import std`.
 - examples.yml: `import std` in CMake and Bazel on every host, as the
   [quick start](../guide/quick-start.md) does.
+
+## Known Limitations
+
+- Header units (`import <vector>;`) are built by neither CMake nor Bazel.
+- Bazel's module support is behind `--experimental_cpp_modules` in
+  Bazel 9.
+- CMake builds modules only with the Ninja and Ninja Multi-Config
+  generators.

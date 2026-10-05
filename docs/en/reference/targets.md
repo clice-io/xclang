@@ -1,4 +1,4 @@
-# Targets and tiers
+# Targets and Tiers
 
 ## Hosts
 
@@ -26,9 +26,9 @@ every archive carries every target.
 | `x86_64-apple-darwin` | `x86_64-apple-macos`, `x86_64-apple-macosx` | the SDK's libSystem | macOS 13.0 or later | macOS hosts |
 
 All six are tier 1. The macOS targets build on macOS hosts only, because
-they need Apple's SDK, which comes from Xcode there; macOS from any host,
+they need Apple's SDK, which comes from Xcode there. macOS from any host,
 with the SDK fetched from Apple by the user, is
-[in research](../design/roadmap.md).
+[in research](../design/roadmap.md#macos-any-host).
 
 What each target has:
 
@@ -47,17 +47,11 @@ Each target has a tier, as Rust's targets do. The tier says how a target
 is tested, and so how much a release promises about it.
 
 - **Tier 1**: built for every release, and its tests run on a
-  GitHub-hosted runner of the target itself (for future targets: Windows
-  x64 runs x86 programs, wasmtime WebAssembly ones); a failure stops the
-  release.
+  GitHub-hosted runner of the target itself; a failure stops the release.
 - **Tier 2**: built for every release, and its tests run under emulation or
   virtualization: qemu, a virtual machine, Android's emulator, Apple's
   simulators.
-- **Tier 3**: built, or buildable on demand; programs are compiled and
-  linked for it, not run.
-
-A target marked **SDK** needs a vendor SDK that the user fetches and
-accepts the license of; xclang's tests fetch it the same way.
+- **Tier 3**: programs are compiled and linked for it, not run.
 
 What "its tests run on the target itself" means for today's six:
 
@@ -71,5 +65,13 @@ What "its tests run on the target itself" means for today's six:
   programs on Linux, and so on. No emulator is involved.
 - examples.yml runs the quick start on every host.
 
-The targets planned and considered, with their tiers, are in the
+## Not Yet Supported
+
+| | status |
+|---|---|
+| [Sanitizers for MSVC targets](../design/roadmap.md#msvc), with the MSVC targets | Planned |
+| [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
+| [macOS targets from Linux and Windows hosts](../design/roadmap.md#macos-any-host) | In research |
+
+Every other target, with its planned tier and its status, is in the
 [roadmap](../design/roadmap.md#targets).

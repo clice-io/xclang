@@ -1,56 +1,75 @@
 guide:
   label: Guide
   items:
-    - what-is-xclang
-    - why-xclang
-    - quick-start
-    - install
-    - cross-compiling
+    - file: what-is-xclang
+      label: What is xclang?
+    - file: quick-start
+      label: Quick Start
+    - file: install
+      label: Installation
+    - file: cross-compiling
+      label: Cross-Compiling
+    - file: why-xclang
+      label: Why xclang?
     - comparisons
-    - faq
+    - file: faq
+      label: FAQ
 
 integrations:
   label: Integrations
   items:
     - cmake
     - bazel
-    - clang
-    - cargo
+    - file: clang
+      label: Make and Meson
+    - file: cargo
+      label: Cargo
     - ci
 
 features:
   label: Features
   items:
-    - modules
+    - file: modules
+      label: Modules
     - sanitizers
-    - debugging
-    - thinlto-cache
-    - libclang
+    - file: debugging
+      label: Debugging
+    - file: libclang
+      label: libclang
+    - file: thinlto-cache
+      label: ThinLTO Cache
 
 reference:
   label: Reference
   items:
-    - targets
-    - layout
+    - file: targets
+      label: Targets
     - compatibility
+    - file: layout
+      label: Archive Layout
     - cmake-api
     - bazel-api
-    - releases
+    - file: releases
+      label: Releases
+    - file: patches
+      label: LLVM Patches
+    # Unreleased: reached by links only, until a release carries the command.
     - file: xclang-command
-      label: The xclang command (unreleased)
+      label: xclang Command
+      hidden: true
 
 design:
   label: Design
   items:
     - hermeticity
-    - toolchain
+    - file: toolchain
+      label: Toolchain Structure
     - pgo
-    - release-build
     - macos
     - windows
-    - bazel-module
+    - file: bazel-module
+      label: Bazel Module
     - vendor-sdks
-    - patches
     - roadmap
 
 dev:
@@ -58,5 +77,8 @@ dev:
   collapsed: true
   items:
     - contributing
+    - file: release-build
+      label: Build Pipeline
+    - file: llvm-patches
+      label: Patching LLVM
     - releasing
-    - llvm-patches

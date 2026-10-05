@@ -5,7 +5,7 @@ MinGW-w64 on UCRT, and the Windows toolchains are MinGW programs built on
 Linux. This page says why, and what Windows took that the other targets
 did not.
 
-## MinGW today, MSVC to be first-class
+## MinGW and MSVC
 
 xclang began as clice's toolchain, and clice needed one build of itself
 for all six hosts, with PGO, from one kind of machine. MinGW-w64 makes that
@@ -15,24 +15,25 @@ Linux; libc++ and libunwind link into the program as on Linux. The Windows
 toolchains themselves are built that way, on Linux x64.
 
 MinGW is not the only Windows ABI people need: libraries built with MSVC,
-COM-heavy code and vendor SDKs expect the MSVC ABI. MSVC-ABI targets are to
-be first-class too, against the user's own MSVC and Windows SDK, fetched
-from Microsoft by the user ([vendor SDKs](vendor-sdks.md)), with the VC
-runtime and STL linked statically and UCRT dynamically, Microsoft's
-"hybrid CRT". They are in research; the fetching and cross builds work in
-tests ([roadmap](roadmap.md#targets)).
+COM-heavy code and vendor SDKs expect the MSVC ABI. MSVC-ABI targets are
+[planned](roadmap.md#msvc) as first-class targets, and are in no release.
+They build against the user's own MSVC and Windows SDK, fetched from
+Microsoft by the user ([vendor SDKs](vendor-sdks.md)). The VC runtime and
+the STL are linked statically and UCRT dynamically, Microsoft's "hybrid
+CRT". Until then, use clang-cl with Visual Studio for the MSVC ABI.
 
 The C runtime is **UCRT**, not msvcrt: UCRT is part of Windows 10 and
 later, has the C99 and later functions msvcrt lacks, and is what MSVC
 programs use too. Programs need Windows 10 or later.
 
-## The launchers
+## The Launchers
 
 A Windows archive has no symbolic links: Windows creates them only with
 developer mode or administrator rights, so an archive with links fails to
 unpack for most users, and conda packages for Windows cannot carry them.
 Every name of `llvm.exe` (`clang.exe`, `clang++.exe`, `ld.lld.exe`, ...) is
-instead a small program, [`windows/alias.c`](https://github.com/clice-io/xclang/blob/main/windows/alias.c),
+instead a small program,
+[`windows/alias.c`](https://github.com/clice-io/xclang/blob/main/windows/alias.c),
 that starts `llvm.exe <name> <arguments>`.
 
 - **The name goes in as an argument.** The multi-call `llvm` picks the tool
@@ -49,12 +50,11 @@ that starts `llvm.exe <name> <arguments>`.
   working directory and inherited handles. It is now created inside the job
   (`PROC_THREAD_ATTRIBUTE_JOB_LIST`).
 - **It costs a process start.** Each compile starts two processes instead of
-  one. On C files that compile in milliseconds that shows: 2 to 6% on x64
-  and 10 to 22% on arm64 in xclang's benchmark ([PGO](pgo.md#what-it-buys));
-  on C++ files with real work it does not. A build tool can run
-  `llvm.exe clang++ ...` directly.
+  one. On C files that compile in milliseconds that shows, and on C++ files
+  with real work it does not; [PGO](pgo.md#what-it-buys) has the numbers.
+  A build tool can run `llvm.exe clang++ ...` directly.
 
-## gc-sections and static initializers
+## gc-sections and Static Initializers
 
 lld's `--gc-sections`, for MinGW targets, drops the static initializers of
 COMDAT sections that nothing references, for example the registration
@@ -70,7 +70,7 @@ So the Bazel module turns `gc_sections` on in optimized builds for Linux
 targets and leaves it off for Windows ones; `--features=gc_sections` turns
 it on where nothing relies on such initializers.
 
-## Case-sensitive headers
+## Case-Sensitive Headers
 
 Windows file names ignore case, and code written on Windows includes
 `<Windows.h>`, `<BaseTsd.h>`, `<WinSock2.h>`; MinGW-w64's files are
@@ -78,34 +78,51 @@ Windows file names ignore case, and code written on Windows includes
 from Linux, the include fails. The fix is in the code (the lower-case
 spelling, which works everywhere); xclang does not add links for every
 spelling to the MinGW sysroots. kotatsu, built from Linux by xclang's CI,
-changed its `<BaseTsd.h>` for this. (The MSVC SDK that `xclang sdk fetch
-windows` lays out on Linux does get case links, 3.6k of them, because
-Microsoft's own headers and libraries use mixed spellings.)
+changed its `<BaseTsd.h>` for this. The MSVC SDK that the
+[unreleased](roadmap.md#xclang-command) `xclang sdk fetch windows` lays out
+on Linux does get case links, 3.6k of them, because Microsoft's own headers
+and libraries use mixed spellings.
 
-## Visual Studio from a MinGW-built clang
+## Visual Studio from a MinGW-Built Clang
 
 A clang built with MinGW, and every tool built on its libraries, could not
-find Visual Studio 2017 or later: LLVM builds the Setup API lookup only
-with MSVC, and the MinGW build fell back to the registry, where it found
-the headers of Visual Studio 2010 and older. clice, a MinGW-built tool that
-runs clang's driver on MSVC projects' commands, got the wrong headers.
-[Patch 0004](patches.md) enables the lookup on MinGW (sent upstream as
-llvm/llvm-project#226794); tests/smoke.ts checks that `--target=<arch>-pc-windows-msvc`
-finds Visual Studio on the Windows runners.
+find Visual Studio 2017 or later: LLVM builds the Setup API lookup only with
+MSVC, and the MinGW build fell back to the registry, where it found the
+headers of Visual Studio 2010 and older. clice, a MinGW-built tool that runs
+clang's driver on MSVC projects' commands, got the wrong headers.
+[Patch 0004](../reference/patches.md) enables the lookup on MinGW (sent
+upstream as llvm/llvm-project#226794); tests/smoke.ts checks that
+`--target=<arch>-pc-windows-msvc` finds Visual Studio on the Windows
+runners.
 
-## Reproducible links
+## Reproducible Links
 
 PE files carry a link timestamp; Bazel links pass `--no-insert-timestamp`,
-and small programs then link to the same bytes every time. A large one did
-not: clice's 600 MB `clice.exe`, linked six times by lld with ThinLTO from
-the same inputs, came out in three different layouts, with and without the
-ThinLTO cache. The cause is open.
+and small programs then link to the same bytes every time. Large ones do
+not always ([known limitations](#known-limitations)).
 
-## What Windows lacks
+## Not Yet Supported
 
-- Sanitizers for Windows targets.
-- A Bazel sandbox: on Windows an action can read files it did not declare,
-  and nothing notices. Hermeticity is enforced by the Linux and macOS
-  builds of the same targets.
-- MSVC-ABI targets, Windows x86, arm64ec, older Windows: in the
-  [roadmap](roadmap.md#targets).
+| | status |
+|---|---|
+| [MSVC-ABI targets, x64 and arm64, with their sanitizers](roadmap.md#msvc) | Planned |
+| [Windows x86 (MSVC)](roadmap.md#windows-x86-msvc) | In research |
+| [Windows 7 and XP](roadmap.md#windows-7) | In research |
+| [Windows x86 (MinGW)](roadmap.md#windows-x86-mingw) | Considered |
+| [Windows arm64ec](roadmap.md#arm64ec) | Considered |
+| [Sanitizers for MinGW targets](roadmap.md#mingw-sanitizers) | Considered |
+
+A MinGW variant on msvcrt, for Windows before 10, is
+[not planned](roadmap.md#msvcrt).
+
+## Known Limitations
+
+- **No Bazel sandbox by default.** Bazel runs actions on Windows without a
+  sandbox unless an experimental one is set up
+  (`--experimental_use_windows_sandbox`). An action can then read files it
+  did not declare, and nothing notices. The Linux and macOS builds of the
+  same targets enforce the declarations.
+- **Large ThinLTO links are not always the same bytes.** clice's 600 MB
+  `clice.exe`, linked six times by lld with ThinLTO from the same inputs,
+  came out in three different layouts, with and without the ThinLTO cache.
+  The cause is not known.

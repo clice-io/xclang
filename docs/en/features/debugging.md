@@ -1,4 +1,4 @@
-# Debugging and debug symbols
+# Debugging and Debug Symbols
 
 Two things a toolchain decides about debugging: what paths a program's
 debug information names, so that a debugger finds the sources; and how a
@@ -6,7 +6,7 @@ release's symbols are made and kept, so that a crash from the field can be
 read. xclang's tools for both are in every archive: `dsymutil`,
 `llvm-gsymutil`, `llvm-symbolizer`, `llvm-dwarfdump`.
 
-## Paths in debug information
+## Paths in Debug Information
 
 By default a compiler writes the absolute directory it ran in into the
 DWARF (`DW_AT_comp_dir`), and on macOS the linker writes the absolute path
@@ -33,14 +33,14 @@ the workspace's `bazel-<workspace>` link
 ([Bazel](../integrations/bazel.md#debugging) has the gdb, lldb and VS Code
 settings). tests/bazel.ts builds a program with `-c dbg` in two checkouts
 and compares the bytes, and has gdb (Linux), lldb with and without the dSYM
-(macOS) and llvm-symbolizer (Linux, Windows) find its lines in the
-workspace and in an external repository, on every host
+(macOS) and llvm-symbolizer (Linux, Windows) find its lines in the workspace
+and in an external repository, on every host
 ([23.1.2.6](https://github.com/clice-io/xclang/actions/runs/37345631067)).
 
-CMake builds keep CMake's absolute paths; doing the same there is
-[planned](../design/roadmap.md#reproducibility).
+CMake builds keep CMake's absolute paths; relative paths there are
+[planned](../design/roadmap.md#cmake-relative-paths).
 
-## Debug symbols for a release
+## Debug Symbols for a Release
 
 A released program is stripped; its debug information is kept apart, to
 turn a crash's addresses into functions and lines later. Two formats:
@@ -71,7 +71,7 @@ llvm-gsymutil tool.gsym --address=<address>
 The program needs debug information: `-g`, or `-gline-tables-only` for
 functions and lines alone, which is what a GSYM keeps.
 
-### Why a dSYM comes from the link
+### Why a dSYM Comes from the Link
 
 A macOS program's DWARF is not in the program: the debug map points into
 the object files, and dsymutil collects it from them. With ThinLTO the
@@ -93,17 +93,8 @@ was checked by hand for 23.1.2.6 on arm64 and x86_64 macOS.
 links in one command, and it exposed an lld bug: an empty LTO object's
 symbol took `main`'s unwind entry, so on arm64 a program built that way
 could not catch its own exceptions. xclang carries the fix,
-[patch 0007](../design/patches.md), and that is what made ld64.lld usable
+[patch 0007](../reference/patches.md), and that is what made ld64.lld usable
 for macOS targets at all ([macOS](../design/macos.md)).
-
-### GSYM is not deterministic yet
-
-`llvm-gsymutil --convert` with its default threads writes a different file
-each run from the same DWARF: on one program, three runs gave three
-digests, 3,043,120 to 3,053,168 bytes. The lookups agree; the layout does
-not. With `--num-threads=1` the file is the same every run and about 0.6%
-smaller. Neither `xclang_debug_symbols` passes it yet; until it does, a
-release's GSYM cannot be compared byte for byte with a rebuild's.
 
 ## Strip
 
@@ -114,3 +105,20 @@ crash log wrong names: `dladdr` names an address by the nearest preceding
 symbol, so a local function is reported as the global one before it. With
 `--strip-all`, the crash log has addresses only, and the dSYM or GSYM
 names them correctly.
+
+## Not Yet Supported
+
+| | status |
+|---|---|
+| [Relative paths in the debug information of CMake builds](../design/roadmap.md#cmake-relative-paths) | Planned |
+| [The same GSYM file on every run](../design/roadmap.md#gsym-determinism) | Planned |
+
+## Known Limitations
+
+- **GSYM files are not deterministic.** `llvm-gsymutil --convert` with its
+  default threads writes a different file each run from the same DWARF. On
+  one program, three runs gave three digests, 3,043,120 to 3,053,168 bytes.
+  The lookups agree; the layout does not. With `--num-threads=1` the file is
+  the same every run and about 0.6% smaller. Neither `xclang_debug_symbols`
+  passes it, so a release's GSYM cannot be compared byte for byte with a
+  rebuild's. Passing it is [planned](../design/roadmap.md#gsym-determinism).

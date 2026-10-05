@@ -3,7 +3,7 @@
 The oldest systems and tools xclang and the programs it builds work with,
 and what is not supported.
 
-## The toolchain
+## The Toolchain
 
 | host | needs |
 |---|---|
@@ -11,7 +11,7 @@ and what is not supported.
 | macOS arm64, x64 | macOS 13 or later; for macOS targets, Xcode or the Command Line Tools (the SDK) |
 | Windows x64, arm64 | Windows 10 or later (UCRT is part of the OS) |
 
-## Programs it builds
+## Programs It Builds
 
 | target | runs on |
 |---|---|
@@ -22,38 +22,45 @@ and what is not supported.
 What a program loads at run time is in
 [hermeticity](../design/hermeticity.md).
 
-## Build tools
+## Build Tools
 
 | tool | version | why |
 |---|---|---|
 | CMake | 3.28 or later | the first that builds C++20 modules without experimental switches; `find_package(xclang)` refuses older ones |
 | Ninja | 1.11 or later | what CMake requires to build C++20 modules; Ninja and Ninja Multi-Config are the generators that build them for these targets |
 | Bazel | 9 | the module's toolchains are rules_cc 0.2.25's; C++20 modules need `--experimental_cpp_modules` |
-| Xcode | one whose SDK ld64.lld reads: Xcode 27's macOS 27 SDK needs 23.1.2.6 or later (patch 0009) | |
+| Xcode | one whose SDK ld64.lld reads; Xcode 27 needs 23.1.2.6 or later | the macOS 27 SDK's stubs list `arm64e.x1`, which ld64.lld reads from [patch 0009](patches.md) on |
 | Rust | Rust's `*-windows-gnullvm` targets for Windows (not `*-windows-gnu`) | see [Rust and cargo](../integrations/cargo.md) |
 
-## Not supported
+## Not Yet Supported
 
-- **Linux, from glibc 2.17**: no `-static-pie` (glibc 2.17 has no
-  `rcrt1.o`); `-pg` needs `-no-pie` (its `gcrt1.o` is not
-  position-independent); no `quadmath.h` (`libquadmath` is GCC's own;
-  `__float128` arithmetic works).
-- **No OpenMP runtime** (`-fopenmp`), **no MemorySanitizer** (it needs every
-  library instrumented, libc++ too:
-  [roadmap](../design/roadmap.md#libc-built-on-demand)), **no sanitizers
-  for Windows targets**.
-- **No clang-format, clang-tidy or clangd binaries**: xclang is a compiler
-  toolchain; libclang has the libraries tools on clang link.
+| | status |
+|---|---|
+| [MSVC-ABI targets](../design/roadmap.md#msvc) (`*-pc-windows-msvc`), with their sanitizers | Planned |
+| [macOS targets from Linux or Windows hosts](../design/roadmap.md#macos-any-host) | In research |
+| [MemorySanitizer](../design/roadmap.md#msan) | Planned |
+| [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
+
+clang, clang-cl and lld-link already build for `*-pc-windows-msvc` against
+the user's own MSVC and Windows SDK, as upstream clang does. xclang's
+config files and runtimes for those targets come with the
+[planned](../design/roadmap.md#msvc) MSVC targets.
+
+## Known Limitations
+
+- **Linux, from glibc 2.17**: no `-static-pie`, as glibc 2.17 has no
+  `rcrt1.o`. `-pg` needs `-no-pie`, as its `gcrt1.o` is not
+  position-independent. No `quadmath.h`: `libquadmath` is GCC's own, and
+  `__float128` arithmetic works.
 - **One libc++ per shared object**: a standard exception thrown by one
   shared library is caught by type in another only on Windows; on Linux and
   macOS only as `catch (...)`. See
   [hermeticity](../design/hermeticity.md#one-libc-per-shared-object).
-- **macOS targets from Linux or Windows hosts**: not yet
-  ([roadmap](../design/roadmap.md)); the SDK is Xcode's.
-- **MSVC-ABI targets** (`*-pc-windows-msvc`): not yet, in research. clang,
-  clang-cl and lld-link build for them against the user's own MSVC and
-  Windows SDK, as upstream clang does, but xclang has no config files or
-  runtimes for them yet.
-- **Building conda-forge packages**: conda-forge's compilers link
+- **No OpenMP runtime** (`-fopenmp`); one is
+  [not planned](../design/roadmap.md#openmp).
+- **No clang-format, clang-tidy or clangd programs**: xclang is a compiler
+  toolchain, and libclang has the libraries tools on clang link. They are
+  [not planned](../design/roadmap.md#tool-binaries).
+- **Not for building conda-forge packages**: conda-forge's compilers link
   dynamically against packaged runtimes and integrate with `run_exports`;
-  xclang does neither.
+  xclang does neither ([not planned](../design/roadmap.md#conda-forge)).

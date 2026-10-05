@@ -1,8 +1,8 @@
-# Quick start
+# Quick Start
 
 From one machine, programs for every target, then a CMake project with
-`import std`, for the host and for another target. Every command here is
-run as written, in bash, on a machine of each of the six hosts by
+`import std`, for the host and for another target. Every command here is run
+as written, in bash, on a machine of each of the six hosts by
 [examples.yml](https://github.com/clice-io/xclang/blob/main/.github/workflows/examples.yml)
 ([the run for 23.1.2.6](https://github.com/clice-io/xclang/actions/runs/37354730630));
 on Windows that is Git Bash.
@@ -19,7 +19,8 @@ git clone --depth 1 https://github.com/clice-io/xclang
 cd xclang/examples/quickstart
 ```
 
-A pixi workspace with xclang from the [clice conda channel](https://conda.clice.io):
+A pixi workspace with xclang from the
+[clice conda channel](https://conda.clice.io):
 
 <!-- file: examples/quickstart/pixi.toml -->
 ```toml
@@ -37,9 +38,9 @@ pixi install
 ```
 
 `pixi run` (and `pixi shell`) puts xclang's `bin/` first in `PATH`. Other
-ways to get xclang, without pixi, are in [installing](install.md).
+ways to get xclang, without pixi, are in [Installation](install.md).
 
-## 2. A program for every target
+## 2. A Program for Every Target
 
 <!-- file: examples/quickstart/hello.cpp -->
 ```cpp
@@ -79,7 +80,7 @@ toolchain ([cross-compiling](cross-compiling.md)). On a Windows host the
 first command writes `hello.exe`: a MinGW link adds `.exe` to a name
 without an extension.
 
-## 3. What they need to run
+## 3. What They Need to Run
 
 ```sh
 pixi run llvm-readobj --needed-libs hello-linux-x64 hello-windows-x64.exe
@@ -128,7 +129,7 @@ whole list: glibc (2.17 or later) on Linux, the OS and its UCRT on Windows
 libunwind and the rest are in the programs, so each runs on any machine of
 its target as a single file ([hermeticity](../design/hermeticity.md)).
 
-## 4. A CMake project with import std
+## 4. A CMake Project with `import std`
 
 CMake 3.28 or later and Ninja 1.11 or later (`pip install cmake ninja`
 gives both). The project is `examples/cmake`:
@@ -187,9 +188,9 @@ way.
 
 ## Next
 
-- [Why xclang](why-xclang.md): what the toolchain does for a build, and the
-  evidence.
+- [Why xclang?](why-xclang.md): what the toolchain does for a build.
 - [CMake](../integrations/cmake.md), with a toolchain downloaded by
   FetchContent and nothing installed; [Bazel](../integrations/bazel.md);
-  [Meson and Make](../integrations/clang.md); [cargo](../integrations/cargo.md).
-- [Cross-compiling](cross-compiling.md): targets, config files, tiers.
+  [Make and Meson](../integrations/clang.md);
+  [Cargo](../integrations/cargo.md).
+- [Cross-Compiling](cross-compiling.md): targets, config files, tiers.

@@ -2,8 +2,7 @@
 
 compiler-rt carries, for the Linux and macOS targets, AddressSanitizer,
 ThreadSanitizer, LeakSanitizer, UBSan and libFuzzer, and those targets also
-carry an ASan build of libc++. Windows targets have no sanitizers yet.
-MemorySanitizer is not there: it needs every library instrumented.
+carry an ASan build of libc++.
 
 ```sh
 clang++ -fsanitize=address -g -O1 main.cpp -o main
@@ -67,23 +66,29 @@ the normal libc++.
 
 ## On macOS
 
-The sanitizers' runtimes are dylibs on macOS (`libclang_rt.asan_osx_dynamic.dylib`
-and the rest), which a program loads from the toolchain's resource
-directory or from its own directory. An ASan build is for testing, not for
-shipping, so it is the one exception to [hermeticity](../design/hermeticity.md).
-In Bazel the sanitizer features link the toolchain's absolute path as an
-rpath, and only those links depend on the checkout.
+The sanitizers' runtimes are dylibs on macOS
+(`libclang_rt.asan_osx_dynamic.dylib` and the rest), which a program loads
+from the toolchain's resource directory or from its own directory. An ASan
+build is for testing, not for shipping, so it is the one exception to
+[hermeticity](../design/hermeticity.md). In Bazel the sanitizer features
+link the toolchain's absolute path as an rpath, and only those links depend
+on the checkout.
 
-## libclang's ASan build
+## libclang's ASan Build
 
 `libclang-<version>-<host>-asan.tar.xz`, for Linux x64 and macOS arm64, is
 clang's libraries built with assertions and ASan, against libc++'s ASan
 build, for debugging a tool on libclang ([libclang](libclang.md)).
 
-## Not there yet
+## Not Yet Supported
 
-- Sanitizers for Windows targets.
-- MemorySanitizer, which needs libc++ instrumented with it too; ThreadSanitizer
-  also reports better through an instrumented libc++. Both need libc++
-  built from source with the program's options, which is
-  [planned](../design/roadmap.md#libc-built-on-demand).
+| | status |
+|---|---|
+| [Sanitizers for MSVC targets](../design/roadmap.md#msvc), part of the MSVC targets | Planned |
+| [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
+| [MemorySanitizer](../design/roadmap.md#msan) | Planned |
+
+MemorySanitizer needs every library instrumented, libc++ too, and
+ThreadSanitizer reports better through an instrumented libc++. Both need
+libc++ built from source with the program's options, which is
+[planned](../design/roadmap.md#libc-on-demand).

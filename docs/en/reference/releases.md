@@ -1,10 +1,10 @@
-# Versions and releases
+# Versions and Releases
 
 ## Versions
 
 A release is tagged `<llvm version>.<revision>`: `23.1.2.1` is the first
-build of LLVM 23.1.2, `23.1.2.6` the sixth. The version orders the way conda,
-Bazel and CMake order versions, and says which LLVM it is.
+build of LLVM 23.1.2, `23.1.2.6` the sixth. The version orders the way
+conda, Bazel and CMake order versions, and says which LLVM it is.
 
 Nothing published is ever replaced. A fix to a release, even one that only
 rebuilds it, is the next revision; the workflow that drafts a release
@@ -37,7 +37,7 @@ The hosts are `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`,
 `x86_64-w64-mingw32`, `aarch64-w64-mingw32`, `aarch64-apple-darwin` and
 `x86_64-apple-darwin`.
 
-## Checking a download
+## Checking a Download
 
 `SHA256SUMS` is written by the workflow that drafts the release, from the
 files it uploads. To check what was downloaded against it:
@@ -49,22 +49,22 @@ sha256sum -c --ignore-missing SHA256SUMS
 
 The Bazel module checks every archive by the sha256 its `versions.bzl` pins,
 and CMake's `xclang.cmake` checks the toolchain against the release's
-`SHA256SUMS`. Both are as trustworthy as the release: GitHub releases are
-not yet immutable, so an archive and the `SHA256SUMS` beside it could in
-principle be replaced together. A pin in `versions.bzl`, or a digest
-recorded in a project of its own, is not affected by that. Immutable
-releases are [planned](../design/roadmap.md#reproducibility).
+`SHA256SUMS`. Both are as trustworthy as the release: an archive and the
+`SHA256SUMS` beside it could in principle be replaced together. A pin in
+`versions.bzl`, or a digest recorded in a project of its own, is not
+affected by that. Immutable releases are
+[planned](../design/roadmap.md#immutable-releases).
 
-## Where else a release is published
+## Where Else a Release Is Published
 
 - **conda**: [conda.clice.io](https://conda.clice.io), the `xclang` package
   per host and the noarch `llvm-option-inc`, made from the release's
-  archives after it is published ([installing](../guide/install.md)).
+  archives after it is published ([Installation](../guide/install.md)).
 - **Bazel**: [bazel.clice.io](https://bazel.clice.io), the module of the
   release's tag, published once it builds and tests with the published
   archives ([Bazel](../integrations/bazel.md)).
 - **CMake**: the tag itself, which FetchContent checks out
   ([CMake](../integrations/cmake.md#without-xclang-installed)).
 
-How a release is built and tested is in
-[how a release is built](../design/release-build.md).
+How a release is built and tested is in the
+[build pipeline](../dev/release-build.md).

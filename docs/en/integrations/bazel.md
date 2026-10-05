@@ -4,17 +4,20 @@ xclang is a Bazel module (Bazel 9, rules_cc 0.2.25): the C++ toolchain of
 the host for each of its targets, downloaded from the release of the
 module's version by its sha256, with libclang and the option tables as
 repositories. Every release is published to the clice Bazel registry,
-[bazel.clice.io](https://github.com/clice-io/bazel). Every rule, feature
-and repository is listed in the [Bazel API](../reference/bazel-api.md); why
-the module is built the way it is, in [the Bazel module](../design/bazel-module.md).
+[bazel.clice.io](https://github.com/clice-io/bazel). Every rule, feature and
+repository is listed in the [Bazel API](../reference/bazel-api.md); why the
+module is built the way it is, in
+[the Bazel module](../design/bazel-module.md).
 
 ## Setup
 
 A complete project is
 [examples/bazel](https://github.com/clice-io/xclang/tree/main/examples/bazel),
-which [examples.yml](https://github.com/clice-io/xclang/blob/main/.github/workflows/examples.yml)
+which
+[examples.yml](https://github.com/clice-io/xclang/blob/main/.github/workflows/examples.yml)
 builds and runs on every host, and builds for another target, from
-bazel.clice.io ([the run for 23.1.2.6](https://github.com/clice-io/xclang/actions/runs/37354730630)):
+bazel.clice.io
+([the run for 23.1.2.6](https://github.com/clice-io/xclang/actions/runs/37354730630)):
 
 <!-- file: examples/bazel/MODULE.bazel -->
 ```python
@@ -95,7 +98,7 @@ git_override(
 Older commits (the tags up to 23.1.2.5) have the module at the top of the
 repository, and no `strip_prefix`.
 
-## What the toolchain does
+## What the Toolchain Does
 
 - **Hermetic.** Every file of the toolchain an action reads is one of its
   inputs, so another release builds anew, and no path on a command line is
@@ -104,26 +107,28 @@ repository, and no `strip_prefix`.
   sets the deployment target.
 - **Static.** Libraries link into tests and programs statically: libc++ is
   in every shared object on its own, so memory one shared library allocates
-  another would free ([why](../design/hermeticity.md#one-libc-per-shared-object)).
+  another would free
+  ([why](../design/hermeticity.md#one-libc-per-shared-object)).
   `cc_binary(linkshared = True)` still makes one (`libfoo.so`,
-  `libfoo.dylib`, `foo.dll`); `features = ["supports_dynamic_linker"]`
-  gives a target Bazel's dynamic linking back.
+  `libfoo.dylib`, `foo.dll`); `features = ["supports_dynamic_linker"]` gives
+  a target Bazel's dynamic linking back.
 - **Windows** programs are MinGW ones, named `.exe`, with `.dll` shared
   libraries.
 - Optimized builds link with lld's `--gc-sections` (the `gc_sections`
   feature) for Linux, not for Windows, where it drops static initializers in
-  COMDAT sections, such as test registrations ([Windows](../design/windows.md#gc-sections-and-static-initializers)):
-  `--features=gc_sections` or `features = ["gc_sections"]` turns it on
-  where nothing relies on them, `-gc_sections` off.
+  COMDAT sections, such as test registrations
+  ([Windows](../design/windows.md#gc-sections-and-static-initializers)):
+  `--features=gc_sections` or `features = ["gc_sections"]` turns it on where
+  nothing relies on them, `-gc_sections` off.
 - **C++20 modules**: `module_interfaces` with `features = ["cpp_modules"]`,
   scanned by clang-scan-deps; module files hold paths relative to the
-  execution root, so they are the same wherever they are built. `import
-  std` and `import std.compat` come from `@xclang//bazel:std`, libc++'s
-  modules built for the target as a library to depend on. It is built with
-  the build's flags (`--cxxopt`): clang refuses a module file built with
-  other language options (`-std`, `-fno-exceptions`, `-fno-rtti`, ...), so
-  those of its importers go there, not in their `copts`; macros, include
-  paths and optimization may differ ([C++20 modules](../features/modules.md)).
+  execution root, so they are the same wherever they are built. `import std`
+  and `import std.compat` come from `@xclang//bazel:std`, libc++'s modules
+  built for the target as a library to depend on. It is built with the
+  build's flags (`--cxxopt`): clang refuses a module file built with other
+  language options (`-std`, `-fno-exceptions`, `-fno-rtti`, ...), so those
+  of its importers go there, not in their `copts`; macros, include paths and
+  optimization may differ ([C++20 modules](../features/modules.md)).
 - Other repositories' headers are system headers (`-isystem`), whose
   warnings are not the build's; `__DATE__` and `__TIME__` are redacted.
 - **Sanitizers** are features: `--features=asan` (or `tsan`, `ubsan`,
@@ -150,7 +155,8 @@ cc_library(
 )
 ```
 
-## Cross-compiling
+## Cross-Compiling
+
 
 A build for another target names its platform:
 
@@ -173,21 +179,21 @@ and the build is what it is for the host, static runtimes, Windows names,
 C++20 modules and keys without absolute paths included. `@xclang//bazel:std`
 and `@libclang` follow the target platform: a tool on libclang built for
 Windows x64 links `libclang-<version>-x86_64-w64-mingw32`, which only such a
-build downloads. What the build runs itself (`cfg = "exec"`) is built for the
-host. The sanitizer features work for the targets that have the sanitizers
-(not Windows).
+build downloads. What the build runs itself (`cfg = "exec"`) is built for
+the host. The sanitizer features work for the targets that have the
+sanitizers (not Windows).
 
 The macOS targets need Xcode's SDK, so they build on macOS hosts only; from
 Linux or Windows, a build for them fails at once and says so. Building for
-macOS from any host, with Apple's SDK fetched by the user, is in research
-([roadmap](../design/roadmap.md)).
+macOS from any host, with Apple's SDK fetched by the user, is
+[in research](../design/roadmap.md#macos-any-host).
 
 The toolchains ask a platform for `@platforms`' os and cpu only, so a
 platform of one's own with those works too. Those here also have the C
 library, `@xclang//platforms/libc:glibc`, `:mingw` or `:macosx`, for
-`select()`; a platform without one gets glibc on Linux and MinGW on Windows,
-and another C library of an os and cpu (musl, MSVC's) is to have toolchains
-of its own that ask for it.
+`select()`. A platform without one gets glibc on Linux and MinGW on Windows.
+The [planned](../design/roadmap.md#musl) musl and MSVC targets get
+toolchains of their own that ask for their C library.
 
 - Bazel 9 puts every platform's outputs in one directory (`k8-fastbuild`),
   so changing `--platforms` rebuilds what the other one built;
@@ -198,8 +204,8 @@ of its own that ask for it.
   where an execution platform has the target's os and cpu, or anywhere with
   `--@bazel_tools//tools/test:incompatible_use_default_test_toolchain=false`
   (Bazel's former behaviour).
-- Code that includes a Windows header by another case than MinGW-w64's
-  file (`<Windows.h>`, `<BaseTsd.h>` for `windows.h`, `basetsd.h`) builds on
+- Code that includes a Windows header by another case than MinGW-w64's file
+  (`<Windows.h>`, `<BaseTsd.h>` for `windows.h`, `basetsd.h`) builds on
   Windows only, whose file names ignore case
   ([Windows](../design/windows.md#case-sensitive-headers)).
 
@@ -220,19 +226,20 @@ directory /path/to/workspace/bazel-workspace
 settings set target.source-map . /path/to/workspace/bazel-workspace
 ```
 
-In VS Code, CodeLLDB takes `"sourceMap": {".":
-"${workspaceFolder}/bazel-workspace"}`, and the C/C++ extension with gdb
-`"setupCommands": [{"text": "directory
-${workspaceFolder}/bazel-workspace"}]`. On macOS lldb reads a program's
-dSYM (below) from anywhere; without one, it reads the objects the debug map
-names, relative to its working directory: run it in the workspace, whose
-`bazel-out` link holds them.
+In VS Code, CodeLLDB takes
+`"sourceMap": {".": "${workspaceFolder}/bazel-workspace"}`, and the C/C++
+extension with gdb
+`"setupCommands": [{"text": "directory ${workspaceFolder}/bazel-workspace"}]`.
+On macOS lldb reads a program's dSYM (below) from anywhere; without one, it
+reads the objects the debug map names, relative to its working directory:
+run it in the workspace, whose `bazel-out` link holds them.
 
-## Debug symbols
+## Debug Symbols
 
 `xclang_debug_symbols` makes a program's debug symbols for its release with
 the toolchain's own tools: GSYM for every target, and the dSYM for macOS
-ones ([what they are](../features/debugging.md#debug-symbols-for-a-release)).
+ones
+([what they are](../features/debugging.md#debug-symbols-for-a-release)).
 
 ```python
 load("@xclang//bazel:debug_symbols.bzl", "xclang_debug_symbols")
@@ -266,7 +273,7 @@ The program needs debug information (`-g`, or `-gline-tables-only` for
 functions and lines alone) and must not be stripped of it: fastbuild strips
 it unless `--strip=never`.
 
-## The ThinLTO cache
+## The ThinLTO Cache
 
 libclang is ThinLTO bitcode, so the link of a tool on it generates the code
 of every module the tool uses: minutes per link. The linker's ThinLTO cache
@@ -297,7 +304,8 @@ try-import %workspace%/user.bazelrc
 - Linux's sandbox lets a link write the directory only through
   `--sandbox_writable_path`, which is not part of any key, and gives every
   action a `/tmp` of its own: a cache there is lost without a word.
-- macOS's sandbox lets `/var/tmp` be written; Windows has no sandbox.
+- macOS's sandbox lets `/var/tmp` be written. Bazel runs actions on
+  Windows without a sandbox by default.
 
 A user with another place for it says so in `user.bazelrc` (whose links then
 have keys of their own, which a shared cache does not serve):
@@ -310,13 +318,13 @@ common:linux --sandbox_writable_path=/data/xclang-thinlto
 
 Keeping it in CI is in [CI](ci.md).
 
-## libclang and the option tables
+## libclang and the Option Tables
 
 `@libclang`, `@libclang_asan` and `@llvm_option_inc` are the target
 platform's libclang archive, its ASan build and the option tables; see
 [libclang](../features/libclang.md#bazel).
 
-## A compilation database
+## A Compilation Database
 
 Editors and language servers (clice, clangd) read `compile_commands.json`.
 The clice registry has a module for it, `compdb`:
@@ -334,17 +342,18 @@ builds the targets with an aspect that compiles nothing and writes each
 compile command as rules_cc's actions have it (C, C++, C++20 module
 interfaces and their importers), into `compile_commands.json` in the
 workspace, every entry's directory the execution root. Its arguments are a
-`bazel build`'s. See the [registry's README](https://github.com/clice-io/bazel#compdb);
-its own CI tests it on the six hosts.
+`bazel build`'s. See the
+[registry's README](https://github.com/clice-io/bazel#compdb); its own CI
+tests it on the six hosts.
 
-## Unreleased builds
+## A Toolchain Not from a Release
 
-An unreleased build is used from where it was unpacked, with
-`--repo_env=XCLANG_ROOT=<xclang>` for the toolchain and
+A toolchain that is not a release, such as a CI build, is used from where it
+was unpacked, with `--repo_env=XCLANG_ROOT=<xclang>` for the toolchain and
 `XCLANG_LIBCLANG_ROOT` (`XCLANG_LIBCLANG_ASAN_ROOT`) for the host's
 libclang; another target's comes from the release.
 
-## Tested by
+## Tested By
 
 - tests/bazel builds and tests with the module on every host (bazel.yml),
   and tests/bazel.ts checks that the actions' keys hold no absolute path,
@@ -355,8 +364,31 @@ libclang; another target's comes from the release.
   that the registry's archive of the module gives the same actions; the
   ThinLTO cache; strip; `--features=asan`; and that `git_override` with
   `strip_prefix` builds.
-- Every host builds tests/bazel for every other target it can, and a
-  machine of that target runs the tests (tests/bazel-cross.ts); from Linux
-  x64, kotatsu's tests, from the registry, are built for Windows x64 and run
-  there ([23.1.2.6](https://github.com/clice-io/xclang/actions/runs/37345631067)).
+- Every host builds tests/bazel for every other target it can, and a machine
+  of that target runs the tests (tests/bazel-cross.ts); from Linux x64,
+  kotatsu's tests, from the registry, are built for Windows x64 and run
+  there
+  ([23.1.2.6](https://github.com/clice-io/xclang/actions/runs/37345631067)).
 - examples.yml builds examples/bazel from bazel.clice.io on every host.
+
+## Not Yet Supported
+
+| | status |
+|---|---|
+| [MSVC-ABI targets](../design/roadmap.md#msvc) | Planned |
+| [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | In research |
+| [Fetched targets and vendor SDKs](../design/roadmap.md#fetched-targets-in-build-systems) in the module | Planned |
+| [Sanitizer features for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
+
+## Known Limitations
+
+- C++20 modules need Bazel's `--experimental_cpp_modules`, and header
+  units are not built.
+- Bazel runs Windows actions without a sandbox by default, so an
+  undeclared input goes unnoticed there. The Linux and macOS builds
+  enforce the declarations.
+- Tests built for another target are not run by `bazel test`; they run on
+  a machine of that target.
+- The macOS SDK is the one `xcrun` finds, and on macOS the sanitizer
+  features link the toolchain's absolute path. Only those links depend on
+  the checkout.

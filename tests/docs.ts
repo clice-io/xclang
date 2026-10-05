@@ -4,7 +4,12 @@
 ///   block under a `<!-- file: <path> -->` line must be that file of the
 ///   repository, byte for byte (but for the final newline);
 /// - every relative link names a page that exists, and a heading of it
-///   when it has an anchor, slugged as the docs site (VitePress) does.
+///   when it has an anchor, slugged as the docs site (VitePress) does, or
+///   an `<a id="...">` of it (the roadmap's rows);
+/// - what is not shipped is said one way: a table's `status` column holds
+///   one of the roadmap's six words, and the phrasings that left a status
+///   unclear ("is to be", "being considered", a bare "**Missing.**") are
+///   not used.
 ///
 ///   node tests/docs.ts
 
@@ -39,7 +44,8 @@ function slug(heading: string): string {
     .toLowerCase();
 }
 
-/// The text of a page outside its code blocks, and its headings' ids.
+/// The text of a page outside its code blocks, and its headings' and
+/// anchors' ids.
 function parse(page: string): { lines: string[]; ids: Set<string> } {
   const lines: string[] = [];
   const ids = new Set<string>();
@@ -57,6 +63,7 @@ function parse(page: string): { lines: string[]; ids: Set<string> } {
       continue;
     }
     lines.push(line);
+    for (const a of line.matchAll(/<a id="([^"]+)"><\/a>/g)) ids.add(a[1]);
     const h = /^#{1,6}\s+(.*?)\s*#*\s*$/.exec(line);
     if (h) {
       const id = slug(h[1]);
@@ -124,8 +131,47 @@ for (const [page, { lines }] of parsed) {
   });
 }
 
+/// The roadmap's status words (docs/en/design/roadmap.md), and phrasings
+/// that state no status.
+const STATUS = new Set(["Supported", "Unreleased", "Planned", "In research", "Considered", "Not planned"]);
+const VAGUE: [RegExp, string][] = [
+  [/\b(is|are) to be\b/i, '"is to be": say planned, in research or considered'],
+  [/\bbeing considered\b/i, '"being considered": the status is "considered"'],
+  [/\*\*Missing\.\*\*/, '"**Missing.**": say "Not yet supported" or "Known issues"'],
+  [/\bnot there yet\b/i, '"not there yet": give the status'],
+  [/\bseed\b/i, '"seed": give the status'],
+  [/^#+\s+Open\s*$/, 'a heading "Open": use "Not Yet Supported"'],
+];
+
+let statuses = 0;
+for (const [page, { lines }] of parsed) {
+  let column = -1;
+  lines.forEach((line, i) => {
+    const where = `${path.relative(ROOT, page)}:${i + 1}`;
+    for (const [re, why] of VAGUE) if (re.test(line)) failures.push(`${where}: ${why}`);
+    if (!line.startsWith("|")) {
+      column = -1;
+      return;
+    }
+    const cells = line.replace(/^\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
+    if (column === -1 && !/^\|[-|: ]+\|?\s*$/.test(line)) {
+      column = cells.findIndex((c) => c.toLowerCase() === "status");
+      if (column === -1) column = -2;
+      return;
+    }
+    if (column < 0 || /^\|[-|: ]+\|?\s*$/.test(line)) return;
+    statuses++;
+    if (!STATUS.has(cells[column] ?? "")) {
+      failures.push(`${where}: status "${cells[column]}" is not one of ${[...STATUS].join(", ")}`);
+    }
+  });
+}
+
 if (failures.length) {
   for (const f of failures) console.error(`error: ${f}`);
   process.exit(1);
 }
-console.log(`ok: ${blocks} code blocks are their files, ${links} links reach their pages and headings`);
+console.log(
+  `ok: ${blocks} code blocks are their files, ${links} links reach their pages and headings, ` +
+    `${statuses} status cells are status words`,
+);

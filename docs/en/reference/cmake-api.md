@@ -17,7 +17,7 @@ modules, the Ninja or Ninja Multi-Config generator with Ninja 1.11 or later.
 | `toolchain.cmake` | the tree as a build's toolchain, for the host or `XCLANG_TARGET` |
 | `xclang.cmake` | in `packages/cmake/` only: included before `project()` from a FetchContent checkout, downloads the toolchain |
 
-## find_package(xclang)
+## `find_package(xclang)`
 
 Comes after `project()` (or `enable_language(CXX)`), whose C++ compiler must
 be xclang's `clang++`. It finds the package through `PATH`
@@ -35,7 +35,7 @@ be xclang's `clang++`. It finds the package through `PATH`
 `xclang::std` asks its importers for C++23, or for the `CMAKE_CXX_STANDARD`
 it was built with if that is 20 or later.
 
-## toolchain.cmake
+## `toolchain.cmake`
 
 ```sh
 cmake -G Ninja -B build --toolchain <xclang>/lib/cmake/xclang/toolchain.cmake [-DXCLANG_TARGET=<triple>]
@@ -54,8 +54,8 @@ Windows targets `llvm-windres` as the RC compiler; for macOS targets
 `libtool` cannot read the bitcode of a newer LLVM).
 
 For a Linux or Windows target other than the host it also sets
-`CMAKE_SYSTEM_NAME`, `CMAKE_SYSTEM_PROCESSOR`, `CMAKE_<LANG>_COMPILER_TARGET`,
-`CMAKE_SYSROOT` (the target's directory) and
+`CMAKE_SYSTEM_NAME`, `CMAKE_SYSTEM_PROCESSOR`,
+`CMAKE_<LANG>_COMPILER_TARGET`, `CMAKE_SYSROOT` (the target's directory) and
 `CMAKE_FIND_ROOT_PATH_MODE_{LIBRARY,INCLUDE,PACKAGE}` to `ONLY`, so
 libraries, headers and packages are looked for in that directory alone
 (programs on the build machine). The other macOS architecture is
@@ -63,7 +63,7 @@ libraries, headers and packages are looked for in that directory alone
 Sysroot, C++ library, runtimes and linker come from the target's config
 file, not from this file.
 
-## xclang.cmake
+## `xclang.cmake`
 
 Included before `project()`, from a checkout of a release's tag:
 
@@ -92,7 +92,7 @@ once do not clash), and sets `CMAKE_TOOLCHAIN_FILE`. It stops if the build
 already has a toolchain file (vcpkg's, say): vcpkg chain-loads xclang's
 instead (`VCPKG_CHAINLOAD_TOOLCHAIN_FILE`).
 
-## libclang's package
+## libclang's Package
 
 The libclang archives carry LLVM's and clang's own CMake packages
 (`find_package(Clang)`), and `lib/cmake/xclang/libclang.cmake`, which

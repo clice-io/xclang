@@ -5,11 +5,12 @@ ThinLTO on every host, from one profile recorded on Linux. This page says
 what the profile is trained on, why one profile serves six hosts, and what
 it buys, with the measurements and their method.
 
-## The training
+## The Training
 
-PGO optimizes a program for the work it was profiled on, so the training
-set decides what gets faster. xclang's instrumented clang, clang-scan-deps
-and lld ([pgo/train.ts](https://github.com/clice-io/xclang/blob/main/pgo/train.ts))
+PGO optimizes a program for the work it was profiled on, so the training set
+decides what gets faster. xclang's instrumented clang, clang-scan-deps and
+lld
+([pgo/train.ts](https://github.com/clice-io/xclang/blob/main/pgo/train.ts))
 do the work the toolchain is used for, by builds and by editors:
 
 - C and C++ sources (sqlite, abseil) at `-O0 -g` and `-O2`, for x86_64 and
@@ -35,7 +36,7 @@ the libraries in libclang that clang itself does not use (clang-tidy's,
 clangIndex, IncludeCleaner). Those run with the code layout and inlining the
 profile gives them from the rest, not tuned for themselves.
 
-## One profile for every host
+## One Profile for Every Host
 
 clang has two kinds of instrumentation, and the choice decides whether a
 profile recorded on one host fits another.
@@ -70,11 +71,11 @@ emulation, and the same profile everywhere.
 
 **The remapping file.** A function's profile is found by its mangled name,
 and the same source type mangles differently across ABIs: `size_t` and
-`uint64_t` are `unsigned long` (`m`) on Linux but `unsigned long long`
-(`y`) on Windows, and `uint64_t` is `unsigned long long` on macOS too;
-`int64_t` likewise `l` against `x`. A function taking a `size_t` has
-another name on Windows than in the Linux profile, and would get no
-counts. [pgo/remap.txt](https://github.com/clice-io/xclang/blob/main/pgo/remap.txt)
+`uint64_t` are `unsigned long` (`m`) on Linux but `unsigned long long` (`y`)
+on Windows, and `uint64_t` is `unsigned long long` on macOS too; `int64_t`
+likewise `l` against `x`. A function taking a `size_t` has another name on
+Windows than in the Linux profile, and would get no counts.
+[pgo/remap.txt](https://github.com/clice-io/xclang/blob/main/pgo/remap.txt)
 tells clang the manglings are the same (`-fprofile-remapping-file`). In the
 lab it took macOS arm64 from 0.896 / 0.923 to 0.794 / 0.845, and Windows x64
 from 0.787 / 0.824 to 0.772 / 0.829.
@@ -84,9 +85,9 @@ arguments are integer literals of those types (1.8% of the counts), and
 functions with internal linkage, 122 on Windows and 39 on macOS (0.06% and
 0.02%): frontend profile names of local functions are `<file>:<mangled>`,
 and LLVM's remapper does not split the file name off. Neither is reported
-upstream yet.
+upstream.
 
-## What it buys
+## What It Buys
 
 bench.yml times compiles on machines of each host, for that host's target,
 on code the training never saw (tests/bench.ts): ten of fmt's tests (heavy
@@ -108,8 +109,8 @@ Time relative to LLVM 23.1.2's release build, median of five runners per
 host (four for Linux x64, where one runner's job failed listing sizes,
 before measuring), 2026-10-06
 ([run 37356476645](https://github.com/clice-io/xclang/actions/runs/37356476645):
-23.1.2.6's own archives, nothing rebuilt). `llvm.exe` runs xclang's
-Windows clang directly instead of through the `clang++.exe` launcher.
+23.1.2.6's own archives, nothing rebuilt). `llvm.exe` runs xclang's Windows
+clang directly instead of through the `clang++.exe` launcher.
 
 | host | fmt (syntax / O0 / O2) | lua (syntax / O0 / O2) | std (O0 / O2) |
 |---|---|---|---|
@@ -148,10 +149,11 @@ is none):
 
 Time relative to LLVM 23.1.2's release build, median of three runners
 ([run 36249036595](https://github.com/clice-io/xclang/actions/runs/36249036595)
-for Linux and macOS, [run 36250216010](https://github.com/clice-io/xclang/actions/runs/36250216010)
+for Linux and macOS,
+[run 36250216010](https://github.com/clice-io/xclang/actions/runs/36250216010)
 for Windows). `xclang` is the release; `no PGO` the same build without the
-profile; `llvm.exe` runs xclang's Windows clang directly instead of
-through the `clang++.exe` launcher.
+profile; `llvm.exe` runs xclang's Windows clang directly instead of through
+the `clang++.exe` launcher.
 
 | host | fmt (syntax / O0 / O2) | lua | std (O0 / O2) | no PGO, fmt |
 |---|---|---|---|---|
@@ -173,11 +175,13 @@ What 23.1.2.1's run adds, with the same build without its profile:
   has Apple's clang 17 to 22% slower on fmt. The x86_64 macOS toolchain is
   cross-compiled on arm64 macOS with the same profile, and the
   `macos-15-intel` runners are the noisiest of the six; whether the profile
-  helps there is open.
+  helps there is not known.
 
-## What is not done
+## Not Yet Supported
 
-- **BOLT**, which LLVM's Linux x64 release uses on top of PGO: in research.
-- **A training on more of the toolchain's work**: Objective-C, clang-cl,
-  Mach-O links, clang-tidy's checks. Widening the training is planned
-  after releases, not before them.
+| | status |
+|---|---|
+| [BOLT](roadmap.md#bolt), which LLVM's Linux x64 release uses on top of PGO | In research |
+| [A training on more of the toolchain's work](roadmap.md#pgo-training): Objective-C, clang-cl, Mach-O links, clang-tidy's checks | Planned |
+
+The training is widened between releases, not while one is pending.

@@ -1,4 +1,4 @@
-# libclang and the option tables
+# libclang and the Option Tables
 
 For tools built on clang, such as [clice](https://github.com/clice-io/clice)
 and [catter](https://github.com/clice-io/catter).
@@ -10,11 +10,12 @@ libraries and headers, with LLVM's and clang's CMake packages. They are the
 libraries that host's clang was linked from, taken from the same build
 without the parts a tool does not link:
 
-- **PGO and ThinLTO bitcode**, so they need an lld of the same release:
-  link with that release's toolchain. A link generates the code of every
-  module the tool uses, minutes each time; the linker's ThinLTO cache
-  ([the ThinLTO cache](thinlto-cache.md), [Bazel](../integrations/bazel.md#the-thinlto-cache))
-  makes the links after the first take seconds.
+- **PGO and ThinLTO bitcode**, so they need an lld of the same release: link
+  with that release's toolchain. A link generates the code of every module
+  the tool uses, minutes each time; the linker's ThinLTO cache
+  ([the ThinLTO cache](thinlto-cache.md),
+  [Bazel](../integrations/bazel.md#the-thinlto-cache)) makes the links after
+  the first take seconds.
 - **No RTTI**: code using them compiles with `-fno-rtti`, as LLVM's did.
 - **libc++**, xclang's own, as every program of the toolchain.
 - zlib and zstd, which LLVM's libraries link, are in the archive, found
@@ -37,9 +38,9 @@ without the parts a tool does not link:
   `@libclang//:AllTargetsInfos` and the like are for Bazel (from 23.1.2.6
   on). No target's code generator: `InitializeAllTargets()`,
   `InitializeAllAsmPrinters()` and `InitializeNativeTarget()` do not link.
-- `lib/cmake/xclang/libclang.cmake` records the build: `XCLANG_LLVM_VERSION`,
-  `XCLANG_LTO`, `XCLANG_PGO`, `XCLANG_PATCHES` (the [patches](../design/patches.md)
-  applied, in order), and so on.
+- `lib/cmake/xclang/libclang.cmake` records the build:
+  `XCLANG_LLVM_VERSION`, `XCLANG_LTO`, `XCLANG_PGO`, `XCLANG_PATCHES` (the
+  [patches](../reference/patches.md) applied, in order), and so on.
 
 `libclang-<version>-<host>-asan.tar.xz`, for Linux x64 and macOS arm64, is
 a build with assertions and AddressSanitizer, at `-O1` and without PGO or
@@ -68,8 +69,8 @@ cmake -G Ninja -B build -DCMAKE_CXX_COMPILER=<xclang>/bin/clang++ \
 ```
 
 tests/libclang is this tool; every host builds and runs it
-(tests/libclang.ts, and through xclang's [CMake package](../integrations/cmake.md) in
-tests/cmake).
+(tests/libclang.ts, and through xclang's
+[CMake package](../integrations/cmake.md) in tests/cmake).
 
 ### Bazel
 
@@ -84,14 +85,14 @@ used with `--features=asan`, and `@libclang` is that too in a build with
 together, and a build for a target without an ASan build says so. (A
 target's own `features = ["asan"]` switches no dependency.) Both are the
 target platform's: built for another target
-([cross-compiling](../integrations/bazel.md#cross-compiling)), a tool links that target's
-archive, which is downloaded only then; `@libclang_<triple>` is one
-target's.
+([cross-compiling](../integrations/bazel.md#cross-compiling)), a tool links
+that target's archive, which is downloaded only then; `@libclang_<triple>`
+is one target's.
 
 A tool on libclang finds clang's resource directory, with clang's headers,
 in `lib/clang` next to the directory of its program, as clang itself does.
-`xclang_resource_dir` lays `@libclang`'s out there for a program `bin/<name>`
-of its package, in `bazel-bin` and in the runfiles:
+`xclang_resource_dir` lays `@libclang`'s out there for a program
+`bin/<name>` of its package, in `bazel-bin` and in the runfiles:
 
 ```python
 load("@xclang//bazel:resource_dir.bzl", "xclang_resource_dir")
@@ -114,7 +115,7 @@ use_repo(xclang, "libclang", "libclang_asan", "llvm_option_inc")
 `--repo_env=XCLANG_LIBCLANG_ROOT=<libclang>` (`XCLANG_LIBCLANG_ASAN_ROOT`)
 uses an unpacked archive of the host's instead of the release's.
 
-## The option tables
+## The Option Tables
 
 `llvm-option-inc-<version>.tar.xz` holds the option tables of clang, lld
 (ELF, COFF, MachO, MinGW, wasm), llvm-lib and llvm-dlltool, TableGen's

@@ -1,10 +1,17 @@
-# The xclang command
+# The xclang Command
 
-`bin/xclang` fetches what the toolchain does not carry: the vendor SDKs
-that cannot be redistributed, and targets beyond the six every toolchain
-has. It is written in Rust (`cli/`) and built for every host with xclang
-as its C compiler and linker ([Rust and cargo](../integrations/cargo.md)). No release carries it yet:
-the archives do once the release pipeline runs with `cli` (below).
+::: warning Unreleased
+No release carries `xclang`. CI builds and tests it from `main` (cli.yml),
+and `node scripts/cli.ts` builds it. Its SDK commands work. No release
+publishes target archives, so `xclang target add` has nothing to add;
+target archives are [planned](../design/roadmap.md#target-archives).
+:::
+
+`xclang` fetches what the toolchain does not carry: the vendor SDKs that
+cannot be redistributed, and targets beyond the six every toolchain has.
+It is written in Rust (`cli/`) and built for every host with xclang as its
+C compiler and linker ([Rust and Cargo](../integrations/cargo.md)). The
+plan is to ship it in every toolchain archive, as `bin/xclang`.
 
 ```sh
 xclang sdk list [macos|windows]
@@ -32,11 +39,10 @@ directory of its own:
 
 `xclang sdk path` prints the directory that fetch, with the same options,
 fetches to: `-isysroot "$(xclang sdk path macos)"`. Where the toolchain is
-installed read-only, `--sdk-dir` or `XCLANG_SDK_DIR` names another
-directory for SDKs. `XCLANG_JOBS` sets how many threads unpack (one per CPU by
-default). An SDK's `.xclang-sdk.json`, written last, records
-what it was fetched from; `sdk list` calls a directory without one
-incomplete.
+installed read-only, `--sdk-dir` or `XCLANG_SDK_DIR` names another directory
+for SDKs. `XCLANG_JOBS` sets how many threads unpack (one per CPU by
+default). An SDK's `.xclang-sdk.json`, written last, records what it was
+fetched from; `sdk list` calls a directory without one incomplete.
 
 Without `--accept-license` fetch prints the vendor's license terms and
 stops. xclang never distributes an SDK; the user downloads it from the
@@ -52,8 +58,9 @@ cross build matches what a workflow gets without naming an image;
 still serves Windows 7 SP1 and 8.1; `macos-15`), and a version given whole
 or in part (`--version 15`, `--sdk-version 10.0.26100`,
 `--msvc-version 14.44`) replaces the preset's, the newest that matches
-taken. The macOS 27 SDK is listed but passed over by default: ld64.lld
-23.1.2 rejects its `.tbd` files (`arm64e.x1`).
+taken. The macOS 27 SDK is listed but passed over by default. That rule
+dates from before 23.1.2.6, which links against it
+([patch 0009](patches.md)).
 
 **macOS** comes from a Command Line Tools package on `swcdn.apple.com` (no
 Apple ID): a xar archive whose payload is pbzx (xz chunks) of a cpio
@@ -75,7 +82,8 @@ system (Linux) links are added for the spellings Windows code uses
 `xclang target add` unpacks a target's archive into the toolchain: its
 directory (sysroot and runtimes), its compiler-rt, its config files. The
 archives of a release are listed in its index, as rustup's channel
-manifests list components:
+manifests list components. No release has an index yet
+([planned](../design/roadmap.md#target-archives)); this one is illustrative:
 
 ```json
 {
@@ -109,21 +117,6 @@ manifests list components:
   remove deletes those files and the directories they leave empty.
 - The six built-in targets are listed as built in and cannot be removed.
 
-What the release pipeline must add before a release has targets:
-
-1. a stage that packs each target outside the six into
-   `xclang-target-<version>-<target>.tar.xz`, laid out as above:
-   `xclang/<target>/` (sysroot, libc++, libunwind, its licenses),
-   `xclang/lib/clang/<major>/lib/<target>/` (compiler-rt),
-   `xclang/bin/<spelling>.cfg` for every spelling of the triple (from
-   `config/`, as `scripts/common.ts` writes them), case-unique and without
-   links;
-2. the index, `xclang-targets-<version>.json`, with each archive's
-   sha256, size, unpacked size, tier and SDK;
-3. both in the draft release with the toolchains, and in `SHA256SUMS`;
-4. a test that adds each target to every host's toolchain and builds (and,
-   per tier, runs) a program for it.
-
 ## Network
 
 Every request says `User-Agent: xclang/<version>` and nothing else of the
@@ -154,8 +147,8 @@ and checks what each binary loads at run time:
 host (`tests/cli.ts`): both SDKs fetched, C, C++ and Objective-C programs
 cross-compiled against them and run on macOS and Windows, targets added
 and removed with a test index. `main.yml` with `cli` builds the program
-(`cli.yml`) and `scripts/package.ts --cli` puts it into the toolchain
-archives; without it, as now, the archives are as before.
+(`cli.yml`), and `scripts/package.ts --cli` puts it into the toolchain
+archives. No release has been built with `cli` so far.
 
 Dependencies, each for a reason: ureq (HTTP) with rustls and ring (ring
 rather than aws-lc-rs: nothing but a C compiler to build it, no CMake or

@@ -1,4 +1,4 @@
-# Installing
+# Installation
 
 Four ways to get xclang, by how a project builds. Each gives the same
 toolchain of the same release; pick the one that fits the build, not the
@@ -41,7 +41,8 @@ own `clang`/`gcc` stacks link dynamically against packaged runtimes
 `run_exports`; xclang links its runtimes into every program and has no
 `run_exports`, on purpose ([hermeticity](../design/hermeticity.md)).
 
-Tested by: [examples.yml](https://github.com/clice-io/xclang/blob/main/.github/workflows/examples.yml)
+Tested by:
+[examples.yml](https://github.com/clice-io/xclang/blob/main/.github/workflows/examples.yml)
 installs this workspace from conda.clice.io on every host and runs the
 [quick start](quick-start.md); conda.yml tests each package before it is
 published.

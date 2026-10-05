@@ -1,4 +1,4 @@
-# Layout
+# Archive Layout
 
 What an unpacked toolchain archive holds. Every host's archive holds every
 target directory; the archives differ only in the programs of `bin/`.
@@ -19,7 +19,7 @@ xclang/
   <triple>/                one directory per target (below)
 ```
 
-## A target's directory
+## A Target's Directory
 
 | | Linux | Windows (MinGW) | macOS |
 |---|---|---|---|
@@ -34,16 +34,16 @@ xclang/
 manifest's path. Why the GCC names are empty archives, and why `-lstdc++`
 needs none, is in [hermeticity](../design/hermeticity.md#gcc-library-names).
 
-## Why it looks like this
+## Why It Looks Like This
 
 - **One program.** clang, lld and most tools are one program, `llvm`
   (LLVM's `LLVM_TOOL_LLVM_DRIVER_BUILD`), which the other names start;
   each tool would otherwise carry LLVM in full. See
-  [the toolchain's shape](../design/toolchain.md).
+  [toolchain structure](../design/toolchain.md).
 - **No symlinks in Windows archives.** The names of `llvm.exe`
   (`clang++.exe`, `ld.lld.exe`, ...) are a small launcher,
-  `windows/alias.c`, so the system's `tar` unpacks the archive without
-  extra rights and conda can package it. See [Windows](../design/windows.md).
+  `windows/alias.c`, so the system's `tar` unpacks the archive without extra
+  rights and conda can package it. See [Windows](../design/windows.md).
 - **No symlinks in the Linux sysroots.** A shared library's soname link is
   the file itself, and its `libfoo.so` link is a linker script naming it, as
   glibc's own `libc.so` is.

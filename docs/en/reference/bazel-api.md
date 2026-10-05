@@ -48,7 +48,7 @@ A feature is turned on for a build with `--features=<name>`, off with
 `--features=-<name>`, and for one target with `features = ["<name>"]` or
 `["-<name>"]`.
 
-## Targets and rules
+## Targets and Rules
 
 | label | |
 |---|---|
@@ -79,7 +79,7 @@ Given with `--repo_env=<name>=<value>`:
 | `XCLANG_LIBCLANG_ROOT`, `XCLANG_LIBCLANG_ASAN_ROOT` | an unpacked libclang (ASan build) of the host to use instead of the release's |
 | `BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1` | Bazel's own: turns rules_cc's detection of a local compiler off, recommended |
 
-## The release
+## The Release
 
 `packages/bazel/bazel/versions.bzl` names the release the module
 downloads and the sha256 of each of its archives, from the release's

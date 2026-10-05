@@ -1,7 +1,7 @@
 # Releasing
 
-How a release `<llvm version>.<revision>` is cut. The maintainers' step
-list is the release skill in
+How a release `<llvm version>.<revision>` is cut. The maintainers' step list
+is the release skill in
 [.claude/skills/release](https://github.com/clice-io/xclang/blob/main/.claude/skills/release/SKILL.md);
 this page is the same process, for people.
 

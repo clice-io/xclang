@@ -7,12 +7,13 @@ modules as a library to link: `import std` without CMake's experimental
 
 It needs CMake 3.28 and Ninja 1.11 or later, the first that build C++20
 modules, and the Ninja or Ninja Multi-Config generator: CMake builds modules
-with no other generator for these targets. The package is in every
-toolchain archive from 23.1.2.6 on, in `lib/cmake/xclang` (and so in the
-conda package), and in this repository, `packages/cmake/`, at every tag.
-Every variable and function is listed in the [CMake API](../reference/cmake-api.md).
+with no other generator for these targets. The package is in every toolchain
+archive from 23.1.2.6 on, in `lib/cmake/xclang` (and so in the conda
+package), and in this repository, `packages/cmake/`, at every tag. Every
+variable and function is listed in the
+[CMake API](../reference/cmake-api.md).
 
-## With xclang installed
+## With xclang Installed
 
 pixi puts xclang's `bin/` first in `PATH`; for an unpacked archive, do the
 same or use the toolchain file below. CMake does not pick clang by itself:
@@ -47,7 +48,7 @@ A ready project is in
 [examples/cmake](https://github.com/clice-io/xclang/tree/main/examples/cmake):
 the [quick start](../guide/quick-start.md) builds it.
 
-## Without xclang installed
+## Without xclang Installed
 
 Before `project()`, FetchContent fetches this repository at the release's
 tag, and `packages/cmake/xclang.cmake` downloads that release's toolchain
@@ -86,8 +87,9 @@ there, unpacks it into the user's cache, once per version and host, and
 sets `CMAKE_TOOLCHAIN_FILE` to its toolchain file. Another build tree of the
 same release and host finds the toolchain in the cache and downloads
 nothing but the checkout. The archive is as trustworthy as the release's
-`SHA256SUMS`: both come from the GitHub release, and releases are not yet
-immutable ([releases](../reference/releases.md#checking-a-download)).
+`SHA256SUMS`, because both come from the GitHub release
+([releases](../reference/releases.md#checking-a-download)). Immutable
+releases are [planned](../design/roadmap.md#immutable-releases).
 
 `XCLANG_CACHE_DIR` moves the cache, `XCLANG_ROOT` uses an unpacked xclang
 instead of downloading one, `XCLANG_URL` names a mirror. `xclang.cmake`
@@ -95,7 +97,7 @@ stops if the build has a toolchain file of its own already (vcpkg's, say);
 vcpkg chain-loads an installed xclang's (`VCPKG_CHAINLOAD_TOOLCHAIN_FILE`)
 instead.
 
-## Other targets
+## Other Targets
 
 `XCLANG_TARGET` builds for another target of the tree, with either way of
 getting it:
@@ -106,21 +108,21 @@ cmake -G Ninja -B build-arm64 --toolchain <xclang>/lib/cmake/xclang/toolchain.cm
 ```
 
 - Linux and Windows targets build on every host. macOS targets build on
-  macOS only (Xcode's SDK); the other macOS architecture is
+  macOS only, against Xcode's SDK. The other macOS architecture is
   `CMAKE_OSX_ARCHITECTURES` to CMake, not cross-compiling, and x86_64
   programs run on arm64 macOS through Rosetta.
 - CMake looks for the libraries, headers and packages of another target in
   that target's directory only (`CMAKE_SYSROOT`,
   `CMAKE_FIND_ROOT_PATH_MODE_*` `ONLY`): a dependency built for the target
-  is named by `<Package>_DIR`, or its prefix added to `CMAKE_FIND_ROOT_PATH`.
-  A library found on the build machine would be the wrong architecture or
-  OS, and the link would fail late or, worse, succeed against the wrong
-  headers.
+  is named by `<Package>_DIR`, or its prefix added to
+  `CMAKE_FIND_ROOT_PATH`. A library found on the build machine would be the
+  wrong architecture or OS, and the link would fail late or, worse, succeed
+  against the wrong headers.
 - `xclang::std` is built for the target too.
 - Tests built for another target run on a machine of that target, not on
   the build machine.
 
-## import std
+## `import std`
 
 `xclang::std` is a static library of libc++'s `std` and `std.compat`
 modules, one target for both, compiled from the sources the compiler's
@@ -164,7 +166,7 @@ importer's stale object after the interface changed; see
 [C++20 modules](../features/modules.md#build-caches-and-modules) before
 putting it in front of the compiler.
 
-## Debug symbols
+## Debug Symbols
 
 `xclang_debug_symbols(<target>)` makes a program's debug symbols for its
 release after each of its links, with the toolchain's own tools:
@@ -192,7 +194,7 @@ What GSYM and dSYM are for, and why they come from the link, is in
 A tool on libclang finds it with `find_package(Clang)`; see
 [libclang](../features/libclang.md#cmake).
 
-## The ThinLTO cache
+## The ThinLTO Cache
 
 libclang is ThinLTO bitcode, so the link of a tool on it generates the code
 of every module the tool uses, which takes minutes. With
@@ -212,10 +214,29 @@ tree its value. How the cache works, its pruning and why its path is fixed
 are in [the ThinLTO cache](../features/thinlto-cache.md); keeping it in CI
 is in [CI](ci.md).
 
-## Tested by
+## Tested By
 
 tests/cmake builds with the package as above on every host, with CMake 3.28
-and Ninja 1.11 and with the newest ones (cmake.yml): found by `PATH`, through
-the toolchain file for every other target the host can build, and
+and Ninja 1.11 and with the newest ones (cmake.yml): found by `PATH`,
+through the toolchain file for every other target the host can build, and
 downloaded by FetchContent from the release's tag. It links tests/libclang
 with the ThinLTO cache and again from it, and builds examples/cmake.
+
+## Not Yet Supported
+
+| | status |
+|---|---|
+| [MSVC-ABI targets](../design/roadmap.md#msvc) for `XCLANG_TARGET` | Planned |
+| [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | In research |
+| [Relative paths in debug information](../design/roadmap.md#cmake-relative-paths), as Bazel builds have | Planned |
+| [Fetched targets](../design/roadmap.md#fetched-targets-in-build-systems) beyond the six | Planned |
+
+## Known Limitations
+
+- C++20 modules build only with the Ninja and Ninja Multi-Config
+  generators.
+- ccache never caches a module interface, and before 4.14 it serves an
+  importer's stale object
+  ([C++20 modules](../features/modules.md#build-caches-and-modules)).
+- Tests built for another target run on a machine of that target, not on
+  the host.

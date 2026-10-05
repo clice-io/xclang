@@ -37,12 +37,12 @@ stays gone).
    (`stages=runtimes,instrumented,train,toolchain,asan,package,test`, or
    fewer with `reuse-run`); for a quick A/B, a toolchain without PGO is
    enough (`profile-run` none, `hosts` the one that matters).
-6. **Docs**: the table in docs/en/design/patches.md, an Unreleased entry in
+6. **Docs**: the table in docs/en/reference/patches.md, an Unreleased entry in
    CHANGELOG.md ("**NNNN** added, …").
 7. **Upstream**: report or send it only when the user asks; then record
    the link in the README (`patches: NNNN sent upstream`). Mention xclang
    upstream only where needed.
 
 Dropping one (upstream took it, or something replaces it): delete the
-directory, say why in the commit, update docs/en/design/patches.md and CHANGELOG.md.
+directory, say why in the commit, update docs/en/reference/patches.md and CHANGELOG.md.
 Updating one: keep the number, regenerate the patch, update `Checked:`.

@@ -1,4 +1,4 @@
-# The ThinLTO cache
+# The ThinLTO Cache
 
 libclang ships as ThinLTO bitcode, and so the link of a tool on it is
 where clang's libraries are compiled to machine code: minutes per link.
@@ -6,7 +6,7 @@ The linker's ThinLTO cache keeps that code between links, and a relink
 after a small change takes seconds. This page says why libclang is bitcode,
 what the cache does, and why its directory has to be one fixed path.
 
-## Why bitcode
+## Why Bitcode
 
 A tool built on clang (a language server, a linter, a refactoring tool)
 spends its time in clang's code: the parser, Sema, the AST. Shipped as
@@ -23,7 +23,7 @@ to machine code in the link, in parallel, and for a tool on clang that is
 most of LLVM and clang: clice's link took 353 s on a 4-core Linux runner.
 Every relink does it again, even after a one-line change in the tool.
 
-## What the cache does
+## What the Cache Does
 
 lld's ThinLTO cache (`--thinlto-cache-dir` for ELF and COFF,
 `-cache_path_lto` for Mach-O) keeps each module's machine code in a
@@ -33,9 +33,9 @@ generates only the modules whose hash changed, and takes the rest from
 the directory. An entry is written whole or not at all, so builds can
 share a directory. The program is the same with and without the cache.
 
-Measured on clice's links of libclang's bitcode, on GitHub-hosted runners
-(Linux x64 4 cores, macOS arm64 3 cores, Windows x64 4 cores), times of the
-link alone from Bazel's profile
+Measured with 23.1.2.4 on clice's links of libclang's bitcode, on
+GitHub-hosted runners (Linux x64 4 cores, macOS arm64 3 cores, Windows x64 4
+cores), times of the link alone from Bazel's profile
 ([clice runs](https://github.com/clice-io/clice/actions/runs/37041436235)
 [37047279320](https://github.com/clice-io/clice/actions/runs/37047279320)
 [37065094747](https://github.com/clice-io/clice/actions/runs/37065094747)
@@ -51,14 +51,14 @@ branch `exp/bazel-lto`):
 | first link on a fresh runner after restoring the cache, with a change | 6.2 s | 15.6 s | 13.7 s |
 | cache size | 352–403 MiB | 414–425 MiB | 394–660 MiB |
 
-The macOS numbers are from before xclang linked macOS targets with
-ld64.lld (Apple's ld with xclang's libLTO, `-cache_path_lto`). xclang's
-own tests link a small tool on libclang without the cache, with an empty
-one and with a full one on every host: 7 to 20 s cold, 0.6 to 1.7 s warm,
-152 to 155 entries, the program the same bytes each time (tests/bazel.ts,
-tests/cmake.ts).
+In 23.1.2.4, macOS targets linked with Apple's ld and xclang's libLTO
+(`-cache_path_lto`); from 23.1.2.5 on they link with ld64.lld. xclang's own
+tests for 23.1.2.6 link a small tool on libclang without the cache, with
+an empty one and with a full one, on every host: 7 to 20 s cold, 0.6 to
+1.7 s warm, 152 to 155 entries, the program the same bytes each time
+(tests/bazel.ts, tests/cmake.ts).
 
-## Turning it on
+## Turning It On
 
 `XCLANG_THINLTO_CACHE`, an absolute directory:
 
@@ -66,11 +66,12 @@ tests/cmake.ts).
   directory and the toolchains' `thinlto_cache` feature passes it to the
   target's linker ([Bazel](../integrations/bazel.md#the-thinlto-cache)).
 - CMake: `-DXCLANG_THINLTO_CACHE=<dir>`, or the environment variable, before
-  `find_package(xclang)` ([CMake](../integrations/cmake.md#the-thinlto-cache)).
+  `find_package(xclang)`
+  ([CMake](../integrations/cmake.md#the-thinlto-cache)).
 - By hand: `-Wl,--thinlto-cache-dir=<dir>` for Linux and Windows targets,
   `-Wl,-cache_path_lto,<dir>` for macOS ones.
 
-## Why one fixed path
+## Why One Fixed Path
 
 **The path is in the link's key.** The directory is on the link's command
 line, so in Bazel it is part of the action's key, and a disk or remote
@@ -89,7 +90,7 @@ be under `/tmp`: a cache there is written into the action's private `/tmp`
 and lost without a word. A path is made writable only if it exists when the
 action starts, so the module creates the directory when the repository is
 set up, and again whenever it is gone. macOS's sandbox lets `/var/tmp` be
-written; Windows has no sandbox.
+written. Bazel runs actions on Windows without a sandbox by default.
 
 **Why the cache is safe to keep outside Bazel.** Bazel treats an action as a
 function of its declared inputs, and a directory the link reads and writes
@@ -98,7 +99,7 @@ addressed: an entry is found only by the hash of exactly what produced it,
 so it can make a link faster but not different, which tests/bazel.ts checks
 by comparing the program linked with and without it.
 
-## Pruning, and CI
+## Pruning and CI
 
 The linker prunes the cache by LLVM's default policy: at most every 20
 minutes, the entries no link has read for a week go. A CI cache entry

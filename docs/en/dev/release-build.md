@@ -1,7 +1,8 @@
-# How a release is built
+# How a Release Is Built
 
 A release is built on GitHub-hosted runners by `main.yml`, from LLVM's
-release source with the [patches](patches.md) applied, in stages:
+release source with the [patches](../reference/patches.md) applied, in
+stages:
 
 1. **Runtimes.** A bootstrap clang builds every target's sysroot, libc++,
    libc++abi, libunwind and compiler-rt, and libc++'s ASan build.
@@ -9,7 +10,7 @@ release source with the [patches](patches.md) applied, in stages:
    with frontend instrumentation, on Linux x64.
 3. **Training.** The instrumented toolchain compiles a fixed training set
    and writes the profile: about 1700 compiler runs in 23 minutes
-   ([PGO](pgo.md)).
+   ([PGO](../design/pgo.md)).
 4. **Toolchains.** Every host's clang, lld and tools are built with that
    profile and ThinLTO, about two hours per host; the same build tree gives
    that host's libclang archive. The ASan libclang of Linux x64 and macOS
@@ -22,7 +23,7 @@ release source with the [patches](patches.md) applied, in stages:
 6. **Release.** A draft release with every archive, the profile and
    `SHA256SUMS`; publishing it, by hand, creates the tag.
 
-## The bootstrap chain
+## The Bootstrap Chain
 
 The bootstrap clang is an earlier xclang release, pinned with its sha256 in
 `scripts/common.ts`; the first was built by LLVM's own release builds:
@@ -41,10 +42,10 @@ users get, so the release pipeline is its first user. The bootstrap moves
 forward deliberately, as a release that lacks something the build needs
 breaks it (23.1.2.1 lacked compiler-rt's headers, which LLVM's ASan build
 includes); 23.1.2.6 moved to 23.1.2.5, whose ld64.lld has
-[patch 0007](patches.md), to link xclang's own macOS builds with it.
-LLVM's release builds stay pinned as the benchmark's reference.
+[patch 0007](../reference/patches.md), to link xclang's own macOS builds
+with it. LLVM's release builds stay pinned as the benchmark's reference.
 
-## What is tested before a release
+## What Is Tested before a Release
 
 Each host's archives, on a machine of that host:
 
@@ -53,7 +54,7 @@ Each host's archives, on a machine of that host:
   wide atomics, hardening flags, GCC's library names, a version resource,
   and `-static` on Linux;
 - `import std`, a PCH, ThinLTO, ASan, TSan and libFuzzer work natively, and
-  the checks the [patches](patches.md) were made against pass
+  the checks the [patches](../reference/patches.md) were made against pass
   (tests/smoke.ts);
 - a small tool on libclang, found through `find_package(Clang)`, builds and
   runs (tests/libclang.ts);
@@ -66,7 +67,7 @@ Each host's archives, on a machine of that host:
 After publishing, examples.yml runs the documentation's commands against
 the release from conda.clice.io, the archives, the tag and bazel.clice.io.
 
-## The workflows
+## The Workflows
 
 `main.yml`, started by hand, runs the stages as reusable workflows;
 `stages` picks which run, and `reuse-run` (with `runtimes-run`,
@@ -88,18 +89,41 @@ building them again.
 
 With `cli`, `package` also builds the
 [xclang command](../reference/xclang-command.md) (cli.yml) and puts it into
-every toolchain archive; it is off until the command ships. cli.yml also runs on its own, testing the command on every host.
+every toolchain archive. The command is
+[unreleased](../design/roadmap.md#xclang-command), so no release has been
+built with `cli`. cli.yml also runs on its own, testing the command on every
+host.
 
 A draft creates no tag; publishing it does, by hand. Publishing starts
 bazel.yml, which tests the release's module and publishes it to
 [bazel.clice.io](https://bazel.clice.io), and cmake.yml, which builds
-tests/cmake from the tag as a user fetches it. conda.yml, by hand, makes
-the conda packages of a published release, tests them with pixi on every
-host and publishes them to [conda.clice.io](https://conda.clice.io).
-Once the release is on both, examples.yml (by hand) runs the docs'
-commands and examples/ against it on every host. bench.yml compares
-xclang's compile speed with LLVM's own build of the same version, and
-Apple's clang on macOS (tests/bench.ts, [PGO](pgo.md#what-it-buys)).
+tests/cmake from the tag as a user fetches it. conda.yml, by hand, makes the
+conda packages of a published release, tests them with pixi on every host
+and publishes them to [conda.clice.io](https://conda.clice.io). Once the
+release is on both, examples.yml (by hand) runs the docs' commands and
+examples/ against it on every host. bench.yml compares xclang's compile
+speed with LLVM's own build of the same version, and Apple's clang on macOS
+(tests/bench.ts, [PGO](../design/pgo.md#what-it-buys)).
+
+## Before Target Archives Ship
+
+Target archives for `xclang target add` are
+[planned](../design/roadmap.md#target-archives). Before a release can carry
+them, the pipeline needs:
+
+1. a stage that packs each target outside the six into
+   `xclang-target-<version>-<target>.tar.xz`, laid out as
+   [the xclang command](../reference/xclang-command.md#targets) expects:
+   `xclang/<target>/` (sysroot, libc++, libunwind, its licenses),
+   `xclang/lib/clang/<major>/lib/<target>/` (compiler-rt),
+   `xclang/bin/<spelling>.cfg` for every spelling of the triple (from
+   `config/`, as `scripts/common.ts` writes them), case-unique and without
+   links;
+2. the index, `xclang-targets-<version>.json`, with each archive's
+   sha256, size, unpacked size, tier and SDK;
+3. both in the draft release with the toolchains, and in `SHA256SUMS`;
+4. a test that adds each target to every host's toolchain and builds (and,
+   per tier, runs) a program for it.
 
 ## Repository
 

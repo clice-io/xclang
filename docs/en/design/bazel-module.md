@@ -1,4 +1,4 @@
-# The Bazel module
+# The Bazel Module
 
 Bazel's promise is that a build's outputs are a function of its declared
 inputs, cached by content and shared between machines. A C++ toolchain
@@ -6,7 +6,7 @@ breaks that promise easily: a compiler found on `PATH`, headers read from
 `/usr/include`, a sandbox path written into a dependency file. This page
 says how xclang's module keeps it, and what that cost.
 
-## Every toolchain file is an input
+## Every Toolchain File Is an Input
 
 The module downloads the host's archive by its sha256 into a repository,
 and every file of it an action reads is declared: the programs, clang's
@@ -27,7 +27,7 @@ The cost: thousands of declared files per action, which Bazel's sandbox
 lays out for every compile, so a sandboxed action costs more than one
 without inputs. On a full build this is a fraction of compile time.
 
-## No absolute paths
+## No Absolute Paths
 
 A disk or remote cache serves an action to another machine only if its key
 is the same there, and the key holds the command line. A path into the
@@ -53,7 +53,7 @@ features' rpath to the toolchain's runtimes: only those links depend on the
 checkout. tests/bazel.ts checks the actions' keys for absolute paths, for
 the host and for a target of another OS, on every host.
 
-## A toolchain per host and target
+## A Toolchain per Host and Target
 
 Each host's archive carries every target, so the module registers, for
 every host, a toolchain for every target: `exec_compatible_with` the host,
@@ -65,10 +65,10 @@ toolchain found".
 
 The toolchains ask a platform for its os and cpu only. The module's
 platforms add a C library constraint (`glibc`, `mingw`, `macosx`) for
-`select()`, and so that a future musl or MSVC target on the same os and cpu
-can have toolchains of its own.
+`select()`. The [planned](roadmap.md#msvc) MSVC and musl targets share an os
+and cpu with today's targets, and get toolchains of their own through it.
 
-## rules_cc's config, copied
+## rules_cc's Config, Copied
 
 The toolchains are rules_cc's unix toolchain config with xclang's changes:
 Windows names for MinGW's executables and DLLs, static linking by default,
@@ -88,27 +88,31 @@ have meant rewriting what the unix config already does
 (`--macos_minimum_os`, libtool, dead stripping, the sanitizers) for no gain
 to users.
 
-## Static by default
+## Static by Default
 
 Bazel links `cc_test` and `cc_library` dependencies dynamically by default.
 With xclang, every shared object carries its own libc++, and kotatsu's tests
 built that way crashed at start-up with a double free; on Windows, the
-default DLLs did not link. The patched config turns `supports_dynamic_linker`
-off: libraries link statically into tests and programs, `linkshared`
-shared libraries still work, and a target can ask for the feature back
-([hermeticity](hermeticity.md#one-libc-per-shared-object)).
+default DLLs did not link. The patched config turns
+`supports_dynamic_linker` off: libraries link statically into tests and
+programs, `linkshared` shared libraries still work, and a target can ask for
+the feature back ([hermeticity](hermeticity.md#one-libc-per-shared-object)).
 
-## The registry
+## The Registry
 
-Every release's module is published to [bazel.clice.io](https://bazel.clice.io)
-once bazel.yml has built and tested the release's tag with the published
-archives. The registry's archive of the module is made deterministically
-(sorted entries, no owners or times), and tests/bazel.ts checks that it
-gives the same actions as the repository's directory.
+Every release's module is published to
+[bazel.clice.io](https://bazel.clice.io) once bazel.yml has built and tested
+the release's tag with the published archives. The registry's archive of the
+module is made deterministically (sorted entries, no owners or times), and
+tests/bazel.ts checks that it gives the same actions as the repository's
+directory.
 
-## Windows
+## Known Limitations
 
-Windows has no Bazel sandbox, so an action there can read a file it did not
-declare and nothing notices; the Linux and macOS builds of the same targets
-are what enforces the declarations. Bazel's default output root is too
-deep for Windows' path length, hence `startup --output_user_root=C:/b`.
+- **No sandbox on Windows by default.** Bazel runs actions on Windows
+  without a sandbox unless an experimental one is set up
+  (`--experimental_use_windows_sandbox`), so an action there can read a
+  file it did not declare and nothing notices. The Linux and macOS builds
+  of the same targets enforce the declarations.
+- **Short output root on Windows.** Bazel's default output root is too
+  deep for Windows' path length, hence `startup --output_user_root=C:/b`.

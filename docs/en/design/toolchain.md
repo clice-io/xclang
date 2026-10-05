@@ -1,10 +1,10 @@
-# The toolchain's shape
+# Toolchain Structure
 
 How the pieces of an archive fit together, and why: clang's config files
 instead of built-in defaults, one program for every tool, and plain
 directories for the sysroots.
 
-## A config file per target
+## A Config File per Target
 
 clang reads a config file for the target it compiles for: for
 `--target=aarch64-w64-mingw32` it looks for `aarch64-w64-windows-gnu.cfg`
@@ -18,7 +18,8 @@ and per spelling of it into `bin/`:
 | Windows | `<arch>-w64-windows-gnu.cfg`, `<arch>-pc-windows-gnu.cfg` |
 | macOS | `<arch>-apple-darwin.cfg`, `<arch>-apple-macos.cfg`, `<arch>-apple-macosx.cfg` (`arm64` and `aarch64` for arm64) |
 
-What each says ([config/](https://github.com/clice-io/xclang/tree/main/config)):
+What each says
+([config/](https://github.com/clice-io/xclang/tree/main/config)):
 
 | target | options |
 |---|---|
@@ -49,17 +50,19 @@ system's own headers and libraries, as upstream clang would.
 
 Two details:
 
-- **clang-cl targets MSVC.** clang-cl looks for `<default target>-clang-cl.cfg`,
-  then `<default target>.cfg`, before it turns to the MSVC target, so it
-  read the host's MinGW options and warned about each. An empty
-  `<spelling>-clang-cl.cfg` for every spelling stops it (since 23.1.2.3).
+- **clang-cl targets MSVC.** clang-cl looks for
+  `<default target>-clang-cl.cfg`, then `<default target>.cfg`, before it
+  turns to the MSVC target, so it read the host's MinGW options and warned
+  about each. An empty `<spelling>-clang-cl.cfg` for every spelling stops it
+  (since 23.1.2.3).
 - **Bazel uses its own copy.** clang makes a config file's directory
   absolute, and Bazel needs no absolute paths in its actions' outputs (the
   dependency files would name the sandbox). The Bazel module writes each
   config file again with paths relative to the execution root and passes
-  `--no-default-config --config=<file>` ([Bazel's module](bazel-module.md)).
+  `--no-default-config --config=<file>`
+  ([the Bazel module](bazel-module.md)).
 
-## One program
+## One Program
 
 clang, lld and most of the tools (`llvm-ar`, `llvm-objcopy`, `dsymutil`,
 `llvm-gsymutil`, ...) are one program, `llvm`, built with LLVM's
@@ -100,17 +103,18 @@ Some tools are outside the one program, built on their own:
 `llvm-profdata`, `llvm-cov`, `llvm-dwarfdump`, `llvm-strings` and
 `FileCheck`.
 
-## Windows: launchers, not links
+## Windows: Launchers, Not Links
 
 A Windows archive holds no symbolic links: Windows creates them only with
 developer mode or administrator rights, and conda packages for Windows
 cannot carry them. Every name of `llvm.exe` (`clang++.exe`, `ld.lld.exe`,
-...) is a small program, [`windows/alias.c`](https://github.com/clice-io/xclang/blob/main/windows/alias.c),
+...) is a small program,
+[`windows/alias.c`](https://github.com/clice-io/xclang/blob/main/windows/alias.c),
 that starts `llvm.exe <name> <arguments>`. Why the name goes in as an
 argument, and how the launcher keeps `llvm.exe` from outliving a killed
 build, is in [Windows](windows.md#the-launchers).
 
-## Plain directories
+## Plain Directories
 
 A target's directory is a sysroot laid out the way clang's drivers
 expect, with libc++, libunwind and the GCC names in it, and compiler-rt

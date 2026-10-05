@@ -5,12 +5,13 @@ xclang holds every target to one rule:
 > A program depends at run time only on the system libraries every
 > installation of its OS has and no one may redistribute. Everything else
 > is linked into it. At build time, the only inputs from outside the
-> toolchain are vendor SDKs, pinned.
+> toolchain are vendor SDKs.
 
 This page says what the rule gives, what it costs, and the places where it
-had to bend.
+had to bend. Today the one vendor SDK is Xcode's, for the macOS targets,
+and it is not pinned ([known limitations](#known-limitations)).
 
-## What a program loads
+## What a Program Loads
 
 | target | at run time, from the system | linked statically |
 |---|---|---|
@@ -32,7 +33,7 @@ against xclang's own libc++ on every host, macOS included. The system's
 the toolchain's own programs load no C++ runtime and need glibc 2.17 at
 most.
 
-## Why not shared runtimes
+## Why Not Shared Runtimes
 
 A shared libc++ is what most toolchains do, and it has a cost the user pays
 later:
@@ -56,16 +57,16 @@ The price of static runtimes is size (every program carries the parts of
 libc++ it uses) and the one-runtime-per-shared-object rule below. For
 programs and tools that are copied to machines, xclang takes that price.
 
-## One libc++ per shared object
+## One libc++ per Shared Object
 
 libc++, libc++abi and libunwind are built as static libraries with hidden
-symbols (`LIBCXX_HERMETIC_STATIC_LIBRARY`, `LIBCXXABI_HERMETIC_STATIC_LIBRARY`,
-`LIBUNWIND_HIDE_SYMBOLS`), and position-independent, so a shared library can
-carry them too. Every program and every shared library linked by xclang
-has a private copy. That has consequences, and they are the same ones the
-Android NDK documents for its static libc++ ("you can only use a static
-variant of the C++ runtime if you have one and only one shared library in
-your application",
+symbols (`LIBCXX_HERMETIC_STATIC_LIBRARY`,
+`LIBCXXABI_HERMETIC_STATIC_LIBRARY`, `LIBUNWIND_HIDE_SYMBOLS`), and
+position-independent, so a shared library can carry them too. Every program
+and every shared library linked by xclang has a private copy. That has
+consequences, and they are the same ones the Android NDK documents for its
+static libc++ ("you can only use a static variant of the C++ runtime if you
+have one and only one shared library in your application",
 [C++ library support](https://developer.android.com/ndk/guides/cpp-support)):
 
 - **C++ objects should not cross shared objects.** A `std::string` made by
@@ -91,11 +92,12 @@ toolchain.
 This is also why the Bazel module turns `supports_dynamic_linker` off. Bazel
 links `cc_test` and `cc_library` dependencies dynamically by default, one
 shared object per library, and kotatsu's tests built that way crashed at
-start-up with a double free, every shared object with a libc++ of its
-own. On Windows the default DLL of a `cc_library` did not link at all. Libraries now link statically into tests
-and programs; `cc_binary(linkshared = True)` still makes a shared library,
-and `features = ["supports_dynamic_linker"]` gives a target Bazel's dynamic
-linking back ([Bazel](../integrations/bazel.md#what-the-toolchain-does)).
+start-up with a double free, every shared object with a libc++ of its own.
+On Windows the default DLL of a `cc_library` did not link at all. Libraries
+now link statically into tests and programs; `cc_binary(linkshared = True)`
+still makes a shared library, and `features = ["supports_dynamic_linker"]`
+gives a target Bazel's dynamic linking back
+([Bazel](../integrations/bazel.md#what-the-toolchain-does)).
 
 ## Why glibc 2.17
 
@@ -113,12 +115,12 @@ Rust's official Linux targets also use
 builds on CentOS 7 for it), so a program from xclang runs on CentOS 7,
 Debian 8, Ubuntu 14.04 and anything later.
 
-The floor has costs, in [compatibility](../reference/compatibility.md):
-no `-static-pie` (glibc 2.17 has no `rcrt1.o`), `-pg` needs `-no-pie`, no
+The floor has costs, in [compatibility](../reference/compatibility.md): no
+`-static-pie` (glibc 2.17 has no `rcrt1.o`), `-pg` needs `-no-pie`, no
 `quadmath.h`. `__cxa_thread_atexit_impl` arrived in glibc 2.18, so libc++abi
-is built with its own fallback for `thread_local` destructors. A newer
-glibc for programs that need what 2.17 lacks is
-[being considered](roadmap.md#targets) as a target of its own.
+is built with its own fallback for `thread_local` destructors. A newer glibc
+for programs that need what 2.17 lacks is
+[considered](roadmap.md#glibc-newer) as a target of its own.
 
 Two things about the sysroots took work:
 
@@ -136,7 +138,7 @@ Two things about the sysroots took work:
   headers that differ from another only by case are left out, so a
   sysroot unpacks on a case-insensitive file system.
 
-## GCC library names
+## GCC Library Names
 
 Build scripts written for GCC name GCC's runtime libraries: `-latomic` for
 wide atomics, `-lgcc_s` and `-lgcc_eh` for the unwinder, `-lgcc` for the
@@ -159,23 +161,9 @@ where they are.
 So a C++ program, a CMake project or a Rust crate written for GCC links
 unchanged. One limit: an empty `libgcc_s.a` gives Rust's standard library
 no unwinder, which links with `-nodefaultlibs`; Rust builds name libunwind
-themselves ([Rust and cargo](../integrations/cargo.md)).
+themselves ([Rust and Cargo](../integrations/cargo.md)).
 
-## The exceptions
-
-- **Sanitizer runtimes.** On macOS they are dylibs, which a program loads
-  from the toolchain or from its own directory; an ASan build is for
-  testing, not for shipping.
-- **macOS's SDK.** Apple's SDK cannot be redistributed, so macOS targets
-  build against Xcode's, found by `xcrun`: the one input from outside the
-  toolchain. Fetching it from Apple, by version and digest, is
-  [in research](vendor-sdks.md).
-- **The bar for the future targets** is the same: musl targets would be
-  fully static; MSVC targets link the VC runtime and the STL statically
-  and UCRT dynamically, Microsoft's "hybrid CRT"
-  ([roadmap](roadmap.md#targets)).
-
-## Checked by
+## Checked By
 
 - tests/smoke.ts, on every host: the toolchain's own programs load no C++
   runtime and need glibc 2.17 at most; programs build for every target and
@@ -184,3 +172,22 @@ themselves ([Rust and cargo](../integrations/cargo.md)).
 - [examples.yml](https://github.com/clice-io/xclang/blob/main/.github/workflows/examples.yml),
   on every host: `llvm-readobj --needed-libs` of the quick start's programs
   for every target, the libraries listed above and nothing else.
+
+## Not Yet Supported
+
+| | status |
+|---|---|
+| [A pinned macOS SDK, fetched from Apple by the user](roadmap.md#macos-any-host) | In research |
+| [musl targets](roadmap.md#musl), for fully static Linux programs | Planned |
+| [MSVC targets](roadmap.md#msvc), with Microsoft's "hybrid CRT": the VC runtime and the STL linked statically, UCRT dynamically | Planned |
+
+Planned targets keep the same rule.
+
+## Known Limitations
+
+- **Sanitizer runtimes.** On macOS they are dylibs, which a program loads
+  from the toolchain or from its own directory. An ASan build is for
+  testing, not for shipping.
+- **macOS's SDK.** Apple's SDK cannot be redistributed, so macOS targets
+  build against Xcode's, found by `xcrun`. It is the one input from
+  outside the toolchain, and xclang does not pin it.

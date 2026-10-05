@@ -1,14 +1,21 @@
 # Vendor SDKs
 
+::: warning Unreleased
+The `xclang sdk fetch` command this page describes is in no release; CI
+builds and tests it from `main`
+([the xclang command](../reference/xclang-command.md)). Today the macOS
+targets use the installed Xcode's SDK, on macOS hosts.
+:::
+
 Some targets need an SDK only its vendor may distribute: Apple's for macOS,
 Microsoft's MSVC libraries and Windows SDK for the MSVC ABI. xclang never
-redistributes them. The user fetches them from the vendor, by a pinned
-version and digest, after accepting the vendor's license, and xclang's
-tests fetch them the same way. The command that does it,
-`xclang sdk fetch`, is built and tested by CI but is in no release yet
-([the xclang command](../reference/xclang-command.md)).
+redistributes them. Its design is that the user fetches them from the
+vendor, by a pinned version and digest, after accepting the vendor's
+license. The targets that need them are [planned](roadmap.md#msvc) (MSVC)
+and [in research](roadmap.md#macos-any-host) (macOS from Linux and Windows
+hosts).
 
-## Why fetch, not ship
+## Why Fetch, Not Ship
 
 Apple's SDK agreement and Microsoft's Visual Studio license allow use, not
 redistribution. A toolchain that bundles them, or a Docker image that
@@ -18,7 +25,7 @@ user. xclang goes the other way: it downloads from the vendor's own
 servers, so each user gets the SDK from the vendor under the vendor's
 terms, and xclang's archives stay free to share.
 
-What that means for the user:
+What that means for the user of `xclang sdk fetch`:
 
 - `xclang sdk fetch` prints the vendor's license terms and stops, until
   given `--accept-license`.
@@ -41,8 +48,9 @@ Man pages, tools and Perl are left out: 62 MB downloaded, 610 MB unpacked.
 
 **The iOS family is a hard limit.** The SDKs for iOS, tvOS, watchOS,
 visionOS and their simulators come only with full Xcode, downloaded with an
-Apple ID. No unattended fetch can get them, which is why those targets are
-in research and likely to need their runtimes built on demand.
+Apple ID. No unattended fetch can get them, so those targets are
+[in research](roadmap.md#ios), and are likely to need their runtimes built
+on demand.
 
 ## Microsoft's SDK without Visual Studio
 
@@ -61,10 +69,9 @@ On a case-sensitive file system, links are added for the spellings
 Windows code uses (`windows.h`, `WinBase.h` as `winbase.h`, `LIBCMT.lib`,
 ...): 3.6k of them, so code written on Windows builds unchanged.
 
-## Tested by
+## Tested By
 
 cli.yml fetches both SDKs on every host, compiles C, C++ and Objective-C
 programs against them there, and runs the programs on macOS and Windows
-runners. tests/cargo.ts
-builds xclang's own Rust command for macOS and MSVC targets from Linux with
-them ([Rust and cargo](../integrations/cargo.md)).
+runners. tests/cargo.ts builds xclang's own Rust command for macOS and MSVC
+targets from Linux with them ([Rust and Cargo](../integrations/cargo.md)).
