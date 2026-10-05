@@ -23,6 +23,10 @@
 /// 6. On Linux and macOS, the programs built without the disk cache, in the
 ///    sandbox and outside it, one action at a time, next to as many actions
 ///    with no inputs: what staging the toolchain's files costs.
+/// 7. The linker's ThinLTO cache (XCLANG_THINLTO_CACHE) on the link of
+///    libclang's bitcode: the directory made by the module, again once
+///    gone; a second link takes every module's code from it; the program is
+///    the same without it.
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -259,6 +263,48 @@ if (!windows) {
       `${local.seconds.toFixed(1)} s outside it: ${ms.toFixed(0)} ms per action`;
   };
   check(true, `one at a time, the programs: ${cost(PROGRAMS)}; actions without inputs: ${cost(["//baseline:all"])}`);
+}
+
+/// 7. The linker's ThinLTO cache on //libclang:libclang_test's link of
+/// libclang's bitcode, beside where docs/bazel.md puts it.
+{
+  const workspace = path.join(common.ROOT, "tests", "bazel");
+  const dir = windows ? "C:/xclang-thinlto-tests" : "/var/tmp/xclang-thinlto-tests";
+  fs.rmSync(dir, { recursive: true, force: true });
+  const flags = [
+    `--repo_env=XCLANG_THINLTO_CACHE=${dir}`,
+    ...(process.platform === "linux" ? [`--sandbox_writable_path=${dir}`] : []),
+    /// Windows programs differ by their timestamp alone otherwise.
+    ...(windows ? ["--linkopt=-Wl,--no-insert-timestamp"] : []),
+  ];
+  const program = path.join(workspace, "bazel-bin", "libclang", `libclang_test${windows ? ".exe" : ""}`);
+  /// The program linked again (its output removed), and the link's time.
+  const link = (features: string[]): { seconds: number; bytes: Buffer; executed: number } => {
+    if (fs.existsSync(program)) {
+      fs.chmodSync(program, 0o755);
+      fs.rmSync(program);
+    }
+    const processes = bazel(workspace, ["build", ...flags, ...features, "//libclang:libclang_test"]);
+    return { seconds: processes.seconds, bytes: fs.readFileSync(program), executed: processes.executed };
+  };
+  /// The cache's entries and their times: an entry written again is a miss.
+  const entries = (): Map<string, number> => new Map(fs.readdirSync(dir).filter((f) => f.startsWith("llvmcache-"))
+    .map((f) => [f, fs.statSync(path.join(dir, f)).mtimeMs]));
+  const none = link(["--features=-thinlto_cache"]);
+  check(fs.existsSync(dir) && entries().size === 0, `XCLANG_THINLTO_CACHE: ${dir} made by the module, empty without the feature`);
+  const cold = link([]);
+  const filled = entries();
+  const warm = link([]);
+  const missed = [...entries()].filter(([f, t]) => filled.get(f) !== t).length;
+  check(filled.size > 0 && missed === 0 && warm.executed === 1,
+    `ThinLTO cache: libclang_test linked in ${none.seconds.toFixed(1)} s without it, ${cold.seconds.toFixed(1)} s cold ` +
+    `(${filled.size} entries), ${warm.seconds.toFixed(1)} s warm (${warm.executed} actions, ${missed} entries written again)`);
+  const same = cold.bytes.equals(none.bytes) && warm.bytes.equals(none.bytes);
+  check(same, `ThinLTO cache: the program ${same ? "the same" : "differs"} with and without it`);
+  fs.rmSync(dir, { recursive: true, force: true });
+  bazel(workspace, ["build", ...flags, "//libclang:libclang_test"]);
+  check(fs.existsSync(dir), `ThinLTO cache: ${dir} made again once gone`);
+  fs.rmSync(dir, { recursive: true, force: true });
 }
 
 if (process.env.GITHUB_STEP_SUMMARY) {

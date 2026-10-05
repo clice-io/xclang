@@ -20,10 +20,12 @@ XCLANG_LIBCLANG_ROOT and XCLANG_LIBCLANG_ASAN_ROOT for the host's libclang.
 load(":hosts.bzl", "HOSTS", "TARGETS")
 load(":repositories.bzl", "xclang_libclang", "xclang_libclang_aliases", "xclang_macos_sdk", "xclang_option_inc", "xclang_toolchain", "xclang_unix_config")
 load(":versions.bzl", "SHA256", "VERSION")
+load(":thinlto_cache.bzl", "xclang_thinlto_cache")
 
 def _xclang_impl(mctx):
     xclang_unix_config(name = "xclang_unix_config")
     xclang_macos_sdk(name = "xclang_macos_sdk")
+    xclang_thinlto_cache(name = "xclang_thinlto_cache")
     for host in HOSTS:
         xclang_toolchain(name = "xclang_" + host, host = host, version = VERSION, sha256 = SHA256)
     for target in TARGETS:

@@ -132,6 +132,10 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
 
     # lld's --gc-sections, on for Linux and off for Windows (bazel/BUILD.bazel).
     gc_sections = [Label("//bazel:gc_sections")]
+
+    # The linker's ThinLTO cache, where XCLANG_THINLTO_CACHE names one, in
+    # the spelling of the target's linker (bazel/thinlto_cache.bzl).
+    thinlto_cache = [Label("@xclang_thinlto_cache//:" + ("mach_o" if t.os == "macos" else "lld"))]
     opt_link_flags = []
     if macos_native:
         # The sanitizers' runtimes are shared libraries on macOS, which the
@@ -159,7 +163,7 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
         cpu = t.cpu,
         cxx_builtin_include_directories = builtin_dirs,
         dbg_compile_flags = ["-g"],
-        extra_enabled_features = gc_sections if t.os == "linux" else [],
+        extra_enabled_features = thinlto_cache + (gc_sections if t.os == "linux" else []),
         extra_known_features = gc_sections if t.os == "windows" else [],
         host_system_name = host,
         link_flags = link_flags,
