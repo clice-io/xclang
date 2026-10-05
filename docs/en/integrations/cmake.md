@@ -197,7 +197,7 @@ target `<program>.dSYM` too.
 <!-- excerpt: examples/debug-symbols/CMakeLists.txt -->
 ```cmake
 add_executable(tool tool.cpp)
-target_compile_options(tool PRIVATE -gline-tables-only)
+target_compile_options(tool PRIVATE -g)
 xclang_debug_symbols(tool)
 ```
 

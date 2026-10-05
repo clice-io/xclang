@@ -1,2 +1,3 @@
 # Patches apply as they are, from a Windows checkout too.
 *.patch -text
+/examples/**/expected.txt text eol=lf

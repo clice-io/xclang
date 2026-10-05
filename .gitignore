@@ -29,3 +29,4 @@ node_modules/
 /examples/debug-symbols/tool.dSYM/
 /examples/libclang/libclang/
 /examples/cargo/target/
+/examples/debug-symbols/tool-lines*

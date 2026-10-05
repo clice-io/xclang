@@ -106,7 +106,12 @@ and gives their sidebar labels, one to three words each.
   [the ThinLTO cache](../features/thinlto-cache.md), each with its release.
   Test names and CI runs live in [testing](testing.md).
 - A code block under `<!-- file: <path> -->` must be that file of the
-  repository; `tests/docs.ts` checks it.
+  repository, and one under `<!-- excerpt: <path> -->` consecutive lines of
+  it. A command block is an excerpt of a step of examples.yml, or says
+  why CI does not run it (`<!-- not run: <why> -->`). `tests/docs.ts`
+  checks all three.
+- An example of a page is a directory of `examples/`, with the `pixi.toml`
+  of the quick start, and an `expected.txt` for what its program prints.
 
 To preview, copy `docs/en` into a checkout of
 [clice-io/docs](https://github.com/clice-io/docs) as `en/xclang` and run its

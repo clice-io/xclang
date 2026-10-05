@@ -36,7 +36,7 @@ host. The last one looks up the address of `answer` in the GSYM:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
-clang++ --target=x86_64-unknown-linux-gnu -gline-tables-only -O2 tool.cpp -o tool
+clang++ --target=x86_64-unknown-linux-gnu -g -O2 tool.cpp -o tool
 llvm-gsymutil --convert tool --out-file tool.gsym --num-threads=1
 llvm-gsymutil tool.gsym --address=0x$(llvm-nm tool | awk '$3 == "answer" { print $1 }')
 ```
@@ -58,7 +58,7 @@ project(tool LANGUAGES CXX)
 find_package(xclang REQUIRED CONFIG)
 
 add_executable(tool tool.cpp)
-target_compile_options(tool PRIVATE -gline-tables-only)
+target_compile_options(tool PRIVATE -g)
 xclang_debug_symbols(tool)
 ```
 
@@ -85,7 +85,7 @@ load("@xclang//bazel:debug_symbols.bzl", "xclang_debug_symbols")
 cc_binary(
     name = "tool",
     srcs = ["tool.cpp"],
-    copts = ["-gline-tables-only"],
+    copts = ["-g"],
     features = ["generate_dsym_file"],
 )
 
@@ -132,7 +132,7 @@ information unless `--strip=never` is given.
 | dSYM, macOS targets | made by `xclang_debug_symbols` | `features = ["generate_dsym_file"]`, or `--apple_generate_dsym` |
 | extra llvm-gsymutil options | `GSYM_ARGS <option>...` | `gsymutil_args = [...]` |
 | llvm-gsymutil's warnings | `<program>.gsym.log` | output group `gsym_log` |
-| debug information | `-g`, or `-gline-tables-only` for functions and lines alone | the same, in `copts` |
+| debug information | `-g` | the same, in `copts` |
 
 `--merged-functions` keeps every name of the functions that identical
 code folding merged.
@@ -220,6 +220,10 @@ dSYM or GSYM names them correctly. `--stripopt` adds options to the strip.
 
 ## Known Limitations
 
+- **`-gline-tables-only` gives a GSYM without lines.** llvm-gsymutil of
+  LLVM 23 loads no function from that DWARF. The GSYM then holds only the
+  names of the symbol table, and a lookup gives the function without its
+  file and line. Build with `-g`.
 - **GSYM files are not deterministic.** `llvm-gsymutil --convert` with its
   default threads writes a different file each run from the same DWARF.
   On one program, three runs gave three digests, 3,043,120 to 3,053,168

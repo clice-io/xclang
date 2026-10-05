@@ -15,8 +15,10 @@ here instead of naming tests.
   emulator: 22 host-to-target pairs.
 - After a release is published, examples.yml runs the commands of the docs
   as written, from conda.clice.io, the archives, the tag and bazel.clice.io.
+  What they build for another target then runs on a runner of that target.
 - `tests/docs.ts` checks that the files the docs show are the files CI
-  builds, and that every link reaches its page and heading.
+  builds, that their commands are the steps examples.yml runs, and that
+  every link reaches its page and heading.
 
 ## When Tests Run
 
@@ -27,7 +29,8 @@ here instead of naming tests.
 | bazel.yml | on publishing, and by hand | also `tests/bazel.ts`, and cross builds run on the target (`tests/bazel-cross.ts`) |
 | cmake.yml | every release candidate, and on publishing | `tests/cmake.ts`: the package by `PATH`, through the toolchain file, and from FetchContent of the tag |
 | conda.yml | before the conda packages are published | each package installed with pixi and used, on every host |
-| examples.yml | after publishing, and on pushes that change `examples/` | the commands and `examples/` of the docs, as written |
+| examples.yml | after publishing, and on pushes that change `examples/` or the workflow | the commands and `examples/` of the docs, as written; the programs for other targets on their runners |
+| docs.yml | pushes that change the docs, `examples/`, `tests/docs.ts` or a workflow, on every branch | `tests/docs.ts`; on `main`, then publishing to docs.clice.io |
 | cli.yml | by hand, and with `cli` in main.yml | the [unreleased](../design/roadmap.md#xclang-command) `xclang` command: `tests/cli.ts`, `tests/cargo.ts` |
 | bench.yml | by hand, for the notes or the docs | compile speed against LLVM's and Apple's builds (`tests/bench.ts`) |
 
@@ -70,7 +73,8 @@ every target on every host, and lists what each loads with
 `llvm-readobj --needed-libs`. Linux programs load `libc.so.6`, `libm.so.6`,
 `libdl.so.2`, `libpthread.so.0` and the dynamic loader. Windows programs
 load `KERNEL32.dll` and UCRT. macOS programs load `libSystem.B.dylib`.
-That is the [hermeticity](../design/hermeticity.md) rule, checked.
+The job fails if any program loads a C++ runtime. That is the
+[hermeticity](../design/hermeticity.md) rule, checked.
 
 ## Cross-Compiling
 
@@ -82,6 +86,12 @@ That is the [hermeticity](../design/hermeticity.md) rule, checked.
   Windows, Windows-built Linux programs on Linux, and so on.
 - From Linux x64, bazel.yml builds kotatsu's tests, from the registry, for
   Windows x64, and runs them on Windows.
+- examples.yml builds the programs of the docs for other targets, with
+  clang, CMake, FetchContent, Meson, Make, Bazel and cargo, and uploads
+  them. Its `on-target` job runs each on a runner of its target, with
+  nothing installed, and compares what it prints with the `expected.txt`
+  of its example. That covers every host to every Linux and Windows
+  target, and both macOS targets from both macOS hosts.
 
 ## CMake Package
 
@@ -145,7 +155,9 @@ for another target.
   host, for every target, with CMake 3.28 and the newest.
 - `tests/bazel` builds a module of partitions, a module importing another,
   and `import std`, on every host and for every other target.
-- examples.yml builds `import std` in CMake and in Bazel on every host.
+- examples.yml builds `examples/modules`, a module with a partition and
+  `import std`, by hand with one-step compiles, with CMake and with Bazel,
+  on every host, and for Windows x64 with CMake and Bazel.
 - examples.yml's `ccache` job runs the command lines CMake gives a module
   and its importer three times, under ccache 4.13.6 and 4.14.1. The job
   fails when either version stops behaving as
@@ -168,15 +180,38 @@ then:
 From Linux, `tests/cargo.ts` builds `cli/` with cargo for macOS and the MSVC
 ABI against the fetched SDKs ([Rust and Cargo](../integrations/cargo.md)).
 
+## The Feature Examples
+
+examples.yml builds the example of each feature page, in `examples/`, and
+checks what the page says it prints:
+
+- **Sanitizers**, on Linux and macOS hosts: by hand, with CMake and with
+  Bazel. ASan with the ASan libc++ reports the container-overflow and exits
+  1; without it, no report. TSan reports the data race and exits 66.
+  libFuzzer runs 1000 inputs.
+- **Debug symbols**, on every host: a GSYM by hand, looked up by the
+  address of a function, and with `xclang_debug_symbols` in CMake (with the
+  dSYM on macOS) and in Bazel.
+- **libclang and the ThinLTO cache**, on every host: the tool on the
+  release archive of libclang with CMake, and on `@libclang` with Bazel. The
+  job records the link times and the entries of the cache.
+- **Cargo**, from Linux x64 and macOS arm64: Rust programs with C code for
+  Windows x64 and arm64 and for Linux arm64, run on their targets. The
+  Windows programs load no runtime DLL.
+
 ## The Docs
 
 - `node tests/docs.ts` checks that every code block under a
-  `<!-- file: -->` marker is that file of the repository, that every
-  relative link reaches its page and heading, and that the status of every
+  `<!-- file: -->` marker is that file of the repository, and every block
+  under `<!-- excerpt: -->` consecutive lines of its file. Each command
+  block outside these Development pages is a step of examples.yml, or
+  says why CI does not run it (`<!-- not run: -->`). It also checks that
+  every directory of `examples/` is built and shown, that every relative
+  link reaches its page and heading, and that the status of every
   unshipped item is one of the [roadmap](../design/roadmap.md) words.
 - examples.yml runs the commands of the docs and `examples/` on every
   host, against the published release. Make runs on Linux and macOS hosts.
-  On Windows hosts, the CMake build for another target is for
+  Windows hosts also build the CMake and Meson projects for
   `aarch64-unknown-linux-gnu`.
 
 ## Checked by Hand

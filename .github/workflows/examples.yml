@@ -529,7 +529,10 @@ jobs:
           set -e
           cat overflow.txt race.txt
           tail -n 3 fuzz.txt
-          test "$overflow" = 1
+          # ASan exits with 1; on macOS, where abort_on_error is its default,
+          # it aborts.
+          want=1; [[ "$RUNNER_OS" == macOS ]] && want=134
+          test "$overflow" = "$want"
           grep 'ERROR: AddressSanitizer: container-overflow' overflow.txt
           grep 'overflow.cpp:8' overflow.txt
           test "$race" = 66
@@ -544,17 +547,22 @@ jobs:
           ./build-asan/overflow 2> build-asan.txt; status=$?
           set -e
           cat build-asan.txt
-          test "$status" = 1
+          test "$status" = "$want"
           grep 'ERROR: AddressSanitizer: container-overflow' build-asan.txt
       - name: Debug symbols
         working-directory: examples/debug-symbols
         run: |
           pixi install
           export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
-          clang++ --target=x86_64-unknown-linux-gnu -gline-tables-only -O2 tool.cpp -o tool
+          clang++ --target=x86_64-unknown-linux-gnu -g -O2 tool.cpp -o tool
           llvm-gsymutil --convert tool --out-file tool.gsym --num-threads=1
           llvm-gsymutil tool.gsym --address=0x$(llvm-nm tool | awk '$3 == "answer" { print $1 }')
           llvm-gsymutil tool.gsym --address=0x$(llvm-nm tool | awk '$3 == "answer" { print $1 }') | grep -E 'answer @ .*tool\.cpp:3'
+          # debugging.md, "Known Limitations": no function from the DWARF of
+          # -gline-tables-only. The step fails when that changes.
+          clang++ --target=x86_64-unknown-linux-gnu -gline-tables-only -O2 tool.cpp -o tool-lines
+          llvm-gsymutil --convert tool-lines --out-file tool-lines.gsym | tee convert.txt
+          grep 'Loaded 0 functions from DWARF' convert.txt
           cmake -G Ninja -B build -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release
           cmake --build build
           ./build/tool

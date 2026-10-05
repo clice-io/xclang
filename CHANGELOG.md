@@ -12,12 +12,15 @@ the [patches](docs/en/reference/patches.md) of its tag.
   from [docs/en](docs/en): a guide (what xclang is and when not to use it,
   why it is built the way it is, a quick start, installing, cross-compiling,
   comparisons, FAQ), the integrations, the features, a reference and the
-  design, with the evidence for each claim.
+  design, with how each claim is tested.
 - [`examples/`](examples): the projects the docs show (a pixi quick start,
-  CMake, CMake with FetchContent, Bazel, Meson, Make), built as written on a
-  machine of every host from the published release's channels by
-  examples.yml; tests/docs.ts checks that the docs show those files and
-  that their links reach pages and headings.
+  CMake, CMake with FetchContent, Bazel, Meson, Make, and one per feature:
+  C++20 modules, sanitizers, debug symbols, libclang with the ThinLTO cache,
+  cargo), built as written on a machine of every host from the published
+  release's channels by examples.yml. The programs built for another
+  target run on a runner of that target. tests/docs.ts checks that the
+  docs show those files and the commands examples.yml runs, and that their
+  links reach pages and headings.
 
 ## [23.1.2.6](https://github.com/clice-io/xclang/releases/tag/23.1.2.6) — 2026-10-05
 

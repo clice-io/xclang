@@ -187,7 +187,7 @@ load("@xclang//bazel:debug_symbols.bzl", "xclang_debug_symbols")
 cc_binary(
     name = "tool",
     srcs = ["tool.cpp"],
-    copts = ["-gline-tables-only"],
+    copts = ["-g"],
     features = ["generate_dsym_file"],
 )
 

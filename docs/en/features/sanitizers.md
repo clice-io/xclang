@@ -80,7 +80,7 @@ clang++ -fsanitize=fuzzer -g -O1 fuzz.cpp -o fuzz
 | command | prints | exit code |
 |---|---|---|
 | `./overflow-plain` | `no report` | 0 |
-| `./overflow` | `ERROR: AddressSanitizer: container-overflow` in `main`, `overflow.cpp:8` | 1 |
+| `./overflow` | `ERROR: AddressSanitizer: container-overflow` in `main`, `overflow.cpp:8` | 1; on macOS, an abort (134 in a shell) |
 | `./race` | `WARNING: ThreadSanitizer: data race` | 66 |
 | `./fuzz -runs=1000` | `Done 1000 runs` | 0 |
 

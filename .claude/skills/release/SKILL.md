@@ -61,7 +61,8 @@ before publishing.
    - tests/bazel.ts: `previous` default → the release before this one;
    - README.md, README.zh-CN.md, docs/en/ and examples/ (the pixi
      workspace, FetchContent's `XCLANG_VERSION`, the Bazel module) and
-     `VERSION` and the cache key in .github/workflows/examples.yml:
+     `VERSION`, the cache key and the steps the docs show in
+     .github/workflows/examples.yml (tests/docs.ts holds them equal):
      `xclang = "<version>.*"`, `bazel_dep(... version = "<version>")`,
      archive names, sizes (`grep -rn <previous version> README* docs
      examples .github/workflows/examples.yml` finds them); the "Runs for
