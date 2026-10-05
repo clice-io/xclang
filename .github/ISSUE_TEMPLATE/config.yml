@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://docs.clice.io/xclang
+    about: The guide, the FAQ and the reference.
+  - name: A bug in clang, lld or libc++ itself
+    url: https://github.com/llvm/llvm-project/issues
+    about: If it happens with LLVM's own release builds too, it is LLVM's; xclang carries fixes as patches until upstream has them.

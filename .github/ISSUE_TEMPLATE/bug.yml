@@ -1,0 +1,56 @@
+name: Bug
+description: Something xclang builds, links or runs wrongly.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: xclang version
+      description: The release (`clang --version` prints LLVM's; the archive or conda package names the release), or the commit.
+      placeholder: 23.1.2.6
+    validations:
+      required: true
+  - type: dropdown
+    id: host
+    attributes:
+      label: Host
+      description: The machine the toolchain runs on.
+      options:
+        - x86_64-unknown-linux-gnu
+        - aarch64-unknown-linux-gnu
+        - x86_64-w64-mingw32
+        - aarch64-w64-mingw32
+        - aarch64-apple-darwin
+        - x86_64-apple-darwin
+    validations:
+      required: true
+  - type: input
+    id: target
+    attributes:
+      label: Target
+      description: The `--target`, platform or `XCLANG_TARGET` the build is for, if not the host.
+  - type: dropdown
+    id: via
+    attributes:
+      label: Installed or used through
+      multiple: true
+      options:
+        - pixi or conda
+        - a release archive
+        - CMake (find_package or the toolchain file)
+        - CMake FetchContent
+        - Bazel module
+        - libclang
+        - other
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens, and what was expected
+      description: The command or build file, its output, and what you expected instead. A small reproducer helps most.
+    validations:
+      required: true
+  - type: textarea
+    id: upstream
+    attributes:
+      label: With LLVM's own build
+      description: Does the same happen with LLVM's release of the same version, or another toolchain? (If it does, it may be an LLVM bug.)

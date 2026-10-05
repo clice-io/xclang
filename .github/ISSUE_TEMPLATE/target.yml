@@ -1,0 +1,16 @@
+name: Target or feature request
+description: A target, a build system or a feature xclang does not have.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What you need
+      description: The target (triple, C library, minimum OS version), build system or feature, and what you would build with it.
+    validations:
+      required: true
+  - type: textarea
+    id: roadmap
+    attributes:
+      label: Roadmap
+      description: Is it in https://docs.clice.io/xclang/design/roadmap? What would change your use if it were planned rather than considered?
