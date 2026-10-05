@@ -90,9 +90,7 @@ jobs:
           for kind in pgo nopgo; do
             [[ -d dist/$kind ]] || continue
             mkdir -p "$kind"
-            if compgen -G "dist/$kind/xclang-*.zip" > /dev/null; then
-              7z x -y "-o$kind" dist/$kind/xclang-*.zip > /dev/null
-            elif [[ "$RUNNER_OS" == Windows ]]; then
+            if [[ "$RUNNER_OS" == Windows ]]; then
               /c/Windows/System32/tar.exe -C "$kind" -xf dist/$kind/xclang-*.tar.xz
             else
               tar -C "$kind" -xf dist/$kind/xclang-*.tar.xz
