@@ -1,0 +1,10 @@
+common --registry=https://bazel.clice.io/
+common --registry=https://bcr.bazel.build/
+common --enable_platform_specific_config
+# The C++ toolchain is xclang's; rules_cc's detection of another is off.
+common --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
+# import std: libc++'s modules are built with these options, and so are
+# their importers.
+common --cxxopt=-std=c++23 --host_cxxopt=-std=c++23
+common --experimental_cpp_modules
+common:windows --enable_runfiles

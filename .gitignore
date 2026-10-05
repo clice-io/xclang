@@ -3,3 +3,11 @@
 node_modules/
 /packages/bazel/bazel-*
 /packages/bazel/MODULE.bazel.lock
+/examples/*/build*/
+/examples/bazel/bazel-*
+/examples/bazel/MODULE.bazel.lock
+/examples/quickstart/pixi.lock
+/examples/quickstart/hello*
+!/examples/quickstart/hello.cpp
+/examples/make/hello
+/examples/make/hello-*

@@ -1,0 +1,257 @@
+name: examples
+
+# The docs' commands and examples/, run as written, as a user runs them, on
+# a machine of every host: against the published release the examples name,
+# from where users get it (conda.clice.io with pixi, the GitHub release's
+# archives, the tag with FetchContent, bazel.clice.io). The guide's quick
+# start and the integration pages cite these jobs; tests/docs.ts checks that
+# the files the docs show are examples/'s.
+#
+#   by hand          after a release is on conda.clice.io and bazel.clice.io
+#                    and examples/ name it (the release skill)
+#   a push           that changes examples/ or this file, on any branch
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "examples/**"
+      - "tests/docs.ts"
+      - ".github/workflows/examples.yml"
+
+permissions:
+  contents: read
+
+env:
+  VERSION: "23.1.2.6"
+
+jobs:
+  docs:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: node tests/docs.ts
+
+  # docs/en/guide/quick-start.md: pixi, programs for every target, CMake,
+  # Meson and Make (docs/en/integrations/clang.md).
+  quickstart:
+    name: quickstart (${{ matrix.host }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { host: x86_64-unknown-linux-gnu, os: ubuntu-24.04, cross: aarch64-w64-mingw32 }
+          - { host: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm, cross: aarch64-w64-mingw32 }
+          - { host: x86_64-w64-mingw32, os: windows-2025, cross: aarch64-unknown-linux-gnu }
+          - { host: aarch64-w64-mingw32, os: windows-11-arm, cross: aarch64-unknown-linux-gnu }
+          - { host: aarch64-apple-darwin, os: macos-15, cross: aarch64-w64-mingw32 }
+          - { host: x86_64-apple-darwin, os: macos-15-intel, cross: aarch64-w64-mingw32 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: examples/quickstart
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: prefix-dev/setup-pixi@v0.10.2
+        with:
+          pixi-version: v0.71.1
+          run-install: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: CMake, Ninja and Meson
+        run: python -m pip install "cmake>=3.28" "ninja>=1.11" meson
+      - name: Install
+        run: pixi install
+      - name: Programs for every target
+        run: |
+          pixi run clang++ -O2 hello.cpp -o hello
+          ./hello
+          pixi run clang++ -O2 --target=x86_64-unknown-linux-gnu hello.cpp -o hello-linux-x64
+          pixi run clang++ -O2 --target=aarch64-unknown-linux-gnu hello.cpp -o hello-linux-arm64
+          pixi run clang++ -O2 --target=x86_64-w64-mingw32 hello.cpp -o hello-windows-x64.exe
+          pixi run clang++ -O2 --target=aarch64-w64-mingw32 hello.cpp -o hello-windows-arm64.exe
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            pixi run clang++ -O2 --target=aarch64-apple-darwin hello.cpp -o hello-macos-arm64
+            pixi run clang++ -O2 --target=x86_64-apple-darwin hello.cpp -o hello-macos-x64
+          fi
+      - name: What they load
+        run: |
+          programs=(hello-linux-x64 hello-linux-arm64 hello-windows-x64.exe hello-windows-arm64.exe)
+          [[ "$RUNNER_OS" == macOS ]] && programs+=(hello-macos-arm64 hello-macos-x64)
+          pixi run llvm-readobj --needed-libs "${programs[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: CMake
+        run: |
+          pixi run cmake -G Ninja -S ../cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+          pixi run cmake --build build
+          ./build/hello
+      - name: CMake, another target
+        run: |
+          XCLANG=$PWD/.pixi/envs/default/opt/xclang
+          pixi run cmake -G Ninja -S ../cmake -B build-${{ matrix.cross }} \
+              --toolchain "$XCLANG/lib/cmake/xclang/toolchain.cmake" -DXCLANG_TARGET=${{ matrix.cross }}
+          pixi run cmake --build build-${{ matrix.cross }}
+          pixi run llvm-readobj --file-headers build-${{ matrix.cross }}/hello* | grep -m2 -E 'Format|Arch'
+      # xclang's bin/ first in PATH, as pixi's activation puts it.
+      - name: Meson
+        working-directory: examples/meson
+        run: |
+          export PATH="$PWD/../quickstart/.pixi/envs/default/opt/xclang/bin:$PATH"
+          CXX=clang++ meson setup build
+          meson compile -C build
+          ./build/hello
+          meson setup build-${{ matrix.cross }} --cross-file cross/${{ matrix.cross }}.ini
+          meson compile -C build-${{ matrix.cross }}
+      - name: Make
+        if: runner.os != 'Windows'
+        working-directory: examples/make
+        run: |
+          export PATH="$PWD/../quickstart/.pixi/envs/default/opt/xclang/bin:$PATH"
+          make CXX=clang++
+          ./hello
+          rm hello
+          make CXX="clang++ --target=aarch64-unknown-linux-gnu"
+
+  # docs/en/integrations/cmake.md, "Without xclang installed".
+  fetch:
+    name: fetch (${{ matrix.host }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { host: x86_64-unknown-linux-gnu, os: ubuntu-24.04 }
+          - { host: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm }
+          - { host: x86_64-w64-mingw32, os: windows-2025 }
+          - { host: aarch64-w64-mingw32, os: windows-11-arm }
+          - { host: aarch64-apple-darwin, os: macos-15 }
+          - { host: x86_64-apple-darwin, os: macos-15-intel }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: examples/cmake-fetch
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: python -m pip install "cmake>=3.28" "ninja>=1.11"
+      - name: Build
+        run: |
+          cmake -G Ninja -B build
+          cmake --build build
+          ./build/hello
+
+  # docs/en/guide/install.md, "Archives".
+  archive:
+    name: archive (${{ matrix.host }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { host: x86_64-unknown-linux-gnu, os: ubuntu-24.04 }
+          - { host: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm }
+          - { host: x86_64-w64-mingw32, os: windows-2025 }
+          - { host: aarch64-w64-mingw32, os: windows-11-arm }
+          - { host: aarch64-apple-darwin, os: macos-15 }
+          - { host: x86_64-apple-darwin, os: macos-15-intel }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        working-directory: examples/quickstart
+        run: |
+          v=$VERSION h=${{ matrix.host }}
+          curl -LO https://github.com/clice-io/xclang/releases/download/$v/xclang-$v-$h.tar.xz
+          curl -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
+          sha256sum -c --ignore-missing SHA256SUMS
+          tar -xf xclang-$v-$h.tar.xz
+          xclang/bin/clang++ --target=aarch64-w64-mingw32 hello.cpp -o hello.exe
+          xclang/bin/clang++ hello.cpp -o hello
+          ./hello
+      - name: macOS
+        if: runner.os == 'macOS'
+        shell: bash
+        working-directory: examples/quickstart
+        run: |
+          v=$VERSION h=${{ matrix.host }}
+          curl -LO https://github.com/clice-io/xclang/releases/download/$v/xclang-$v-$h.tar.xz
+          curl -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
+          shasum -a 256 -c --ignore-missing SHA256SUMS
+          tar -xf xclang-$v-$h.tar.xz
+          xclang/bin/clang++ --target=aarch64-w64-mingw32 hello.cpp -o hello.exe
+          xclang/bin/clang++ hello.cpp -o hello
+          ./hello
+      - name: Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: examples/quickstart
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          $v = $env:VERSION; $h = "${{ matrix.host }}"
+          curl.exe -LO https://github.com/clice-io/xclang/releases/download/$v/xclang-$v-$h.tar.xz
+          curl.exe -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
+          $sum = (Get-FileHash xclang-$v-$h.tar.xz -Algorithm SHA256).Hash.ToLower()
+          if (-not (Select-String -SimpleMatch -Quiet "$sum  xclang-$v-$h.tar.xz" SHA256SUMS)) { throw "sha256 mismatch" }
+          (Get-Command tar).Source
+          tar -xf xclang-$v-$h.tar.xz
+          xclang\bin\clang++ --target=aarch64-unknown-linux-gnu hello.cpp -o hello
+          xclang\bin\clang++ hello.cpp -o hello.exe
+          .\hello.exe
+
+  # docs/en/integrations/bazel.md, from bazel.clice.io.
+  bazel:
+    name: bazel (${{ matrix.host }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { host: x86_64-unknown-linux-gnu, os: ubuntu-24.04, cross: x86_64-w64-mingw32 }
+          - { host: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm, cross: x86_64-w64-mingw32 }
+          - { host: x86_64-w64-mingw32, os: windows-2025, cross: aarch64-unknown-linux-gnu }
+          - { host: aarch64-w64-mingw32, os: windows-11-arm, cross: aarch64-unknown-linux-gnu }
+          - { host: aarch64-apple-darwin, os: macos-15, cross: x86_64-w64-mingw32 }
+          - { host: x86_64-apple-darwin, os: macos-15-intel, cross: x86_64-w64-mingw32 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: examples/bazel
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm install -g @bazel/bazelisk
+      - name: Startup options (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Set-Content "$env:USERPROFILE\.bazelrc" "startup --output_user_root=C:/b`nstartup --windows_enable_symlinks"
+      - name: Build and run
+        run: |
+          bazel build //...
+          bazel run //:hello
+      - name: Another target
+        run: bazel build --platforms=@xclang//platforms:${{ matrix.cross }} //...
