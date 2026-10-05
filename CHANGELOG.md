@@ -18,6 +18,15 @@ the [patches](docs/patches.md) of its tag.
   without xclang installed fetches this repository's tag with FetchContent,
   and `packages/cmake/xclang.cmake` downloads the host's toolchain, checked
   against the release's `SHA256SUMS`, into the user's cache.
+- **ThinLTO link cache**: `XCLANG_THINLTO_CACHE`, an absolute directory,
+  makes the links of libclang's bitcode after the first take seconds
+  instead of minutes, with the same program: in Bazel,
+  `--repo_env=XCLANG_THINLTO_CACHE=<dir>`, the module makes the directory
+  and the toolchains' `thinlto_cache` feature passes it to the target's
+  linker ([docs/bazel.md](docs/bazel.md#the-thinlto-cache), with the
+  `.bazelrc` and CI setup); in CMake, `-DXCLANG_THINLTO_CACHE=<dir>` (or the
+  environment variable) before `find_package(xclang)`
+  ([docs/cmake.md](docs/cmake.md#the-thinlto-cache)).
 - What users build with is under [`packages/`](packages): the Bazel module
   in `packages/bazel`, the CMake package in `packages/cmake`, the conda
   package's activation scripts in `packages/conda`. The module's labels

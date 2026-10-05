@@ -11,7 +11,10 @@ libraries that host's clang was linked from, taken from the same build
 without the parts a tool does not link:
 
 - **PGO and ThinLTO bitcode**, so they need an lld of the same release:
-  link with that release's toolchain.
+  link with that release's toolchain. A link generates the code of every
+  module the tool uses, minutes each time; the linker's ThinLTO cache
+  ([CMake](cmake.md#the-thinlto-cache), [Bazel](bazel.md#the-thinlto-cache))
+  makes the links after the first take seconds.
 - **No RTTI**: code using them compiles with `-fno-rtti`, as LLVM's did.
 - **libc++**, xclang's own, as every program of the toolchain.
 - zlib and zstd, which LLVM's libraries link, are in the archive, found

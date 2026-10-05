@@ -167,6 +167,78 @@ of its own that ask for it.
 platform's libclang archive, its ASan build and the option tables; see
 [libclang](libclang.md#bazel).
 
+## The ThinLTO cache
+
+libclang is ThinLTO bitcode, so the link of a tool on it generates the code
+of every module the tool uses: minutes per link (clice: 3 to 8). The
+linker's ThinLTO cache keeps that code, per module, in a directory, and a
+link after the first takes seconds (clice: 5 to 15), generating only what a
+change touched. The cache does not change the program.
+
+`--repo_env=XCLANG_THINLTO_CACHE=<absolute directory>` turns it on: the
+module makes the directory (again whenever it is gone), and the toolchains'
+`thinlto_cache` feature hands it to the target's linker,
+`-Wl,--thinlto-cache-dir=<dir>` for Linux and Windows targets,
+`-Wl,-cache_path_lto,<dir>` for macOS ones. `--features=-thinlto_cache`
+turns it off for a build, `features = ["-thinlto_cache"]` for a target.
+Without the variable, no link has such a flag.
+
+The directory is on the links' command lines, so it is part of their keys:
+one path on every machine and in every checkout keeps the links shared by a
+disk or remote cache. So a project names one per OS in its `.bazelrc`:
+
+```
+# .bazelrc
+common:linux --repo_env=XCLANG_THINLTO_CACHE=/var/tmp/xclang-thinlto
+common:linux --sandbox_writable_path=/var/tmp/xclang-thinlto
+common:macos --repo_env=XCLANG_THINLTO_CACHE=/var/tmp/xclang-thinlto
+common:windows --repo_env=XCLANG_THINLTO_CACHE=C:/xclang-thinlto
+try-import %workspace%/user.bazelrc
+```
+
+- Linux's sandbox lets a link write the directory only through
+  `--sandbox_writable_path`, which is not part of any key, and gives every
+  action a `/tmp` of its own: a cache there is lost without a word.
+- macOS's sandbox lets `/var/tmp` be written; Windows has no sandbox.
+- The linker prunes the cache itself, by LLVM's default policy: every 20
+  minutes at most, the entries no link has read for a week go.
+
+A user with another place for it says so in `user.bazelrc` (whose links then
+have keys of their own, which a shared cache does not serve):
+
+```
+# user.bazelrc
+common:linux --repo_env=XCLANG_THINLTO_CACHE=/data/xclang-thinlto
+common:linux --sandbox_writable_path=/data/xclang-thinlto
+```
+
+### In CI
+
+The cache goes in the same `actions/cache` entry as the disk cache, keyed
+on the xclang version:
+
+```yaml
+- uses: actions/cache@v6
+  with:
+    path: |
+      ~/.cache/bazel-disk
+      ${{ runner.os == 'Windows' && 'C:/xclang-thinlto' || '/var/tmp/xclang-thinlto' }}
+    key: bazel-${{ runner.os }}-${{ runner.arch }}-xclang-23.1.2.6-${{ github.sha }}
+    restore-keys: bazel-${{ runner.os }}-${{ runner.arch }}-xclang-23.1.2.6-
+- run: bazel test --disk_cache=~/.cache/bazel-disk //...
+```
+
+A restored link of the disk cache needs no ThinLTO; one that runs, after a
+change, finds every module the change did not touch in the cache: clice's
+first link on a fresh runner took 6 to 16 s. Restoring sets every file's
+last access to the time of the restore, so the linker's pruning never fires
+and the entry only grows, by what new code adds (clice and its tests:
+350 to 650 MB); a new xclang release changes every link's input, and with
+the version in the key its entry starts empty.
+
+tests/bazel.ts links tests/bazel's tool on libclang with the cache and
+again from it, on every host.
+
 ## Unreleased builds
 
 An unreleased build is used from where it was unpacked, with

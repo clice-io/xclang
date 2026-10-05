@@ -158,14 +158,51 @@ target_link_libraries(geometry PUBLIC xclang::std)
 A tool on libclang finds it with `find_package(Clang)`; see
 [libclang](libclang.md).
 
+## The ThinLTO cache
+
+libclang is ThinLTO bitcode, so the link of a tool on it generates the code
+of every module the tool uses, which takes minutes. With
+`XCLANG_THINLTO_CACHE`, an absolute directory, the linker keeps that code
+there, per module, and a link after the first takes seconds, generating
+only what a change touched; the cache does not change the program.
+`find_package(xclang)` makes the directory at configure time and adds the
+target's linker's flag to every link of the directory that called it and of
+its subdirectories: `-Wl,--thinlto-cache-dir=<dir>` for Linux and Windows
+targets, `-Wl,-cache_path_lto,<dir>` for macOS ones.
+
+```sh
+cmake -G Ninja -B build -DXCLANG_THINLTO_CACHE=/var/tmp/xclang-thinlto
+```
+
+The environment variable `XCLANG_THINLTO_CACHE` gives the first configure
+of every build tree its value. Build trees, and Bazel builds
+([Bazel](bazel.md#the-thinlto-cache), whose paths these are), can share one
+directory: an entry is named by a hash of everything that makes it, and
+written whole or not at all. The linker prunes it by LLVM's default policy,
+every 20 minutes at most dropping what no link has read for a week.
+
+In CI the directory goes in an `actions/cache` entry keyed on the xclang
+version, with the build's other caches: a restored cache is not pruned
+(restoring sets every file's last access), and a new release, whose links
+need none of the old entries, starts an empty one.
+
+```yaml
+- uses: actions/cache@v6
+  with:
+    path: ${{ runner.os == 'Windows' && 'C:/xclang-thinlto' || '/var/tmp/xclang-thinlto' }}
+    key: thinlto-${{ runner.os }}-${{ runner.arch }}-xclang-23.1.2.6-${{ github.sha }}
+    restore-keys: thinlto-${{ runner.os }}-${{ runner.arch }}-xclang-23.1.2.6-
+```
+
 ## What the package holds
 
 | file | |
 |---|---|
-| `xclang-config.cmake` | `find_package(xclang)`: `xclang::std`, `xclang_add_std()`, `XCLANG_ROOT` |
+| `xclang-config.cmake` | `find_package(xclang)`: `xclang::std`, `xclang_add_std()`, `XCLANG_ROOT`, the ThinLTO cache |
 | `xclang-config-version.cmake` | the release (toolchain archives only): `find_package(xclang 23.1)` |
 | `toolchain.cmake` | the tree as the build's toolchain, `XCLANG_TARGET` |
 | `xclang.cmake` | in `packages/cmake/` only: the download before `project()` |
 
 tests/cmake builds with the package as above on every host, with CMake
-3.28 and Ninja 1.11 and with the newest ones (cmake.yml).
+3.28 and Ninja 1.11 and with the newest ones (cmake.yml), and links
+tests/libclang with the ThinLTO cache and again from it.
