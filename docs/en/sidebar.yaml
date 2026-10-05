@@ -36,7 +36,8 @@ reference:
     - cmake-api
     - bazel-api
     - releases
-    - xclang-command
+    - file: xclang-command
+      label: The xclang command (unreleased)
 
 design:
   label: Design

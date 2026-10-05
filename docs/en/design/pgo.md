@@ -104,10 +104,45 @@ x86_64 macOS; there the reference is xclang itself.
 
 ### 23.1.2.6
 
-> **TODO (performance):** the medians of
-> [bench.yml run 37356476645](https://github.com/clice-io/xclang/actions/runs/37356476645)
-> (23.1.2.6's archives against LLVM 23.1.2's release builds and Apple's
-> clang, five runners per host) go here.
+Time relative to LLVM 23.1.2's release build, median of five runners per
+host (four for Linux x64, where one runner's job failed listing sizes,
+before measuring), 2026-10-06
+([run 37356476645](https://github.com/clice-io/xclang/actions/runs/37356476645):
+23.1.2.6's own archives, nothing rebuilt). `llvm.exe` runs xclang's
+Windows clang directly instead of through the `clang++.exe` launcher.
+
+| host | fmt (syntax / O0 / O2) | lua (syntax / O0 / O2) | std (O0 / O2) |
+|---|---|---|---|
+| Linux x64 | 1.035 / 1.009 / 1.069 | 1.118 / 1.062 / 1.109 | 1.013 / 1.022 |
+| Linux arm64 | 1.000 / 0.976 / 1.042 | 1.082 / 1.011 / 1.075 | 0.970 / 0.994 |
+| macOS arm64 | 0.902 / 0.935 / 1.014 | 1.169 / 0.971 / 0.959 | 0.980 / 0.890 |
+| Windows x64 | 0.798 / 0.825 / 0.890 | 1.083 / 1.050 / 1.001 | 0.777 / 0.849 |
+| Windows x64, `llvm.exe` | 0.798 / 0.809 / 0.885 | 0.968 / 0.960 / 0.974 | 0.821 / 0.844 |
+| Windows arm64 | 0.888 / 0.906 / 0.954 | 1.271 / 1.212 / 1.167 | 0.925 / 0.940 |
+| Windows arm64, `llvm.exe` | 0.860 / 0.898 / 0.947 | 1.019 / 1.065 / 1.056 | 0.915 / 0.932 |
+
+Apple's clang on the same runners: on arm64, relative to LLVM's build, fmt
+1.097 / 1.207 / 1.206 and lua 0.879 / 0.875 / 1.004; on x86_64, where LLVM
+has no build, relative to xclang, fmt 1.168 / 1.223 / 1.221 and lua
+0.841 / 0.973 / 0.990.
+
+What the numbers say, read loosely (runner noise is large; a few percent
+is none):
+
+- **Linux and macOS**: even with LLVM's own PGO and ThinLTO builds on C++,
+  and up to 17% slower on lua's C. On Linux x64, whose LLVM clang is also
+  BOLT-optimized, xclang is up to 7% slower on C++ and 12% on C.
+- **Windows**: against LLVM's MSVC-built clang (PGO, no LTO), xclang's
+  MinGW-built clang with PGO and ThinLTO is 11 to 22% faster on C++ on x64
+  and 5 to 11% on arm64.
+- **The Windows launcher costs a process.** lua's sources are small C
+  files, each compiled in a few dozen milliseconds, where starting
+  `clang++.exe`, which then starts `llvm.exe`, is a visible part of the
+  time: up to 12% on x64 and 25% on arm64 against running `llvm.exe
+  clang++` directly. On C++ with real work per file it does not show. Why
+  the launcher exists is in [Windows](windows.md#the-launchers).
+- **Apple's clang** takes 17 to 29% more time than xclang on fmt, on both
+  macOS architectures; on lua's C it is between 25% faster and 5% slower.
 
 ### 23.1.2.1
 
@@ -126,28 +161,19 @@ through the `clang++.exe` launcher.
 | Windows x64 | 0.809 / 0.830 / 0.893 | 1.075 / 1.049 / 1.041 (`llvm.exe`: 1.044 / 0.987 / 1.020) | 0.885 / 1.021 | 1.226 / 1.155 / 1.227 |
 | Windows arm64 | 0.899 / 0.916 / 0.958 | 1.332 / 1.238 / 1.187 (`llvm.exe`: 1.090 / 1.058 / 1.079) | 0.944 / 0.939 | 1.178 / 1.150 / 1.162 |
 
-What the numbers say:
+What 23.1.2.1's run adds, with the same build without its profile:
 
-- **The profile takes 19 to 34% off the time** of fmt's compiles: the same
-  build without it is 1.15 to 1.37 times as slow as LLVM's, with it about
-  as fast. Against LLVM's own PGO builds on Linux and macOS, xclang is even
-  within noise, and on Linux x64, where LLVM's clang is also
-  BOLT-optimized, a few percent slower.
-- **On Windows**, against LLVM's MSVC-built clang (PGO, no LTO), xclang's
-  MinGW-built clang with PGO and ThinLTO is 4 to 19% faster on fmt, and
-  even to 11% faster on `std`.
-- **The Windows launcher costs a process.** lua's sources are small C
-  files, each compiled in a few dozen milliseconds, where starting
-  `clang++.exe`, which then starts `llvm.exe`, is a visible part of the
-  time: 2 to 6% on x64, 10 to 22% on arm64, against running `llvm.exe
-  clang++` directly. On C++ with real work per file it does not show. Why
-  the launcher exists is in [Windows](windows.md#the-launchers).
-- **x86_64 macOS** (no LLVM reference; time relative to xclang): Apple's
-  clang was faster than xclang on these runs, 0.89 to 1.08 on fmt and
-  0.57 to 0.87 on lua, and xclang without its profile was not slower
-  than with it (0.84 to 1.12). The cause is not known; the x86_64 macOS
-  toolchain is cross-compiled on arm64 macOS with the same profile, and
-  the `macos-15-intel` runners are the noisiest of the six.
+- **The profile takes 19 to 34% off the time** of fmt's compiles: without
+  it the same build is 1.15 to 1.37 times as slow as LLVM's, with it about
+  as fast.
+- **x86_64 macOS** was the exception in that run: xclang without its
+  profile was not slower than with it (0.84 to 1.12, relative to xclang),
+  and Apple's clang was faster than xclang (0.89 to 1.08 on fmt, 0.57 to
+  0.87 on lua). 23.1.2.6's run, without a no-profile build to compare,
+  has Apple's clang 17 to 22% slower on fmt. The x86_64 macOS toolchain is
+  cross-compiled on arm64 macOS with the same profile, and the
+  `macos-15-intel` runners are the noisiest of the six; whether the profile
+  helps there is open.
 
 ## What is not done
 

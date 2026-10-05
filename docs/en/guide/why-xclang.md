@@ -20,7 +20,8 @@ and a release is never replaced: a rebuild is the next revision, and the
 workflow that drafts a release refuses a version that exists. Its archives'
 sha256 are in the release's `SHA256SUMS`. The Bazel module pins each
 archive by its sha256, and CMake's download checks it. In Bazel builds, no
-path on a compile or link command line is absolute, the debug information
+path on a compile or link command line is absolute (the macOS SDK's
+aside), the debug information
 names paths relative to the execution root (`-ffile-compilation-dir=.`),
 macOS debug maps drop the build directory (`-oso_prefix`), Windows programs
 have no link timestamp (`--no-insert-timestamp`), and `__DATE__` and
@@ -44,8 +45,8 @@ bytes on every host (tests/bazel.ts, tests/cmake.ts).
 **Missing.** CMake builds write the build tree's absolute paths into debug
 information; the same for CMake is planned. The release archives
 themselves are not reproducible: they are `tar | xz` without sorted
-entries or fixed times, so a rebuild of the same commit gives different
-archive bytes. A large Windows program linked by lld with ThinLTO came out
+entries or fixed times, so even the same files pack into different archive
+bytes, and no test compares two builds of the same commit. A large Windows program linked by lld with ThinLTO came out
 in three different layouts from six links of the same inputs (clice,
 600 MB with debug information); small programs are identical, and the
 cause is open. llvm-gsymutil's multithreaded conversion writes a different
@@ -64,9 +65,10 @@ Build scripts written for GCC (`-latomic`, `-lgcc_s`, `-lstdc++`,
 on, so building against the machine's glibc ties the program to machines as
 new as the build machine. A shared C++ runtime has to be installed or
 shipped next to the program, in the version the program was built with.
-Linking it in, against the oldest C library worth supporting, is what
-Rust's standard library and Go do by default and what portable C++
-releases (Chromium, Firefox) arrange with their own sysroots.
+Linking it in, against an old C library, is what Rust does by default
+(its standard library is linked into every program, and its Linux targets
+are built for glibc 2.17), and what Chromium arranges for itself, with a
+Debian sysroot and its own libc++ built into the browser.
 
 **Evidence.** The [quick start](quick-start.md)'s programs for every target
 load, on every host: `libc.so.6`, `libm.so.6`, `libdl.so.2`,
@@ -162,8 +164,8 @@ every host with CMake 3.28 and the newest CMake, for every target
 for every other target (bazel.yml); the quick start builds `import std`
 on every host.
 
-**Missing.** clang-scan-deps and the BMIs are clang's; a header unit
-(`import <vector>;`) is not supported by either build system here.
+**Missing.** Header units (`import <vector>;`) are not supported by either
+build system here; Bazel's module support is experimental (above).
 
 ## Fast
 
@@ -181,18 +183,21 @@ use on Linux and macOS too; what xclang adds is the same on every host,
 Windows included, and a training set that covers what editors and modern
 builds do.
 
-**Evidence.** For 23.1.2.1, compile time against LLVM's own 23.1.2 build,
-the median of three CI machines per host
-([bench.yml](https://github.com/clice-io/xclang/actions/runs/36249036595),
-tests/bench.ts: fmt, lua and the `std` module, syntax-only, `-O0` and
-`-O2`, compilers interleaved on one machine): macOS arm64 0.80–1.05×,
-Linux arm64 0.96–1.05×, Linux x64 1.01–1.11× (LLVM's Linux x64 clang is
-also BOLT-optimized; xclang's is not). Linking clice against libclang's
-bitcode on a 4-core Linux runner took 353 s without the cache and 6 s from
-it ([ThinLTO cache](../features/thinlto-cache.md)).
-
-> **TODO (performance):** re-measure with bench.yml for the current release
-> and add Windows (MinGW clang against LLVM's MSVC-built one) to this table.
+**Evidence.** Compile time of 23.1.2.6 against LLVM's own 23.1.2 build,
+the median of five CI runners per host
+([bench.yml](https://github.com/clice-io/xclang/actions/runs/37356476645),
+tests/bench.ts: fmt's tests, lua and the `std` module, each at
+`-fsyntax-only`, `-O0` and `-O2`, compilers interleaved on one machine,
+none of it in the training): on C++, even with LLVM's builds on Linux and
+macOS (on Linux x64, whose LLVM clang is also BOLT-optimized, up to 7%
+slower), 11 to 22% faster than LLVM's MSVC-built clang on Windows x64 and
+5 to 11% on arm64, and 17 to 29% faster than Apple's clang. The profile
+itself takes 19 to 34% off the time (23.1.2.1, against the same build
+without it). Linking clice against libclang's bitcode on a 4-core Linux
+runner took 353 s without the cache and 6 s from it
+([ThinLTO cache](../features/thinlto-cache.md)). The tables, the method and
+where xclang is slower (small C files through the Windows launcher) are in
+[PGO](../design/pgo.md#what-it-buys).
 
 **Missing.** No BOLT yet (in research). The training runs on Linux only:
 Objective-C, clang-cl, Mach-O and Windows-only code paths are not in it.
