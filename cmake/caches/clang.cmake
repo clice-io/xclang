@@ -92,8 +92,12 @@ set(LLVM_Toolchain_DISTRIBUTION_COMPONENTS
     CACHE STRING "")
 
 # What a tool built on clang links, clice's closure: the clang, clang-tidy
-# and LLVM libraries below, the X86 MC layer (clang parses MS-style
-# __asm {} through it), headers and CMake exports.
+# and LLVM libraries below, every target's MC layer (TargetInfo, MC
+# descriptions, assembly parser and disassembler: a tool registers them to
+# look a target up by triple, and clang parses MS-style __asm {} through
+# X86's), headers and CMake exports. No target's code generator: the
+# headers name those of every target, for InitializeAllTargets and
+# InitializeAllAsmPrinters, which do not link.
 set(LLVM_Development_DISTRIBUTION_COMPONENTS
     clangAPINotes clangAST clangASTMatchers clangAnalysis
     clangAnalysisFlowSensitive clangAnalysisFlowSensitiveModels
@@ -124,7 +128,30 @@ set(LLVM_Development_DISTRIBUTION_COMPONENTS
     LLVMMC LLVMMCParser LLVMObject LLVMObjectYAML LLVMOption LLVMPlugins
     LLVMProfileData LLVMRemarks LLVMScalarOpts LLVMSupport LLVMSymbolize
     LLVMTargetParser LLVMTextAPI LLVMTransformUtils LLVMWindowsDriver
-    LLVMX86Info LLVMX86Desc LLVMX86AsmParser LLVMCodeGenTypes LLVMMCDisassembler
+    LLVMCodeGenTypes LLVMMCDisassembler
+    # Every target's MC layer, with the Utils libraries AArch64's, AMDGPU's
+    # and ARM's use.
+    LLVMAArch64Info LLVMAArch64Desc LLVMAArch64AsmParser
+    LLVMAArch64Disassembler LLVMAArch64Utils LLVMAMDGPUInfo LLVMAMDGPUDesc
+    LLVMAMDGPUAsmParser LLVMAMDGPUDisassembler LLVMAMDGPUUtils LLVMARMInfo
+    LLVMARMDesc LLVMARMAsmParser LLVMARMDisassembler LLVMARMUtils LLVMAVRInfo
+    LLVMAVRDesc LLVMAVRAsmParser LLVMAVRDisassembler LLVMBPFInfo LLVMBPFDesc
+    LLVMBPFAsmParser LLVMBPFDisassembler LLVMHexagonInfo LLVMHexagonDesc
+    LLVMHexagonAsmParser LLVMHexagonDisassembler LLVMLanaiInfo LLVMLanaiDesc
+    LLVMLanaiAsmParser LLVMLanaiDisassembler LLVMLoongArchInfo
+    LLVMLoongArchDesc LLVMLoongArchAsmParser LLVMLoongArchDisassembler
+    LLVMMipsInfo LLVMMipsDesc LLVMMipsAsmParser LLVMMipsDisassembler
+    LLVMMSP430Info LLVMMSP430Desc LLVMMSP430AsmParser LLVMMSP430Disassembler
+    LLVMNVPTXInfo LLVMNVPTXDesc LLVMPowerPCInfo LLVMPowerPCDesc
+    LLVMPowerPCAsmParser LLVMPowerPCDisassembler LLVMRISCVInfo LLVMRISCVDesc
+    LLVMRISCVAsmParser LLVMRISCVDisassembler LLVMSparcInfo LLVMSparcDesc
+    LLVMSparcAsmParser LLVMSparcDisassembler LLVMSPIRVInfo LLVMSPIRVDesc
+    LLVMSystemZInfo LLVMSystemZDesc LLVMSystemZAsmParser
+    LLVMSystemZDisassembler LLVMVEInfo LLVMVEDesc LLVMVEAsmParser
+    LLVMVEDisassembler LLVMWebAssemblyInfo LLVMWebAssemblyDesc
+    LLVMWebAssemblyAsmParser LLVMWebAssemblyDisassembler LLVMX86Info
+    LLVMX86Desc LLVMX86AsmParser LLVMX86Disassembler LLVMXCoreInfo
+    LLVMXCoreDesc LLVMXCoreDisassembler
     llvm-headers clang-headers clang-tidy-headers clang-resource-headers
     development-cmake-exports clang-development-cmake-exports
     # LLVMConfig.cmake and ClangConfig.cmake, with the modules they load

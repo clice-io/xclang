@@ -52,4 +52,7 @@ if(XCLANG_TEST_LIBCLANG)
     # Its GSYM holds the code ThinLTO generated from libclang's bitcode.
     add_test(NAME libclang_gsym COMMAND "${XCLANG_GSYMUTIL}" "$<TARGET_FILE_DIR:consumer>/consumer.gsym")
     set_tests_properties(libclang_gsym PROPERTIES PASS_REGULAR_EXPRESSION "clang[/\\\\]lib[/\\\\]Lex[/\\\\]Lexer\\.cpp")
+    if(TARGET targets)
+        add_test(NAME libclang_targets COMMAND targets)
+    endif()
 endif()

@@ -220,6 +220,26 @@ const OPTION_TABLES: Record<string, [string, string]> = {
   "llvm-dlltool-Options.inc": ["DllOptionsTableGen", "lib/ToolDrivers/llvm-dlltool/Options.inc"],
 };
 
+/// libclang's archive has every target's MC layer (cmake/caches/clang.cmake),
+/// which its headers' lists of targets, assembly parsers and disassemblers
+/// name for InitializeAllTargetInfos and the like: a target LLVM adds fails
+/// the build here until that list has it.
+function checkTargets(dest: string): void {
+  const lib = path.join(dest, "lib");
+  const libraries = new Set(fs.readdirSync(lib).flatMap((f) => /^(?:lib)?(LLVM\w+)\.(?:a|lib)$/.exec(f)?.[1] ?? []));
+  const config = path.join(dest, "include", "llvm", "Config");
+  const listed = (file: string, macro: string) =>
+    [...fs.readFileSync(path.join(config, file), "utf8").matchAll(new RegExp(`^${macro}\\((\\w+)\\)$`, "gm"))].map((m) => m[1]!);
+  const targets = listed("Targets.def", "LLVM_TARGET");
+  const missing = [
+    ...targets.flatMap((t) => [`LLVM${t}Info`, `LLVM${t}Desc`]),
+    ...listed("AsmParsers.def", "LLVM_ASM_PARSER").map((t) => `LLVM${t}AsmParser`),
+    ...listed("Disassemblers.def", "LLVM_DISASSEMBLER").map((t) => `LLVM${t}Disassembler`),
+  ].filter((name) => !libraries.has(name));
+  if (missing.length) common.fail(`the headers list targets whose libraries are not in ${lib}: ${missing.join(", ")}`);
+  console.log(`the MC layer of ${targets.length} targets`);
+}
+
 if (mode !== "instrumented") {
   const dest = path.join(out, `libclang-${name}`);
   install("install-development-distribution", dest);
@@ -255,6 +275,7 @@ if (mode !== "instrumented") {
   /// query-based checks), and its installed headers include.
   fs.copyFileSync(path.join(build, "tools", "clang", "tools", "extra", "clang-tidy", "clang-tidy-config.h"),
     path.join(dest, "include", "clang-tidy", "clang-tidy-config.h"));
+  checkTargets(dest);
   const manifest = {
     LLVM_VERSION: common.LLVM_VERSION,
     TARGET_TRIPLE: host.triple,

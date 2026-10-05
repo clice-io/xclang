@@ -1,6 +1,7 @@
 /// Build and run tests/libclang, a tool on libclang, with a host's two
 /// archives unpacked: the toolchain compiles and links it against the
-/// libclang libraries (ThinLTO bitcode), found through find_package(Clang).
+/// libclang libraries (ThinLTO bitcode), found through find_package(Clang),
+/// and its program registering every target's MC layer.
 ///
 ///   node tests/libclang.ts --tree <xclang> --libclang <libclang>
 
@@ -50,3 +51,9 @@ process.stderr.write(result.stderr ?? "");
 if (result.status !== 0 || !/clang version 23/.test(result.stdout) || !result.stdout.includes("tokens 9 zlib 1 zstd 1")) {
   common.fail("the libclang consumer did not run as expected");
 }
+
+/// Every target's MC layer registers, and is found by triple.
+const targets = spawnSync(path.join(build, `targets${exe}`), [], { encoding: "utf8" });
+process.stdout.write(targets.stdout ?? "");
+process.stderr.write(targets.stderr ?? "");
+if (targets.status !== 0) common.fail("the target registry is not every target's MC layer");
