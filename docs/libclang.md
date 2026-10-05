@@ -22,20 +22,29 @@ without the parts a tool does not link:
 - clang's resource directory (`lib/clang/<major>`) carries compiler-rt's
   headers (`sanitizer/`, `fuzzer/`, ...) next to clang's own, as the
   toolchain's does: a tool hands it to every compiler it stands in for.
-- `TreeTransform.h`, `TypeLocBuilder.h` and `CoroutineStmtBuilder.h` from
-  Sema's private headers, which clice uses.
 - clang-tidy's headers with `clang-tidy/clang-tidy-config.h`, the header
   clang-tidy's build generates from how xclang configures it (no static
   analyzer, no query-based checks), which its headers include (from
   23.1.2.6 on).
+- **Every target's MC layer**: TargetInfo, MC descriptions, assembly
+  parser and disassembler, which clang parses MS-style `__asm {}` with
+  (X86's), and a tool registers (`InitializeAllTargetInfos()`,
+  `InitializeAllTargetMCs()`, `InitializeAllAsmParsers()`,
+  `InitializeAllDisassemblers()`) to look a target up by triple: to infer it
+  from a compiler's name (`aarch64-linux-gnu-g++`, say). CMake's
+  `AllTargetsInfos`, `AllTargetsDescs`, `AllTargetsAsmParsers` and
+  `AllTargetsDisassemblers` components are those libraries, as
+  `@libclang//:AllTargetsInfos` and the like are for Bazel (from 23.1.2.6
+  on). No target's code generator: `InitializeAllTargets()`,
+  `InitializeAllAsmPrinters()` and `InitializeNativeTarget()` do not link.
 - `lib/cmake/xclang/libclang.cmake` records the build: `XCLANG_LLVM_VERSION`,
   `XCLANG_LTO`, `XCLANG_PGO`, `XCLANG_PATCHES` (the [patches](patches.md)
   applied, in order), and so on.
 
 `libclang-<version>-<host>-asan.tar.xz`, for Linux x64 and macOS arm64, is
 a build with assertions and AddressSanitizer, at `-O1` and without PGO or
-ThinLTO, for debugging a tool. It is built against libc++'s ASan build, so
-the tool is too
+ThinLTO, for debugging a tool, with the same headers and libraries. It is
+built against libc++'s ASan build, so the tool is too
 ([sanitizers](clang.md#compiler-rt-and-sanitizers)).
 
 ### CMake

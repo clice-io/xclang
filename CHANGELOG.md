@@ -65,6 +65,17 @@ the [patches](docs/patches.md) of its tag.
   ([docs/libclang.md](docs/libclang.md#bazel)).
 - libclang: `clang-tidy/clang-tidy-config.h`, as clang-tidy's build
   generates it for xclang's configuration.
+- libclang: every target's MC layer (TargetInfo, MC descriptions, assembly
+  parser, disassembler), not X86's only, as its headers list: a tool
+  registers them all (`InitializeAllTargetInfos()`, `InitializeAllTargetMCs()`,
+  `InitializeAllAsmParsers()`, `InitializeAllDisassemblers()`, CMake's
+  components of those names) and looks any target up by triple. Bazel:
+  `@libclang//:AllTargetsInfos`, `:AllTargetsDescs`, `:AllTargetsAsmParsers`,
+  `:AllTargetsDisassemblers`.
+- libclang's ASan build is of every target, as the release, with the same
+  headers and libraries.
+- libclang no longer has Sema's private headers (`TreeTransform.h`,
+  `TypeLocBuilder.h`, `CoroutineStmtBuilder.h`), which clice no longer uses.
 - Patches: **0009** added, ld64.lld reads the `.tbd` stubs of the macOS 27
   SDK (Xcode 27), which list `arm64e.x1`: macOS programs link against it
   (release/23.x's backport of llvm/llvm-project#222721, in 23.1.3).
