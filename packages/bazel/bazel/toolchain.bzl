@@ -1,7 +1,8 @@
-"""The C++ toolchain of an xclang host, on rules_cc's unix toolchain config
-(xclang's patched copy, bazel/repositories.bzl).
+"""The C++ toolchains of an xclang host, on rules_cc's unix toolchain config
+(xclang's patched copy, bazel/repositories.bzl): one for each target the host
+builds for.
 
-It is instantiated in the host's repository, whose files are the inputs of
+They are instantiated in the host's repository, whose files are the inputs of
 the actions: the programs, clang's resource headers and the target's headers
 for compiling, its libraries and compiler-rt for linking. A new release's
 files make new actions, and every path on a command line or in a dependency
@@ -14,7 +15,35 @@ only Bazel's.
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc/toolchains:cc_toolchain.bzl", "cc_toolchain")
 load("@xclang_unix_config//cc/private/toolchain:unix_cc_toolchain_config.bzl", "cc_toolchain_config")
-load(":hosts.bzl", "TARGETS")
+load(":hosts.bzl", "TARGETS", "builds")
+
+def xclang_host_toolchains(host, clang_version, root, absolute_root, macos_sdk = None):
+    """The BUILD file of a host's repository: cc_<target>, the cc_toolchain for
+    each target the host builds for (bazel/toolchains), and std_<target>,
+    libc++'s std modules of each target (@xclang//bazel:std); cc and std are
+    the host's own.
+
+    Args:
+        host: the triple of the toolchain archive in this package.
+        clang_version: the directory of lib/clang.
+        root: the package's path from the execution root, external/<repository>.
+        absolute_root: the package's path on disk, for what must be absolute.
+        macos_sdk: the SDK of a macOS host, from xcrun.
+    """
+    for target in TARGETS:
+        if builds(host, target):
+            xclang_cc_toolchain(
+                name = "cc_" + target,
+                absolute_root = absolute_root,
+                clang_version = clang_version,
+                host = host,
+                macos_sdk = macos_sdk,
+                root = root,
+                target = target,
+            )
+        xclang_std_modules(name = "std_" + target, root = root, target = target)
+    native.alias(name = "cc", actual = "cc_" + host)
+    native.alias(name = "std", actual = "std_" + host)
 
 def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sdk = None, target = None):
     """A cc_toolchain running on host, compiling for target (the host itself if not given).

@@ -1,7 +1,121 @@
 """libclang's BUILD file, from its own CMake export files: a cc_library per
 imported library (LLVMSupport, clangBasic, ...) with the link interface LLVM's
 and clang's CMake packages give it, so that a consumer names the libraries it
-uses and nothing else."""
+uses and nothing else. @libclang is an alias of each, to the libclang of the
+target platform."""
+
+load(":hosts.bzl", "TARGETS")
+
+# The libraries of every target's archive, named before any is fetched: the
+# aliases of @libclang. An archive with another fails to load, for this list
+# to be brought up to date.
+LIBRARIES = [
+    "LLVMAggressiveInstCombine",
+    "LLVMAnalysis",
+    "LLVMAsmParser",
+    "LLVMBinaryFormat",
+    "LLVMBitReader",
+    "LLVMBitstreamReader",
+    "LLVMCodeGenTypes",
+    "LLVMCore",
+    "LLVMDebugInfoBTF",
+    "LLVMDebugInfoCodeView",
+    "LLVMDebugInfoDWARF",
+    "LLVMDebugInfoDWARFLowLevel",
+    "LLVMDebugInfoGSYM",
+    "LLVMDebugInfoMSF",
+    "LLVMDebugInfoPDB",
+    "LLVMDemangle",
+    "LLVMFrontendAtomic",
+    "LLVMFrontendDirective",
+    "LLVMFrontendHLSL",
+    "LLVMFrontendOffloading",
+    "LLVMFrontendOpenMP",
+    "LLVMIRReader",
+    "LLVMInstCombine",
+    "LLVMMC",
+    "LLVMMCDisassembler",
+    "LLVMMCParser",
+    "LLVMObject",
+    "LLVMObjectYAML",
+    "LLVMOption",
+    "LLVMPlugins",
+    "LLVMProfileData",
+    "LLVMRemarks",
+    "LLVMScalarOpts",
+    "LLVMSupport",
+    "LLVMSymbolize",
+    "LLVMTargetParser",
+    "LLVMTextAPI",
+    "LLVMTransformUtils",
+    "LLVMWindowsDriver",
+    "LLVMX86AsmParser",
+    "LLVMX86Desc",
+    "LLVMX86Info",
+    "clangAPINotes",
+    "clangAST",
+    "clangASTMatchers",
+    "clangAnalysis",
+    "clangAnalysisFlowSensitive",
+    "clangAnalysisFlowSensitiveModels",
+    "clangAnalysisLifetimeSafety",
+    "clangBasic",
+    "clangDependencyScanning",
+    "clangDriver",
+    "clangEdit",
+    "clangFormat",
+    "clangFrontend",
+    "clangIncludeCleaner",
+    "clangIndex",
+    "clangLex",
+    "clangOptions",
+    "clangParse",
+    "clangRewrite",
+    "clangScalableStaticAnalysisAnalyses",
+    "clangScalableStaticAnalysisCore",
+    "clangScalableStaticAnalysisFrontend",
+    "clangScalableStaticAnalysisSourceTransformation",
+    "clangSema",
+    "clangSerialization",
+    "clangSupport",
+    "clangTidy",
+    "clangTidyAbseilModule",
+    "clangTidyAlteraModule",
+    "clangTidyAndroidModule",
+    "clangTidyBoostModule",
+    "clangTidyBugproneModule",
+    "clangTidyCERTModule",
+    "clangTidyConcurrencyModule",
+    "clangTidyCppCoreGuidelinesModule",
+    "clangTidyDarwinModule",
+    "clangTidyFuchsiaModule",
+    "clangTidyGoogleModule",
+    "clangTidyLLVMLibcModule",
+    "clangTidyLLVMModule",
+    "clangTidyLinuxKernelModule",
+    "clangTidyMiscModule",
+    "clangTidyModernizeModule",
+    "clangTidyObjCModule",
+    "clangTidyOpenMPModule",
+    "clangTidyPerformanceModule",
+    "clangTidyPortabilityModule",
+    "clangTidyReadabilityModule",
+    "clangTidyUtils",
+    "clangTidyZirconModule",
+    "clangTooling",
+    "clangToolingCore",
+    "clangToolingInclusions",
+    "clangToolingInclusionsStdlib",
+    "clangToolingRefactoring",
+    "clangToolingSyntax",
+    "clangTransformer",
+    "clangUnifiedSymbolResolution",
+    "libzstd",
+    "libzstd_static",
+]
+
+# What else every archive has (zlib: not macOS's, which links the system's).
+_OTHERS = ["headers", "resource_dir", "zlib", "lib/cmake/xclang/libclang.cmake"]
 
 def _unquote(value):
     value = value.strip()
@@ -42,6 +156,9 @@ def libclang_build(rctx):
                 _parse(rctx.read(file), targets)
     if "LLVMSupport" not in targets or "clangBasic" not in targets:
         fail("no LLVM and clang export files under %s" % rctx.path("lib/cmake"))
+    unknown = [_name(t) for t in sorted(targets) if _name(t) not in LIBRARIES]
+    if unknown:
+        fail("%s has libraries bazel/libclang.bzl's LIBRARIES does not: %s" % (rctx.path("lib/cmake"), ", ".join(unknown)))
 
     # zlib is in the archive, or the system's (macOS).
     zlib = rctx.path("lib/libz.a").exists
@@ -127,3 +244,27 @@ filegroup(
 exports_files(["lib/cmake/xclang/libclang.cmake"])
 
 """ + "\n".join(rules)
+
+def libclang_aliases(prefix):
+    """The BUILD file of @libclang: an alias of each of its targets to the one
+    of the target platform's repository, prefix + its triple."""
+    return """\
+load({libclang_bzl}, "libclang_alias_targets")
+
+libclang_alias_targets({prefix})
+""".format(
+        libclang_bzl = json.encode(str(Label("//bazel:libclang.bzl"))),
+        prefix = json.encode(prefix),
+    )
+
+def libclang_alias_targets(prefix):
+    """The aliases of libclang_aliases' BUILD file."""
+    for name in LIBRARIES + _OTHERS:
+        native.alias(
+            name = name,
+            actual = select(
+                {Label("//bazel:" + target): "@%s%s//:%s" % (prefix, target, name) for target in TARGETS},
+                no_match_error = "xclang has no libclang for the target platform",
+            ),
+            visibility = ["//visibility:public"],
+        )

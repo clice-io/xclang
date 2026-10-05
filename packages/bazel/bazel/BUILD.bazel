@@ -1,8 +1,13 @@
 load("@rules_cc//cc/toolchains:args.bzl", "cc_args")
 load("@rules_cc//cc/toolchains:feature.bzl", "cc_feature")
-load(":hosts.bzl", "HOSTS", "constraints")
+load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
+load(":hosts.bzl", "TARGETS", "constraints", "host_of")
 
 exports_files(glob(["*.bzl", "*.patch"]))
+
+# The machine's toolchain, which @platforms//host, the default execution
+# platform, selects.
+HOST = host_of(HOST_CONSTRAINTS)
 
 # lld's --gc-sections in optimized builds, as a feature: on by default for
 # Linux targets, off for Windows ones, where lld drops the static initializers
@@ -22,19 +27,23 @@ cc_args(
     args = ["-Wl,--gc-sections"],
 )
 
-# import std and import std.compat: libc++'s modules of the target, from its
-# host's toolchain (bazel/toolchain.bzl). A target importing them depends on
-# this and has the cpp_modules feature.
+# import std and import std.compat: libc++'s modules of the target platform,
+# from the host's toolchain (bazel/toolchain.bzl). A target importing them
+# depends on this and has the cpp_modules feature.
 alias(
     name = "std",
-    actual = select({":" + host: "@xclang_%s//:std" % host for host in HOSTS}),
+    actual = select(
+        {":" + target: "@xclang_%s//:std_%s" % (HOST or target, target) for target in TARGETS},
+        no_match_error = "xclang has no toolchain for the target platform",
+    ),
     visibility = ["//visibility:public"],
 )
 
+# The target platforms of xclang's toolchains, by triple.
 [
     config_setting(
-        name = host,
-        constraint_values = constraints(host),
+        name = target,
+        constraint_values = constraints(target),
     )
-    for host in HOSTS
+    for target in TARGETS
 ]

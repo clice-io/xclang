@@ -1,6 +1,7 @@
-"""xclang as a Bazel module: the C++ toolchain of the host, and libclang and
-the option tables as repositories, all from the release of the module's
-version (bazel/versions.bzl)."""
+"""xclang as a Bazel module: the C++ toolchains of the host for every target,
+platforms for those targets, and libclang and the option tables as
+repositories, all from the release of the module's version
+(bazel/versions.bzl)."""
 
 module(
     name = "xclang",

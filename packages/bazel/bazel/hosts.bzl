@@ -78,9 +78,33 @@ TARGETS = {
 # Every target is a host too.
 HOSTS = list(TARGETS.keys())
 
+# Other spellings of the triples, as platforms (platforms/BUILD.bazel): clang's
+# normalized names of the MinGW ones, Debian's of the Linux ones, Apple's arm64.
+SPELLINGS = {
+    "x86_64-linux-gnu": "x86_64-unknown-linux-gnu",
+    "aarch64-linux-gnu": "aarch64-unknown-linux-gnu",
+    "x86_64-w64-windows-gnu": "x86_64-w64-mingw32",
+    "aarch64-w64-windows-gnu": "aarch64-w64-mingw32",
+    "arm64-apple-darwin": "aarch64-apple-darwin",
+}
+
 def constraints(triple):
+    """The @platforms constraints of a target: its os and cpu, all a toolchain asks of a platform."""
     t = TARGETS[triple]
     return ["@platforms//os:" + t.os, "@platforms//cpu:" + t.arch]
+
+def builds(host, target):
+    """Whether host's toolchain builds for target: the macOS targets need
+    Xcode's SDK, which only a macOS host has."""
+    return TARGETS[target].os != "macos" or TARGETS[host].os == "macos"
+
+def host_of(host_constraints):
+    """The host of @platforms//host:constraints.bzl's HOST_CONSTRAINTS, or None."""
+    names = [str(c).rpartition(":")[2] for c in host_constraints]
+    for triple, t in TARGETS.items():
+        if t.arch in names and (t.os in names or (t.os == "macos" and "osx" in names)):
+            return triple
+    return None
 
 def host_triple(rctx):
     """The host a repository rule runs on, as a release names it."""

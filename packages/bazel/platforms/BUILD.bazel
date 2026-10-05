@@ -1,0 +1,23 @@
+load("//bazel:hosts.bzl", "SPELLINGS", "TARGETS", "constraints")
+
+# A platform per target, named by its triple, for --platforms: its os and cpu,
+# all the toolchains ask of a platform, and its C library (libc/BUILD.bazel).
+# The macOS targets build on macOS hosts only.
+[
+    platform(
+        name = triple,
+        constraint_values = constraints(triple) + ["//platforms/libc:" + t.libc],
+        visibility = ["//visibility:public"],
+    )
+    for triple, t in TARGETS.items()
+]
+
+# Other spellings of the triples (bazel/hosts.bzl).
+[
+    alias(
+        name = spelling,
+        actual = ":" + triple,
+        visibility = ["//visibility:public"],
+    )
+    for spelling, triple in SPELLINGS.items()
+]

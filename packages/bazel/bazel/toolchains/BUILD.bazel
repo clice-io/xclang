@@ -1,14 +1,31 @@
-load("//bazel:hosts.bzl", "HOSTS", "constraints")
+load("//bazel:hosts.bzl", "HOSTS", "TARGETS", "builds", "constraints")
+load("//bazel:unsupported.bzl", "xclang_unsupported_toolchain")
 
-# The C++ toolchain of every host, compiling for the host. Only the one of the
-# machine is fetched (bazel/toolchain.bzl).
+# The C++ toolchain of every host for every target: <host> compiles for the
+# host itself, <host>-to-<target> for another target (--platforms,
+# //platforms). Each is the toolchain of the host's archive configured for
+# the target, and only the one of the machine is fetched
+# (bazel/repositories.bzl).
 [
     toolchain(
-        name = host,
+        name = host if host == target else "%s-to-%s" % (host, target),
         exec_compatible_with = constraints(host),
-        target_compatible_with = constraints(host),
-        toolchain = "@xclang_%s//:cc" % host,
+        target_compatible_with = constraints(target),
+        toolchain = "@xclang_%s//:cc_%s" % (host, target) if builds(host, target) else ":no-macos-sdk-on-" + host,
         toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
     )
     for host in HOSTS
+    for target in TARGETS
+]
+
+# The macOS targets from another host: a build for them fails with why,
+# rather than with a compiler's error or no toolchain at all.
+[
+    xclang_unsupported_toolchain(
+        name = "no-macos-sdk-on-" + host,
+        message = ("xclang builds for macOS on macOS hosts only, where Xcode's macOS SDK is, " +
+                   "and not on %s (docs/bazel.md, Cross-compiling)") % host,
+    )
+    for host in HOSTS
+    if TARGETS[host].os != "macos"
 ]

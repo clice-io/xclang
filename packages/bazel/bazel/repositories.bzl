@@ -1,9 +1,10 @@
 """The repositories of the xclang module (bazel/extensions.bzl): a host's
-toolchain, libclang and the option tables from the release archives,
-rules_cc's unix toolchain config with xclang's changes, and the macOS SDK."""
+toolchain, a target's libclang and the option tables from the release
+archives, rules_cc's unix toolchain config with xclang's changes, and the
+macOS SDK."""
 
 load(":hosts.bzl", "TARGETS", "host_triple")
-load(":libclang.bzl", "libclang_build")
+load(":libclang.bzl", "libclang_aliases", "libclang_build")
 
 _URL = "https://github.com/clice-io/xclang/releases/download/{version}/{name}"
 
@@ -74,25 +75,18 @@ def _toolchain_impl(rctx):
         rctx.file("scan_deps.sh", _SCAN_DEPS_SH, executable = True)
     macos = TARGETS[host].os == "macos"
     rctx.file("BUILD.bazel", """\
-load({toolchain_bzl}, "xclang_cc_toolchain", "xclang_std_modules")
+load({toolchain_bzl}, "xclang_host_toolchains")
 {sdk_load}
 package(default_visibility = ["//visibility:public"])
 
 exports_files(glob(["bin/**"]))
 
-xclang_cc_toolchain(
-    name = "cc",
+xclang_host_toolchains(
     absolute_root = {absolute_root},
     clang_version = {clang_version},
     host = {host},
     macos_sdk = {sdk},
     root = {root},
-)
-
-xclang_std_modules(
-    name = "std",
-    root = {root},
-    target = {host},
 )
 """.format(
         toolchain_bzl = json.encode(str(Label("//bazel:toolchain.bzl"))),
@@ -109,21 +103,25 @@ xclang_toolchain = repository_rule(
     attrs = _ARCHIVE_ATTRS | {
         "host": attr.string(mandatory = True),
     },
-    doc = "A host's toolchain archive, or the directory XCLANG_ROOT names, and its cc_toolchain.",
+    doc = "A host's toolchain archive, or the directory XCLANG_ROOT names, and its cc_toolchain for each target.",
 )
 
 def _libclang_impl(rctx):
-    host = host_triple(rctx)
+    target = rctx.attr.target
     variant = "-asan" if rctx.attr.asan else ""
-    local = rctx.getenv("XCLANG_LIBCLANG_ASAN_ROOT" if rctx.attr.asan else "XCLANG_LIBCLANG_ROOT")
+
+    # A build of the host's own, unpacked by hand.
+    local = None
+    if target == host_triple(rctx):
+        local = rctx.getenv("XCLANG_LIBCLANG_ASAN_ROOT" if rctx.attr.asan else "XCLANG_LIBCLANG_ROOT")
     if local:
         _link(rctx, local)
     else:
-        name = "libclang-%s-%s%s.tar.xz" % (rctx.attr.version, host, variant)
+        name = "libclang-%s-%s%s.tar.xz" % (rctx.attr.version, target, variant)
         if rctx.attr.asan and name not in rctx.attr.sha256:
             fail("xclang %s has no ASan libclang for %s, only for %s" % (
                 rctx.attr.version,
-                host,
+                target,
                 ", ".join([n[len("libclang-%s-" % rctx.attr.version):-len("-asan.tar.xz")] for n in rctx.attr.sha256 if n.endswith("-asan.tar.xz")]),
             ))
         _download(rctx, name, "libclang" + variant)
@@ -133,8 +131,20 @@ xclang_libclang = repository_rule(
     implementation = _libclang_impl,
     attrs = _ARCHIVE_ATTRS | {
         "asan": attr.bool(),
+        "target": attr.string(mandatory = True),
     },
-    doc = "The host's libclang archive (or XCLANG_LIBCLANG_ROOT), a cc_library per library of its CMake export files.",
+    doc = """A target's libclang archive (or, the host's, XCLANG_LIBCLANG_ROOT), a
+cc_library per library of its CMake export files.""",
+)
+
+def _libclang_aliases_impl(rctx):
+    rctx.file("BUILD.bazel", libclang_aliases(rctx.attr.prefix))
+
+xclang_libclang_aliases = repository_rule(
+    implementation = _libclang_aliases_impl,
+    attrs = {"prefix": attr.string(mandatory = True)},
+    doc = """@libclang (@libclang_asan): every target of a libclang repository, of the
+target platform's (prefix + triple), which is fetched only when built for.""",
 )
 
 def _option_inc_impl(rctx):
