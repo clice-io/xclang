@@ -2,7 +2,10 @@ name: bazel
 
 # The Bazel module (packages/bazel) on a machine of every host:
 # tests/bazel's tests, then tests/bazel.ts's checks of the actions' keys and
-# of the module as the registry and git_override have it.
+# of the module as the registry and git_override have it; and every host's
+# toolchain for every other target it builds for, tests/bazel's tests (and,
+# from Linux x64 to Windows x64, kotatsu's) cross-compiled there and run on a
+# machine of the target (tests/bazel-cross.ts).
 #
 #   by hand         with the archives packages/bazel/bazel/versions.bzl names
 #   main.yml        with a run's archives (dist-run), unpacked and named by
@@ -102,9 +105,114 @@ jobs:
         if: ${{ !inputs.dist-run }}
         run: node tests/bazel.ts --disk-cache "$RUNNER_TEMP/disk"
 
+  # Built here, run by the run job on a machine of the target: macOS targets
+  # build on macOS hosts only. Not for a run's archives, whose libclang is the
+  # host's only.
+  cross:
+    if: ${{ !inputs.dist-run }}
+    name: cross (${{ matrix.host }} to ${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        host: &hosts
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - x86_64-w64-mingw32
+          - aarch64-w64-mingw32
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+        target: *hosts
+        exclude:
+          - { host: x86_64-unknown-linux-gnu, target: x86_64-unknown-linux-gnu }
+          - { host: aarch64-unknown-linux-gnu, target: aarch64-unknown-linux-gnu }
+          - { host: x86_64-w64-mingw32, target: x86_64-w64-mingw32 }
+          - { host: aarch64-w64-mingw32, target: aarch64-w64-mingw32 }
+          - { host: aarch64-apple-darwin, target: aarch64-apple-darwin }
+          - { host: x86_64-apple-darwin, target: x86_64-apple-darwin }
+          - { host: x86_64-unknown-linux-gnu, target: aarch64-apple-darwin }
+          - { host: x86_64-unknown-linux-gnu, target: x86_64-apple-darwin }
+          - { host: aarch64-unknown-linux-gnu, target: aarch64-apple-darwin }
+          - { host: aarch64-unknown-linux-gnu, target: x86_64-apple-darwin }
+          - { host: x86_64-w64-mingw32, target: aarch64-apple-darwin }
+          - { host: x86_64-w64-mingw32, target: x86_64-apple-darwin }
+          - { host: aarch64-w64-mingw32, target: aarch64-apple-darwin }
+          - { host: aarch64-w64-mingw32, target: x86_64-apple-darwin }
+    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm","aarch64-apple-darwin":"macos-15","x86_64-apple-darwin":"macos-15-intel"}')[matrix.host] }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm install -g @bazel/bazelisk
+      - name: Release digests
+        if: env.TAG
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
+          node scripts/bazel.ts versions "$RUNNER_TEMP/SHA256SUMS"
+      - name: Build
+        run: node tests/bazel-cross.ts build "${{ matrix.target }}" "$RUNNER_TEMP/out/${{ matrix.host }}/tests"
+      # The latest kotatsu of the clice registry, its tests among the rest of
+      # it (other test rules than cc_test build for another target only on
+      # any execution platform: Bazel's legacy test toolchain).
+      - name: kotatsu
+        if: matrix.host == 'x86_64-unknown-linux-gnu' && matrix.target == 'x86_64-w64-mingw32'
+        run: |
+          node tests/bazel-cross.ts registry kotatsu "$RUNNER_TEMP/kotatsu"
+          # kotatsu's tests include <BaseTsd.h>, MinGW-w64's basetsd.h, which
+          # only Windows finds by that name: until kotatsu spells it so.
+          grep -rl '<BaseTsd.h>' "$RUNNER_TEMP/kotatsu/tests" | xargs -r sed -i 's/<BaseTsd.h>/<basetsd.h>/'
+          node tests/bazel-cross.ts build "${{ matrix.target }}" "$RUNNER_TEMP/out/${{ matrix.host }}/kotatsu" \
+            --workspace "$RUNNER_TEMP/kotatsu" -- --@bazel_tools//tools/test:incompatible_use_default_test_toolchain=false
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cross-${{ matrix.host }}-to-${{ matrix.target }}
+          path: ${{ runner.temp }}/out
+          if-no-files-found: error
+          retention-days: 7
+
+  # What every other host built for this target, run here.
+  run:
+    needs: cross
+    if: ${{ !cancelled() && !inputs.dist-run }}
+    name: run (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        target: *hosts
+    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm","aarch64-apple-darwin":"macos-15","x86_64-apple-darwin":"macos-15-intel"}')[matrix.target] }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      # <host>/tests, <host>/kotatsu: short paths, for Windows.
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: cross-*-to-${{ matrix.target }}
+          path: ${{ runner.temp }}/c
+          merge-multiple: true
+      - name: Run
+        run: node tests/bazel-cross.ts run "$RUNNER_TEMP/c"
+
   publish:
     if: ${{ inputs.tag || github.event.release.tag_name }}
-    needs: module
+    needs: [module, cross, run]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7

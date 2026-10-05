@@ -1,3 +1,4 @@
 /bazel-*
 /MODULE.bazel.lock
 /user.bazelrc
+/xclang_cross
