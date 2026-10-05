@@ -264,12 +264,6 @@ if (mode !== "instrumented") {
     const from = path.join(common.resourceDir(stage), "include", dir);
     if (fs.existsSync(from)) common.copyTree(from, path.join(common.resourceDir(dest), "include", dir));
   }
-  /// clice reaches into Sema's private headers.
-  const sema = path.join(dest, "include", "clang", "Sema");
-  fs.mkdirSync(sema, { recursive: true });
-  for (const header of ["CoroutineStmtBuilder.h", "TypeLocBuilder.h", "TreeTransform.h"]) {
-    fs.copyFileSync(path.join(src, "clang", "lib", "Sema", header), path.join(sema, header));
-  }
   /// clang-tidy-config.h, which clang-tidy's build generates from how
   /// cmake/caches/clang.cmake configures it (no static analyzer, no
   /// query-based checks), and its installed headers include.
