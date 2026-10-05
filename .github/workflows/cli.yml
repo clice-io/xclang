@@ -11,9 +11,6 @@ name: cli
 # and Windows. Only the programs leave a job, never an SDK.
 
 on:
-  push:
-    branches: [cli]
-    paths: [cli/**, scripts/cli.ts, scripts/common.ts, tests/cli.ts, tests/cargo.ts, tests/sdk/**, .github/workflows/cli.yml]
   workflow_dispatch:
   workflow_call:
     inputs:
