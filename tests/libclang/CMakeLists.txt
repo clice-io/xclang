@@ -11,3 +11,9 @@ set_target_properties(consumer PROPERTIES CXX_STANDARD 17)
 target_compile_options(consumer PRIVATE -fno-rtti)
 target_include_directories(consumer SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS} ${CLANG_INCLUDE_DIRS})
 target_link_libraries(consumer PRIVATE clangBasic clangLex LLVMSupport)
+
+# Under xclang's CMake package (tests/cmake), its debug symbols too.
+if(COMMAND xclang_debug_symbols)
+    target_compile_options(consumer PRIVATE -g)
+    xclang_debug_symbols(consumer)
+endif()

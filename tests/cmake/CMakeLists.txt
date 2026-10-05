@@ -29,6 +29,11 @@ project(xclang_tests LANGUAGES C CXX)
 enable_testing()
 
 find_package(xclang REQUIRED CONFIG)
+if(CMAKE_HOST_WIN32)
+    set(XCLANG_GSYMUTIL "${XCLANG_ROOT}/bin/llvm-gsymutil.exe")
+else()
+    set(XCLANG_GSYMUTIL "${XCLANG_ROOT}/bin/llvm-gsymutil")
+endif()
 
 # After find_package: xclang::std is built with what the directory ends
 # with, here C++23 without GNU extensions, as its importers are (a module
@@ -44,4 +49,7 @@ if(XCLANG_TEST_LIBCLANG)
     add_subdirectory(../libclang libclang)
     add_test(NAME libclang COMMAND consumer)
     set_tests_properties(libclang PROPERTIES PASS_REGULAR_EXPRESSION "clang version [0-9].*tokens 9 zlib 1 zstd 1")
+    # Its GSYM holds the code ThinLTO generated from libclang's bitcode.
+    add_test(NAME libclang_gsym COMMAND "${XCLANG_GSYMUTIL}" "$<TARGET_FILE_DIR:consumer>/consumer.gsym")
+    set_tests_properties(libclang_gsym PROPERTIES PASS_REGULAR_EXPRESSION "clang[/\\\\]lib[/\\\\]Lex[/\\\\]Lexer\\.cpp")
 endif()

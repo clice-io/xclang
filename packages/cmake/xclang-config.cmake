@@ -9,6 +9,10 @@
 #                       another such library, for importers compiled with
 #                       other language options: they go on it as PUBLIC
 #                       options, and reach its importers from there
+#   xclang_debug_symbols(<target> [GSYM_ARGS <option>...])
+#                       after each link of <target>, its GSYM next to it,
+#                       and for a macOS target its dSYM, by the toolchain's
+#                       llvm-gsymutil and dsymutil
 #   XCLANG_ROOT         the toolchain's directory
 #   XCLANG_THINLTO_CACHE
 #                       set: the directory of the linker's ThinLTO cache
@@ -19,6 +23,22 @@
 # extensions, -fno-exceptions, -fno-rtti, ...) than its importer's; macros,
 # include paths and optimization may differ. xclang::std requires C++23 of
 # its importers, or the CMAKE_CXX_STANDARD it was built with.
+
+# xclang_debug_symbols' step after a link, cmake -P on this file:
+# llvm-gsymutil, whose warnings (one per DIE it cannot convert, gigabytes
+# for a large program with folded functions) go to <output>.log.
+if(CMAKE_SCRIPT_MODE_FILE STREQUAL CMAKE_CURRENT_LIST_FILE)
+    string(REPLACE "|" ";" _xclang_args "${XCLANG_GSYM_ARGS}")
+    execute_process(
+        COMMAND "${XCLANG_GSYMUTIL}" --convert "${XCLANG_GSYM_INPUT}" --out-file "${XCLANG_GSYM_OUTPUT}" --quiet ${_xclang_args}
+        OUTPUT_FILE "${XCLANG_GSYM_OUTPUT}.log"
+        ERROR_FILE "${XCLANG_GSYM_OUTPUT}.log"
+        RESULT_VARIABLE _xclang_result)
+    if(NOT _xclang_result EQUAL 0)
+        message(FATAL_ERROR "llvm-gsymutil failed (${_xclang_result}), see ${XCLANG_GSYM_OUTPUT}.log")
+    endif()
+    return()
+endif()
 
 if(CMAKE_VERSION VERSION_LESS 3.28)
     set(xclang_FOUND FALSE)
@@ -115,6 +135,34 @@ if(NOT COMMAND xclang_add_std)
             xclang_add_std(xclang_std)
             add_library(xclang::std ALIAS xclang_std)
         endif()
+    endfunction()
+
+    # <file>.gsym, from the program's DWARF; for a macOS target, from its
+    # <file>.dSYM, made first by dsymutil from the objects the debug map
+    # points into: the link keeps ThinLTO's in <target>.lto for it, as
+    # clang keeps them when it compiles and links in one command.
+    function(xclang_debug_symbols target)
+        cmake_parse_arguments(PARSE_ARGV 1 _arg "" "" "GSYM_ARGS")
+        get_filename_component(_bin "${CMAKE_CXX_COMPILER}" DIRECTORY)
+        if(CMAKE_HOST_WIN32)
+            set(_exe ".exe")
+        endif()
+        set(_input "$<TARGET_FILE:${target}>")
+        if(APPLE)
+            set(_lto "${CMAKE_CURRENT_BINARY_DIR}/${target}.lto")
+            file(MAKE_DIRECTORY "${_lto}")
+            target_link_options(${target} PRIVATE "LINKER:-object_path_lto,${_lto}")
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND "${_bin}/dsymutil${_exe}" "$<TARGET_FILE:${target}>" -o "$<TARGET_FILE:${target}>.dSYM"
+                VERBATIM)
+            set(_input "$<TARGET_FILE:${target}>.dSYM/Contents/Resources/DWARF/$<TARGET_FILE_NAME:${target}>")
+        endif()
+        string(REPLACE ";" "|" _args "${_arg_GSYM_ARGS}")
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" "-DXCLANG_GSYMUTIL=${_bin}/llvm-gsymutil${_exe}" "-DXCLANG_GSYM_INPUT=${_input}"
+                "-DXCLANG_GSYM_OUTPUT=$<TARGET_FILE_DIR:${target}>/$<TARGET_FILE_BASE_NAME:${target}>.gsym"
+                "-DXCLANG_GSYM_ARGS=${_args}" -P "${CMAKE_CURRENT_FUNCTION_LIST_FILE}"
+            VERBATIM)
     endfunction()
 endif()
 
