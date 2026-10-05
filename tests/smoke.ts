@@ -268,21 +268,42 @@ exports:
   }
 }
 
-/// clang-cl takes none of the host target's config file (empty
-/// <target>-clang-cl.cfg files): no unknown-argument warnings.
+/// The MSVC targets: compiler-rt in the layout lld-link searches, and the
+/// config files of clang and of clang-cl (a plain clang-cl too: none of the
+/// host target's options), which read the Windows SDK the tree's xclang
+/// fetches into sdk/windows and stop without it (tests/msvc.ts builds with
+/// it). clang-cl without the config files warns of nothing.
+for (const a of ["x86_64", "aarch64"]) {
+  for (const lib of ["builtins", "profile", ...(a === "x86_64" ? ["asan_dynamic"] : [])]) {
+    const file = path.join(tree, "lib", "clang", fs.readdirSync(path.join(tree, "lib", "clang"))[0]!, "lib", "windows", `clang_rt.${lib}-${a}.lib`);
+    if (!fs.existsSync(file)) failures.push(`missing ${file}`);
+  }
+}
+if (!fs.existsSync(path.join(tree, "sdk", "windows"))) {
+  for (const [driver, args, cfg] of [
+    ["clang", ["--target=aarch64-pc-windows-msvc", "-c", helloC], "aarch64-pc-windows-msvc.cfg"],
+    ["clang-cl", ["/c", "--", helloC], `${arch}-pc-windows-msvc-clang-cl.cfg`],
+  ] as const) {
+    const result = spawnSync(tool(driver), args, { encoding: "utf8", cwd: work });
+    if (result.status === 0 || !new RegExp(`sdk[\\\\/]windows[\\\\/]${cfg}`).test(result.stderr ?? "")) {
+      failures.push(`${driver} ${args.join(" ")} without the Windows SDK: ${result.stderr}`);
+    }
+  }
+}
 {
-  const args = ["/WX", "-###", "/c", helloC];
+  const args = ["--no-default-config", "/WX", "-###", "/c", helloC];
   const result = spawnSync(tool("clang-cl"), args, { encoding: "utf8", cwd: work });
   if (result.status !== 0 || /warning:/.test(result.stderr ?? "")) failures.push(`clang-cl ${args.join(" ")}: ${result.stderr}`);
 }
 
 /// Visual Studio through its Setup API (patches/0004), with none of a
-/// Developer Command Prompt's variables, on a Windows host that has it.
+/// Developer Command Prompt's variables, on a Windows host that has it:
+/// without the config files, which name the fetched SDK instead.
 const vswhere = path.join(process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)", "Microsoft Visual Studio", "Installer", "vswhere.exe");
 if (windows && fs.existsSync(vswhere)) {
   const env = { ...process.env };
   for (const name of ["VCToolsInstallDir", "VCINSTALLDIR", "INCLUDE"]) delete env[name];
-  const args = [`--target=${arch}-pc-windows-msvc`, "-###", "-c", helloC];
+  const args = ["--no-default-config", `--target=${arch}-pc-windows-msvc`, "-###", "-c", helloC];
   const result = spawnSync(tool("clang++"), args, { encoding: "utf8", cwd: work, env });
   if (!/VC\\\\Tools\\\\MSVC\\\\/.test(result.stderr ?? "")) failures.push(`clang++ ${args.join(" ")} finds no Visual Studio: ${result.stderr}`);
 }

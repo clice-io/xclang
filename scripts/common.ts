@@ -117,7 +117,7 @@ export const SOURCES = {
 } as const;
 export type Source = keyof typeof SOURCES;
 
-export type Os = "linux" | "mingw" | "darwin";
+export type Os = "linux" | "mingw" | "darwin" | "msvc";
 export type Arch = "x86_64" | "aarch64";
 export type Machine = "linux" | "macos";
 
@@ -137,8 +137,18 @@ export const TARGETS: readonly Target[] = [
   { triple: "x86_64-apple-darwin", os: "darwin", arch: "x86_64" },
 ];
 
+/// The MSVC ABI's targets, against Microsoft's CRT, STL and Windows SDK,
+/// which the user fetches (`xclang sdk fetch windows`) into the tree's
+/// sdk/windows: no directory of their own in the tree, only compiler-rt
+/// (lib/clang/<ver>/lib/windows) and the config files. Neither a host nor
+/// one of the six targets every tree is built and tested with.
+export const MSVC_TARGETS: readonly Target[] = [
+  { triple: "x86_64-pc-windows-msvc", os: "msvc", arch: "x86_64" },
+  { triple: "aarch64-pc-windows-msvc", os: "msvc", arch: "aarch64" },
+];
+
 export function target(triple: string): Target {
-  const t = TARGETS.find((t) => t.triple === triple);
+  const t = [...TARGETS, ...MSVC_TARGETS].find((t) => t.triple === triple);
   if (!t) fail(`unknown target ${triple}; one of: ${TARGETS.map((t) => t.triple).join(", ")}`);
   return t;
 }
@@ -157,6 +167,8 @@ export function normalized(t: Target): string {
 /// Every spelling of the triple that should reach the target's config file.
 export function cfgNames(t: Target): string[] {
   if (t.os === "mingw") return [`${t.arch}-w64-windows-gnu`, `${t.arch}-pc-windows-gnu`];
+  /// unknown: clang's spelling of x86_64-windows-msvc.
+  if (t.os === "msvc") return [t.triple, `${t.arch}-unknown-windows-msvc`];
   if (t.os === "darwin") {
     const archs = t.arch === "aarch64" ? ["arm64", "aarch64"] : ["x86_64"];
     /// macosx: clang's name for a versioned macos triple (macos14.0).
@@ -340,21 +352,31 @@ export function makeTree(dest: string, programs: string, parts: string[] = []): 
 
 /// Install the per-target clang config files (config/) into tree/bin.
 /// clang reads bin/<triple>.cfg for the target it compiles for, so every
-/// target directory of the tree works with a bare --target.
+/// target directory of the tree works with a bare --target; clang-cl reads
+/// bin/<triple>-clang-cl.cfg.
 export function writeConfigs(tree: string): void {
   const bin = path.join(tree, "bin");
   fs.mkdirSync(bin, { recursive: true });
-  for (const t of TARGETS) {
-    const text = fs
-      .readFileSync(path.join(ROOT, "config", `${t.os}.cfg`), "utf8")
-      .replaceAll("@TRIPLE@", t.triple)
-      .replaceAll("@MACOS_MIN@", MACOS_MIN);
+  const config = (name: string, t: Target) => fs
+    .readFileSync(path.join(ROOT, "config", name), "utf8")
+    .replaceAll("@TRIPLE@", t.triple)
+    .replaceAll("@ARCH@", t.arch)
+    .replaceAll("@MACOS_MIN@", MACOS_MIN);
+  for (const t of MSVC_TARGETS) {
     for (const name of cfgNames(t)) {
-      fs.writeFileSync(path.join(bin, `${name}.cfg`), text);
-      /// clang-cl looks for <default target>-clang-cl.cfg first, then
-      /// <default target>.cfg, before it turns to the MSVC target: this
-      /// empty one keeps the host target's options out of it.
-      fs.writeFileSync(path.join(bin, `${name}-clang-cl.cfg`), "# clang-cl targets MSVC; the options of the host target's config file are not for it.\n");
+      fs.writeFileSync(path.join(bin, `${name}.cfg`), config("msvc.cfg", t));
+      fs.writeFileSync(path.join(bin, `${name}-clang-cl.cfg`), config("msvc-clang-cl.cfg", t));
+    }
+  }
+  for (const t of TARGETS) {
+    /// clang-cl looks for <default target>-clang-cl.cfg first, then
+    /// <default target>.cfg, before it turns to the MSVC target: a plain
+    /// clang-cl reads the clang-cl file of the MSVC target of its
+    /// architecture, and none of the host target's options.
+    const cl = config("msvc-clang-cl.cfg", MSVC_TARGETS.find((m) => m.arch === t.arch)!);
+    for (const name of cfgNames(t)) {
+      fs.writeFileSync(path.join(bin, `${name}.cfg`), config(`${t.os}.cfg`, t));
+      fs.writeFileSync(path.join(bin, `${name}-clang-cl.cfg`), cl);
     }
   }
 }
@@ -384,6 +406,7 @@ export function cmakeToolchainArgs(tree: string, t: Target): string[] {
     `-DXCLANG_TARGET_OS=${t.os}`,
     `-DXCLANG_TARGET_ARCH=${t.arch}`,
     `-DXCLANG_MACOS_MIN=${MACOS_MIN}`,
+    ...(t.os === "msvc" ? [`-DXCLANG_WINSYSROOT=${path.join(tree, "sdk", "windows")}`] : []),
   ];
 }
 

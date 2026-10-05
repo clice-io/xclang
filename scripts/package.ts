@@ -37,7 +37,9 @@ const dist = path.join(common.WORK, "dist");
 fs.mkdirSync(dist, { recursive: true });
 
 const runtimes = fs.readdirSync(out).filter((d) => d.startsWith("runtimes-")).map((d) => path.join(out, d));
-if (runtimes.length !== 5) common.fail(`expected the runtimes of all targets in ${out}, found ${runtimes.length}`);
+/// One per Linux and MinGW target, one for both macOS targets, one for both
+/// MSVC targets.
+if (runtimes.length !== 6) common.fail(`expected the runtimes of all targets in ${out}, found ${runtimes.length}`);
 
 function archive(dir: string, name: string): void {
   const file = path.join(dist, `${name}.tar.xz`);

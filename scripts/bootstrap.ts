@@ -11,7 +11,7 @@ import { parseArgs } from "node:util";
 import * as common from "./common.ts";
 
 const PROGRAMS = [
-  "clang", "clang++", "clang-cpp", "clang-scan-deps",
+  "clang", "clang++", "clang-cpp", "clang-cl", "clang-scan-deps",
   "lld", "ld.lld", "ld64.lld", "lld-link", "wasm-ld",
   "llvm-ar", "llvm-ranlib", "llvm-lib", "llvm-dlltool",
   "llvm-nm", "llvm-objcopy", "llvm-strip", "llvm-objdump", "llvm-otool",

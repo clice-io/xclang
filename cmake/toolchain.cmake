@@ -4,8 +4,11 @@
 # only names the programs and tells CMake what it is building for.
 #
 #   -DXCLANG_ROOT=<tree> -DXCLANG_TARGET=<triple>
-#   -DXCLANG_TARGET_OS=linux|mingw|darwin -DXCLANG_TARGET_ARCH=x86_64|aarch64
+#   -DXCLANG_TARGET_OS=linux|mingw|darwin|msvc -DXCLANG_TARGET_ARCH=x86_64|aarch64
 #   -DXCLANG_MACOS_MIN=<version>
+#   -DXCLANG_WINSYSROOT=<dir>, for msvc: the MSVC and Windows SDK
+#     (xclang sdk fetch windows), the /winsysroot of lld-link, which reads
+#     no config file
 #   -DXCLANG_COMPILER_TARGET=<spelling of the triple for --target>, when it
 #     should differ from the directory name (compiler-rt names its output
 #     directory after it)
@@ -18,16 +21,30 @@ endforeach()
 # try_compile projects see the toolchain file again, not the cache.
 list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES
     XCLANG_ROOT XCLANG_TARGET XCLANG_TARGET_OS XCLANG_TARGET_ARCH XCLANG_MACOS_MIN
-    XCLANG_COMPILER_TARGET)
+    XCLANG_COMPILER_TARGET XCLANG_WINSYSROOT)
 
 set(_bin "${XCLANG_ROOT}/bin")
 if(CMAKE_HOST_WIN32)
     set(_exe ".exe")
 endif()
 
-set(CMAKE_C_COMPILER "${_bin}/clang${_exe}")
-set(CMAKE_CXX_COMPILER "${_bin}/clang++${_exe}")
-set(CMAKE_ASM_COMPILER "${_bin}/clang${_exe}")
+if(XCLANG_TARGET_OS STREQUAL "msvc")
+    # clang-cl, as compiler-rt's Windows build expects (MSVC), with
+    # lld-link, llvm-lib and llvm-rc; no manifests (there is no llvm-mt).
+    set(CMAKE_C_COMPILER "${_bin}/clang-cl${_exe}")
+    set(CMAKE_CXX_COMPILER "${_bin}/clang-cl${_exe}")
+    set(CMAKE_ASM_COMPILER "${_bin}/clang-cl${_exe}")
+    set(CMAKE_LINKER "${_bin}/lld-link${_exe}")
+    set(CMAKE_RC_COMPILER "${_bin}/llvm-rc${_exe}")
+    set(CMAKE_MT "")
+    foreach(kind EXE SHARED MODULE)
+        set(CMAKE_${kind}_LINKER_FLAGS_INIT "\"/winsysroot:${XCLANG_WINSYSROOT}\" /manifest:no")
+    endforeach()
+else()
+    set(CMAKE_C_COMPILER "${_bin}/clang${_exe}")
+    set(CMAKE_CXX_COMPILER "${_bin}/clang++${_exe}")
+    set(CMAKE_ASM_COMPILER "${_bin}/clang${_exe}")
+endif()
 if(NOT XCLANG_COMPILER_TARGET)
     set(XCLANG_COMPILER_TARGET "${XCLANG_TARGET}")
 endif()
@@ -35,7 +52,11 @@ foreach(lang C CXX ASM)
     set(CMAKE_${lang}_COMPILER_TARGET "${XCLANG_COMPILER_TARGET}")
 endforeach()
 
-set(CMAKE_AR "${_bin}/llvm-ar${_exe}")
+if(XCLANG_TARGET_OS STREQUAL "msvc")
+    set(CMAKE_AR "${_bin}/llvm-lib${_exe}")
+else()
+    set(CMAKE_AR "${_bin}/llvm-ar${_exe}")
+endif()
 set(CMAKE_RANLIB "${_bin}/llvm-ranlib${_exe}")
 set(CMAKE_NM "${_bin}/llvm-nm${_exe}")
 set(CMAKE_OBJCOPY "${_bin}/llvm-objcopy${_exe}")
@@ -45,7 +66,9 @@ set(CMAKE_STRIP "${_bin}/llvm-strip${_exe}")
 set(CMAKE_ADDR2LINE "${_bin}/llvm-addr2line${_exe}")
 set(CMAKE_DLLTOOL "${_bin}/llvm-dlltool${_exe}")
 # lld, ld64.lld for macOS (patches/0007), as the config files pick.
-set(CMAKE_LINKER_TYPE LLD)
+if(NOT XCLANG_TARGET_OS STREQUAL "msvc")
+    set(CMAKE_LINKER_TYPE LLD)
+endif()
 
 # Cross-compiling means another OS or another architecture than this machine.
 if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64|ARM64)$")
@@ -75,7 +98,7 @@ if(XCLANG_TARGET_OS STREQUAL "darwin")
     set(CMAKE_LIPO "${_bin}/llvm-lipo${_exe}")
     set(CMAKE_INSTALL_NAME_TOOL "${_bin}/llvm-install-name-tool${_exe}")
 elseif(NOT XCLANG_TARGET_OS STREQUAL _host_os OR NOT XCLANG_TARGET_ARCH STREQUAL _host_arch)
-    if(XCLANG_TARGET_OS STREQUAL "mingw")
+    if(XCLANG_TARGET_OS MATCHES "^(mingw|msvc)$")
         set(CMAKE_SYSTEM_NAME Windows)
         if(XCLANG_TARGET_ARCH STREQUAL "aarch64")
             set(CMAKE_SYSTEM_PROCESSOR ARM64)
@@ -93,7 +116,7 @@ if(XCLANG_TARGET_OS STREQUAL "mingw")
     set(CMAKE_RC_FLAGS "--target=${XCLANG_TARGET}")
 endif()
 
-if(NOT XCLANG_TARGET_OS STREQUAL "darwin")
+if(XCLANG_TARGET_OS MATCHES "^(linux|mingw)$")
     # The sysroot the config file names. Libraries, headers and packages
     # are looked for in it only, even natively: the pixi environment on
     # this machine is not part of what is being built.

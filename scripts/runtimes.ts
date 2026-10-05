@@ -1,10 +1,16 @@
 /// Build the runtimes of one target (or of both macOS targets at once:
-/// --target darwin) with the bootstrap compiler, into
-/// work/out/runtimes-<name>:
+/// --target darwin; of both MSVC targets: --target msvc) with the
+/// bootstrap compiler, into work/out/runtimes-<name>:
 ///
 ///   <triple>/                  sysroot, libunwind, libc++abi, libc++ (and
 ///                              where there are sanitizers its ASan build)
 ///   lib/clang/<ver>/lib/...    compiler-rt: builtins, crt objects, profile
+///
+/// The MSVC targets have no directory: their C and C++ libraries are
+/// Microsoft's, from the user's SDK. Their compiler-rt is built against the
+/// SDK that work/sdk/windows names, fetched by xclang's own command
+/// (`xclang sdk fetch windows --accept-license --sdk-dir work/sdk`); none
+/// of it is in what is collected.
 ///
 /// Every toolchain tree gets these files as they are, so each target is
 /// built once and serves every host.
@@ -101,7 +107,7 @@ function cxx(t: common.Target, stage: string): void {
   /// adds for -fstack-protector), are empty archives: what they hold comes
   /// from compiler-rt (atomics too: cmake/caches/builtins.cmake), libunwind
   /// and, for the stack protector, mingw-w64's libmingwex.
-  const stubs = { linux: GCC_STUBS, mingw: [...GCC_STUBS, "ssp", "ssp_nonshared"], darwin: [] }[t.os];
+  const stubs = { linux: GCC_STUBS, mingw: [...GCC_STUBS, "ssp", "ssp_nonshared"], darwin: [], msvc: [] }[t.os];
   for (const name of stubs) fs.writeFileSync(path.join(prefix, "lib", `lib${name}.a`), "!<arch>\n");
 }
 
@@ -181,6 +187,36 @@ function compilerRtDarwin(stage: string): void {
   ]);
 }
 
+/// compiler-rt for the MSVC targets, with clang-cl and lld-link
+/// (cmake/toolchain.cmake) against the SDK, in the layout lld-link searches
+/// by itself, lib/clang/<ver>/lib/windows/clang_rt.<name>-<arch>.lib: the
+/// config files name the builtins in every object (config/msvc.cfg), so
+/// they are found also when lld-link links on its own. Without the config
+/// files, whose hybrid CRT would otherwise be in every object of these
+/// libraries too. The builtins (/Zl) name no C runtime; the rest is built
+/// as compiler-rt builds it for Windows: the profile runtime /MT, ASan's
+/// DLL /MD.
+function compilerRtMsvc(t: common.Target, stage: string): void {
+  const sdk = path.join(stage, "sdk", "windows");
+  const flags = ["C", "CXX", "ASM"].map((lang) => `-DCMAKE_${lang}_FLAGS=--no-default-config /winsysroot ${sdk}`);
+  const args = [
+    ...compilerRtTarget(stage, t),
+    `-DCOMPILER_RT_INSTALL_PATH=${common.resourceDir(stage)}`,
+    "-DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF",
+    ...flags,
+  ];
+  cmake(`builtins-${t.triple}`, path.join(src, "compiler-rt", "lib", "builtins"), [
+    "-C", path.join(caches, "builtins.cmake"), ...args, "-DCOMPILER_RT_BUILD_CRT=OFF",
+  ]);
+  /// What compiler-rt has for Windows: UBSan, and for x64 only
+  /// AddressSanitizer and libFuzzer.
+  cmake(`compiler-rt-${t.triple}`, path.join(src, "runtimes"), [
+    "-C", path.join(caches, "compiler-rt.cmake"), ...args,
+    "-DCOMPILER_RT_BUILD_SANITIZERS=ON",
+    "-DCOMPILER_RT_BUILD_LIBFUZZER=ON",
+  ]);
+}
+
 /// Link (and, when this machine can, run) a C++ program for the target
 /// with the finished tree: the config file, sysroot and runtimes together.
 function check(t: common.Target, stage: string): void {
@@ -200,7 +236,7 @@ function check(t: common.Target, stage: string): void {
     "}",
     "",
   ].join("\n"));
-  const exe = path.join(dir, `hello${t.os === "mingw" ? ".exe" : ""}`);
+  const exe = path.join(dir, `hello${t.os === "mingw" || t.os === "msvc" ? ".exe" : ""}`);
   common.run(path.join(stage, "bin", "clang++"), [`--target=${t.triple}`, "-O2", source, "-o", exe]);
   const native = common.machineTarget();
   const runnable = t.os === native.os && (t.arch === native.arch || t.os === "darwin");
@@ -241,7 +277,17 @@ const resource = path.relative(stage, common.resourceDir(stage));
 /// the builds here install.
 for (const d of COMPILER_RT_HEADERS) fs.rmSync(path.join(stage, resource, "include", d), { recursive: true, force: true });
 
-if (values.target === "darwin") {
+if (values.target === "msvc") {
+  const sdk = path.join(common.WORK, "sdk");
+  if (!fs.existsSync(path.join(sdk, "windows", ".xclang-sdk.json"))) {
+    common.fail(`no Windows SDK in ${sdk}/windows: xclang sdk fetch windows --accept-license --sdk-dir ${sdk}`);
+  }
+  /// Where the tree's config files look for it.
+  fs.symlinkSync(sdk, path.join(stage, "sdk"));
+  for (const t of common.MSVC_TARGETS) compilerRtMsvc(t, stage);
+  for (const t of common.MSVC_TARGETS) check(t, stage);
+  collect(stage, "msvc", [path.join(resource, "lib", "windows")]);
+} else if (values.target === "darwin") {
   if (common.machine() !== "macos") common.fail("the macOS runtimes are built on macOS");
   process.env.SDKROOT ??= spawnSync("xcrun", ["--show-sdk-path"], { encoding: "utf8" }).stdout.trim();
   const targets = common.TARGETS.filter((t) => t.os === "darwin");
