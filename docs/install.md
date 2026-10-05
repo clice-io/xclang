@@ -10,7 +10,7 @@ channels = ["conda-forge", "https://conda.clice.io"]
 platforms = ["linux-64", "osx-arm64", "win-64"]
 
 [dependencies]
-xclang = "23.1.2.5.*"
+xclang = "23.1.2.6.*"
 ```
 
 The package is the host's archive, every target included, under
@@ -54,7 +54,7 @@ directory `xclang/`. A Windows archive holds no symbolic links, so the
 system's own `tar` unpacks it without extra rights:
 
 ```
-tar -xf xclang-23.1.2.5-x86_64-w64-mingw32.tar.xz
+tar -xf xclang-23.1.2.6-x86_64-w64-mingw32.tar.xz
 ```
 
 Put `xclang/bin` in `PATH`, or name the programs by their path.

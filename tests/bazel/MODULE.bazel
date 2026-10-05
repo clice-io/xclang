@@ -5,7 +5,7 @@ module(name = "xclang_tests")
 
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "rules_cc", version = "0.2.25")
-bazel_dep(name = "xclang", version = "23.1.2.5")
+bazel_dep(name = "xclang", version = "23.1.2.6")
 local_path_override(
     module_name = "xclang",
     path = "../../packages/bazel",

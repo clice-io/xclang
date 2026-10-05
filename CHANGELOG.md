@@ -8,6 +8,10 @@ the [patches](docs/patches.md) of its tag.
 
 ## Unreleased
 
+## [23.1.2.6](https://github.com/clice-io/xclang/releases/tag/23.1.2.6) — 2026-10-05
+
+Built by 23.1.2.5.
+
 - **CMake package** ([docs/cmake.md](docs/cmake.md)), in every toolchain
   archive as `lib/cmake/xclang`, and so in the conda package:
   `find_package(xclang)` gives `xclang::std`, libc++'s `std` and

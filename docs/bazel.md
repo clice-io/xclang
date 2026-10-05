@@ -14,7 +14,7 @@ common --registry=https://bcr.bazel.build/
 
 ```starlark
 # MODULE.bazel
-bazel_dep(name = "xclang", version = "23.1.2.5")
+bazel_dep(name = "xclang", version = "23.1.2.6")
 
 # Only to link libclang or include the option tables.
 xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
@@ -26,7 +26,7 @@ is the repository's `packages/bazel` directory, and the commit's
 `packages/bazel/bazel/versions.bzl` names the release it downloads:
 
 ```starlark
-bazel_dep(name = "xclang", version = "23.1.2.5")
+bazel_dep(name = "xclang", version = "23.1.2.6")
 git_override(
     module_name = "xclang",
     remote = "https://github.com/clice-io/xclang",

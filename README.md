@@ -73,7 +73,7 @@ channels = ["conda-forge", "https://conda.clice.io"]
 platforms = ["linux-64", "osx-arm64", "win-64"]
 
 [dependencies]
-xclang = "23.1.2.5.*"
+xclang = "23.1.2.6.*"
 ```
 
 The environment puts xclang's `bin/` first in `PATH` and leaves
@@ -101,7 +101,7 @@ target_link_libraries(app PRIVATE xclang::std)
 Bazel, from the clice registry [bazel.clice.io](https://bazel.clice.io):
 
 ```starlark
-bazel_dep(name = "xclang", version = "23.1.2.5")
+bazel_dep(name = "xclang", version = "23.1.2.6")
 ```
 
 and, from 23.1.2.6 on, another target is a platform:

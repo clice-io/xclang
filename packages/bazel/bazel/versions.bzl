@@ -1,22 +1,22 @@
 """The release the module stands for: its version, and the sha256 of each
 of its archives (scripts/bazel.ts, from the release's SHA256SUMS)."""
 
-VERSION = "23.1.2.5"
+VERSION = "23.1.2.6"
 
 SHA256 = {
-    "libclang-23.1.2.5-aarch64-apple-darwin-asan.tar.xz": "f17fa1b143ab3df5b9719b8b4f4d53dca1aeb80881f3de0cb904228503d138bd",
-    "libclang-23.1.2.5-aarch64-apple-darwin.tar.xz": "a5e6e99ca816045b7b3758274797958aad0e628c25cd13a4f20bbd2cb40db895",
-    "libclang-23.1.2.5-aarch64-unknown-linux-gnu.tar.xz": "894986b15af19d415740293bf97fe9b67d049fcbc597f596d90661a1c8608fea",
-    "libclang-23.1.2.5-aarch64-w64-mingw32.tar.xz": "2e0906c13aee6576e501beb154416a68cdf95eabaf7c9a19816ebc0823f4cebb",
-    "libclang-23.1.2.5-x86_64-apple-darwin.tar.xz": "a1d2c1a6d5f5b12cfc05980b8cdd1ad68c391a53d898bba48ec86a267054baae",
-    "libclang-23.1.2.5-x86_64-unknown-linux-gnu-asan.tar.xz": "bbd453d460ee7b6466d771f118bac09d4d58432972656242466e7cd561bfb87a",
-    "libclang-23.1.2.5-x86_64-unknown-linux-gnu.tar.xz": "098b1e0f5e134772b89b8b037eff32339ca85f1ad12d8938f98a1af2e93b31d1",
-    "libclang-23.1.2.5-x86_64-w64-mingw32.tar.xz": "8361b0401a65e686dc0bbbdd0cdd797f6b7ec45c062be96e17f67af3d96527b2",
-    "llvm-option-inc-23.1.2.5.tar.xz": "a7da3a4ed21cc8652727406f60b7405625d10486accb3ba4d4fbd65c1e42b1b1",
-    "xclang-23.1.2.5-aarch64-apple-darwin.tar.xz": "2a6be7da6a01700e518e9f5ba085cfb1ed7ba3a7fa8ac7a7e5d0756d1d84a08e",
-    "xclang-23.1.2.5-aarch64-unknown-linux-gnu.tar.xz": "0828a6ae371b581e2a165a3b628072efee4618345f789e0e5f192c0b64aa26b4",
-    "xclang-23.1.2.5-aarch64-w64-mingw32.tar.xz": "2335764bd6c24386b795057fa7227c2095c2b0dd32675040bffc474a29983753",
-    "xclang-23.1.2.5-x86_64-apple-darwin.tar.xz": "ea30c6040b24392be4e17b47ab00b6f78ea777b46a202649821b2d2fb2eb6130",
-    "xclang-23.1.2.5-x86_64-unknown-linux-gnu.tar.xz": "45b833478833a95ec45a025928df52aef45f14fdbd84e934ea31fe885364ccfc",
-    "xclang-23.1.2.5-x86_64-w64-mingw32.tar.xz": "d83399558e5f89eee588838c05858e71bfc0399b3f7d79d637ec2df6c3492bf1",
+    "libclang-23.1.2.6-aarch64-apple-darwin-asan.tar.xz": "abf0b0e642800a05b832196b42a40e5ddc31d77585f4370b4ff716d6c1f4eb87",
+    "libclang-23.1.2.6-aarch64-apple-darwin.tar.xz": "f9be9e483e39f8188a18ba91942c747e279beeedc22e6a4009708e193e046367",
+    "libclang-23.1.2.6-aarch64-unknown-linux-gnu.tar.xz": "075ad5e9c67254e4f8be6f03414d495b3241d7d65e61be2b36256ecebea2076e",
+    "libclang-23.1.2.6-aarch64-w64-mingw32.tar.xz": "2f59313a1c7008524f1e7f01fcff1ddb8f2bdac7f434e53cae960802fdc61378",
+    "libclang-23.1.2.6-x86_64-apple-darwin.tar.xz": "4db41e4a4c4eacee12272bd73002dd50a45e998bf150b8a8a2692e7bf1eb7789",
+    "libclang-23.1.2.6-x86_64-unknown-linux-gnu-asan.tar.xz": "9ccba3a0afa05eea940e5c32b8b45df33fe74218786639cbbc5b6d745ecbd898",
+    "libclang-23.1.2.6-x86_64-unknown-linux-gnu.tar.xz": "e47bcb4db447532ed8660bae6f8dca2d01eaee1ab1c4e49fa74d0dc82ec3cfe0",
+    "libclang-23.1.2.6-x86_64-w64-mingw32.tar.xz": "b87ab331bba6e1ef26419ad5367cfbe4a8df65379d5a34d0eb67cbb2d5d33d90",
+    "llvm-option-inc-23.1.2.6.tar.xz": "2fbccb05de8fedbd3d729749c50a08eebc73b480a62fe0293c50100fa41cf21b",
+    "xclang-23.1.2.6-aarch64-apple-darwin.tar.xz": "d9fec015c97f9b06c8e259864b891c4fc6b453bd666f9d30d425690a2d7be2e1",
+    "xclang-23.1.2.6-aarch64-unknown-linux-gnu.tar.xz": "b79ea207ab2ee3960185d677789648a84d89bc93a9979dde7ee83a2f349710e7",
+    "xclang-23.1.2.6-aarch64-w64-mingw32.tar.xz": "9e3a6ef696c114ce6d3a399824605697bc5a554d80dfefa8a2e2a9625e2988c9",
+    "xclang-23.1.2.6-x86_64-apple-darwin.tar.xz": "9b75af7770439e858b354db4e89cb5b43d265f8bde4c9cfe0f49a0fd6f8a6ef6",
+    "xclang-23.1.2.6-x86_64-unknown-linux-gnu.tar.xz": "d2c2eb943fc7720851cbee4f2a0cafff24151ddc58b1e0172f2e70f4c00f5fa6",
+    "xclang-23.1.2.6-x86_64-w64-mingw32.tar.xz": "b10d63a0c583828420bd206bfc0d8f7aa34b8ab936403240b22233b50f67a761",
 }
