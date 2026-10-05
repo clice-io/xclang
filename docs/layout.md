@@ -44,7 +44,8 @@ libc++.dylib is never used.
 ```
 xclang/
   bin/                     llvm and its names (clang, clang++, ld.lld, lld-link,
-                           llvm-ar, windres, ...), the tools outside it
+                           llvm-ar, windres, dsymutil, llvm-gsymutil, ...),
+                           the tools outside it
                            (llvm-profdata, llvm-cov, llvm-dwarfdump,
                            llvm-strings, FileCheck), <triple>.cfg
   lib/clang/<ver>/         resource headers, compiler-rt for every target

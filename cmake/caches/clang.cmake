@@ -81,6 +81,11 @@ set(LLVM_Toolchain_DISTRIBUTION_COMPONENTS
     llvm-profdata llvm-cov
     llvm-symbolizer llvm-addr2line
     llvm-dwarfdump
+    # A program's debug symbols for its release: dSYM bundles of Mach-O
+    # programs, and GSYM, a compact address-to-function-and-line table,
+    # from the DWARF of any. (llvm-driver installs every name of llvm, so
+    # they were there already; named for what they are for.)
+    dsymutil llvm-gsymutil
     llvm-libtool-darwin llvm-lipo
     FileCheck
     ${XCLANG_EXTRA_TOOLCHAIN_COMPONENTS}

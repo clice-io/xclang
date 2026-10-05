@@ -5,7 +5,8 @@
 /// - a C and a C++ program (exceptions, iostreams, threads) build for every
 ///   target it carries (macOS ones only on macOS: the SDK) and run where
 ///   this machine can run them;
-/// - natively also `import std;`, a precompiled header and ThinLTO.
+/// - natively also `import std;`, a precompiled header and ThinLTO;
+/// - dSYM and GSYM debug symbols by the tree's dsymutil and llvm-gsymutil.
 ///
 ///   node tests/smoke.ts --tree <xclang>
 
@@ -192,6 +193,42 @@ for (const t of targets.filter((t) => t.endsWith("mingw32"))) {
 /// target, which every host carries.
 for (const gz of ["zlib", "zstd"]) {
   run(tool("clang"), ["--target=x86_64-unknown-linux-gnu", "-g", `-gz=${gz}`, helloC, "-o", path.join(work, `gz-${gz}`)]);
+}
+
+/// Debug symbols for a program's release, by the tree's own tools: the
+/// dSYM of a macOS program (dsymutil, on every host), and GSYM for every
+/// target, from the DWARF of the program or of its dSYM, checked against
+/// that DWARF (--verify) and holding main. One clang command compiling and
+/// linking a macOS program with -g runs the tree's dsymutil too.
+for (const t of targets) {
+  const suffix = t.endsWith("mingw32") ? ".exe" : "";
+  const object = path.join(work, `symbols-${t}.o`);
+  const out = path.join(work, `symbols-${t}${suffix}`);
+  if (run(tool("clang"), [`--target=${t}`, "-g", "-O1", "-c", helloC, "-o", object]) === undefined ||
+      run(tool("clang"), [`--target=${t}`, object, "-o", out]) === undefined) continue;
+  let dwarf = out;
+  if (t.includes("apple")) {
+    const dsym = `${out}.dSYM`;
+    if (run(tool("dsymutil"), [out, "-o", dsym]) === undefined) continue;
+    dwarf = path.join(dsym, "Contents", "Resources", "DWARF", path.basename(out));
+  }
+  const gsym = `${out}.gsym`;
+  /// (--verify on Windows compares the DWARF's / with its own \ in paths.)
+  if (run(tool("llvm-gsymutil"), ["--convert", dwarf, "--out-file", gsym, ...(windows ? [] : ["--verify"])]) === undefined) continue;
+  const dump = run(tool("llvm-gsymutil"), [gsym]) ?? "";
+  if (!/\bmain\b/.test(dump) || !dump.includes("hello.c")) failures.push(`${gsym} has no main of hello.c`);
+}
+run(tool("dsymutil"), ["--version"]);
+{
+  const args = ["--target=arm64-apple-macos", "-g", "-###", helloC];
+  const result = spawnSync(tool("clang"), args, { encoding: "utf8", cwd: work });
+  /// -### escapes Windows' backslashes.
+  let dsymutil = /^ "([^"]*dsymutil[^"]*)"/m.exec(result.stderr ?? "")?.[1]?.replaceAll("\\\\", "\\");
+  /// (On Windows, without the .exe Windows adds to start it.)
+  if (dsymutil && windows && !dsymutil.endsWith(".exe")) dsymutil += ".exe";
+  if (!dsymutil || !fs.existsSync(dsymutil) || fs.realpathSync(dsymutil) !== fs.realpathSync(tool("dsymutil"))) {
+    failures.push(`clang ${args.join(" ")} runs ${dsymutil ?? "no dsymutil"}, not ${tool("dsymutil")}`);
+  }
 }
 
 /// Past the config files, upstream clang's defaults: libclang's driver has
