@@ -99,6 +99,10 @@ jobs:
           startup=(); [[ "$RUNNER_OS" == Windows ]] && startup=(--output_user_root=C:/b --windows_enable_symlinks)
           bazel "${startup[@]}" test //... $REPO_ENV --disk_cache="$RUNNER_TEMP/disk"
           bazel "${startup[@]}" test -c opt //... $REPO_ENV --disk_cache="$RUNNER_TEMP/disk"
+      # gdb, for tests/bazel.ts's debugger checks.
+      - name: gdb
+        if: ${{ runner.os == 'Linux' && !inputs.dist-run }}
+        run: command -v gdb || { sudo apt-get update -q && sudo apt-get install -y -q gdb; }
       # Keys of the downloaded archives: a run's unpacked ones are not
       # named by packages/bazel/bazel/versions.bzl.
       - name: Cache keys and inputs

@@ -13,3 +13,22 @@ local_path_override(
 
 xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
 use_repo(xclang, "libclang", "libclang_asan", "llvm_option_inc")
+
+# Sources of another repository, which tests/bazel.ts's debuggers find under
+# bazel-<workspace>/external/.
+new_local_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:local.bzl", "new_local_repository")
+
+new_local_repository(
+    name = "greeter",
+    build_file_content = """\
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+cc_library(
+    name = "greeter",
+    srcs = ["greeter.cpp"],
+    hdrs = ["greeter.h"],
+    visibility = ["//visibility:public"],
+)
+""",
+    path = "third_party/greeter",
+)

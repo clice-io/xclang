@@ -30,6 +30,10 @@
 /// 8. Debug symbols by xclang_debug_symbols: GSYM, and dSYM on macOS, with
 ///    the lines of the program's code and of libclang's after ThinLTO; for
 ///    the target of another os too.
+/// 9. Debug information wherever the build ran: the same bytes from another
+///    checkout, and gdb, lldb (with and without a dSYM) and llvm-symbolizer
+///    find a source of this repository and one of an external repository
+///    through bazel-<workspace>.
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -336,6 +340,73 @@ if (!windows) {
       fs.existsSync(path.join(bin, `${program}.dSYM`, "Contents", "Resources", "DWARF", program));
     check(dump.status === 0 && /"main"/.test(dump.stdout) && wanted.test(dump.stdout) && dsym,
       `debug symbols: ${program}.gsym${process.platform === "darwin" ? ` from ${program}.dSYM` : ""} has ${what}`);
+  }
+}
+
+/// 9. Debug information wherever the build ran: //debug's programs built
+/// with -c dbg in another checkout (no disk cache: its own sandboxes and
+/// output base) are the same bytes as here, and debuggers find main's line
+/// in this repository and greet's in an external one, both relative to the
+/// execution root, through bazel-<workspace>: gdb (Linux), lldb with the
+/// dSYM and, run in the workspace for the objects of the debug map, without
+/// (macOS), llvm-symbolizer (Linux, Windows).
+{
+  const workspace = path.join(common.ROOT, "tests", "bazel");
+  const targets = ["-c", "dbg", "//debug:debugged", "//debug:debugged_no_dsym"];
+  bazel(workspace, ["build", ...targets]);
+  const other = path.join(path.dirname(copy), "debug-checkout");
+  fs.cpSync(common.ROOT, other, {
+    recursive: true,
+    verbatimSymlinks: true,
+    filter: (src) => {
+      const name = path.basename(src);
+      return ![".git", "work", "node_modules", ".pixi"].includes(name) && !name.startsWith("bazel-");
+    },
+  });
+  const otherTests = path.join(other, "tests", "bazel");
+  bazel(otherTests, ["build", ...targets]);
+  const programs = ["debugged", "debugged_no_dsym"].map((p) => `debug/${p}${windows ? ".exe" : ""}`);
+  if (process.platform === "darwin") programs.push("debug/debugged.dSYM/Contents/Resources/DWARF/debugged");
+  const binary = (ws: string, file: string) => fs.readFileSync(path.join(ws, "bazel-bin", file));
+  const differ = programs.filter((p) => !binary(workspace, p).equals(binary(otherTests, p)));
+  check(differ.length === 0, `-c dbg in another checkout: ${programs.join(", ")} ` +
+    (differ.length ? `differ: ${differ.join(", ")}` : "the same bytes"));
+  run(otherTests, ["clean", "--expunge"]);
+
+  const sources = path.join(workspace, `bazel-${path.basename(workspace)}`);
+  const external = path.join(run(workspace, ["info", "output_base"]).stdout.trim(), "external");
+  const toolchain = path.join(external, fs.readdirSync(external).find((name) => name.endsWith(`+xclang_${host}`)) ?? "");
+  const bin = path.join(workspace, "bazel-bin", "debug");
+  /// Both lines, by their comments, in what a debugger printed.
+  const lines = (output: string) => output.includes("main's line") && output.includes("the greeter's line");
+  const debug = (label: string, cmd: string, args: string[], cwd: string) => {
+    const result = spawnSync(cmd, args, { cwd, encoding: "utf8" });
+    const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+    check(result.status === 0 && lines(output), `${label}: main's and greet's lines` +
+      (lines(output) ? "" : `, not in:\n${output.slice(-2000)}`));
+  };
+  if (process.platform === "linux") {
+    debug("gdb, directory bazel-<workspace>", "gdb", ["-batch", "-nx", "-ex", `directory ${sources}`,
+      "-ex", "list main", "-ex", "list greet", path.join(bin, "debugged")], workspace);
+  }
+  if (process.platform === "darwin") {
+    const lldb = ["--batch", "-o", `settings set target.source-map . ${sources}`, "-o", "source list -n main", "-o", "source list -n greet"];
+    debug("lldb with the dSYM, source-map . bazel-<workspace>", "lldb", [...lldb, path.join(bin, "debugged")], os.tmpdir());
+    debug("lldb without a dSYM, in the workspace", "lldb", [...lldb, path.join(bin, "debugged_no_dsym")], workspace);
+  }
+  if (process.platform !== "darwin") {
+    /// The addresses of main and greet, and the files and lines of them.
+    const exe = windows ? ".exe" : "";
+    const program = path.join(bin, `debugged${exe}`);
+    const nm = spawnSync(path.join(toolchain, "bin", `llvm-nm${exe}`), ["--defined-only", program], { encoding: "utf8" }).stdout ?? "";
+    const addresses = ["main", "_Z5greetPKc"].map((name) => new RegExp(`^([0-9a-f]+) T ${name}$`, "m").exec(nm)?.[1]);
+    const symbolized = spawnSync(path.join(toolchain, "bin", `llvm-symbolizer${exe}`),
+      ["--obj", program, ...addresses.map((a) => `0x${a}`)], { encoding: "utf8" }).stdout ?? "";
+    /// Relative to the compilation directory, ".": ./debug/main.cpp.
+    const files = [...symbolized.matchAll(/^(.+):(\d+):\d+$/gm)].map((m) => m[1]!.replaceAll("\\", "/").replace(/^\.\//, ""));
+    const found = files.filter((f) => !path.isAbsolute(f) && fs.existsSync(path.join(sources, f)));
+    check(addresses.every(Boolean) && found.some((f) => f === "debug/main.cpp") && found.some((f) => f.endsWith("/greeter.cpp") && f.startsWith("external/")),
+      `llvm-symbolizer: main in debug/main.cpp, greet in external/.../greeter.cpp, both under bazel-<workspace> (${files.join(", ")})`);
   }
 }
 

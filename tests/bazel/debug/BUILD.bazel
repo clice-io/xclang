@@ -1,0 +1,16 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
+# A program for debuggers (tests/bazel.ts): its main in this repository, the
+# function it calls in another; on macOS, one with its dSYM and one without.
+cc_binary(
+    name = "debugged",
+    srcs = ["main.cpp"],
+    features = ["generate_dsym_file"],
+    deps = ["@greeter"],
+)
+
+cc_binary(
+    name = "debugged_no_dsym",
+    srcs = ["main.cpp"],
+    deps = ["@greeter"],
+)

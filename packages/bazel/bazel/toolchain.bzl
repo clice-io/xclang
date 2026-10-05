@@ -123,6 +123,16 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
     link_flags = flags + ["--driver-mode=g++", "-no-canonical-prefixes"]
     sanitizer_link_flags = []
 
+    # Debug information that holds wherever the build ran, the same in every
+    # sandbox and checkout: paths relative to the execution root in a Mach-O
+    # program's debug map (its objects' N_OSO entries), as in the DWARF
+    # (-ffile-compilation-dir below), and no link time in a PE program.
+    # Debuggers map "." to the workspace's bazel-<name> (docs/bazel.md).
+    if t.os == "macos":
+        link_flags.append("-Wl,-oso_prefix,.")
+    elif t.os == "windows":
+        link_flags.append("-Wl,--no-insert-timestamp")
+
     # The asan feature builds and links with libc++'s ASan build: its
     # __config_site turns on std::string's container checks, and its
     # libc++.a is instrumented like the code that calls it.
@@ -183,6 +193,9 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
         unfiltered_compile_flags = [
             # Paths relative to the execution root for clang's own files too.
             "-no-canonical-prefixes",
+            # The compilation directory in debug information and coverage
+            # mappings: ".", the execution root, not the sandbox's path.
+            "-ffile-compilation-dir=.",
             # C++20 modules: the paths in a module file relative to the working
             # directory, the execution root, as the path of a module file's
             # module is not: the same module file wherever it is built.
