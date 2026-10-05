@@ -86,12 +86,13 @@ jobs:
           fi
       - name: What they load
         run: |
+          pixi run llvm-readobj --needed-libs hello-linux-x64 hello-windows-x64.exe
           programs=(hello-linux-x64 hello-linux-arm64 hello-windows-x64.exe hello-windows-arm64.exe)
           [[ "$RUNNER_OS" == macOS ]] && programs+=(hello-macos-arm64 hello-macos-x64)
           pixi run llvm-readobj --needed-libs "${programs[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: CMake
         run: |
-          pixi run cmake -G Ninja -S ../cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+          pixi run cmake -G Ninja -S ../cmake -B build -DCMAKE_CXX_COMPILER=clang++
           pixi run cmake --build build
           ./build/hello
       - name: CMake, another target
@@ -255,3 +256,44 @@ jobs:
           bazel run //:hello
       - name: Another target
         run: bazel build --platforms=@xclang//platforms:${{ matrix.cross }} //...
+
+  # docs/en/features/modules.md, "Build caches and modules": what ccache
+  # does with the command lines CMake gives a module and its importer. The
+  # job fails when ccache no longer serves the stale object, so the page
+  # gets updated.
+  ccache:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: examples/quickstart
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: prefix-dev/setup-pixi@v0.10.2
+        with:
+          pixi-version: v0.71.1
+          run-install: false
+      - run: pixi install
+      - name: A module, an importer, ccache
+        run: |
+          export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
+          pixi exec --spec "ccache>=4.13" ccache --version | head -1
+          mkdir modules && cd modules
+          printf 'export module a;\nexport constexpr int k = 1;\n' > a.cppm
+          printf 'import a;\nint main() { return k; }\n' > b.cpp
+          echo "-fmodule-file=a=a.pcm" > b.modmap
+          export CCACHE_DIR=$PWD/cache
+          build() {
+            pixi exec --spec "ccache>=4.13" ccache clang++ -std=c++20 -O2 -x c++-module a.cppm -c -o a.o -fmodule-output=a.pcm
+            pixi exec --spec "ccache>=4.13" ccache clang++ -std=c++20 -O2 -c b.cpp -o b.o @b.modmap
+            clang++ a.o b.o -o b
+          }
+          build; ./b && first=0 || first=$?
+          sed -i 's/k = 1/k = 2/' a.cppm
+          build; ./b && second=0 || second=$?
+          pixi exec --spec "ccache>=4.13" ccache --print-stats | grep -E '^(direct_cache_hit|unsupported_source_language)' | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "k = 1: exit $first; k = 2: exit $second" | tee -a "$GITHUB_STEP_SUMMARY"
+          [[ $first == 1 && $second == 1 ]] || { echo "::error::ccache no longer serves the stale object: update docs/en/features/modules.md"; exit 1; }
