@@ -21,6 +21,14 @@ the [patches](docs/en/reference/patches.md) of its tag.
   target run on a runner of that target. tests/docs.ts checks that the
   docs show those files and the commands examples.yml runs, and that their
   links reach pages and headings.
+- **The `xclang` command** in every toolchain archive, `bin/xclang`
+  (`xclang.exe`): `xclang sdk fetch windows --accept-license` and
+  `xclang sdk fetch macos --accept-license` fetch Microsoft's and Apple's
+  SDKs into the toolchain's `sdk/`, which the MSVC targets and the macOS
+  targets from Linux and Windows hosts build against; `xclang sdk list`,
+  `use` and `remove` manage them
+  ([the xclang command](docs/en/reference/xclang-command.md)). It loads
+  nothing but its OS's libraries (glibc 2.17 at most on Linux).
 - **MSVC targets**, `x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc`,
   against Microsoft's CRT, STL and Windows SDK, which the toolchain's own
   `xclang sdk fetch windows --accept-license` fetches into its `sdk/`
@@ -31,8 +39,7 @@ the [patches](docs/en/reference/patches.md) of its tag.
   the static debug CRT on request. compiler-rt for both, built by xclang
   in `lib/clang/23/lib/windows`: the builtins (named in every object, so
   `__int128` division links), the profile runtime, UBSan, and for x64
-  AddressSanitizer (a DLL) and libFuzzer. They need the `xclang` command
-  in the archives.
+  AddressSanitizer (a DLL) and libFuzzer.
 - A plain `clang-cl`, and `clang --target=<arch>-pc-windows-msvc`, build
   with the fetched SDK, and without it stop and name `sdk/windows`, where
   they took an installed Visual Studio; `--no-default-config` looks for one
@@ -57,14 +64,49 @@ the [patches](docs/en/reference/patches.md) of its tag.
   replaces it, and clang no longer reads `SDKROOT` there. On macOS hosts
   nothing changes. The programs are those of a Mac: xclang's libc++,
   ld64.lld's ad-hoc signature for arm64, dSYMs, universal programs by
-  `llvm-lipo`, and the sanitizers' dylibs. They need the `xclang` command
-  in the archives.
+  `llvm-lipo`, and the sanitizers' dylibs.
 - CMake: `XCLANG_TARGET=aarch64-apple-darwin` (or x86_64) on Linux and
   Windows hosts: `CMAKE_SYSTEM_NAME` `Darwin`, `CMAKE_OSX_SYSROOT` the one
   given, else `SDKROOT`, else the toolchain's `sdk/macos`, and no `xcrun`
   ([CMake](docs/en/integrations/cmake.md#build-for-macos-from-linux-or-windows)).
 - `xclang sdk fetch macos` takes the preset's SDK, the macOS 27 one too,
   where it passed over SDKs from 27 on.
+- **License notices** in every archive (the toolchain, libclang, the ASan
+  libclang, the option tables): `share/licenses/<component>/` holds each
+  component's license and notice files, `share/licenses/README.md` says
+  what each component is, its version, its license and where its source
+  is, and `share/licenses/sbom.spdx.json` the same as an SPDX 2.3
+  document: LLVM and its runtimes, glibc 2.17, the kernel's UAPI headers
+  and NSS's `libfreebl3` of the Linux sysroots (with the conda-forge
+  packages, CentOS 7 source RPMs and upstream releases they come from),
+  mingw-w64 and winpthreads, zlib, zstd, and Rust's standard library and
+  the crates of `bin/xclang`
+  ([layout](docs/en/reference/layout.md#licenses)).
+- **Reproducible archives**: the same files make the same `.tar.xz`,
+  whatever the machine, the time or the number of threads (sorted entries,
+  the commit's time, no owner, xz in fixed blocks); each host's archives
+  are made twice, on two machines, and compared before a release.
+- **Smaller archives**: the headers that targets share are in the archive
+  once: libc++'s in `libc++/include/c++/v1` with each target's
+  `__config_site` in `libc++/include/<target>/c++/v1` (LLVM's per-target
+  runtime layout, under a prefix of its own), and mingw-w64's, the same
+  for x64 and arm64, in `mingw-w64/include`; no links. The config files
+  name them, so
+  `clang --target=...` builds as before. A build that passes
+  `--no-default-config` and its own `--sysroot=$XCLANG/<target>` adds
+  them itself ([layout](docs/en/reference/layout.md#shared-headers)).
+- macOS archives carry no `lib/libLTO.dylib`, as the Linux and Windows
+  ones carry no LTO plugin for their system linkers: macOS targets link
+  with ld64.lld, and `-fuse-ld=ld` still selects Apple's `ld`, for links
+  without LTO.
+- **Debug symbols, the same each run**: `xclang_debug_symbols` (Bazel and
+  CMake) runs llvm-gsymutil with one thread, so the same program makes the
+  same GSYM file, about 1.4 times as slow; `--num-threads=0` in
+  `gsymutil_args` / `GSYM_ARGS` undoes it.
+  `bazel run @xclang//bazel:llvm-gsymutil -- <absolute .gsym> --address=0x...`
+  reads a GSYM with the toolchain's llvm-gsymutil
+  ([debugging](docs/en/features/debugging.md)). The rule's documentation
+  asks for `-g`: `-gline-tables-only` gives a GSYM without functions.
 
 ## [23.1.2.6](https://github.com/clice-io/xclang/releases/tag/23.1.2.6) — 2026-10-05
 

@@ -125,8 +125,8 @@ FetchContent or the Bazel registry.
 | [Relative debug paths in CMake builds](../design/roadmap.md#cmake-relative-paths) | Planned |
 | [Deterministic GSYM files](../design/roadmap.md#gsym-determinism) | Unreleased |
 | [Immutable releases](../design/roadmap.md#immutable-releases) | Planned |
-| [Reproducible archives](../design/roadmap.md#reproducible-archives) | Planned |
-| [Third-party license notices](../design/roadmap.md#license-notices) | Planned |
+| [Reproducible archives](../design/roadmap.md#reproducible-archives) | Unreleased |
+| [Third-party license notices](../design/roadmap.md#license-notices) | Unreleased |
 | [SLSA provenance](../design/roadmap.md#slsa) | Considered |
 | [BOLT](../design/roadmap.md#bolt) | In research |
 | [A wider PGO training](../design/roadmap.md#pgo-training) | Planned |
