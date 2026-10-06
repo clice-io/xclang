@@ -32,7 +32,7 @@ runs by putting `XCLANG_CACHE_DIR` in a cache entry keyed on the release:
 - uses: actions/cache@v6
   with:
     path: ${{ runner.temp }}/xclang
-    key: xclang-${{ runner.os }}-${{ runner.arch }}-23.1.2.7
+    key: xclang-${{ runner.os }}-${{ runner.arch }}-23.1.2.8
 - name: Build
   env:
     XCLANG_CACHE_DIR: ${{ runner.temp }}/xclang
@@ -93,8 +93,8 @@ cache: key it on the xclang release.
 - uses: actions/cache@v6
   with:
     path: ${{ runner.os == 'Windows' && 'C:/xclang-thinlto' || '/var/tmp/xclang-thinlto' }}
-    key: thinlto-${{ runner.os }}-${{ runner.arch }}-xclang-23.1.2.7-${{ github.sha }}
-    restore-keys: thinlto-${{ runner.os }}-${{ runner.arch }}-xclang-23.1.2.7-
+    key: thinlto-${{ runner.os }}-${{ runner.arch }}-xclang-23.1.2.8-${{ github.sha }}
+    restore-keys: thinlto-${{ runner.os }}-${{ runner.arch }}-xclang-23.1.2.8-
 ```
 
 Restoring a cache sets the last access of every file to the time of the

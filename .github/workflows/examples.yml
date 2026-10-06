@@ -25,7 +25,7 @@ permissions:
   contents: read
 
 env:
-  VERSION: "23.1.2.7"
+  VERSION: "23.1.2.8"
 
 jobs:
   # docs/en/guide/quick-start.md, install.md and cross-compiling.md with
@@ -234,7 +234,7 @@ jobs:
       - uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/xclang
-          key: xclang-${{ runner.os }}-${{ runner.arch }}-23.1.2.7
+          key: xclang-${{ runner.os }}-${{ runner.arch }}-23.1.2.8
       - name: Build
         env:
           XCLANG_CACHE_DIR: ${{ runner.temp }}/xclang
@@ -283,7 +283,7 @@ jobs:
         shell: bash
         working-directory: examples/quickstart
         run: |
-          v=23.1.2.7 h=x86_64-unknown-linux-gnu
+          v=23.1.2.8 h=x86_64-unknown-linux-gnu
           curl -LO https://github.com/clice-io/xclang/releases/download/$v/xclang-$v-$h.tar.xz
           curl -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
           sha256sum -c --ignore-missing SHA256SUMS
@@ -315,7 +315,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
-          $v = "23.1.2.7"; $h = "x86_64-w64-mingw32"
+          $v = "23.1.2.8"; $h = "x86_64-w64-mingw32"
           curl.exe -LO https://github.com/clice-io/xclang/releases/download/$v/xclang-$v-$h.tar.xz
           curl.exe -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
           $sum = (Get-FileHash xclang-$v-$h.tar.xz -Algorithm SHA256).Hash.ToLower()
@@ -348,7 +348,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download 23.1.2.7 -R clice-io/xclang -p SHA256SUMS -p 'llvm-option-inc-*'
+          gh release download 23.1.2.8 -R clice-io/xclang -p SHA256SUMS -p 'llvm-option-inc-*'
           sha256sum -c --ignore-missing SHA256SUMS
 
   # docs/en/integrations/bazel.md and the Bazel sections of the feature
@@ -590,7 +590,7 @@ jobs:
         run: |
           pixi install
           export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
-          v=23.1.2.7 h=x86_64-unknown-linux-gnu
+          v=23.1.2.8 h=x86_64-unknown-linux-gnu
           curl -LO https://github.com/clice-io/xclang/releases/download/$v/libclang-$v-$h.tar.xz
           curl -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
           sha256sum -c --ignore-missing SHA256SUMS

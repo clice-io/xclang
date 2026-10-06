@@ -303,13 +303,17 @@ bench.yml compares the compile speed of a release with LLVM's own build of
 the same version, and with Apple's clang on macOS. The method and the
 numbers are in [PGO](../design/pgo.md#what-it-buys).
 
-## Runs for 23.1.2.7
+## Runs for 23.1.2.8
+
+A repack of 23.1.2.7: its compiler and runtimes are those of 23.1.2.7's run.
 
 | workflow | run |
 |---|---|
-| main.yml (build, `test`, `bazel`, `cmake`, `msvc` and `macos` stages) | [37454002667](https://github.com/clice-io/xclang/actions/runs/37454002667) |
-| bazel.yml, on publishing | [37481563479](https://github.com/clice-io/xclang/actions/runs/37481563479) |
-| cmake.yml, on publishing | [37481563519](https://github.com/clice-io/xclang/actions/runs/37481563519) |
-| conda.yml | [37481672889](https://github.com/clice-io/xclang/actions/runs/37481672889) |
-| examples.yml | [37494316755](https://github.com/clice-io/xclang/actions/runs/37494316755) |
+| main.yml (`package`, `test`, `bazel`, `cmake`, `msvc` and `macos` stages, with 23.1.2.7's build) | [37498675574](https://github.com/clice-io/xclang/actions/runs/37498675574) |
+| main.yml, `repack-of` 23.1.2.7 | [37501122064](https://github.com/clice-io/xclang/actions/runs/37501122064) |
+| main.yml, 23.1.2.7's build | [37454002667](https://github.com/clice-io/xclang/actions/runs/37454002667) |
+| bazel.yml, on publishing | [37502667412](https://github.com/clice-io/xclang/actions/runs/37502667412) |
+| cmake.yml, on publishing | [37502667463](https://github.com/clice-io/xclang/actions/runs/37502667463) |
+| conda.yml | [37502733654](https://github.com/clice-io/xclang/actions/runs/37502733654) |
+| examples.yml | 23.1.2.7's: [37494316755](https://github.com/clice-io/xclang/actions/runs/37494316755) |
 | bench.yml | 23.1.2.6's: [37356476645](https://github.com/clice-io/xclang/actions/runs/37356476645) |

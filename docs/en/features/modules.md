@@ -140,7 +140,7 @@ cc_binary(
 module(name = "shapes")
 
 bazel_dep(name = "rules_cc", version = "0.2.25")
-bazel_dep(name = "xclang", version = "23.1.2.7")
+bazel_dep(name = "xclang", version = "23.1.2.8")
 ```
 
 The `.bazelrc` is the one of [Bazel](../integrations/bazel.md#set-up-a-project),

@@ -11,7 +11,7 @@
 #   include(${xclang_SOURCE_DIR}/packages/cmake/xclang.cmake)
 #   project(...)
 #
-#   XCLANG_VERSION    the release whose toolchain to download, e.g. 23.1.2.7;
+#   XCLANG_VERSION    the release whose toolchain to download, e.g. 23.1.2.8;
 #                     by default the one tagging this checkout
 #   XCLANG_TARGET     another target to build for (toolchain.cmake)
 #   XCLANG_ROOT       an unpacked xclang to use instead of downloading one

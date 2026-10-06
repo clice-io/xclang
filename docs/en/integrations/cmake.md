@@ -162,7 +162,7 @@ fetches this repository at the tag of the release, and
 ```cmake
 cmake_minimum_required(VERSION 3.28)
 
-set(XCLANG_VERSION 23.1.2.7)
+set(XCLANG_VERSION 23.1.2.8)
 include(FetchContent)
 FetchContent_Declare(xclang
     GIT_REPOSITORY https://github.com/clice-io/xclang

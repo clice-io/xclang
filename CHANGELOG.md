@@ -8,6 +8,10 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+## [23.1.2.8](https://github.com/clice-io/xclang/releases/tag/23.1.2.8) — 2026-10-06
+
+The compiler and runtimes are 23.1.2.7's.
+
 - Bazel on macOS: a C++20 module unit and its dependency scan get the
   `defines` of the libraries it depends on, as on Linux and Windows. They
   got none: rules_cc leaves macOS the legacy defines feature, which does

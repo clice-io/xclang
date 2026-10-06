@@ -102,7 +102,7 @@ xclang_debug_symbols(
 module(name = "tool")
 
 bazel_dep(name = "rules_cc", version = "0.2.25")
-bazel_dep(name = "xclang", version = "23.1.2.7")
+bazel_dep(name = "xclang", version = "23.1.2.8")
 ```
 
 <!-- file: examples/debug-symbols/.bazelrc -->

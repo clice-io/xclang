@@ -58,7 +58,7 @@ downloads, checks and unpacks it on Linux x64:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
-v=23.1.2.7 h=x86_64-unknown-linux-gnu
+v=23.1.2.8 h=x86_64-unknown-linux-gnu
 curl -LO https://github.com/clice-io/xclang/releases/download/$v/libclang-$v-$h.tar.xz
 curl -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
 sha256sum -c --ignore-missing SHA256SUMS
@@ -123,7 +123,7 @@ cc_binary(
 module(name = "tool")
 
 bazel_dep(name = "rules_cc", version = "0.2.25")
-bazel_dep(name = "xclang", version = "23.1.2.7")
+bazel_dep(name = "xclang", version = "23.1.2.8")
 
 xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
 use_repo(xclang, "libclang", "llvm_option_inc")
