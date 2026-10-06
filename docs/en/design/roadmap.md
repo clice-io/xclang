@@ -164,10 +164,12 @@ it in every toolchain archive.
 | <a id="mingw-sanitizers"></a>Sanitizers for MinGW targets | Considered |
 | <a id="cargo-helper"></a>An `xclang cargo` helper that sets cargo's variables | Considered |
 | <a id="libgcc-s-script"></a>`libgcc_s.a` as a linker script naming libunwind, for Rust's Linux targets | Considered |
+| <a id="libcxx-msvc"></a>libc++ for MSVC targets, in place of Microsoft's STL | Considered |
 | <a id="openmp"></a>An OpenMP runtime | Not planned |
 | <a id="tool-binaries"></a>clang-format, clang-tidy and clangd programs | Not planned |
 | <a id="shared-runtime"></a>A shared C++ runtime across shared libraries | Not planned |
 | <a id="conda-forge"></a>A compiler for building conda-forge packages | Not planned |
+| <a id="libclang-msvc"></a>libclang for programs built with the MSVC ABI | Not planned |
 
 **libc++ built on demand** means libc++, libc++abi and libunwind built from
 source inside a CMake or Bazel build, from LLVM's runtime sources of the
@@ -192,12 +194,18 @@ Linux targets then link without `-l:libunwind.a`. A test with 23.1.2.5's
 arm64 sysroot linked Rust, and C++ programs and shared libraries that name
 `-lgcc_s`.
 
+**libc++ for MSVC targets** would give them the C++ library of every
+other target, its `import std` included. Microsoft's STL stays their
+default: C++ types passed between a program and libraries built with MSVC
+need the same library on both sides.
+
 The not-planned items follow from what xclang is. It is a compiler
 toolchain, and libclang has the libraries that tools on clang link. Its
 runtimes are linked into every program
 ([one libc++ per shared object](hermeticity.md#one-libc-per-shared-object)).
 conda-forge's compilers link packaged runtimes dynamically, which xclang
-does not do.
+does not do. libclang is there for clice, which builds for MinGW on
+Windows, so no libclang is built with the MSVC ABI.
 
 ## Speed
 
