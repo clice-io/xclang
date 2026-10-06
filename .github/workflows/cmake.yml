@@ -1,7 +1,7 @@
 name: cmake
 
 # The CMake package (packages/cmake) on a machine of every host, with the
-# oldest CMake and Ninja it supports and the newest: tests/cmake.ts builds
+# oldest CMake and Ninja it supports and the newest: tests/cmake/cmake.ts builds
 # tests/cmake by PATH, for every other target through the toolchain file,
 # and from nothing installed, xclang.cmake downloading the toolchain.
 #
@@ -109,5 +109,5 @@ jobs:
         env:
           GIT_REF: ${{ inputs.git-ref || github.event_name == 'release' && env.TAG || '' }}
         run: |
-          node tests/cmake.ts --tree "$RUNNER_TEMP/unpacked/xclang" --libclang "$RUNNER_TEMP/unpacked/libclang" \
+          node tests/cmake/cmake.ts --tree "$RUNNER_TEMP/unpacked/xclang" --libclang "$RUNNER_TEMP/unpacked/libclang" \
             --sums "$RUNNER_TEMP/dist/SHA256SUMS" --url "$URL" ${GIT_REF:+--git "$GIT_REF"}

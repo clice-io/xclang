@@ -4,7 +4,7 @@
 /// ABI, the hybrid CRT: the VC runtime linked statically, UCRT a system
 /// DLL) against the /winsysroot, both fetched by the tree's bin/xclang:
 ///
-///   node tests/cargo.ts --tree <xclang> --out <dir>
+///   node tests/cli/cargo.ts --tree <xclang> --out <dir>
 ///
 /// The binaries go to <dir>/macos/<arch>/xclang and
 /// <dir>/msvc/<arch>/xclang.exe, where cli.yml's run jobs start them. What
@@ -19,7 +19,7 @@ const { values } = parseArgs({ options: { tree: { type: "string" }, out: { type:
 if (!values.tree || !values.out) fail("--tree <xclang> --out <dir>");
 const tree = path.resolve(values.tree);
 const out = path.resolve(values.out);
-const cli = path.join(import.meta.dirname, "..", "cli");
+const cli = path.join(import.meta.dirname, "..", "..", "cli");
 const exe = process.platform === "win32" ? ".exe" : "";
 const tool = (name: string) => path.join(tree, "bin", name + exe);
 

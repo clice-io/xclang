@@ -3,15 +3,15 @@
 /// libclang libraries (ThinLTO bitcode), found through find_package(Clang),
 /// and its program registering every target's MC layer.
 ///
-///   node tests/libclang.ts --tree <xclang> --libclang <libclang>
+///   node tests/libclang/libclang.ts --tree <xclang> --libclang <libclang>
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import * as common from "../scripts/common.ts";
-import * as licenses from "../scripts/licenses.ts";
+import * as common from "../../scripts/common.ts";
+import * as licenses from "../../scripts/licenses.ts";
 
 const { values } = parseArgs({ options: { tree: { type: "string" }, libclang: { type: "string" } } });
 if (!values.tree || !values.libclang) common.fail("--tree <xclang> --libclang <libclang>");

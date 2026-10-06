@@ -1,11 +1,11 @@
 name: bazel
 
 # The Bazel module (packages/bazel) on a machine of every host:
-# tests/bazel's tests, then tests/bazel.ts's checks of the actions' keys and
+# tests/bazel's tests, then tests/bazel/bazel.ts's checks of the actions' keys and
 # of the module as the registry and git_override have it; and every host's
 # toolchain for every other target it builds for, tests/bazel's tests (and,
 # from Linux x64 to Windows x64, kotatsu's) cross-compiled there and run on a
-# machine of the target (tests/bazel-cross.ts).
+# machine of the target (tests/bazel/cross.ts).
 #
 #   by hand         with the archives packages/bazel/bazel/versions.bzl names
 #   main.yml        with a run's archives (dist-run), unpacked and named by
@@ -104,7 +104,7 @@ jobs:
           gsym="$PWD/bazel-bin/symbols/hello.gsym"; [[ "$RUNNER_OS" == Windows ]] && gsym="$(cygpath -m "$gsym")"
           MSYS_NO_PATHCONV=1 bazel "${startup[@]}" build --strip=never //symbols:hello_symbols $REPO_ENV --disk_cache="$RUNNER_TEMP/disk"
           MSYS_NO_PATHCONV=1 bazel "${startup[@]}" run $REPO_ENV --disk_cache="$RUNNER_TEMP/disk" @xclang//bazel:llvm-gsymutil -- "$gsym" | grep '"main"'
-      # gdb, for tests/bazel.ts's debugger checks.
+      # gdb, for tests/bazel/bazel.ts's debugger checks.
       - name: gdb
         if: ${{ runner.os == 'Linux' && !inputs.dist-run }}
         run: command -v gdb || { sudo apt-get update -q && sudo apt-get install -y -q gdb; }
@@ -112,7 +112,7 @@ jobs:
       # named by packages/bazel/bazel/versions.bzl.
       - name: Cache keys and inputs
         if: ${{ !inputs.dist-run }}
-        run: node tests/bazel.ts --disk-cache "$RUNNER_TEMP/disk"
+        run: node tests/bazel/bazel.ts --disk-cache "$RUNNER_TEMP/disk"
 
   # Built here, run by the run job on a machine of the target: macOS targets
   # build on macOS hosts only. Not for a run's archives, whose libclang is the
@@ -168,15 +168,15 @@ jobs:
           gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
           node scripts/bazel.ts versions "$RUNNER_TEMP/SHA256SUMS"
       - name: Build
-        run: node tests/bazel-cross.ts build "${{ matrix.target }}" "$RUNNER_TEMP/out/${{ matrix.host }}/tests"
+        run: node tests/bazel/cross.ts build "${{ matrix.target }}" "$RUNNER_TEMP/out/${{ matrix.host }}/tests"
       # The latest kotatsu of the clice registry, its tests among the rest of
       # it (other test rules than cc_test build for another target only on
       # any execution platform: Bazel's legacy test toolchain).
       - name: kotatsu
         if: matrix.host == 'x86_64-unknown-linux-gnu' && matrix.target == 'x86_64-w64-mingw32'
         run: |
-          node tests/bazel-cross.ts registry kotatsu "$RUNNER_TEMP/kotatsu"
-          node tests/bazel-cross.ts build "${{ matrix.target }}" "$RUNNER_TEMP/out/${{ matrix.host }}/kotatsu" \
+          node tests/bazel/cross.ts registry kotatsu "$RUNNER_TEMP/kotatsu"
+          node tests/bazel/cross.ts build "${{ matrix.target }}" "$RUNNER_TEMP/out/${{ matrix.host }}/kotatsu" \
             --workspace "$RUNNER_TEMP/kotatsu" -- --@bazel_tools//tools/test:incompatible_use_default_test_toolchain=false
       - uses: actions/upload-artifact@v7
         with:
@@ -214,7 +214,7 @@ jobs:
           path: ${{ runner.temp }}/c
           merge-multiple: true
       - name: Run
-        run: node tests/bazel-cross.ts run "$RUNNER_TEMP/c"
+        run: node tests/bazel/cross.ts run "$RUNNER_TEMP/c"
 
   publish:
     if: ${{ inputs.tag || github.event.release.tag_name }}

@@ -80,7 +80,7 @@ export const SOURCES = {
     url: `${GH}/KhronosGroup/Vulkan-Headers/archive/refs/tags/vulkan-sdk-1.4.350.0.tar.gz`,
     sha256: "70270d10bf2c1e074a06ee37a50b75d332993d1b80a1d9526eeed2da6d82ed22",
   },
-  /// The benchmark (tests/bench.ts): code the training never saw, and
+  /// The benchmark (tests/bench/bench.ts): code the training never saw, and
   /// LLVM's own builds of every host, the benchmark's reference.
   "fmt": {
     url: `${GH}/fmtlib/fmt/archive/refs/tags/11.2.0.tar.gz`,

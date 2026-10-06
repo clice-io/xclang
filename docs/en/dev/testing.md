@@ -8,18 +8,18 @@ here instead of naming tests.
 ## Summary
 
 - Before a release, each host archive is tested on a machine of that host
-  (`tests/smoke.ts`, `tests/libclang.ts`). The CMake package and the Bazel
-  module are tested with the archives (`tests/cmake.ts`, `tests/bazel`),
+  (`tests/toolchain/smoke.ts`, `tests/libclang/libclang.ts`). The CMake package and the Bazel
+  module are tested with the archives (`tests/cmake/cmake.ts`, `tests/bazel`),
   and so are the MSVC targets and the macOS targets from Linux and Windows
-  hosts (`tests/msvc.ts`, `tests/macos.ts`). The `xclang` command is
-  tested on every host (`tests/cli.ts`).
-- On publishing, the Bazel module is checked further (`tests/bazel.ts`),
+  hosts (`tests/sdk/msvc.ts`, `tests/sdk/macos.ts`). The `xclang` command is
+  tested on every host (`tests/cli/cli.ts`).
+- On publishing, the Bazel module is checked further (`tests/bazel/bazel.ts`),
   and cross-built programs run on a machine of their target, with no
   emulator: 22 host-to-target pairs.
 - After a release is published, examples.yml runs the commands of the docs
   as written, from conda.clice.io, the archives, the tag and bazel.clice.io.
   What they build for another target then runs on a runner of that target.
-- `tests/docs.ts` checks that the files the docs show are the files CI
+- `tests/docs/docs.ts` checks that the files the docs show are the files CI
   builds, that their commands are the steps examples.yml runs, and that
   every link reaches its page and heading.
 
@@ -28,24 +28,24 @@ here instead of naming tests.
 | workflow | when | what |
 |---|---|---|
 | main.yml, stage `package` (package.yml) | every release candidate | each host's archives made again on another machine, in another directory, with other file times, umask 077 and three xz threads (the first has four): the same bytes |
-| main.yml, stage `test` (test.yml) | every release candidate | `tests/smoke.ts` and `tests/libclang.ts` on a machine of each host |
-| main.yml with `repack-of` (repack.yml) | every repack | `tests/repack.ts`: each host's archives against those of the release repacked, file by file; only the packaging's files differ |
+| main.yml, stage `test` (test.yml) | every release candidate | `tests/toolchain/smoke.ts` and `tests/libclang/libclang.ts` on a machine of each host |
+| main.yml with `repack-of` (repack.yml) | every repack | `tests/release/repack.ts`: each host's archives against those of the release repacked, file by file; only the packaging's files differ |
 | bazel.yml | every release candidate | `tests/bazel` with the module |
-| bazel.yml | on publishing, and by hand | also `tests/bazel.ts`, and cross builds run on the target (`tests/bazel-cross.ts`) |
-| cmake.yml | every release candidate, and on publishing | `tests/cmake.ts`: the package by `PATH`, through the toolchain file, and from FetchContent of the tag |
+| bazel.yml | on publishing, and by hand | also `tests/bazel/bazel.ts`, and cross builds run on the target (`tests/bazel/cross.ts`) |
+| cmake.yml | every release candidate, and on publishing | `tests/cmake/cmake.ts`: the package by `PATH`, through the toolchain file, and from FetchContent of the tag |
 | conda.yml | before the conda packages are published | each package installed with pixi and used, on every host |
 | examples.yml | after publishing, and on pushes that change `examples/` or the workflow | the commands and `examples/` of the docs, as written; the programs for other targets on their runners |
-| docs.yml | pushes that change the docs, `examples/`, `tests/docs.ts` or a workflow, on every branch | `tests/docs.ts`; on `main`, then publishing to docs.clice.io |
-| cli.yml | every release candidate, with main.yml's `cli` (on by default), and by hand | the `xclang` command: `tests/cli.ts`, `tests/cargo.ts` |
-| main.yml, stage `msvc` (msvc.yml) | every release candidate; needs `cli`, as the archives' `xclang` fetches the SDK | the MSVC targets: `tests/msvc.ts` |
-| main.yml, stage `macos` (macos.yml) | every release candidate; needs `cli` | the macOS targets from Linux and Windows hosts: `tests/macos.ts` |
-| bench.yml | by hand, for the notes or the docs | compile speed against LLVM's and Apple's builds (`tests/bench.ts`) |
+| docs.yml | pushes that change the docs, `examples/`, `tests/docs/docs.ts` or a workflow, on every branch | `tests/docs/docs.ts`; on `main`, then publishing to docs.clice.io |
+| cli.yml | every release candidate, with main.yml's `cli` (on by default), and by hand | the `xclang` command: `tests/cli/cli.ts`, `tests/cli/cargo.ts` |
+| main.yml, stage `msvc` (msvc.yml) | every release candidate; needs `cli`, as the archives' `xclang` fetches the SDK | the MSVC targets: `tests/sdk/msvc.ts` |
+| main.yml, stage `macos` (macos.yml) | every release candidate; needs `cli` | the macOS targets from Linux and Windows hosts: `tests/sdk/macos.ts` |
+| bench.yml | by hand, for the notes or the docs | compile speed against LLVM's and Apple's builds (`tests/bench/bench.ts`) |
 
 How the stages fit together is in the [build pipeline](release-build.md).
 
 ## The Toolchain on Each Host
 
-`tests/smoke.ts` checks an unpacked toolchain on a machine of its host:
+`tests/toolchain/smoke.ts` checks an unpacked toolchain on a machine of its host:
 
 - Its own programs load no C++ runtime, and on Linux need glibc 2.17 at
   most.
@@ -71,7 +71,7 @@ How the stages fit together is in the [build pipeline](release-build.md).
 - dSYM and GSYM debug symbols made by the toolchain's `dsymutil` and
   `llvm-gsymutil`, for every target.
 
-`tests/libclang.ts` builds and runs `tests/libclang`, a small tool on
+`tests/libclang/libclang.ts` builds and runs `tests/libclang`, a small tool on
 libclang. It finds libclang through `find_package(Clang)`, links the ThinLTO
 bitcode, and registers every target's MC layer.
 
@@ -87,11 +87,11 @@ The job fails if any program loads a C++ runtime. That is the
 
 ## Cross-Compiling
 
-- `tests/smoke.ts` and `tests/cmake.ts` build for every target on every
+- `tests/toolchain/smoke.ts` and `tests/cmake/cmake.ts` build for every target on every
   host.
 - bazel.yml builds `tests/bazel` on every host for every other target it
   can build for: 22 host-to-target pairs. A machine of the target then runs
-  the tests (`tests/bazel-cross.ts`): Linux-built Windows programs on
+  the tests (`tests/bazel/cross.ts`): Linux-built Windows programs on
   Windows, Windows-built Linux programs on Linux, and so on.
 - From Linux x64, bazel.yml builds kotatsu's tests, from the registry, for
   Windows x64, and runs them on Windows.
@@ -110,7 +110,7 @@ The job fails if any program loads a C++ runtime. That is the
 
 ## CMake Package
 
-`tests/cmake.ts` builds `tests/cmake` on every host, with CMake 3.28 and
+`tests/cmake/cmake.ts` builds `tests/cmake` on every host, with CMake 3.28 and
 Ninja 1.11, and with the newest of both:
 
 1. `find_package(xclang)` found by `PATH`, with
@@ -129,7 +129,7 @@ Ninja 1.11, and with the newest of both:
 ## Bazel Module
 
 `tests/bazel` builds and tests with the module on every host.
-`tests/bazel.ts` then checks, with the same disk cache:
+`tests/bazel/bazel.ts` then checks, with the same disk cache:
 
 1. **No absolute paths.** A copy of the checkout elsewhere, with another
    output base, builds the programs from the disk cache alone. So do they
@@ -184,7 +184,7 @@ for another target.
 
 cli.yml builds the `xclang` command for every host, with a released xclang
 as the C compiler and linker (`scripts/cli.ts`). On a machine of each
-host, `tests/cli.ts` then:
+host, `tests/cli/cli.ts` then:
 
 - fetches both vendor SDKs;
 - cross-compiles C, C++ and Objective-C programs against them, for both
@@ -192,13 +192,13 @@ host, `tests/cli.ts` then:
   them on macOS and Windows runners;
 - adds and removes targets against a test index.
 
-From Linux, `tests/cargo.ts` builds `cli/` with cargo for macOS and the MSVC
+From Linux, `tests/cli/cargo.ts` builds `cli/` with cargo for macOS and the MSVC
 ABI against the fetched SDKs ([Rust and Cargo](../integrations/cargo.md)).
 
 ## MSVC Targets
 
 msvc.yml tests the MSVC targets with a run's archives, from Linux x64,
-macOS arm64 and Windows x64 hosts. On each, `tests/msvc.ts`:
+macOS arm64 and Windows x64 hosts. On each, `tests/sdk/msvc.ts`:
 
 - checks that clang and clang-cl stop without the SDK and name
   `sdk/windows`;
@@ -223,7 +223,7 @@ anything of the SDK.
 
 macos.yml tests the macOS targets from Linux and Windows hosts with a
 run's archives, on Linux x64 and arm64 and Windows x64 and arm64 hosts. On
-each, `tests/macos.ts`:
+each, `tests/sdk/macos.ts`:
 
 - checks that clang without the SDK names `sdk/macos`, and that the CMake
   package stops and says how to fetch it;
@@ -270,7 +270,7 @@ checks what the page says it prints:
 
 ## The Docs
 
-- `node tests/docs.ts` checks that every code block under a
+- `node tests/docs/docs.ts` checks that every code block under a
   `<!-- file: -->` marker is that file of the repository, and every block
   under `<!-- excerpt: -->` consecutive lines of its file. Each command
   block outside these Development pages is a step of examples.yml, or

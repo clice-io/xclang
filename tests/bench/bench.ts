@@ -10,7 +10,7 @@
 /// order) and the median of the rounds is reported, per compiler and
 /// against the first one.
 ///
-///   node tests/bench.ts --tree <xclang> --compiler name=<clang++> ...
+///   node tests/bench/bench.ts --tree <xclang> --compiler name=<clang++> ...
 ///     [--config name]   give that compiler the tree's config file
 ///                       (--config=<tree>/bin/<target>.cfg), so that it
 ///                       sees the same headers as xclang
@@ -25,7 +25,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import * as common from "../scripts/common.ts";
+import * as common from "../../scripts/common.ts";
 
 const { values } = parseArgs({
   options: {

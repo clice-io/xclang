@@ -18,8 +18,8 @@ description: Move xclang to a new LLVM release (e.g. 23.1.2 → 23.1.3 or 24.1.0
    update each README's `Checked:`.
 3. **Version-specific code**: `grep -rn "23\b\|23\.1" --include=*.ts
    --include=*.bzl --include=*.cmake --include=*.yml .` and read each hit:
-   - tests/libclang.ts expects `clang version <major>`;
-   - tests/bench.ts and bench.yml name the LLVM compilers they compare;
+   - tests/libclang/libclang.ts expects `clang version <major>`;
+   - tests/bench/bench.ts and bench.yml name the LLVM compilers they compare;
    - cmake/caches/*.cmake and scripts/runtimes.ts / toolchain.ts options a
      new LLVM renamed or removed (CMake warnings of unused variables in the
      build logs);

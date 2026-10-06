@@ -1,7 +1,7 @@
 name: macos
 
 # The macOS targets, aarch64- and x86_64-apple-darwin, from Linux and
-# Windows hosts, of a run's archives (tests/macos.ts): on a machine of each
+# Windows hosts, of a run's archives (tests/sdk/macos.ts): on a machine of each
 # such host, Apple's SDK fetched by the toolchain's own command (the
 # archives carry it with main.yml's cli), programs built with clang,
 # clang++ and CMake for both targets; then every host's programs run on
@@ -61,7 +61,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/unpacked"
           "$tar" -xf "$RUNNER_TEMP"/dist/xclang-*.tar.xz -C "$RUNNER_TEMP/unpacked"
       - name: Build
-        run: node tests/macos.ts --tree "$RUNNER_TEMP/unpacked/xclang" --out programs
+        run: node tests/sdk/macos.ts --tree "$RUNNER_TEMP/unpacked/xclang" --out programs
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
@@ -92,4 +92,4 @@ jobs:
           pattern: macos-programs-*
           path: programs
       - name: Run
-        run: node tests/macos.ts --run programs/*/${{ matrix.arch }} programs/*/universal
+        run: node tests/sdk/macos.ts --run programs/*/${{ matrix.arch }} programs/*/universal

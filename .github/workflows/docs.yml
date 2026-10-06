@@ -1,6 +1,6 @@
 name: docs
 
-# tests/docs.ts on every branch: the docs' files and command blocks are
+# tests/docs/docs.ts on every branch: the docs' files and command blocks are
 # examples/'s files and examples.yml's steps, their links reach pages and
 # headings, their status cells are status words. On main, then, docs/ to
 # docs.clice.io/xclang: clice-io/docs's sync action copies docs/en into that
@@ -12,7 +12,7 @@ on:
     paths:
       - "docs/**"
       - "examples/**"
-      - "tests/docs.ts"
+      - "tests/docs/**"
       - ".github/workflows/**"
       - "README.md"
       - "README.zh-CN.md"
@@ -35,7 +35,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-      - run: node tests/docs.ts
+      - run: node tests/docs/docs.ts
 
   publish:
     needs: check

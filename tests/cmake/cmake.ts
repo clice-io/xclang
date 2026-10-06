@@ -2,7 +2,7 @@
 /// archives unpacked: tests/cmake built and its tests run, with the cmake
 /// and ninja in PATH.
 ///
-///   node tests/cmake.ts --tree <xclang> --sums <SHA256SUMS>
+///   node tests/cmake/cmake.ts --tree <xclang> --sums <SHA256SUMS>
 ///     [--libclang <libclang>] [--url <archives> [--git <ref>] [--cache <dir>]]
 ///
 /// 1. xclang's bin/ in PATH, as pixi has it, and CMAKE_CXX_COMPILER=clang++:
@@ -29,7 +29,7 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import * as common from "../scripts/common.ts";
+import * as common from "../../scripts/common.ts";
 
 const { values } = parseArgs({
   options: {

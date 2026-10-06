@@ -1,7 +1,7 @@
 /// Checks of the Bazel module beyond tests/bazel's own tests, run after them
 /// with the same disk cache:
 ///
-///   node tests/bazel.ts --disk-cache <dir> [--previous <version>]
+///   node tests/bazel/bazel.ts --disk-cache <dir> [--previous <version>]
 ///
 /// 1. A copy of the checkout elsewhere (other paths, another output base)
 ///    builds tests/bazel's programs from the disk cache alone: no action's
@@ -46,7 +46,7 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import * as common from "../scripts/common.ts";
+import * as common from "../../scripts/common.ts";
 
 const { values } = parseArgs({
   options: {

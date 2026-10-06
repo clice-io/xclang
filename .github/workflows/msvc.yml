@@ -1,7 +1,7 @@
 name: msvc
 
 # The MSVC targets, x86_64- and aarch64-pc-windows-msvc, of a run's
-# archives (tests/msvc.ts): on a machine of three hosts, the Windows SDK
+# archives (tests/sdk/msvc.ts): on a machine of three hosts, the Windows SDK
 # fetched by the toolchain's own command (the archives carry it with
 # main.yml's cli), programs built with clang, clang++, clang-cl and CMake
 # for both targets, and from Linux kotatsu and its tests; then every
@@ -71,7 +71,7 @@ jobs:
           git -C "$RUNNER_TEMP/kotatsu" checkout -q "$KOTATSU"
           echo "KOTATSU_ARGS=--kotatsu $RUNNER_TEMP/kotatsu" >> "$GITHUB_ENV"
       - name: Build
-        run: node tests/msvc.ts --tree "$RUNNER_TEMP/unpacked/xclang" --out programs $KOTATSU_ARGS
+        run: node tests/sdk/msvc.ts --tree "$RUNNER_TEMP/unpacked/xclang" --out programs $KOTATSU_ARGS
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
@@ -112,4 +112,4 @@ jobs:
           git -C "$RUNNER_TEMP/kotatsu" checkout -q "$KOTATSU"
           echo "KOTATSU_SRC=$RUNNER_TEMP/kotatsu" >> "$GITHUB_ENV"
       - name: Run
-        run: node tests/msvc.ts --run programs/*/${{ matrix.arch }}
+        run: node tests/sdk/msvc.ts --run programs/*/${{ matrix.arch }}

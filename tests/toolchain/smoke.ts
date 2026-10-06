@@ -9,14 +9,14 @@
 /// - dSYM and GSYM debug symbols by the tree's dsymutil and llvm-gsymutil;
 /// - share/licenses names every component.
 ///
-///   node tests/smoke.ts --tree <xclang>
+///   node tests/toolchain/smoke.ts --tree <xclang>
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import * as licenses from "../scripts/licenses.ts";
+import * as licenses from "../../scripts/licenses.ts";
 
 const { values } = parseArgs({ options: { tree: { type: "string" } } });
 if (!values.tree) fail("--tree <xclang>");
@@ -294,7 +294,7 @@ exports:
 
 /// The macOS targets' SDK: on a macOS host the one clang finds by itself
 /// (Xcode's), elsewhere the one the tree's xclang fetches into sdk/macos,
-/// which clang names when it is not there (tests/macos.ts builds with it).
+/// which clang names when it is not there (tests/sdk/macos.ts builds with it).
 {
   const args = ["--target=arm64-apple-macos", "-c", helloC, "-o", path.join(work, "hello-macos.o")];
   const result = spawnSync(tool("clang"), process.platform === "darwin" ? ["-###", ...args] : args, { encoding: "utf8", cwd: work });
@@ -307,7 +307,7 @@ exports:
 /// The MSVC targets: compiler-rt in the layout lld-link searches, and the
 /// config files of clang and of clang-cl (a plain clang-cl too: none of the
 /// host target's options), which read the Windows SDK the tree's xclang
-/// fetches into sdk/windows and stop without it (tests/msvc.ts builds with
+/// fetches into sdk/windows and stop without it (tests/sdk/msvc.ts builds with
 /// it). clang-cl without the config files warns of nothing.
 for (const a of ["x86_64", "aarch64"]) {
   for (const lib of ["builtins", "profile", ...(a === "x86_64" ? ["asan_dynamic"] : [])]) {

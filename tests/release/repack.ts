@@ -2,7 +2,7 @@
 /// earlier release's (main.yml with reuse-run, no toolchain stage) against
 /// that release's archives of the same names, file by file:
 ///
-///   node tests/repack.ts --previous <dir> --dist <dir>
+///   node tests/release/repack.ts --previous <dir> --dist <dir>
 ///
 /// Every archive of <dist> has its counterpart in <previous>, the version
 /// in the name aside. Each pair is read as a stream (xz | tar, nothing
@@ -19,7 +19,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import * as common from "../scripts/common.ts";
+import * as common from "../../scripts/common.ts";
 
 const { values } = parseArgs({ options: { previous: { type: "string" }, dist: { type: "string" } } });
 if (!values.previous || !values.dist) common.fail("--previous <dir> --dist <dir>");

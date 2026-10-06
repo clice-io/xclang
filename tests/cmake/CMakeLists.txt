@@ -1,4 +1,4 @@
-# The xclang CMake package as a consumer uses it (tests/cmake.ts): the
+# The xclang CMake package as a consumer uses it (tests/cmake/cmake.ts): the
 # compilers, find_package(xclang) and import std, for the host or another
 # target (XCLANG_TARGET).
 #

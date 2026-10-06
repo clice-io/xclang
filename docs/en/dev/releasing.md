@@ -52,7 +52,7 @@ no release, but the next conda build number of the same one.
    runtimes artifacts last 14 days, its profile 30; after that, only a
    full rebuild can make a release. With `repack-of`, the `repack` job
    checks each host's archives against that release's, file by file
-   (`tests/repack.ts`): only the packaging's files may differ.
+   (`tests/release/repack.ts`): only the packaging's files may differ.
 3. **Check the draft**: 17 assets, the test, bazel, cmake, msvc and macos
    jobs green (and repack's, for a repack), sizes against the previous
    release.

@@ -2,7 +2,7 @@
 /// Linux or Windows machine of the toolchain's host, with Apple's SDK its
 /// own command fetches:
 ///
-///   node tests/macos.ts --tree <xclang> --out <dir>
+///   node tests/sdk/macos.ts --tree <xclang> --out <dir>
 ///       without the SDK, clang names sdk/macos and the CMake package stops;
 ///       the SDK of the default preset fetched into the tree; for both
 ///       targets programs built with a bare --target into <dir>/<arch>, and
@@ -15,7 +15,7 @@
 ///       (llvm-otool -L: only the system's) and the macOS and SDK versions
 ///       it names; tests/cmake for both targets through the CMake package;
 ///       universal programs of both (llvm-lipo) in <dir>/universal.
-///   node tests/macos.ts --run <dir>...
+///   node tests/sdk/macos.ts --run <dir>...
 ///       run the programs of programs.json in each directory; on arm64,
 ///       their ad-hoc signature is the linker's; Apple's tools read the
 ///       dSYMs (dwarfdump's UUIDs, atos).
@@ -28,7 +28,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import * as common from "../scripts/common.ts";
+import * as common from "../../scripts/common.ts";
 
 const { values, positionals } = parseArgs({
   options: {
@@ -120,7 +120,7 @@ if (values.run) {
 }
 
 if (!values.tree || !values.out) common.fail("--tree <xclang> --out <dir>, or --run <dir>...");
-if (process.platform === "darwin") common.fail("macOS hosts build with Xcode's SDK (tests/smoke.ts); this is for the others");
+if (process.platform === "darwin") common.fail("macOS hosts build with Xcode's SDK (tests/toolchain/smoke.ts); this is for the others");
 const tree = path.resolve(values.tree);
 const out = path.resolve(values.out);
 const tool = (name: string) => path.join(tree, "bin", name + exe);

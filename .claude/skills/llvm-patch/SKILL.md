@@ -31,7 +31,7 @@ stays gone).
 4. **Validate locally** (cheap): `patch -p1 -F0 --dry-run -d <llvm-project
    at llvmorg-<version>> -i patches/NNNN-*/NNNN.patch`; compile the patched
    translation unit against the release's headers. Never build LLVM here.
-5. **A check that fails without it**, in tests/smoke.ts (runs on every
+5. **A check that fails without it**, in tests/toolchain/smoke.ts (runs on every
    host's toolchain), or tests/bazel / tests/cmake when it is about them.
    Confirm on CI: push `exp/<name>` and run main.yml
    (`stages=runtimes,instrumented,train,toolchain,asan,package,test`, or

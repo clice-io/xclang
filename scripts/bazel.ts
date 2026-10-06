@@ -61,7 +61,7 @@ if (command === "versions") {
   if (versioned === module && !module.includes(`version = "${version}"`)) common.fail("no version in MODULE.bazel");
   fs.writeFileSync(path.join(root, "MODULE.bazel"), versioned);
   fs.writeFileSync(path.join(root, "bazel", "versions.bzl"), versions);
-  /// The same bytes from the same files, on any host (tests/bazel.ts makes
+  /// The same bytes from the same files, on any host (tests/bazel/bazel.ts makes
   /// one on each): a ustar archive written here, sorted, with no owners or
   /// times, gzipped by Node's zlib with the header's OS byte "unknown".
   const blocks: Buffer[] = [];

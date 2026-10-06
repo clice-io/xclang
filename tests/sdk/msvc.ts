@@ -2,7 +2,7 @@
 /// machine of the toolchain's host, with the Windows SDK its own command
 /// fetches:
 ///
-///   node tests/msvc.ts --tree <xclang> --out <dir> [--kotatsu <source>]
+///   node tests/sdk/msvc.ts --tree <xclang> --out <dir> [--kotatsu <source>]
 ///       without the SDK, clang says where it looks for it; the SDK of the
 ///       default preset fetched into the tree, and windows-2022's for x64
 ///       (then the first in use again: sdk use); for both targets programs
@@ -14,7 +14,7 @@
 ///       DLLs each program imports checked here. tests/cmake for both
 ///       targets through the CMake package; with --kotatsu, kotatsu's tests
 ///       for x64. Programs built for this machine run here too.
-///   node tests/msvc.ts --run <dir>...
+///   node tests/sdk/msvc.ts --run <dir>...
 ///       run the programs of programs.json in each directory
 ///
 /// Only programs leave the job, and xclang's ASan DLL next to them: nothing
@@ -25,7 +25,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import * as common from "../scripts/common.ts";
+import * as common from "../../scripts/common.ts";
 
 const { values, positionals } = parseArgs({
   options: {

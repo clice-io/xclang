@@ -22,12 +22,12 @@
 ///   unclear ("is to be", "being considered", a bare "**Missing.**") are
 ///   not used.
 ///
-///   node tests/docs.ts
+///   node tests/docs/docs.ts
 
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-const ROOT = path.resolve(import.meta.dirname, "..");
+const ROOT = path.resolve(import.meta.dirname, "..", "..");
 const DOCS = path.join(ROOT, "docs");
 
 function markdown(dir: string): string[] {

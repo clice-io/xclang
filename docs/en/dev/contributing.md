@@ -58,7 +58,7 @@ These are cheap locally:
 
 - `npm install && npm run check`: TypeScript type checks of `scripts/` and
   `tests/`.
-- `node tests/docs.ts`: the code blocks of the docs against `examples/`,
+- `node tests/docs/docs.ts`: the code blocks of the docs against `examples/`,
   the links, and the status words.
 - `cd cli && cargo test`: the unit tests of the xclang command.
 - A patch: `patch -p1 -F0 --dry-run` against the LLVM release source, and
@@ -84,11 +84,11 @@ touches. What each test covers is in [testing](testing.md).
 
 | change | test |
 |---|---|
-| the toolchain, the runtimes, a patch | `tests/smoke.ts` (the `test` stage of main.yml, every host) |
-| libclang | `tests/libclang.ts` |
+| the toolchain, the runtimes, a patch | `tests/toolchain/smoke.ts` (the `test` stage of main.yml, every host) |
+| libclang | `tests/libclang/libclang.ts` |
 | the CMake package | `tests/cmake` (cmake.yml) |
-| the Bazel module | `tests/bazel`, `tests/bazel.ts`, `tests/bazel-cross.ts` (bazel.yml) |
-| the xclang command | `tests/cli.ts`, `tests/cargo.ts` (cli.yml) |
+| the Bazel module | `tests/bazel`, `tests/bazel/bazel.ts`, `tests/bazel/cross.ts` (bazel.yml) |
+| the xclang command | `tests/cli/cli.ts`, `tests/cli/cargo.ts` (cli.yml) |
 | the commands of the docs, `examples/` | examples.yml |
 
 ## The Docs
@@ -110,7 +110,7 @@ and gives their sidebar labels, one to three words each.
 - A code block under `<!-- file: <path> -->` must be that file of the
   repository, and one under `<!-- excerpt: <path> -->` consecutive lines of
   it. A command block is an excerpt of a step of examples.yml, or says
-  why CI does not run it (`<!-- not run: <why> -->`). `tests/docs.ts`
+  why CI does not run it (`<!-- not run: <why> -->`). `tests/docs/docs.ts`
   checks all three.
 - An example of a page is a directory of `examples/`, with the `pixi.toml`
   of the quick start, and an `expected.txt` for what its program prints.

@@ -4,10 +4,10 @@ name: cli
 # xclang as the C compiler and linker (scripts/cli.ts): Linux and Windows
 # from Linux x64, macOS on macOS arm64, as the cli-build-* artifacts. Then,
 # unless called with build-only, on a machine of each host
-# (tests/cli.ts): both vendor SDKs fetched, C, C++ and Objective-C
+# (tests/cli/cli.ts): both vendor SDKs fetched, C, C++ and Objective-C
 # programs cross-compiled against them, target add and remove against a
 # test index; from Linux, cli/ itself cross-built with cargo for macOS and
-# the MSVC ABI against the SDKs (tests/cargo.ts). The programs run on macOS
+# the MSVC ABI against the SDKs (tests/cli/cargo.ts). The programs run on macOS
 # and Windows. Only the programs leave a job, never an SDK.
 
 on:
@@ -104,11 +104,11 @@ jobs:
           chmod +x "$T"/bin/xclang*
           echo "T=$T" >> "$GITHUB_ENV"
       - name: Test
-        run: node tests/cli.ts --tree "$T" --out programs
+        run: node tests/cli/cli.ts --tree "$T" --out programs
       # cargo with xclang for the SDKs' targets, from Linux (docs/en/integrations/cargo.md).
       - name: cargo for macOS and MSVC targets
         if: ${{ matrix.host == 'x86_64-unknown-linux-gnu' }}
-        run: node tests/cargo.ts --tree "$T" --out programs
+        run: node tests/cli/cargo.ts --tree "$T" --out programs
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
@@ -144,4 +144,4 @@ jobs:
           path: programs
       # Every host's programs for this machine.
       - name: Run
-        run: node tests/cli.ts --run programs/*/${{ matrix.dir }}
+        run: node tests/cli/cli.ts --run programs/*/${{ matrix.dir }}

@@ -103,7 +103,7 @@ Neither is reported upstream.
 ## What It Buys
 
 bench.yml times compiles on machines of each host, for that host's target
-(tests/bench.ts). The code is code the training never saw:
+(tests/bench/bench.ts). The code is code the training never saw:
 
 - ten of fmt's tests: heavy templates, C++20;
 - the C sources of lua;

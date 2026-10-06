@@ -7,10 +7,10 @@ Thanks for helping. The full guide is
 - **Builds run on CI.** A release run is about three hours on
   GitHub-hosted runners; run `main.yml` on a branch of your own
   (`exp/<name>`), reusing earlier stages with `reuse-run`. Locally, check
-  types (`npm install && npm run check`), the docs (`node tests/docs.ts`),
+  types (`npm install && npm run check`), the docs (`node tests/docs/docs.ts`),
   the xclang command (`cd cli && cargo test`), and patches with
   `patch -p1 -F0 --dry-run`.
-- **Every change comes with its check**: tests/smoke.ts for the toolchain,
+- **Every change comes with its check**: tests/toolchain/smoke.ts for the toolchain,
   runtimes and patches; tests/cmake, tests/bazel for the build systems;
   examples.yml for what the docs show.
 - **Scripts are TypeScript on Node**, with `///` comments.

@@ -234,7 +234,7 @@ is Microsoft's STL.
 - The hybrid CRT, `/MD` and the static CRT all work with ASan.
 - arm64 Windows has no ASan or libFuzzer in LLVM 23.
 
-<!-- not run: needs a vendor SDK the user accepts the license of; msvc.yml runs these, through tests/msvc.ts, and their programs on Windows -->
+<!-- not run: needs a vendor SDK the user accepts the license of; msvc.yml runs these, through tests/sdk/msvc.ts, and their programs on Windows -->
 ```sh
 clang++ --target=x86_64-pc-windows-msvc -fsanitize=address -g -O1 asan.cpp -o asan.exe
 clang --target=aarch64-pc-windows-msvc -fsanitize=undefined -O1 ubsan.c -o ubsan.exe

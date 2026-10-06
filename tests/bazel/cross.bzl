@@ -1,4 +1,4 @@
-"""tests/bazel-cross.ts's aspect: what running a test takes, for a test built
+"""tests/bazel/cross.ts's aspect: what running a test takes, for a test built
 for another target than the machine's, as <name>.xclang-cross.json beside it
 (output group xclang_cross). The script puts it into the workspace it builds,
 as //xclang_cross:manifest.bzl."""

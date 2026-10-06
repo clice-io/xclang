@@ -4,7 +4,7 @@ name: examples
 # a machine of every host: against the published release the examples name,
 # from where users get it (conda.clice.io with pixi, the GitHub release's
 # archives, the tag with FetchContent, bazel.clice.io). A page's command
-# block is lines of a step here, which tests/docs.ts checks
+# block is lines of a step here, which tests/docs/docs.ts checks
 # (`<!-- excerpt: .github/workflows/examples.yml -->`); the steps check what
 # the commands print against the examples' expected.txt. Programs built for
 # another target are uploaded, and on-target runs them on a runner of their

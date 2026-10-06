@@ -1,7 +1,7 @@
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@xclang//bazel:debug_symbols.bzl", "xclang_debug_symbols")
 
-# Debug symbols, which tests/bazel.ts builds and checks: a program's GSYM,
+# Debug symbols, which tests/bazel/bazel.ts builds and checks: a program's GSYM,
 # and on macOS the dSYM its link makes. Manual: they need --strip=never in
 # fastbuild, which otherwise strips the programs of their DWARF.
 cc_binary(

@@ -1,13 +1,13 @@
 /// Check xclang's own command (cli/) in a toolchain tree, on a machine of
 /// the tree's host:
 ///
-///   node tests/cli.ts --tree <xclang> --out <dir>
+///   node tests/cli/cli.ts --tree <xclang> --out <dir>
 ///       sdk list; both SDKs fetched from the vendors into the tree; C, C++
 ///       and Objective-C programs cross-compiled against them for arm64 and
 ///       x86_64 macOS and for x64 and arm64 Windows (MSVC ABI), into
 ///       <dir>/macos/<arch> and <dir>/msvc/<arch> (programs only: nothing
 ///       of an SDK); target list, add and remove against a test index
-///   node tests/cli.ts --run <dir>...
+///   node tests/cli/cli.ts --run <dir>...
 ///       run every program in the directories: those built for this machine
 ///
 /// The programs and what they check are the SDK probe's (tests/sdk).
@@ -25,7 +25,7 @@ const { values, positionals } = parseArgs({
 });
 const windows = process.platform === "win32";
 const exe = windows ? ".exe" : "";
-const sources = path.join(import.meta.dirname, "sdk");
+const sources = path.join(import.meta.dirname, "..", "sdk");
 const failures: string[] = [];
 const summary: string[] = [];
 

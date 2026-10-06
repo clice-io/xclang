@@ -2,16 +2,16 @@
 /// built for another target, then run on a machine of that target
 /// (bazel.yml's cross and run jobs).
 ///
-///   node tests/bazel-cross.ts build <triple> <dir> [--workspace <ws>] [-- <bazel arguments>]
+///   node tests/bazel/cross.ts build <triple> <dir> [--workspace <ws>] [-- <bazel arguments>]
 ///       builds the workspace (tests/bazel by default; the targets of the
 ///       arguments, //... if none) for @xclang//platforms:<triple>, and puts
 ///       every cc_test of them into <dir>: its runfiles, and its command line
 ///       in tests.json
-///   node tests/bazel-cross.ts registry <module> <ws>
+///   node tests/bazel/cross.ts registry <module> <ws>
 ///       <ws>: the latest version of a module of the clice registry
 ///       (bazel.clice.io), from its source archive, on this checkout's
 ///       xclang module
-///   node tests/bazel-cross.ts run <dir>
+///   node tests/bazel/cross.ts run <dir>
 ///       runs the tests of every tests.json under <dir> here, as Bazel runs
 ///       a test: from the workspace's directory of its runfiles
 
@@ -21,11 +21,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import * as common from "../scripts/common.ts";
+import * as common from "../../scripts/common.ts";
 
 const windows = process.platform === "win32";
 
-/// What tests.json says of a test (bazel-cross.bzl): the paths of its
+/// What tests.json says of a test (cross.bzl): the paths of its
 /// executable and its arguments relative to the workspace's directory of its
 /// runfiles, which is relative to tests.json.
 interface Test {
@@ -100,7 +100,7 @@ function build(argv: string[]): void {
   /// The aspect, as a package of the workspace.
   const aspect = path.join(workspace, "xclang_cross");
   fs.mkdirSync(aspect, { recursive: true });
-  fs.copyFileSync(path.join(import.meta.dirname, "bazel-cross.bzl"), path.join(aspect, "manifest.bzl"));
+  fs.copyFileSync(path.join(import.meta.dirname, "cross.bzl"), path.join(aspect, "manifest.bzl"));
   fs.writeFileSync(path.join(aspect, "BUILD.bazel"), "");
 
   bazel(workspace, ["build", platform, "--aspects=//xclang_cross:manifest.bzl%xclang_cross",
@@ -180,7 +180,7 @@ async function registry(argv: string[]): Promise<void> {
   fs.rmSync(path.join(workspace, "MODULE.bazel.lock"), { force: true });
   const module = path.join(workspace, "MODULE.bazel");
   fs.appendFileSync(module, `
-# tests/bazel-cross.ts: xclang's module of this checkout.
+# tests/bazel/cross.ts: xclang's module of this checkout.
 local_path_override(
     module_name = "xclang",
     path = "${path.join(common.ROOT, "packages", "bazel").replaceAll("\\", "/")}",

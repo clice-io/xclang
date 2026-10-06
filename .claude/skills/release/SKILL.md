@@ -79,7 +79,7 @@ tells which.
    every unit from reuse-run; package takes each host's toolchain, libclang
    and ASan libclang from it and builds the command anew; release takes
    the profile from profile-run. The repack job (repack.yml,
-   tests/repack.ts) compares every host's archives with those of
+   tests/release/repack.ts) compares every host's archives with those of
    `repack-of`, member by member: only the packaging's files may differ
    (config files, lib/cmake/xclang, bin/xclang, share/licenses); a
    program, library or header that differs fails it, and the release with
@@ -124,11 +124,11 @@ tells which.
    - `node scripts/bazel.ts versions <SHA256SUMS of the release>` →
      packages/bazel/bazel/versions.bzl; `version = "<version>"` in
      packages/bazel/MODULE.bazel and tests/bazel/MODULE.bazel;
-   - tests/bazel.ts: `previous` default → the release before this one;
+   - tests/bazel/bazel.ts: `previous` default → the release before this one;
    - README.md, README.zh-CN.md, docs/en/ and examples/ (the pixi
      workspace, FetchContent's `XCLANG_VERSION`, the Bazel module) and
      `VERSION`, the cache key and the steps the docs show in
-     .github/workflows/examples.yml (tests/docs.ts holds them equal):
+     .github/workflows/examples.yml (tests/docs/docs.ts holds them equal):
      `xclang = "<version>.*"`, `bazel_dep(... version = "<version>")`,
      archive names, sizes (`grep -rn <previous version> README* docs
      examples .github/workflows/examples.yml` finds them); the "Runs for

@@ -1,8 +1,8 @@
 /// The median, over the machines of a host, of each compiler's time
-/// relative to the first compiler of that machine (tests/bench.ts writes
+/// relative to the first compiler of that machine (tests/bench/bench.ts writes
 /// one JSON file per machine).
 ///
-///   node tests/bench-report.ts <directory of bench-*.json>
+///   node tests/bench/report.ts <directory of bench-*.json>
 
 import fs from "node:fs";
 import path from "node:path";

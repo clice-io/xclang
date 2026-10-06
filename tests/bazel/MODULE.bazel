@@ -14,7 +14,7 @@ local_path_override(
 xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
 use_repo(xclang, "libclang", "libclang_asan", "llvm_option_inc")
 
-# Sources of another repository, which tests/bazel.ts's debuggers find under
+# Sources of another repository, which tests/bazel/bazel.ts's debuggers find under
 # bazel-<workspace>/external/.
 new_local_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:local.bzl", "new_local_repository")
 
