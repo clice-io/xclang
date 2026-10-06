@@ -1,4 +1,5 @@
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@xclang//bazel:debug_symbols.bzl", "xclang_debug_symbols")
 
 # Debug symbols, which tests/bazel/bazel.ts builds and checks: a program's GSYM,
@@ -57,5 +58,48 @@ cc_binary(
 xclang_debug_symbols(
     name = "lexer_symbols",
     binary = ":lexer",
+    tags = ["manual"],
+)
+
+# A library whose objects share names, as a module's do: a partition and an
+# implementation unit (logging.cppm, logging.cpp), and one name in two
+# directories (a/types.cpp, b/types.cpp). Each one's lines are in the GSYM,
+# and on macOS in the dSYM: in an archive, two objects of one name are
+# libunits.a(logging.o) alike, which dsymutil tells apart by name and time.
+# The BMIs carry their sources: the sandbox of an importer has none, which
+# the debug information of an optimized compile reads.
+cc_library(
+    name = "units",
+    srcs = [
+        "units/a/types.cpp",
+        "units/b/types.cpp",
+        "units/logging.cpp",
+    ],
+    copts = [
+        "-g",
+        "-Xclang",
+        "-fmodules-embed-all-files",
+    ],
+    features = ["cpp_modules"],
+    module_interfaces = [
+        "units/logging.cppm",
+        "units/units.cppm",
+    ],
+)
+
+cc_binary(
+    name = "units_main",
+    srcs = ["units_main.cpp"],
+    copts = ["-g"],
+    features = [
+        "cpp_modules",
+        "generate_dsym_file",
+    ],
+    deps = [":units"],
+)
+
+xclang_debug_symbols(
+    name = "units_symbols",
+    binary = ":units_main",
     tags = ["manual"],
 )

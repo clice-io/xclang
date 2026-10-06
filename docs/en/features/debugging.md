@@ -171,7 +171,11 @@ execution root:
   the DWARF, and of coverage mappings, is `.`, and its files are
   `pkg/file.cpp` and `external/<repository>/...`.
 - macOS links have `-Wl,-oso_prefix,.`, so the debug map names its objects
-  `bazel-out/...`.
+  `bazel-out/...`. A library's objects go to the link as they are
+  (`--start-lib`), not in its archive: there, two objects of one name, such
+  as a module's `foo.cppm` and `foo.cpp`, are both `libfoo.a(foo.o)`, and
+  dsymutil, which tells archive members apart by name and time (0 in
+  Bazel), would read the first for both.
 - Windows links have `-Wl,--no-insert-timestamp`, so a PE program has no
   link time.
 - clang names its own paths relatively (`-no-canonical-prefixes`).

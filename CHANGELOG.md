@@ -15,6 +15,12 @@ the [patches](docs/en/reference/patches.md) of its tag.
   ([installing](docs/en/guide/install.md), [versions](docs/en/reference/releases.md#versions)).
   The docs and `examples/` use these; a release's version keeps it. The
   Bazel module's version stays the oldest release a project takes.
+- Bazel on Linux and macOS: a library's objects are linked as they are,
+  between `--start-lib` and `--end-lib`, not from its archive. On macOS,
+  objects of one name in a library (a module's `foo.cppm` and `foo.cpp`,
+  or `a/foo.cpp` and `b/foo.cpp`) had the DWARF of only one of them in the
+  dSYM: dsymutil tells archive members apart by name and time, and
+  Bazel's times are 0.
 
 ## [23.1.2.8](https://github.com/clice-io/xclang/releases/tag/23.1.2.8) — 2026-10-06
 

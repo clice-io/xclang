@@ -195,6 +195,15 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
         opt_compile_flags = ["-O2", "-DNDEBUG", "-ffunction-sections", "-fdata-sections"],
         opt_link_flags = opt_link_flags,
         sanitizer_link_flags = sanitizer_link_flags,
+        # A library's objects linked as they are, between --start-lib and
+        # --end-lib, which lld's ELF and Mach-O drivers take (its MinGW
+        # driver does not): no archive for a link, and the debug map of a
+        # macOS program names each object by its path. In an archive, objects
+        # of one name (foo.cppm and foo.cpp, a/foo.cpp and b/foo.cpp) are
+        # lib.a(foo.o) alike, which dsymutil tells apart by name and time,
+        # all 0 in Bazel's: it reads the first for both, and the dSYM lacks
+        # the other's debug information.
+        supports_start_end_lib = t.os != "windows",
         target_libc = t.libc,
         target_system_name = target,
         tool_paths = tool_paths,

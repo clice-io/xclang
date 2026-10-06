@@ -343,12 +343,15 @@ if (!windows) {
 /// 8. Debug symbols: tests/bazel/symbols' programs, not stripped, with
 /// xclang_debug_symbols' GSYM (and on macOS the dSYM of the link), read by
 /// the toolchain's llvm-gsymutil (@xclang//bazel:llvm-gsymutil, through
-/// bazel run): main at its line of hello.cpp, and in the tool on libclang
-/// the code ThinLTO generated from libclang's Lexer.cpp. Each the same file
-/// when made again. Also for the target of another os.
+/// bazel run): main at its line of hello.cpp, in the tool on libclang the
+/// code ThinLTO generated from libclang's Lexer.cpp, and lines of every unit
+/// of a module whose objects share names (logging.cppm and logging.cpp,
+/// a/types.cpp and b/types.cpp). Each the same file when made again. Also
+/// for the target of another os.
 {
   const workspace = path.join(common.ROOT, "tests", "bazel");
-  const symbols = ["--strip=never", "//symbols:hello_symbols", "//symbols:hello_icf_symbols", "//symbols:lexer_symbols"];
+  const symbols = ["--strip=never", "//symbols:hello_symbols", "//symbols:hello_icf_symbols", "//symbols:lexer_symbols",
+    "//symbols:units_symbols"];
   const other = bazel(workspace, ["build", `--platforms=@xclang//platforms:${cross}`, ...symbols]);
   check(other.executed > 0, `debug symbols: GSYM of the programs for ${cross}`);
   bazel(workspace, ["build", ...symbols]);
@@ -359,6 +362,8 @@ if (!windows) {
     ["hello", /hello\.cpp:9\b/, "main at hello.cpp:9"],
     ["hello_icf", /twin_a[\s\S]*twin_b|twin_b[\s\S]*twin_a/, "main and both functions identical code folding merged"],
     ["lexer", /clang[\\/]lib[\\/]Lex[\\/]Lexer\.cpp/, "main and libclang's Lexer.cpp"],
+    ["units_main", new RegExp(["logging\\.cppm", "logging\\.cpp", "a[\\\\/]types\\.cpp", "b[\\\\/]types\\.cpp"]
+      .map((unit) => `(?=[\\s\\S]*units[\\\\/]${unit}:\\d)`).join("")), "main and every unit of a module of same-named objects"],
   ] as const;
   for (const [program, wanted, what] of programs) {
     const dump = run(workspace, ["run", "@xclang//bazel:llvm-gsymutil", "--", path.join(bin, `${program}.gsym`)]);
