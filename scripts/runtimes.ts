@@ -4,6 +4,10 @@
 ///
 ///   <triple>/                  sysroot, libunwind, libc++abi, libc++ (and
 ///                              where there are sanitizers its ASan build)
+///   libc++/, mingw-w64/        the headers targets share: libc++'s, with
+///                              the target's __config_site in
+///                              libc++/include/<target>/c++/v1, and
+///                              mingw-w64's (common.shareHeaders)
 ///   lib/clang/<ver>/lib/...    compiler-rt: builtins, crt objects, profile
 ///
 /// The MSVC targets have no directory: their C and C++ libraries are
@@ -34,8 +38,10 @@ const caches = path.join(common.ROOT, "cmake", "caches");
 /// which link the very libraries being built; CMAKE_SYSROOT
 /// (cmake/toolchain.cmake) still names the sysroot. The builtins come first
 /// and nothing can be linked yet, so their checks only compile; the C++
-/// runtimes' checks link against the C runtime and the builtins. The rest
-/// of compiler-rt comes last, built with the config files.
+/// runtimes' checks link against the C runtime and the builtins. Then the
+/// headers move to where the config files look for them
+/// (common.shareHeaders), and the rest of compiler-rt comes last, built
+/// with the config files.
 const NO_CONFIG = ["C", "CXX", "ASM"].map((lang) => `-DCMAKE_${lang}_FLAGS=--no-default-config`);
 
 function cmake(name: string, source: string, args: string[]): void {
@@ -137,8 +143,8 @@ function cxxAsan(t: common.Target, stage: string): void {
     fs.copyFileSync(path.join(install, "lib", lib), path.join(dest, lib));
   }
   /// Its __config_site differs from the other only in saying so.
-  const configSite = (prefix: string) => fs.readFileSync(path.join(prefix, "include", "c++", "v1", "__config_site"), "utf8");
-  const [plain, asan] = [configSite(cxxPrefix(t, stage)), configSite(install)];
+  const plain = fs.readFileSync(path.join(common.libcxxTargetDir(stage, t), "__config_site"), "utf8");
+  const asan = fs.readFileSync(path.join(install, "include", "c++", "v1", "__config_site"), "utf8");
   const flag = "#define _LIBCPP_INSTRUMENTED_WITH_ASAN";
   if (asan !== plain.replace(`${flag} 0`, `${flag} 1`) || asan === plain) {
     common.fail(`the ASan build's __config_site of ${t.triple} differs from the other in more than ${flag}`);
@@ -295,18 +301,21 @@ if (values.target === "msvc") {
     await buildSysroot(t, stage);
     cxx(t, stage);
   }
+  common.shareHeaders(stage);
   compilerRtDarwin(stage);
   for (const t of targets) cxxAsan(t, stage);
   for (const t of targets) check(t, stage);
-  collect(stage, "darwin", [...targets.map((t) => t.triple), path.join(resource, "lib", "darwin")]);
+  collect(stage, "darwin", [...targets.map((t) => t.triple), "libc++", path.join(resource, "lib", "darwin")]);
 } else {
   const t = common.target(values.target);
   if (common.buildMachine(t) !== common.machine()) common.fail(`${t.triple} is built on ${common.buildMachine(t)}`);
   await buildSysroot(t, stage);
   builtins(t, stage);
   cxx(t, stage);
+  common.shareHeaders(stage);
   profile(t, stage);
   if (SANITIZERS.includes(t.os)) cxxAsan(t, stage);
   check(t, stage);
-  collect(stage, t.triple, [t.triple, path.join(resource, "lib", common.normalized(t))]);
+  collect(stage, t.triple, [t.triple, "libc++", ...(t.os === "mingw" ? ["mingw-w64"] : []),
+    path.join(resource, "lib", common.normalized(t))]);
 }

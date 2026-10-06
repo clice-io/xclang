@@ -111,6 +111,21 @@ for (const file of programs) {
   }
 }
 
+/// The headers that targets share are in the archive once
+/// (common.shareHeaders), each target's __config_site its own.
+const triples: [string, string][] = [
+  ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-gnu"], ["aarch64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"],
+  ["x86_64-w64-mingw32", "x86_64-w64-windows-gnu"], ["aarch64-w64-mingw32", "aarch64-w64-windows-gnu"],
+  ["aarch64-apple-darwin", "aarch64-apple-darwin"], ["x86_64-apple-darwin", "x86_64-apple-darwin"],
+];
+for (const file of ["libc++/include/c++/v1/vector", "mingw-w64/include/windows.h",
+  ...triples.map(([, clang]) => `libc++/include/${clang}/c++/v1/__config_site`)]) {
+  if (!fs.existsSync(path.join(tree, file))) failures.push(`no ${file}`);
+}
+for (const dir of ["include", ...triples.flatMap(([t]) => [`${t}/include`, `${t}/usr/include/c++`])]) {
+  if (fs.existsSync(path.join(tree, dir))) failures.push(`${dir}: a copy of the shared headers`);
+}
+
 /// The license notices of what the archive holds (scripts/licenses.ts).
 failures.push(...licenses.check(tree, ["xclang", "llvm-project", "zstd", "glibc", "linux", "nss", "mingw-w64",
   ...(fs.existsSync(tool("xclang")) ? ["rust", "rust-crates"] : [])]));

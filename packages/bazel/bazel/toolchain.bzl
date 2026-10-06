@@ -74,6 +74,12 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
     resource = "lib/clang/" + clang_version
     config = "cfg/%s.cfg" % target
 
+    # The headers targets share (scripts/common.ts, shareHeaders): libc++'s,
+    # after the target's own __config_site, and the Windows targets'
+    # mingw-w64. Releases before 23.1.2.7 have them in the target's directory.
+    shared_dirs = ["libc++/include/%s/c++/v1" % t.cfg, "libc++/include/c++/v1"] + (["mingw-w64/include"] if t.os == "windows" else [])
+    shared_headers = [d + "/**" for d in shared_dirs]
+
     # macOS targets link through dsym_link.sh, which makes the dSYM of a
     # link with the generate_dsym_file feature (bazel/dsym).
     dsym_link = ["dsym_link.sh"] if t.os == "macos" else []
@@ -85,7 +91,7 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
     native.filegroup(
         name = name + "_compiler_files",
         srcs = [name + "_bin", config, scanner] + native.glob([resource + "/include/**"]) +
-               native.glob([target + "/" + p for p in t.headers]) +
+               native.glob([target + "/" + p for p in t.headers] + shared_headers, allow_empty = True) +
                # libc++'s ASan build: none in releases before 23.1.2.5.
                (native.glob([target + "/" + t.asan_libcxx + "/include/**"], allow_empty = True) if t.asan_libcxx else []),
     )
@@ -118,7 +124,7 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
 
     # The config file in place of bin/<target>.cfg.
     flags = ["--no-default-config", "--config=%s/%s" % (root, config), "--target=" + target]
-    builtin_dirs = [resource + "/include"] + [target + "/" + p.removesuffix("/**") for p in t.headers]
+    builtin_dirs = [resource + "/include"] + [target + "/" + p.removesuffix("/**") for p in t.headers] + shared_dirs
 
     link_flags = flags + ["--driver-mode=g++", "-no-canonical-prefixes"]
     sanitizer_link_flags = []

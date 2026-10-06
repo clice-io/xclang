@@ -333,10 +333,11 @@ export function copyTree(src: string, dest: string): void {
 }
 
 /// A toolchain tree at dest: the programs and resource headers of the tree
-/// `programs` (the bootstrap, or a build here), the target directories and
-/// compiler-rt of every tree in `parts`, and the config files for a tree of
-/// `host` (this machine's by default). The programs' own compiler-rt is
-/// left out, so every runtime in the tree is one built here.
+/// `programs` (the bootstrap, or a build here), the target directories,
+/// shared headers and compiler-rt of every tree in `parts`, and the config
+/// files for a tree of `host` (this machine's by default). The programs'
+/// own compiler-rt is left out, so every runtime in the tree is one built
+/// here.
 export function makeTree(dest: string, programs: string, parts: string[] = [], host: Os = machineTarget().os): string {
   fs.rmSync(dest, { recursive: true, force: true });
   copyTree(path.join(programs, "bin"), path.join(dest, "bin"));
@@ -345,9 +346,85 @@ export function makeTree(dest: string, programs: string, parts: string[] = [], h
     if (entry !== "clang") copyTree(path.join(programs, "lib", entry), path.join(dest, "lib", entry));
   }
   copyTree(path.join(resourceDir(programs), "include"), path.join(resourceDir(dest), "include"));
-  for (const part of parts) copyTree(part, dest);
+  for (const part of parts) {
+    /// Every target's shared headers are the same files.
+    for (const dir of SHARED_HEADERS) {
+      const files = fs.existsSync(path.join(part, dir)) ? fs.readdirSync(path.join(part, dir), { recursive: true }) as string[] : [];
+      const differ = files.filter((f) => fs.statSync(path.join(part, dir, f)).isFile() &&
+        fs.existsSync(path.join(dest, dir, f)) && !sameFile(path.join(part, dir, f), path.join(dest, dir, f)));
+      if (differ.length) fail(`${part} has other ${dir} than the targets before it: ${differ.join(", ")}`);
+    }
+    copyTree(part, dest);
+  }
+  shareHeaders(dest);
   writeConfigs(dest, host);
   return dest;
+}
+
+function sameFile(a: string, b: string): boolean {
+  return fs.readFileSync(a).equals(fs.readFileSync(b));
+}
+
+/// The directories of headers that targets share (shareHeaders).
+const SHARED_HEADERS = ["libc++/include/c++/v1", "mingw-w64/include"];
+
+/// The directory of a target's own libc++ headers: its __config_site.
+export function libcxxTargetDir(tree: string, t: Target): string {
+  return path.join(tree, "libc++", "include", normalized(t), "c++", "v1");
+}
+
+/// The headers that every target of a kind has alike, once in the tree,
+/// without links, which Windows archives hold none of:
+///
+///   libc++/include/c++/v1/            libc++'s headers, of every target
+///   libc++/include/<target>/c++/v1/   a target's __config_site, and any
+///                                     other of its libc++ headers that
+///                                     differs; <target> is clang's
+///                                     spelling (normalized())
+///   mingw-w64/include/                mingw-w64's headers, of both
+///                                     Windows targets
+///
+/// libc++/ is LLVM's per-target layout under a prefix of its own: clang's
+/// drivers look for libc++ in the tree's include/c++/v1 by themselves (the
+/// macOS one before the SDK's), and would find it there without the
+/// config files too, with no __config_site. The config files name these
+/// (config/). They are moved there from where the runtimes' builds install
+/// them, <target>[/usr]/include/c++/v1 and a MinGW target's include; a
+/// header of a target that differs from the one already shared stays the
+/// target's own. A tree laid out so already is left as it is.
+export function shareHeaders(tree: string): void {
+  /// Move from's files into shared, or into own those that differ from
+  /// shared's (null: leave them in from); then remove from's empty
+  /// directories.
+  const move = (from: string, shared: string, own: string | null, mine: (file: string) => boolean = () => false) => {
+    if (!fs.existsSync(from)) return;
+    for (const file of (fs.readdirSync(from, { recursive: true }) as string[]).sort()) {
+      const src = path.join(from, file);
+      if (!fs.lstatSync(src).isFile()) continue;
+      const there = path.join(shared, file);
+      const to = mine(file) || (fs.existsSync(there) && !sameFile(src, there)) ? own : there;
+      if (to === there && fs.existsSync(there)) fs.rmSync(src);
+      else if (to !== null) {
+        const dest = to === there ? there : path.join(to, file);
+        fs.mkdirSync(path.dirname(dest), { recursive: true });
+        fs.renameSync(src, dest);
+      }
+    }
+    const prune = (dir: string): void => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) if (entry.isDirectory()) prune(path.join(dir, entry.name));
+      if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
+    };
+    prune(from);
+  };
+  for (const t of TARGETS) {
+    const include = path.join(tree, t.triple, t.os === "linux" ? "usr" : "", "include");
+    move(path.join(include, "c++", "v1"), path.join(tree, ...SHARED_HEADERS[0]!.split("/")), libcxxTargetDir(tree, t),
+      (file) => file === "__config_site");
+    const cxx = path.join(include, "c++");
+    if (fs.existsSync(cxx) && fs.readdirSync(cxx).length === 0) fs.rmdirSync(cxx);
+    if (t.os === "mingw") move(include, path.join(tree, ...SHARED_HEADERS[1]!.split("/")), null);
+    else if (fs.existsSync(include) && fs.readdirSync(include).length === 0) fs.rmdirSync(include);
+  }
 }
 
 /// Install the per-target clang config files (config/) into tree/bin.
@@ -362,6 +439,7 @@ export function writeConfigs(tree: string, host: Os): void {
   const config = (name: string, t: Target) => fs
     .readFileSync(path.join(ROOT, "config", name), "utf8")
     .replaceAll("@TRIPLE@", t.triple)
+    .replaceAll("@NORMALIZED@", normalized(t))
     .replaceAll("@ARCH@", t.arch)
     .replaceAll("@MACOS_MIN@", MACOS_MIN);
   for (const t of MSVC_TARGETS) {

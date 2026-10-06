@@ -2,10 +2,12 @@
 every toolchain a directory per target (README.md, "Layout")."""
 
 # Per target: the name of its config file in bin/ (clang's name of the
-# triple), its platform constraints, the cpu and target_libc of rules_cc's unix
-# toolchain config, compiler-rt's directory under lib/clang/<version>/lib,
-# what of the target's directory compiling and linking read, and where in it
-# the ASan build of libc++ is (none for Windows).
+# triple, also that of its libc++/include/<cfg>/c++/v1), its platform constraints,
+# the cpu and target_libc of rules_cc's unix toolchain config, compiler-rt's
+# directory under lib/clang/<version>/lib, what of the target's directory
+# compiling and linking read (with the headers targets share,
+# bazel/toolchain.bzl), and where in it the ASan build of libc++ is (none for
+# Windows).
 TARGETS = {
     "x86_64-unknown-linux-gnu": struct(
         cfg = "x86_64-unknown-linux-gnu",

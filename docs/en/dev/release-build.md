@@ -166,7 +166,9 @@ them, the pipeline needs:
    `xclang-target-<version>-<target>.tar.xz`, laid out as
    [the xclang command](../reference/xclang-command.md#targets) expects:
    `xclang/<target>/` (sysroot, libc++, libunwind, its licenses),
-   `xclang/lib/clang/<major>/lib/<target>/` (compiler-rt), and
+   `xclang/libc++/include/<target>/c++/v1/__config_site` (libc++'s headers
+   are the shared `libc++/include/c++/v1`), `xclang/lib/clang/<major>/lib/<target>/`
+   (compiler-rt), and
    `xclang/bin/<spelling>.cfg` for every spelling of the triple. The config
    files come from `config/`, as `scripts/common.ts` writes them,
    case-unique and without links.

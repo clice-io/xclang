@@ -18,6 +18,12 @@ xclang/
                            and compiler-rt for every target
   lib/cmake/xclang/        the CMake package
   lib/libLTO.dylib         macOS hosts: LTO for the system's ld (-fuse-ld=ld)
+  libc++/include/c++/v1/   libc++'s headers, the same for every target
+  libc++/include/<target>/c++/v1/
+                           each target's own __config_site, <target> as
+                           clang spells it (x86_64-w64-windows-gnu)
+  mingw-w64/include/       mingw-w64's headers, the same for both Windows
+                           targets
   share/licenses/          the license notices of everything in the archive
                            (below)
   <target>/                the sysroot of each target (below)
@@ -34,16 +40,34 @@ C++ libraries are the fetched SDK's.
 
 | | Linux | Windows (MinGW) | macOS |
 |---|---|---|---|
-| C library | glibc 2.17's headers in `usr/include`, its startup files and libraries in `lib64`, `usr/lib64` | mingw-w64 (UCRT) and winpthreads in `include`, `lib` | none: Apple's SDK, Xcode's, or on Linux and Windows hosts `sdk/macos` ([unreleased](../design/roadmap.md#macos-any-host)) |
-| libc++, libc++abi, libunwind | `usr/include/c++/v1`, `usr/lib` | `include/c++/v1`, `lib` | `include/c++/v1`, `lib` (no libunwind: the system's, in libSystem) |
+| C library | glibc 2.17's headers in `usr/include`, its startup files and libraries in `lib64`, `usr/lib64` | mingw-w64 (UCRT) and winpthreads: the libraries in `lib`, the headers in the shared `mingw-w64/include` | none: Apple's SDK, Xcode's, or on Linux and Windows hosts `sdk/macos` ([unreleased](../design/roadmap.md#macos-any-host)) |
+| libc++, libc++abi, libunwind | `usr/lib`; the headers in the shared `libc++/include/c++/v1` | `lib`; the same | `lib` (no libunwind: the system's, in libSystem); the same |
 | libc++ module sources | `usr/share/libc++/v1` | `share/libc++/v1` | `share/libc++/v1` |
 | libc++ module manifest | `usr/lib/libc++.modules.json` | `lib/libc++.modules.json` | `lib/libc++.modules.json` |
 | ASan libc++ | `usr/lib/asan` | none | `lib/asan` |
 | GCC library names | empty `libatomic.a`, `libgcc.a`, `libgcc_eh.a`, `libgcc_s.a` | the same, and `libssp.a`, `libssp_nonshared.a` | none |
 
 `clang++ --target=<target> -print-library-module-manifest-path` prints the
-path of the manifest. Why the GCC names are empty archives is in
-[hermeticity](../design/hermeticity.md#gcc-library-names).
+path of the manifest.
+
+## Shared Headers
+
+The headers that are the same for several targets are in the archive
+once, without links. libc++'s headers differ between the targets only in
+`__config_site`, which is each target's own: `libc++/include` is LLVM's
+per-target runtime layout, `c++/v1` for all and `<target>/c++/v1` for each.
+mingw-w64's headers are the same for x64 and arm64, in `mingw-w64/include`.
+The config files name the directories: `-stdlib++-isystem` the target's
+`__config_site`, then the shared libc++ headers; for the Windows targets
+`-idirafter mingw-w64/include`, which comes after clang's own headers, as
+the sysroot's `include` would. A build with `--no-default-config` that sets
+its own `--sysroot` names them too.
+
+They are not in an `include/` at the top: clang's drivers look for libc++
+in `<toolchain>/include/c++/v1` by themselves, the macOS one before the
+SDK's, so `--no-default-config` would find xclang's headers without a
+`__config_site` there instead of the system's. Before 23.1.2.7 each target
+directory had its own copies, 155 MB of the 800 MB unpacked.
 
 ## Licenses
 
