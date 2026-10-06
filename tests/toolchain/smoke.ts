@@ -147,19 +147,32 @@ failures.push(...licenses.check(tree, ["xclang", "llvm-project", "zstd", "glibc"
 run(tool("FileCheck"), [write("check.txt", "CHECK: hello\nCHECK-NEXT: world\n"),
   `--input-file=${write("input.txt", "hello\nworld\n")}`]);
 
-/// On Windows, clang's crash stack trace by the tree's llvm-symbolizer: every
-/// frame in a module, down to the thread's start (on arm64 the last one was
-/// a system DLL's signed return address before patches/0010, in 23.1.2.10).
-/// On macOS the last one, dyld's, is in none of the images LLVM lists.
-if (windows && since("23.1.2.10")) {
+/// clang's crash stack trace by the tree's llvm-symbolizer, from 23.1.2.10.
+/// On Windows every frame is in a module, down to the thread's start (on
+/// arm64 the last one was a system DLL's signed return address before
+/// patches/0010). On macOS no frame of llvm is named: llvm has no symbols,
+/// where the weak definitions it exported named each frame after the
+/// nearest one before it (toolchain/toolchain.ts); the last frame, dyld's,
+/// is in none of the images LLVM lists.
+if ((windows || process.platform === "darwin") && since("23.1.2.10")) {
   const args = ["-fno-crash-diagnostics", "-c", write("crash.c", "#pragma clang __debug crash\n"), "-o", path.join(work, "crash.o")];
   console.log(`+ ${tool("clang")} ${args.join(" ")}`);
   const result = spawnSync(tool("clang"), args, { encoding: "utf8", cwd: work });
   process.stderr.write(result.stderr ?? "");
   const frames = (result.stderr ?? "").split(/\r?\n/).filter((line) => /^\s*#\d+ 0x[0-9a-f]+/i.test(line));
-  const bare = frames.filter((line) => /^\s*#\d+ 0x[0-9a-f]+\s*$/i.test(line));
-  if (result.status === 0 || frames.length < 10 || bare.length) {
-    failures.push(`clang's crash stack trace: ${frames.length} frames, ${bare.length} in no module`);
+  if (windows) {
+    const bare = frames.filter((line) => /^\s*#\d+ 0x[0-9a-f]+\s*$/i.test(line));
+    if (result.status === 0 || frames.length < 10 || bare.length) {
+      failures.push(`clang's crash stack trace: ${frames.length} frames, ${bare.length} in no module`);
+    }
+  } else {
+    const llvm = frames.filter((line) => /\/bin\/llvm\+0x/.test(line));
+    const named = llvm.filter((line) => !/^\s*#\d+ 0x[0-9a-f]+ \(/i.test(line));
+    if (result.status === 0 || llvm.length < 10 || named.length) {
+      failures.push(`clang's crash stack trace: ${llvm.length} frames of llvm, ${named.length} named`);
+    }
+    const symbols = run(tool("llvm-nm"), ["--defined-only", tool("llvm")]);
+    if (symbols === undefined || symbols.trim()) failures.push(`llvm has symbols: ${(symbols ?? "").split("\n").slice(0, 5).join(", ")}`);
   }
 }
 

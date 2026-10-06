@@ -152,6 +152,12 @@ if (host.os === "darwin") args.push("-DCLANG_USE_XCSELECT=ON");
 /// lld folds identical functions whose address nothing compares, and
 /// merges string tails. (The macOS linker deduplicates on its own.)
 if (mode === "release" && host.os !== "darwin") args.push("-DCMAKE_EXE_LINKER_FLAGS=-Wl,--icf=safe -Wl,-O2");
+/// A macOS program exports its weak definitions (template instantiations)
+/// for dyld to coalesce, and strip keeps them: 632 of them in llvm, after
+/// which a crash trace named every frame. With none exported and no local
+/// symbols (__mh_execute_header, which would name them all), llvm has no
+/// symbols left and its frames are addresses, as on the other hosts.
+if (mode === "release" && host.os === "darwin") args.push("-DCMAKE_EXE_LINKER_FLAGS=-Wl,-no_exported_symbols -Wl,-x");
 /// The ASan build compiles and links with libc++'s ASan build
 /// (toolchain/runtimes.ts), as its users' ASan builds do. Every link has the
 /// ASan runtime the instrumented libc++.a needs, CMake's checks too, which
