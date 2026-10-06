@@ -96,7 +96,18 @@
      )
  
      # If you have Xcode + the CLT installed the version defaults can be
-@@ -2152,6 +2185,13 @@
+@@ -2056,6 +2089,10 @@
+             default_link_flags_feature,
+             user_link_flags_feature,
+             default_link_libs_feature,
++            # Without it, the legacy feature's defines, which miss the C++20
++            # module actions: module units and their scans would see no
++            # library's defines.
++            preprocessor_defines_feature,
+             includes_feature,
+             include_paths_feature,
+             external_include_paths_feature,
+@@ -2152,6 +2189,13 @@
          "opt_compile_flags": attr.string_list(),
          "opt_link_flags": attr.string_list(),
          "supports_start_end_lib": attr.bool(),
