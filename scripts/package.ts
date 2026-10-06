@@ -12,6 +12,9 @@
 /// from <dir>/cli-<host> (scripts/cli.ts); without it, as until it ships,
 /// it does not.
 ///
+/// Every archive has share/licenses: the license files of what it holds,
+/// a README.md and an SPDX document of them (scripts/licenses.ts).
+///
 /// A Windows toolchain has no links at all: its aliases are small programs
 /// (windows/alias.c, put there by scripts/toolchain.ts), and the Linux
 /// sysroots have none (scripts/sysroot.ts). No two paths differ only in
@@ -21,6 +24,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import * as common from "./common.ts";
+import * as licenses from "./licenses.ts";
 
 const { values } = parseArgs({
   options: {
@@ -35,6 +39,15 @@ const version = `${common.LLVM_VERSION}.${values.revision}`;
 const out = path.join(common.WORK, "out");
 const dist = path.join(common.WORK, "dist");
 fs.mkdirSync(dist, { recursive: true });
+
+const date = licenses.sourceDate();
+const llvmLibraries = "LLVM's and clang's libraries and headers (clang-tidy's too), clang's resource headers";
+const libclangLicenses = async () => [
+  licenses.xclang(version, "xclang's build of it, and lib/cmake/xclang"),
+  await licenses.llvmProject(llvmLibraries),
+  ...await licenses.compression(host),
+  ...host.os === "mingw" ? [await licenses.mingwW64("the C runtime's headers the libraries are compiled with")] : [],
+];
 
 const runtimes = fs.readdirSync(out).filter((d) => d.startsWith("runtimes-")).map((d) => path.join(out, d));
 /// One per Linux and MinGW target, one for both macOS targets, one for both
@@ -59,13 +72,24 @@ common.writeCMakePackage(path.join(tree, "lib", "cmake", "xclang"), version);
 const bin = path.join(tree, "bin");
 if (host.os === "mingw") fs.copyFileSync(path.join(bin, "llvm-windres.exe"), path.join(bin, "windres.exe"));
 else fs.symlinkSync("llvm", path.join(bin, "windres"));
+const cliLicenses: licenses.Component[] = [];
 if (values.cli) {
   const name = host.os === "mingw" ? "xclang.exe" : "xclang";
   const built = path.join(values.cli, `cli-${host.triple}`, name);
   if (!fs.existsSync(built)) common.fail(`missing ${built}`);
   fs.copyFileSync(built, path.join(bin, name));
   fs.chmodSync(path.join(bin, name), 0o755);
+  cliLicenses.push(...licenses.collected(path.join(values.cli, `cli-${host.triple}`, "licenses")));
 }
+licenses.write(tree, `xclang-${version}-${host.triple}`, version, [
+  licenses.xclang(version, "xclang's config files, CMake package (lib/cmake/xclang) and xclang command (bin/xclang)"),
+  await licenses.llvmProject("clang, lld and the LLVM tools in bin/, clang's resource headers, and libc++, " +
+    "libc++abi, libunwind and compiler-rt of every target"),
+  ...await licenses.compression(host),
+  ...licenses.linuxSysroots(),
+  await licenses.mingwW64("the Windows targets' headers, CRT and winpthreads, which Windows hosts' programs link too"),
+  ...cliLicenses,
+], date);
 const files = fs.readdirSync(tree, { recursive: true }) as string[];
 if (host.os === "mingw") {
   const links = files.filter((f) => fs.lstatSync(path.join(tree, f)).isSymbolicLink());
@@ -86,6 +110,10 @@ if (host.triple === "x86_64-unknown-linux-gnu") {
   const dir = path.join(common.WORK, "package", host.triple, "llvm-option-inc");
   fs.rmSync(dir, { recursive: true, force: true });
   common.copyTree(tables, path.join(dir, "include", "llvm-options-td"));
+  licenses.write(dir, `llvm-option-inc-${version}`, version, [
+    licenses.xclang(version, "xclang's build of them"),
+    await licenses.llvmProject("clang's, lld's, llvm-lib's and llvm-dlltool's option tables, TableGen's output of LLVM's sources"),
+  ], date);
   archive(dir, `llvm-option-inc-${version}`);
 }
 
@@ -98,6 +126,7 @@ for (const variant of ["", "-asan"]) {
   const dir = path.join(common.WORK, "package", host.triple, `libclang${variant}`);
   fs.rmSync(dir, { recursive: true, force: true });
   common.copyTree(libclang, dir);
+  licenses.write(dir, `libclang-${version}-${host.triple}${variant}`, version, await libclangLicenses(), date);
   archive(dir, `libclang-${version}-${host.triple}${variant}`);
 }
 

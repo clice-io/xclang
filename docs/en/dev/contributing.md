@@ -19,6 +19,8 @@ windows/alias.c    the launcher behind every name of llvm.exe
 cli/               the xclang command, in Rust; its SDK version table,
                    sdk-versions.json
 patches/           changes to LLVM, a directory and a README each
+licenses/          license texts the archives carry that no source
+                   ships (scripts/licenses.ts)
 packages/          what xclang's users build with (packages/README.md):
   bazel/           the Bazel module; scripts/bazel.ts makes its registry
                    archive

@@ -11,6 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import * as common from "../scripts/common.ts";
+import * as licenses from "../scripts/licenses.ts";
 
 const { values } = parseArgs({ options: { tree: { type: "string" }, libclang: { type: "string" } } });
 if (!values.tree || !values.libclang) common.fail("--tree <xclang> --libclang <libclang>");
@@ -18,6 +19,10 @@ const exe = process.platform === "win32" ? ".exe" : "";
 const tree = path.resolve(values.tree);
 const libclang = path.resolve(values.libclang);
 const build = fs.mkdtempSync(path.join(os.tmpdir(), "xclang-libclang-"));
+
+/// The license notices of what the archive holds (scripts/licenses.ts).
+const missing = licenses.check(libclang, ["xclang", "llvm-project", "zstd"]);
+if (missing.length) common.fail(missing.join("\n"));
 
 /// The resource directory a tool on libclang hands to every compiler it
 /// stands in for carries compiler-rt's headers, as the toolchain's does.

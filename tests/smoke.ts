@@ -6,7 +6,8 @@
 ///   target it carries (macOS ones only on macOS: the SDK) and run where
 ///   this machine can run them;
 /// - natively also `import std;`, a precompiled header and ThinLTO;
-/// - dSYM and GSYM debug symbols by the tree's dsymutil and llvm-gsymutil.
+/// - dSYM and GSYM debug symbols by the tree's dsymutil and llvm-gsymutil;
+/// - share/licenses names every component.
 ///
 ///   node tests/smoke.ts --tree <xclang>
 
@@ -15,6 +16,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
+import * as licenses from "../scripts/licenses.ts";
 
 const { values } = parseArgs({ options: { tree: { type: "string" } } });
 if (!values.tree) fail("--tree <xclang>");
@@ -108,6 +110,10 @@ for (const file of programs) {
     }
   }
 }
+
+/// The license notices of what the archive holds (scripts/licenses.ts).
+failures.push(...licenses.check(tree, ["xclang", "llvm-project", "zstd", "glibc", "linux", "nss", "mingw-w64",
+  ...(fs.existsSync(tool("xclang")) ? ["rust", "rust-crates"] : [])]));
 
 run(tool("FileCheck"), [write("check.txt", "CHECK: hello\nCHECK-NEXT: world\n"),
   `--input-file=${write("input.txt", "hello\nworld\n")}`]);

@@ -18,6 +18,8 @@ xclang/
                            and compiler-rt for every target
   lib/cmake/xclang/        the CMake package
   lib/libLTO.dylib         macOS hosts: LTO for the system's ld (-fuse-ld=ld)
+  share/licenses/          the license notices of everything in the archive
+                           (below)
   <target>/                the sysroot of each target (below)
   sdk/                     not in the archive: the vendor SDKs that the
                            unreleased xclang command fetches, and
@@ -42,6 +44,39 @@ C++ libraries are the fetched SDK's.
 `clang++ --target=<target> -print-library-module-manifest-path` prints the
 path of the manifest. Why the GCC names are empty archives is in
 [hermeticity](../design/hermeticity.md#gcc-library-names).
+
+## Licenses
+
+Every archive, the toolchain, libclang, the ASan libclang and the option
+tables, has `share/licenses`:
+
+```
+share/licenses/
+  README.md                each component: what of the archive it is, its
+                           version, its license (an SPDX expression) and
+                           where its source is
+  sbom.spdx.json           the same as an SPDX 2.3 document
+  <component>/             the component's license and notice files
+```
+
+The toolchain's components:
+
+| directory | what | license |
+|---|---|---|
+| `xclang` | xclang's config files, CMake package and `xclang` command | Apache-2.0 |
+| `llvm-project` | clang, lld, the LLVM tools, libc++, libc++abi, libunwind, compiler-rt; the files keep their paths in LLVM's source | Apache-2.0 WITH LLVM-exception, and the third-party parts' |
+| `zlib`, `zstd` | linked into the programs (macOS hosts: zstd only) | Zlib; BSD-3-Clause OR GPL-2.0-only |
+| `glibc` | the Linux targets' C library, 2.17 | LGPL-2.1-or-later |
+| `linux` | the Linux targets' kernel UAPI headers | GPL-2.0-only WITH Linux-syscall-note |
+| `nss` | the Linux targets' `libfreebl3.so`, which glibc's `libcrypt` loads | MPL-2.0 |
+| `mingw-w64` | the Windows targets' headers, CRT and winpthreads, which the Windows hosts' programs link too | ZPL-2.1, and the runtime's other parts |
+| `rust`, `rust-crates/<crate>-<version>` | Rust's standard library and the crates `bin/xclang` links | each its own |
+
+glibc, the kernel headers and NSS are those of CentOS 7, as conda-forge's
+sysroot packages repackage them: the README names those packages, CentOS's
+source RPMs and the upstream releases. The libclang archives carry `xclang`,
+`llvm-project`, `zlib` and `zstd` (and `mingw-w64` on Windows hosts), the
+option tables `xclang` and `llvm-project`.
 
 ## Without Links
 
