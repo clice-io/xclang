@@ -20,7 +20,9 @@
 /// - what is not shipped is said one way: a table's `status` column holds
 ///   one of the roadmap's six words, and the phrasings that left a status
 ///   unclear ("is to be", "being considered", a bare "**Missing.**") are
-///   not used.
+///   not used;
+/// - prose holds no bare `<placeholder>`, which the docs site reads as an
+///   HTML element.
 ///
 ///   node tests/docs/docs.ts
 
@@ -274,6 +276,30 @@ for (const [page, { lines }] of parsed) {
       failures.push(`${where}: status "${cells[column]}" is not one of ${[...STATUS].join(", ")}`);
     }
   });
+}
+
+/// Prose holds no bare `<word>`: VitePress reads it as an HTML element, and
+/// one without an end tag fails the site's build. A placeholder goes in a
+/// code span. Code blocks, code spans (which may span lines, not
+/// paragraphs) and comments are blanked first, keeping offsets for line
+/// numbers.
+const HTML = new Set(["a", "br", "details", "summary", "div", "span", "sup", "sub", "kbd", "img", "table", "tr", "td", "th"]);
+for (const page of pages) {
+  let fenced = false;
+  const text = fs
+    .readFileSync(page, "utf8")
+    .split("\n")
+    .map((line) => {
+      if (/^\s*```/.test(line)) fenced = !fenced;
+      return fenced || /^\s*```/.test(line) ? " ".repeat(line.length) : line;
+    })
+    .join("\n")
+    .replace(/<!--[\s\S]*?-->|(`+)(?:(?!\n\s*\n)[\s\S])*?\1/g, (m) => m.replace(/[^\n]/g, " "));
+  for (const m of text.matchAll(/<\/?([A-Za-z][\w-]*)[^<>\n]*>/g)) {
+    if (HTML.has(m[1]!.toLowerCase())) continue;
+    const line = text.slice(0, m.index).split("\n").length;
+    failures.push(`${path.relative(ROOT, page)}:${line}: ${m[0]} outside code reads as an HTML element: put it in backticks`);
+  }
 }
 
 if (failures.length) {

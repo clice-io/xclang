@@ -36,8 +36,8 @@ no release, but the next conda build number of the same one.
    release when that one has what the build needs.
 2. **CHANGELOG.md**, on the release's branch `exp/<version>`: Unreleased
    becomes the release's section, with what built it ("Built by
-   <bootstrap>.", or for a repack "The compiler and runtimes are
-   <previous>'s."), and a new empty Unreleased. The tag then has it, and
+   `<bootstrap>`.", or for a repack "The compiler and runtimes are
+   `<previous>`'s."), and a new empty Unreleased. The tag then has it, and
    nothing has to follow on `main`: the docs, the READMEs and `examples/`
    name no release but the oldest the Bazel module takes, and reach the
    newest by themselves.
