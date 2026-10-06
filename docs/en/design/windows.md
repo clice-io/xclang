@@ -216,3 +216,11 @@ A MinGW variant on msvcrt, for Windows before 10, is
   clice's 600 MB `clice.exe`, linked six times by lld with ThinLTO from
   the same inputs, came out in three different layouts, with and without
   the ThinLTO cache. The cause is not known.
+- **Visual Studio's compiler-rt comes first without an SDK.** On a Windows
+  host with no fetched SDK, clang links with Visual Studio's libraries, and
+  their directory comes before xclang's compiler-rt in the search of
+  lld-link. Visual Studio has its own `clang_rt.*.lib` there (builtins,
+  UBSan, libFuzzer, the profile runtime: Microsoft's builds, for its
+  AddressSanitizer), which then take the place of xclang's: on
+  windows-2025 (Visual Studio 18, MSVC 14.51), `__int128` division, UBSan
+  and libFuzzer do not link. With the SDK fetched, they do.
