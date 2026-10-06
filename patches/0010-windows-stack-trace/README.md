@@ -28,7 +28,9 @@ signatures), stopping where it leaves the context unchanged; elsewhere
 `StackWalk64` stays. The stack is walked once, for llvm-symbolizer and for
 dbghelp's own symbols alike, instead of once for each.
 
-- Upstream: not reported. The same cause in lldb:
+- Upstream: [#229371](https://github.com/llvm/llvm-project/issues/229371),
+  open, with the official 23.1.2 woa64 release (MSVC-built; its CRT signs
+  return addresses too) as reproducer; no PR yet. The same cause in lldb:
   [#228374](https://github.com/llvm/llvm-project/issues/228374), open; a
   signed last frame from this handler is in
   [#147309](https://github.com/llvm/llvm-project/issues/147309) (flang on

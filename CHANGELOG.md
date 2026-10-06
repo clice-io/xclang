@@ -34,7 +34,8 @@ the [patches](docs/en/reference/patches.md) of its tag.
   the frames of system DLLs, which sign their return addresses: a crash in
   a `qsort` comparator shows the code that sorted, `sys::PrintStackTrace`
   in a signal handler reaches the crash, and a trace ends at
-  `ntdll!RtlUserThreadStart`, in clang, lld and tools on libclang.
+  `ntdll!RtlUserThreadStart`, in clang, lld and tools on libclang
+  (llvm/llvm-project#229371).
 
 ## [23.1.2.9](https://github.com/clice-io/xclang/releases/tag/23.1.2.9) — 2026-10-06
 
