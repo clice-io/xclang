@@ -30,6 +30,20 @@ cc_test(
     ],
 )
 
+# A library's defines reach the module units depending on it, and the scans
+# of them: configured.cppm stops at an #error without.
+cc_library(
+    name = "config",
+    defines = ["XCLANG_TEST_CONFIGURED=1"],
+)
+
+cc_library(
+    name = "configured",
+    features = ["cpp_modules"],
+    module_interfaces = ["configured.cppm"],
+    deps = [":config"],
+)
+
 # import std and import std.compat, libc++'s modules built for the target.
 cc_library(
     name = "shapes",

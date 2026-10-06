@@ -159,7 +159,8 @@ for another target.
 - `tests/cmake` builds a module of partitions and `import std` on every
   host, for every target, with CMake 3.28 and the newest.
 - `tests/bazel` builds a module of partitions, a module importing another,
-  and `import std`, on every host and for every other target.
+  a module unit reading the defines of a library it depends on, and
+  `import std`, on every host and for every other target.
 - examples.yml builds `examples/modules`, a module with a partition and
   `import std`, by hand with one-step compiles, with CMake and with Bazel,
   on every host, and for Windows x64 with CMake and Bazel.

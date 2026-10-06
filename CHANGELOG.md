@@ -107,6 +107,10 @@ the [patches](docs/en/reference/patches.md) of its tag.
   reads a GSYM with the toolchain's llvm-gsymutil
   ([debugging](docs/en/features/debugging.md)). The rule's documentation
   asks for `-g`: `-gline-tables-only` gives a GSYM without functions.
+- Bazel on macOS: a C++20 module unit and its dependency scan get the
+  `defines` of the libraries it depends on, as on Linux and Windows. They
+  got none: rules_cc leaves macOS the legacy defines feature, which does
+  not cover the module actions.
 
 ## [23.1.2.6](https://github.com/clice-io/xclang/releases/tag/23.1.2.6) — 2026-10-05
 

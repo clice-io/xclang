@@ -217,8 +217,9 @@ xclang's patches: Windows names for MinGW's executables and DLLs
 (rules_cc-mingw.patch), and xclang's defaults (rules_cc-xclang.patch): static
 linking unless a target asks for the supports_dynamic_linker feature, other
 repositories' headers as system headers (external_include_paths), the
-sanitizer features' link flags (sanitizer_link_flags), and a program of the
-links' own (link_tool). Its loads are rules_cc's
+sanitizer features' link flags (sanitizer_link_flags), a program of the
+links' own (link_tool), and on macOS the libraries' defines in C++20 module
+compiles and scans (preprocessor_defines). Its loads are rules_cc's
 public files, so a copy works from here; no consumer needs an override of
 rules_cc.""",
 )
