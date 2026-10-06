@@ -64,13 +64,14 @@ programs on the host. The other macOS architecture is
 The sysroot, C++ library, runtimes and linker come from the config file of
 the target, not from this file.
 
-For an MSVC target, it stops unless the toolchain's `sdk/windows` has the
-SDK for the target. It sets `llvm-rc` as the RC compiler, which CMake runs
+For an MSVC target on a Linux or macOS host, it stops unless the
+toolchain's `sdk/windows` has the SDK for the target; on a Windows host
+without one, clang finds Visual Studio. It sets `llvm-rc` as the RC compiler, which CMake runs
 on the output of the target's clang. `CMAKE_MSVC_RUNTIME_LIBRARY` is
 `MultiThreaded` unless set, and a link with `MultiThreadedDebug` or
 `MultiThreadedDebugDLL` gets `/nodefaultlib:ucrt.lib`. The SDK is
 `CMAKE_FIND_ROOT_PATH`, except on a Windows host for its own architecture,
-which is no cross build to CMake.
+which is no cross build to CMake, and on a Windows host without one.
 
 For a macOS target on a Linux or Windows host, `CMAKE_OSX_SYSROOT` is the
 one given, else `SDKROOT`, else the toolchain's `sdk/macos`, and it

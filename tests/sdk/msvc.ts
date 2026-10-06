@@ -4,10 +4,12 @@
 ///
 ///   node tests/sdk/msvc.ts --tree <xclang> --out <dir> [--kotatsu <source>]
 ///
-/// Without the SDK, clang says where it looks for it; the SDK of the
+/// Without an SDK, what needs none compiles, and on Windows clang finds
+/// Visual Studio (elsewhere it looks in sdk/windows); the SDK of the
 /// default preset fetched into the tree, and windows-2022's for x64 (then
-/// the first in use again: sdk use); for both targets programs built with
-/// clang, clang++ and clang-cl into <dir>/<target>/msvc-<host>, and in
+/// the first in use again: sdk use, which the config files follow); for
+/// both targets programs built with clang, clang++ and clang-cl into
+/// <dir>/<target>/msvc-<host>, and in
 /// programs.json what each prints and how it ends (tests/lib/on-target.ts
 /// runs them on Windows): C, C++ with the STL (exceptions, threads,
 /// <filesystem>, <format>), __int128, Win32, the hybrid CRT and /MT, /MD
@@ -76,13 +78,53 @@ const write = (name: string, text: string) => {
   return path.join(work, name);
 };
 
-/// 1. Without the SDK: clang stops at the file the SDK's fetch writes, in
-/// the tree's sdk/windows, and so does a plain clang-cl.
+/// 1. Without an SDK: what needs none compiles for both targets, with clang
+/// and clang-cl (a plain one too), as clice queries the compiler
+/// (-ffreestanding -undef -nostdinc). On Windows clang finds Visual Studio,
+/// without a Developer Command Prompt's variables: a program builds and
+/// runs, and so does tests/cmake through the CMake package. Elsewhere a
+/// compile that includes the CRT stops, and clang looks for it in the
+/// tree's sdk/windows.
 const hello = path.join(sources, "hello.c");
-for (const [driver, args] of [["clang", ["--target=x86_64-pc-windows-msvc", "-c", hello]], ["clang-cl", ["/c", "--", hello]]] as const) {
-  const r = run(tool(driver), [...args], { cwd: work });
-  check(r.status !== 0 && /sdk[\\/]windows[\\/][\w-]+-pc-windows-msvc(-clang-cl)?\.cfg/.test(r.out),
-    `${driver} without the SDK names sdk/windows`);
+const bare = write("bare.c", "int f(void) { return 0; }\n");
+const freestanding = write("freestanding.c", "#include <stddef.h>\n#include <stdint.h>\nint32_t f(size_t n) { return (int32_t)n; }\n");
+const noPrompt = { ...process.env };
+for (const name of ["VCToolsInstallDir", "VCINSTALLDIR", "INCLUDE", "LIB"]) delete noPrompt[name];
+for (const a of ["x86_64", "aarch64"]) {
+  const target = `--target=${a}-pc-windows-msvc`;
+  for (const [driver, args] of [
+    ["clang", [target, "-ffreestanding", "-undef", "-nostdinc", "-fsyntax-only", bare]],
+    ["clang++", [target, "-ffreestanding", "-fsyntax-only", "-x", "c++", freestanding]],
+    ["clang-cl", [target, "/Zs", "--", bare]],
+    ["clang-cl", [target, "/Zs", "/clang:-ffreestanding", "--", freestanding]],
+    ...(a === arch ? [["clang-cl", ["/Zs", "--", bare]]] as const : []),
+  ] as const) {
+    const r = run(tool(driver), [...args], { cwd: work, env: noPrompt });
+    check(r.status === 0, `without an SDK: ${driver} ${args.filter((x) => !path.isAbsolute(x)).join(" ")}`);
+  }
+}
+if (windows) {
+  const program = (driver: string) => path.join(work, `vs-${driver}.exe`);
+  for (const [driver, args] of [
+    ["clang", ["-O2", hello, "-o", program("clang")]],
+    ["clang-cl", ["/O2", `/Fe${program("clang-cl")}`, "--", hello]],
+  ] as const) {
+    const built = run(tool(driver), [`--target=${arch}-pc-windows-msvc`, ...args], { cwd: work, env: noPrompt });
+    check(built.status === 0 && run(program(driver), []).out.includes("hello, C"),
+      `without an SDK: ${driver} finds Visual Studio, and the program runs`);
+  }
+  const dir = path.join(work, "cmake-vs");
+  const toolchain = path.join(tree, "lib", "cmake", "xclang", "toolchain.cmake");
+  const built = run("cmake", ["-G", "Ninja", "-S", path.join(common.ROOT, "tests", "cmake"), "-B", dir,
+    "-DCMAKE_BUILD_TYPE=Release", `--toolchain=${toolchain}`, `-DXCLANG_TARGET=${arch}-pc-windows-msvc`], { env: noPrompt }).status === 0 &&
+    run("cmake", ["--build", dir], { env: noPrompt }).status === 0 &&
+    run("ctest", ["--test-dir", dir, "--output-on-failure"]).status === 0;
+  check(built, `without an SDK: tests/cmake for ${arch}-pc-windows-msvc with Visual Studio`);
+} else {
+  const r = run(tool("clang"), ["--target=x86_64-pc-windows-msvc", "-c", hello], { cwd: work });
+  check(r.status !== 0 && /'stdio\.h' file not found/.test(r.out), "without an SDK: clang finds no stdio.h");
+  const v = run(tool("clang"), ["--target=x86_64-pc-windows-msvc", "-###", "-c", hello], { cwd: work });
+  check(/sdk[\\/]windows[\\/]VC[\\/]Tools/.test(v.out), "without an SDK: clang looks in sdk/windows");
 }
 
 /// 2. The SDK, from Microsoft: the default preset's, then windows-2022's
@@ -99,6 +141,17 @@ const latest = fetch([]);
 const older = fetch(["--preset", "windows-2022", "--arch", "x86_64"]);
 const inUse = () => /^\s+(\S+)\s.*\(in use\)$/m.exec(xclang(["sdk", "list", "windows"]).out)?.[1];
 check(inUse() === older, `sdk list: ${older} in use after its fetch`);
+/// The config files read the SDK in use through bin/<triple>-sdk.cfg and
+/// bin/<triple>-clang-cl-sdk.cfg, for the architectures it has, which the
+/// xclang command writes since 23.1.2.9. checks.yml tests this checkout's
+/// config files in the latest release, whose command may be older: they
+/// then read no SDK, and on Windows clang takes Visual Studio.
+const version = /^xclang (\d+)\.(\d+)\.(\d+)\.(\d+)$/m.exec(xclang(["--version"]).out)?.slice(1).map(Number);
+const selects = !version || version.reduce((a, n) => a * 1000 + n, 0) >= [23, 1, 2, 9].reduce((a, n) => a * 1000 + n, 0);
+const reads = (a: string) => ["", "-clang-cl"].every((cl) => fs.readFileSync(path.join(tree, "bin", `${a}-pc-windows-msvc${cl}-sdk.cfg`), "utf8")
+  .split(/\r?\n/).includes(`@../sdk/windows/${a}-pc-windows-msvc${cl}.cfg`));
+const follows = (ok: boolean, what: string) => selects ? check(ok, what) : console.log(`SKIP ${what}: the tree's xclang is older`);
+follows(reads("x86_64") && !reads("aarch64"), `${older} in use: the x64 config files read it, the arm64 ones none`);
 
 /// 3. Programs, built for both targets, and what they import.
 const int128 = write("int128.c", `#include <stdio.h>
@@ -200,6 +253,7 @@ for (const a of ["x86_64", "aarch64"]) {
     build("cpp-2022", "clang++", ["-std=c++23", "-O2", cpp], cppOut, "hybrid");
     xclang(["sdk", "use", latest]);
     check(inUse() === latest, `sdk use ${latest}`);
+    follows(reads("x86_64") && reads("aarch64"), `sdk use ${latest}: the config files read it`);
   }
   writePrograms(dir, programs);
   summary.push(`- ${triple}: ${programs.length} programs`);
@@ -250,4 +304,10 @@ for (const a of ["x86_64", "aarch64"]) {
 
 /// 6. Here, what runs here.
 if (native) check(runPrograms([path.join(out, "x86_64-pc-windows-msvc")]) === 0, "the x64 programs run here");
+
+/// 7. sdk remove of the SDK in use: the config files read none again.
+xclang(["sdk", "remove", latest]);
+follows(!reads("x86_64") && !reads("aarch64") &&
+  run(tool("clang"), ["--target=aarch64-pc-windows-msvc", "-ffreestanding", "-fsyntax-only", freestanding]).status === 0,
+  `sdk remove ${latest}: the config files read no SDK, and load`);
 finish();

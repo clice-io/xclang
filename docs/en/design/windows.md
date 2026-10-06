@@ -45,15 +45,24 @@ the user fetches from Microsoft with `xclang sdk fetch windows`
 [MSVC targets](../integrations/clang.md#msvc-targets).
 
 **The SDK through the config files.** No archive can hold the SDK, so
-the config files of the targets hold no path to one. They include a file
-that the fetch writes into the SDK it fetched, through the fixed path
-`sdk/windows` of the toolchain, a link to the SDK in use
-([config files](toolchain.md#a-config-file-per-target)). That file names
-the SDK and its versions for clang (`-Xmicrosoft-windows-sys-root`) and
-for clang-cl (`/winsysroot`). Config files have no conditions, so without
-an SDK clang stops at the include, naming the file it could not open. It
-never falls back to an installed Visual Studio or to the headers of the
-machine.
+the config files of the targets hold no path to one. The fetch writes a
+file into the SDK it fetched that names the SDK and its versions, for
+clang (`-Xmicrosoft-windows-sys-root`) and for clang-cl (`/winsysroot`).
+The toolchain reaches it through the fixed path `sdk/windows`, a link to
+the SDK in use ([config files](toolchain.md#a-config-file-per-target)).
+Config files have no conditions, and one that includes a missing file
+fails to load, for every compile. So the config files of the targets
+include `bin/<target>-sdk.cfg` (`-clang-cl-sdk.cfg` for clang-cl), which
+names no SDK in the archive and which `xclang sdk fetch`, `use` and
+`remove` rewrite: it includes the file of the SDK in use, for the
+architectures it has. Without an SDK, then, what needs none still compiles: a freestanding
+compile, or the queries of a tool such as clice. On Linux and macOS hosts
+the config files name `sdk/windows` as the sysroot all the same, so clang
+never takes the headers of the machine (`INCLUDE`, a `cl.exe` in `PATH`);
+a compile that includes a header of the CRT stops at it
+(`'stdio.h' file not found`), and `-v` shows where clang looked. On
+Windows hosts they name none, and clang finds Visual Studio and the
+Windows SDK as upstream clang does.
 
 **The hybrid CRT.** The VC runtime and the STL are linked statically, as
 `/MT` has them, and UCRT comes from `ucrtbase.dll`, a component of Windows
@@ -81,11 +90,12 @@ xclang makes that file the clang-cl file of the MSVC target of the host's
 architecture, so `clang-cl` builds against the fetched SDK with no
 `--target`.
 
-**Visual Studio on Windows hosts.** With the config files, a Windows host
-builds against the fetched SDK too, not an installed Visual Studio: the
-SDK is pinned, and the build is the same on every host.
-`--no-default-config` gives clang's own lookup of Visual Studio, which
-[patch 0004](../reference/patches.md) makes work for the MinGW-built clang.
+**Visual Studio on Windows hosts.** With a fetched SDK, a Windows host
+builds against it too, not an installed Visual Studio: the SDK is pinned,
+and the build is the same on every host. Without one, clang finds Visual
+Studio by itself, which [patch 0004](../reference/patches.md) makes work
+for the MinGW-built clang; so does `--no-default-config`, also with an SDK
+fetched.
 
 **CMake uses clang, not clang-cl.** The CMake package compiles and links
 the MSVC targets with clang++, as it does every other target. CMake then

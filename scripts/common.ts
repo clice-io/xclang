@@ -432,7 +432,10 @@ export function shareHeaders(tree: string): void {
 /// target directory of the tree works with a bare --target; clang-cl reads
 /// bin/<triple>-clang-cl.cfg. The macOS targets' files differ by the tree's
 /// host: Apple's SDK is Xcode's on macOS, the fetched one in the tree's
-/// sdk/macos elsewhere.
+/// sdk/macos elsewhere. So do the MSVC targets': on Windows, clang finds
+/// Visual Studio by itself when no SDK is in use. Theirs read the SDK in use
+/// from bin/<triple>-sdk.cfg and bin/<triple>-clang-cl-sdk.cfg, which say
+/// none here and which xclang sdk (cli/) writes.
 export function writeConfigs(tree: string, host: Os): void {
   const bin = path.join(tree, "bin");
   fs.mkdirSync(bin, { recursive: true });
@@ -442,10 +445,16 @@ export function writeConfigs(tree: string, host: Os): void {
     .replaceAll("@NORMALIZED@", normalized(t))
     .replaceAll("@ARCH@", t.arch)
     .replaceAll("@MACOS_MIN@", MACOS_MIN);
+  /// Off Windows, the MSVC targets' SDK is the tree's sdk/windows, whatever
+  /// the machine has.
+  const msvc = (name: string, t: Target) => (host === "mingw" ? "" : config(`${name}-sysroot.cfg`, t)) + config(`${name}.cfg`, t);
   for (const t of MSVC_TARGETS) {
     for (const name of cfgNames(t)) {
-      fs.writeFileSync(path.join(bin, `${name}.cfg`), config("msvc.cfg", t));
-      fs.writeFileSync(path.join(bin, `${name}-clang-cl.cfg`), config("msvc-clang-cl.cfg", t));
+      fs.writeFileSync(path.join(bin, `${name}.cfg`), msvc("msvc", t));
+      fs.writeFileSync(path.join(bin, `${name}-clang-cl.cfg`), msvc("msvc-clang-cl", t));
+    }
+    for (const sdk of [`${t.triple}-sdk.cfg`, `${t.triple}-clang-cl-sdk.cfg`]) {
+      fs.writeFileSync(path.join(bin, sdk), config("msvc-no-sdk.cfg", t));
     }
   }
   for (const t of TARGETS) {
@@ -453,7 +462,7 @@ export function writeConfigs(tree: string, host: Os): void {
     /// <default target>.cfg, before it turns to the MSVC target: a plain
     /// clang-cl reads the clang-cl file of the MSVC target of its
     /// architecture, and none of the host target's options.
-    const cl = config("msvc-clang-cl.cfg", MSVC_TARGETS.find((m) => m.arch === t.arch)!);
+    const cl = msvc("msvc-clang-cl", MSVC_TARGETS.find((m) => m.arch === t.arch)!);
     const sdk = t.os !== "darwin" ? "" : config(host === "darwin" ? "darwin-xcode.cfg" : "darwin-sdk.cfg", t);
     for (const name of cfgNames(t)) {
       fs.writeFileSync(path.join(bin, `${name}.cfg`), sdk + config(`${t.os}.cfg`, t));

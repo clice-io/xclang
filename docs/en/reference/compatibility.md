@@ -36,8 +36,12 @@ Since 23.1.2.7, clang and clang-cl build for `*-pc-windows-msvc` against
 the SDK the `xclang` command fetches, not an installed Visual Studio
 ([MSVC targets](../integrations/clang.md#msvc-targets)); lld-link, which
 reads no config file, finds its libraries where they say, or by
-`/winsysroot`. `--no-default-config` looks for Visual Studio, as upstream
-clang does and releases before 23.1.2.7 did.
+`/winsysroot`. Without a fetched SDK, 23.1.2.7 and 23.1.2.8 stop at loading
+the config file, for every compile of the target. Since 23.1.2.9, clang
+looks for Visual Studio then on Windows, as upstream clang does and
+releases before 23.1.2.7 did, and stops elsewhere only at a header or
+library of Microsoft's. `--no-default-config` looks for Visual Studio
+always.
 
 ## Not Yet Supported
 

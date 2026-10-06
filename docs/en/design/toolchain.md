@@ -35,7 +35,7 @@ Each says this
 | Linux | `--sysroot` of the target, `-rtlib=compiler-rt -unwindlib=libunwind -stdlib=libc++`, `-static-libstdc++ -static-libgcc`, `-fuse-ld=lld` |
 | Windows (MinGW) | `--sysroot` of the target, `-rtlib=compiler-rt -unwindlib=libunwind -stdlib=libc++`, `-fuse-ld=lld`; the sysroot has static libraries only |
 | macOS | xclang's libc++ headers (`-stdlib++-isystem`) and `libc++.a` ahead of the SDK's `libc++.tbd` (`-L`), `-mmacos-version-min=13.0`, `-fuse-ld=lld` |
-| Windows (MSVC) | `@../sdk/windows/<target>.cfg`, the file of the fetched SDK that names it; `-fuse-ld=lld`; the builtins and the hybrid CRT named in every object ([MSVC targets](windows.md#msvc-targets)) |
+| Windows (MSVC) | `@<target>-sdk.cfg`, which includes the file of the SDK in use that names it, from `sdk/windows`; on Linux and macOS hosts `sdk/windows` as the sysroot; `-fuse-ld=lld`; the builtins and the hybrid CRT named in every object ([MSVC targets](windows.md#msvc-targets)) |
 
 Paths are relative to the file (`<CFGDIR>`), so the toolchain directory
 works wherever it is unpacked. The config files apply to native builds

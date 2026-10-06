@@ -13,7 +13,10 @@
 //! `sdk use` names, is a link with the vendor's name (a junction on
 //! Windows), the fixed path the toolchain's config files read: a Windows
 //! SDK holds config files for the MSVC targets of each of its
-//! architectures, which name it (windows::write_configs).
+//! architectures, which name it (windows::write_configs), and the
+//! toolchain's bin/<triple>-sdk.cfg include them, or say there is none
+//! (windows::select_configs): its MSVC targets' config files then load
+//! without an SDK too.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -102,6 +105,7 @@ pub fn main(a: &mut Args) -> Result<()> {
                     links::remove_alias(&root, vendor.name()).context(root.display())?;
                 }
             }
+            select(a, &root)?;
             links::remove_tree(&dir).context(dir.display())?;
             eprintln!("removed {}", dir.display());
             Ok(())
@@ -113,7 +117,8 @@ pub fn main(a: &mut Args) -> Result<()> {
             let Some(record) = read_record(&dir) else {
                 bail!("{} is incomplete: fetch it again", dir.display())
             };
-            use_sdk(&root, &record.kind, name)
+            use_sdk(&root, &record.kind, name)?;
+            select(a, &root)
         }
         #[cfg(feature = "maintainer")]
         ["update-table"] => {
@@ -162,6 +167,22 @@ fn use_sdk(root: &Path, vendor: &str, name: &str) -> Result<()> {
     links::set_alias(root, vendor, name).context(root.join(vendor).display())?;
     eprintln!("{} is {name}", root.join(vendor).display());
     Ok(())
+}
+
+/// The toolchain whose config files read the SDKs of root: the one whose
+/// sdk/ it is.
+fn owner(a: &Args, root: &Path) -> Option<Toolchain> {
+    let t = Toolchain::find(a.value("root")).ok()?;
+    (links::canonical(&t.root.join("sdk")).ok()? == links::canonical(root).ok()?).then_some(t)
+}
+
+/// After the Windows SDK in use changed: the toolchain's config files of the
+/// MSVC targets read the new one, or none.
+fn select(a: &Args, root: &Path) -> Result<()> {
+    match owner(a, root) {
+        Some(t) => windows::select_configs(&t.root.join("bin"), root),
+        None => Ok(()),
+    }
 }
 
 pub fn read_record(dir: &Path) -> Option<Record> {
@@ -411,13 +432,11 @@ fn fetch(a: &Args, table: &Table, vendor: Vendor) -> Result<()> {
     }
     eprintln!("fetched {name} in {:.1} s", start.elapsed().as_secs_f64());
     use_sdk(&root, vendor.name(), &name)?;
+    select(a, &root)?;
     let d = dir.display();
     // The toolchain's config files read <toolchain>/sdk/windows, and off
     // macOS <toolchain>/sdk/macos (on macOS, Xcode's SDK).
-    let own = Toolchain::find(a.value("root"))
-        .ok()
-        .and_then(|t| links::canonical(&t.root.join("sdk")).ok())
-        .is_some_and(|s| s == root);
+    let own = owner(a, &root).is_some();
     match vendor {
         Vendor::Macos if own && !cfg!(target_os = "macos") => {
             eprintln!("  clang --target=arm64-apple-macos ...")

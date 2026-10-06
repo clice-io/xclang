@@ -253,6 +253,50 @@ pub fn write_configs(dir: &Path, archs: &[String], u: &Unpacked, what: &str) -> 
     Ok(())
 }
 
+/// The files through which the toolchain's config files of the MSVC targets
+/// read the SDK in use, <sdk dir>/windows (scripts/common.ts, writeConfigs):
+/// bin/<triple>-sdk.cfg and bin/<triple>-clang-cl-sdk.cfg include its
+/// config files for the architectures it has, and say none for the others.
+/// The toolchain's own say none; without them (a toolchain before 23.1.2.9)
+/// its config files read <sdk dir>/windows themselves.
+pub fn select_configs(bin: &Path, sdk_dir: &Path) -> Result<()> {
+    let in_use = links::alias_of(sdk_dir, "windows");
+    for arch in ["x86_64", "aarch64"] {
+        let triple = format!("{arch}-pc-windows-msvc");
+        for driver in ["", "-clang-cl"] {
+            let file = bin.join(format!("{triple}{driver}-sdk.cfg"));
+            if !file.is_file() {
+                continue;
+            }
+            let sdk = format!("{triple}{driver}.cfg");
+            let text = match &in_use {
+                Some(name) if sdk_dir.join("windows").join(&sdk).is_file() => format!(
+                    "# The SDK in use for {triple}, {name}: written by xclang sdk (fetch,\n\
+                     # use, remove).\n@../sdk/windows/{sdk}\n"
+                ),
+                _ => no_sdk(&triple),
+            };
+            if fs::read_to_string(&file).is_ok_and(|t| t == text) {
+                continue;
+            }
+            // Whole, by a rename: for a compile that reads it meanwhile, and
+            // for a file hard-linked to another (conda's package cache).
+            let new = file.with_extension("cfg.new");
+            fs::write(&new, text).context(new.display())?;
+            fs::rename(&new, &file).context(file.display())?;
+        }
+    }
+    Ok(())
+}
+
+/// What the toolchain's file says with no SDK in use (config/msvc-no-sdk.cfg).
+fn no_sdk(triple: &str) -> String {
+    format!(
+        "# No SDK in use for {triple}. `xclang sdk fetch windows --accept-license`\n\
+         # fetches one, and xclang sdk (fetch, use, remove) writes this file.\n"
+    )
+}
+
 /// Spellings in use that no header writes, Microsoft's documentation's
 /// (xwin links them too).
 const KNOWN_HEADERS: [&str; 2] = ["BaseTsd.h", "Mstcpip.h"];
@@ -586,6 +630,46 @@ mod tests {
         ] {
             assert!(p.exists(), "{}", p.display());
         }
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn select() {
+        let dir = std::env::temp_dir().join(format!("xclang-select-{}", std::process::id()));
+        let (bin, sdk) = (dir.join("bin"), dir.join("sdk"));
+        let x64 = sdk.join("windows-msvc14.44-sdk10.0.26100");
+        fs::create_dir_all(&bin).unwrap();
+        fs::create_dir_all(&x64).unwrap();
+        let switches = [
+            "x86_64-pc-windows-msvc-sdk.cfg",
+            "x86_64-pc-windows-msvc-clang-cl-sdk.cfg",
+            "aarch64-pc-windows-msvc-sdk.cfg",
+        ];
+        for f in switches {
+            fs::write(bin.join(f), "").unwrap();
+        }
+        for f in [
+            "x86_64-pc-windows-msvc.cfg",
+            "x86_64-pc-windows-msvc-clang-cl.cfg",
+        ] {
+            fs::write(x64.join(f), "").unwrap();
+        }
+        let read = |f: &str| fs::read_to_string(bin.join(f)).unwrap();
+        links::set_alias(&sdk, "windows", "windows-msvc14.44-sdk10.0.26100").unwrap();
+        select_configs(&bin, &sdk).unwrap();
+        assert!(read(switches[0]).ends_with("\n@../sdk/windows/x86_64-pc-windows-msvc.cfg\n"));
+        assert!(
+            read(switches[1]).ends_with("\n@../sdk/windows/x86_64-pc-windows-msvc-clang-cl.cfg\n")
+        );
+        assert_eq!(read(switches[2]), no_sdk("aarch64-pc-windows-msvc"));
+        assert!(
+            !bin.join("aarch64-pc-windows-msvc-clang-cl-sdk.cfg")
+                .exists()
+        );
+        links::remove_alias(&sdk, "windows").unwrap();
+        select_configs(&bin, &sdk).unwrap();
+        assert_eq!(read(switches[0]), no_sdk("x86_64-pc-windows-msvc"));
+        assert_eq!(read(switches[1]), no_sdk("x86_64-pc-windows-msvc"));
         fs::remove_dir_all(&dir).unwrap();
     }
 }

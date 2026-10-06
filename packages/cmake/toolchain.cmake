@@ -104,8 +104,9 @@ endif()
 
 if(_xclang_target_os STREQUAL "msvc")
     # Microsoft's CRT, STL and Windows SDK, where the config files of the
-    # MSVC targets read them: fetched into the tree.
-    if(NOT EXISTS "${XCLANG_ROOT}/sdk/windows/${XCLANG_TARGET}.cfg")
+    # MSVC targets read them: fetched into the tree. On Windows, without
+    # one, clang finds Visual Studio.
+    if(NOT CMAKE_HOST_WIN32 AND NOT EXISTS "${XCLANG_ROOT}/sdk/windows/${XCLANG_TARGET}.cfg")
         message(FATAL_ERROR "xclang: ${XCLANG_TARGET} needs the Windows SDK in ${XCLANG_ROOT}/sdk/windows, "
             "for ${_xclang_target_arch}: ${_xclang_bin}/xclang sdk fetch windows --accept-license")
     endif()
@@ -193,7 +194,9 @@ elseif(NOT _xclang_target_os STREQUAL _xclang_host_os OR NOT _xclang_target_arch
     # The sysroot the config file names (for MSVC targets, the SDK): what
     # the build links is looked for there, not on this machine.
     if(_xclang_target_os STREQUAL "msvc")
-        set(CMAKE_FIND_ROOT_PATH "${XCLANG_ROOT}/sdk/windows")
+        if(EXISTS "${XCLANG_ROOT}/sdk/windows")
+            set(CMAKE_FIND_ROOT_PATH "${XCLANG_ROOT}/sdk/windows")
+        endif()
     else()
         set(CMAKE_SYSROOT "${XCLANG_ROOT}/${XCLANG_TARGET}")
     endif()

@@ -52,9 +52,16 @@ The SDK fetched last, or the one `sdk use` names, is the one in use:
 link, or on Windows a junction, which needs no privilege. That gives the
 config files a fixed path. A Windows SDK holds a config file per
 architecture fetched and per driver, `<arch>-pc-windows-msvc.cfg` and
-`<arch>-pc-windows-msvc-clang-cl.cfg`, which name the SDK and its versions;
-the MSVC targets' own config files read them through `sdk/windows`
-([why](../design/windows.md#msvc-targets)). On Linux and Windows hosts the
+`<arch>-pc-windows-msvc-clang-cl.cfg`, which name the SDK and its versions.
+The MSVC targets' own config files read them through
+`bin/<arch>-pc-windows-msvc-sdk.cfg` and
+`bin/<arch>-pc-windows-msvc-clang-cl-sdk.cfg`, which `fetch`, `use` and
+`remove` rewrite: they include the files of the SDK in use, through
+`sdk/windows`, or say there is none for the architecture
+([why](../design/windows.md#msvc-targets)). An update of a conda package
+writes them anew, naming none; `sdk use` names the SDK again. On Linux and
+macOS hosts the config files read `sdk/windows` meanwhile all the same. On
+Linux and Windows hosts the
 macOS targets' config files name `sdk/macos` as their `-isysroot`
 ([why](../design/macos.md#the-sdk-on-linux-and-windows-hosts)); on macOS
 hosts they use Xcode's SDK, and a fetched one takes `-isysroot`. An SDK

@@ -66,10 +66,25 @@ get_filename_component(XCLANG_ROOT "${XCLANG_ROOT}/.." ABSOLUTE)
 # libc++'s module manifest of the target, from the compiler: the sources of
 # std and std.compat, and the directory they include from. For an MSVC
 # target, the STL's (modules.json, std.ixx), in the toolset of the SDK the
-# config files read, which clang does not report.
+# config files read, which clang does not report; on Windows without one,
+# in Visual Studio's, next to the STL's headers clang includes.
 get_property(_xclang_manifest GLOBAL PROPERTY XCLANG_STD_MANIFEST)
 if(NOT _xclang_manifest AND CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
     file(GLOB _xclang_manifest "${XCLANG_ROOT}/sdk/windows/VC/Tools/MSVC/*/modules/modules.json")
+    if(NOT _xclang_manifest AND CMAKE_HOST_WIN32)
+        # The search list of clang -v (CMake records none for this compiler).
+        set(_xclang_args -E -v -x c++ NUL)
+        if(CMAKE_CXX_COMPILER_TARGET)
+            list(PREPEND _xclang_args "--target=${CMAKE_CXX_COMPILER_TARGET}")
+        endif()
+        execute_process(COMMAND "${CMAKE_CXX_COMPILER}" ${_xclang_args} OUTPUT_QUIET ERROR_VARIABLE _xclang_search)
+        string(REGEX MATCH "[^\n]*[/\\]VC[/\\]Tools[/\\]MSVC[/\\][^/\\\n]+[/\\]include\n" _xclang_dir "${_xclang_search}")
+        string(STRIP "${_xclang_dir}" _xclang_dir)
+        file(TO_CMAKE_PATH "${_xclang_dir}" _xclang_dir)
+        if(_xclang_dir AND EXISTS "${_xclang_dir}/../modules/modules.json")
+            get_filename_component(_xclang_manifest "${_xclang_dir}/../modules/modules.json" ABSOLUTE)
+        endif()
+    endif()
     if(NOT _xclang_manifest)
         set(xclang_FOUND FALSE)
         set(xclang_NOT_FOUND_MESSAGE

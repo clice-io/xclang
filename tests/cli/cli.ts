@@ -88,6 +88,16 @@ for (const vendor of ["macos", "windows"]) {
 check(fs.existsSync(path.join(sdks.macos!, "SDKSettings.json")), "the macOS SDK has SDKSettings.json");
 check(fs.existsSync(path.join(sdks.windows!, "VC", "Tools", "MSVC")), "the /winsysroot has VC/Tools/MSVC");
 check(/macos-26\.5/.test(xclang(["sdk", "list", "macos"]).out), "sdk list shows the fetched SDK");
+/// The MSVC targets' config files read the SDK in use through
+/// bin/<triple>-sdk.cfg, which fetch wrote: clang takes its headers, also
+/// on Windows, where it finds Visual Studio without one.
+for (const arch of ["x86_64", "aarch64"]) {
+  const cfg = fs.readFileSync(path.join(tree, "bin", `${arch}-pc-windows-msvc-sdk.cfg`), "utf8");
+  const r = run(tool("clang"), [`--target=${arch}-pc-windows-msvc`, "-###", "-c", path.join(sources, "hello.c")]);
+  check(cfg.includes(`\n@../sdk/windows/${arch}-pc-windows-msvc.cfg\n`) &&
+    /sdk[\\/]+windows[\\/]+VC[\\/]+Tools[\\/]+MSVC[\\/]+[\d.]+[\\/]+include/.test(r.err),
+    `${arch}-pc-windows-msvc: clang reads the SDK in use`);
+}
 
 /// 3. Programs cross-compiled against them.
 const built: string[] = [];

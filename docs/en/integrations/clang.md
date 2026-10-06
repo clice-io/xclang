@@ -56,9 +56,13 @@ clang-cl /O2 /EHsc --target=aarch64-pc-windows-msvc hello.cpp /Fehello-cl-arm64.
 ```
 
 A plain `clang-cl` builds for the MSVC target of the host's architecture.
-Without the SDK, clang stops and names the file it looks for in the
-toolchain's `sdk/windows`. `xclang sdk use` picks another fetched SDK
+`xclang sdk use` picks another fetched SDK
 ([the xclang command](../reference/xclang-command.md#the-sdk-in-use)).
+Without one, clang on Windows finds an installed Visual Studio, as
+upstream clang does. On Linux and macOS it finds no header of Microsoft's,
+and a compile that includes one stops (`'stdio.h' file not found`); one
+that needs none, such as `-ffreestanding`, works
+([why](../design/windows.md#msvc-targets)).
 
 By default a program links the VC runtime and the STL statically, and
 UCRT from Windows: it loads Windows' DLLs and UCRT's API sets

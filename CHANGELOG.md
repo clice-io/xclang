@@ -15,6 +15,14 @@ the [patches](docs/en/reference/patches.md) of its tag.
   ([installing](docs/en/guide/install.md), [versions](docs/en/reference/releases.md#versions)).
   The docs and `examples/` use these; a release's version keeps it. The
   Bazel module's version stays the oldest release a project takes.
+- MSVC targets without a fetched SDK: the config files load, where every
+  compile for `*-pc-windows-msvc` stopped at loading them, also one that
+  needs no SDK (`-ffreestanding`, a tool's queries of the compiler). On
+  Windows, clang and clang-cl then find Visual Studio as upstream clang
+  does, and so does the CMake package; on Linux and macOS a compile stops
+  at the first header of Microsoft's it includes. They read the SDK in use
+  through `bin/<target>-sdk.cfg`, which `xclang sdk fetch`, `use` and
+  `remove` write, for the architectures it has.
 - Bazel on Linux and macOS: a library's objects are linked as they are,
   between `--start-lib` and `--end-lib`, not from its archive. On macOS,
   objects of one name in a library (a module's `foo.cppm` and `foo.cpp`,

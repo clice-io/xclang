@@ -86,8 +86,10 @@ How the stages fit together is in the [build pipeline](release-build.md).
 - The checks each [LLVM patch](../reference/patches.md) was made against.
   For example, `--no-default-config --target=<arch>-pc-windows-msvc` finds
   Visual Studio on the Windows runners (patch 0004).
-- The MSVC targets: their compiler-rt is there, and without a fetched SDK
-  clang and a plain clang-cl stop and name `sdk/windows`.
+- The MSVC targets: their compiler-rt is there. Without a fetched SDK,
+  freestanding compiles work with clang and clang-cl; on Windows a program
+  builds with Visual Studio and runs, elsewhere one that includes
+  `<stdio.h>` stops.
 - ASan, TSan and libFuzzer on Linux and macOS hosts. An overflow within
   the capacity of a `std::string` is reported, and a program that shares
   the `std::filesystem` instantiations of `libc++.a` gets no false report
@@ -230,10 +232,14 @@ ABI against the fetched SDKs ([Rust and Cargo](../integrations/cargo.md)).
 test-sdk.yml tests the MSVC targets with a run's archives, or the latest
 release's, from Linux x64, macOS arm64 and Windows x64 hosts. On each, `tests/sdk/msvc.ts`:
 
-- checks that clang and clang-cl stop without the SDK and name
-  `sdk/windows`;
+- without an SDK: freestanding compiles for both targets with clang and
+  clang-cl; on Windows, programs built with Visual Studio, and
+  `tests/cmake` through the CMake package; elsewhere, that a compile
+  including `<stdio.h>` stops and clang looks in `sdk/windows`;
 - fetches the SDK of `windows-latest` with the archive's `xclang`, and
-  windows-2022's for x64, and switches between them with `sdk use`;
+  windows-2022's for x64, and switches between them with `sdk use`; the
+  config files read the SDK in use for the architectures it has, and none
+  after `sdk remove`;
 - builds, for x64 and arm64, C and C++ (exceptions, threads,
   `<filesystem>`, `<format>`) with clang, clang++ and clang-cl, `__int128`
   division, a Win32 program, ThinLTO, debug information, UBSan, the profile

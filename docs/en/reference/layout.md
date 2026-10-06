@@ -14,7 +14,8 @@ xclang/
                            (llvm-profdata, llvm-cov, llvm-dwarfdump,
                            llvm-strings, FileCheck), the xclang command,
                            and <target>.cfg for every spelling of every
-                           target
+                           target; <target>-sdk.cfg, the SDK in use of an
+                           MSVC target, which the xclang command writes
   lib/clang/<major>/       clang's resource headers, compiler-rt's headers,
                            and compiler-rt for every target
   lib/cmake/xclang/        the CMake package
