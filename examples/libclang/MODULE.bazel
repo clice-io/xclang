@@ -1,7 +1,7 @@
 module(name = "tool")
 
 bazel_dep(name = "rules_cc", version = "0.2.25")
-bazel_dep(name = "xclang", version = "23.1.2.6")
+bazel_dep(name = "xclang", version = "23.1.2.7")
 
 xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
 use_repo(xclang, "libclang", "llvm_option_inc")

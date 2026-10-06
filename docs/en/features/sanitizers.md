@@ -140,7 +140,7 @@ cc_binary(
 module(name = "sanitizers")
 
 bazel_dep(name = "rules_cc", version = "0.2.25")
-bazel_dep(name = "xclang", version = "23.1.2.6")
+bazel_dep(name = "xclang", version = "23.1.2.7")
 ```
 
 <!-- file: examples/sanitizers/.bazelrc -->

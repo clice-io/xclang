@@ -22,8 +22,8 @@ item's status.
 ## What Is in It
 
 - **clang and lld**, and the LLVM binary tools, as one program (`llvm`),
-  linked statically against xclang's own libc++. An archive is 95 to
-  128 MB.
+  linked statically against xclang's own libc++. An archive is 86 to
+  94 MB.
 - **Six targets in every archive**: Linux x64 and arm64 (glibc 2.17),
   Windows x64 and arm64 (MinGW-w64 with UCRT), macOS arm64 and x64. The
   macOS targets use Xcode's SDK, so in releases they build on macOS hosts

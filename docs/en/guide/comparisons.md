@@ -117,7 +117,7 @@ ThinLTO on Linux and macOS (`clang/cmake/caches/Release.cmake`), and with
 PGO but no LTO on Windows. They carry no sysroot for another target, so a
 cross build needs one from elsewhere. An archive is 0.9 to 2 GB.
 
-xclang 23.1.2.1 was built by them. xclang's archives are 95 to 128 MB,
+xclang 23.1.2.1 was built by them. xclang's archives are 86 to 94 MB,
 carry six targets, and run on glibc 2.17. On compile speed they are close
 on Linux and macOS ([PGO](../design/pgo.md#what-it-buys) has the numbers).
 

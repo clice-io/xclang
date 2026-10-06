@@ -27,7 +27,7 @@ channels = ["conda-forge", "https://conda.clice.io"]
 platforms = ["linux-64", "linux-aarch64", "osx-64", "osx-arm64", "win-64", "win-arm64"]
 
 [dependencies]
-xclang = "23.1.2.6.*"
+xclang = "23.1.2.7.*"
 ```
 
 <!-- excerpt: .github/workflows/examples.yml -->
@@ -41,7 +41,7 @@ pixi install
   conda-forge stay as they are.
 - There is one package per host: `linux-64`, `linux-aarch64`, `osx-64`,
   `osx-arm64`, `win-64` and `win-arm64`.
-- `23.1.2.6.*` takes the newest build of the release. The build number
+- `23.1.2.7.*` takes the newest build of the release. The build number
   counts packaging fixes ([versions](../reference/releases.md#versions)).
 - `llvm-option-inc`, a noarch package, holds the option tables in
   `$PREFIX/include/llvm-options-td`.
@@ -52,13 +52,13 @@ xclang is not a compiler for building conda-forge packages
 ## Archives
 
 Every [GitHub release](https://github.com/clice-io/xclang/releases) has
-the toolchain for each host, `xclang-<version>-<host>.tar.xz`, 95 to
-128 MB. It unpacks anywhere, and is used from there: the toolchain
+the toolchain for each host, `xclang-<version>-<host>.tar.xz`, 86 to
+94 MB. It unpacks anywhere, and is used from there: the toolchain
 directory is `xclang/`. On Linux:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
-v=23.1.2.6 h=x86_64-unknown-linux-gnu
+v=23.1.2.7 h=x86_64-unknown-linux-gnu
 curl -LO https://github.com/clice-io/xclang/releases/download/$v/xclang-$v-$h.tar.xz
 curl -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
 sha256sum -c --ignore-missing SHA256SUMS
@@ -72,7 +72,7 @@ whose `tar` is the one of the system (`C:\Windows\System32\tar.exe`):
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```powershell
-$v = "23.1.2.6"; $h = "x86_64-w64-mingw32"
+$v = "23.1.2.7"; $h = "x86_64-w64-mingw32"
 curl.exe -LO https://github.com/clice-io/xclang/releases/download/$v/xclang-$v-$h.tar.xz
 curl.exe -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
 $sum = (Get-FileHash xclang-$v-$h.tar.xz -Algorithm SHA256).Hash.ToLower()
@@ -95,7 +95,7 @@ it configures on a machine with nothing but CMake and Ninja:
 
 <!-- excerpt: examples/cmake-fetch/CMakeLists.txt -->
 ```cmake
-set(XCLANG_VERSION 23.1.2.6)
+set(XCLANG_VERSION 23.1.2.7)
 include(FetchContent)
 FetchContent_Declare(xclang
     GIT_REPOSITORY https://github.com/clice-io/xclang
@@ -123,7 +123,7 @@ Then depend on xclang in `MODULE.bazel`:
 
 <!-- excerpt: examples/bazel/MODULE.bazel -->
 ```python
-bazel_dep(name = "xclang", version = "23.1.2.6")
+bazel_dep(name = "xclang", version = "23.1.2.7")
 ```
 
 The module downloads the host archive by the sha256 that its release pins,
@@ -140,7 +140,7 @@ the clang version and `InstalledDir`, the `bin/` it runs from:
 pixi run clang++ --version
 ```
 
-The release, `23.1.2.6`, is tagged `<llvm version>.<revision>`
+The release, `23.1.2.7`, is tagged `<llvm version>.<revision>`
 ([versions](../reference/releases.md#versions)). What each release changed
 is in the
 [CHANGELOG](https://github.com/clice-io/xclang/blob/main/CHANGELOG.md).

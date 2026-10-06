@@ -22,7 +22,7 @@ The project is
 module(name = "hello")
 
 bazel_dep(name = "rules_cc", version = "0.2.25")
-bazel_dep(name = "xclang", version = "23.1.2.6")
+bazel_dep(name = "xclang", version = "23.1.2.7")
 ```
 
 `.bazelrc` adds the registry, and the options `import std` needs:
@@ -285,7 +285,7 @@ the `packages/bazel` directory, and the `packages/bazel/bazel/versions.bzl`
 of the commit names the release it downloads:
 
 ```python
-bazel_dep(name = "xclang", version = "23.1.2.6")
+bazel_dep(name = "xclang", version = "23.1.2.7")
 git_override(
     module_name = "xclang",
     remote = "https://github.com/clice-io/xclang",

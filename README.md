@@ -69,8 +69,8 @@ that run wherever they are copied:
   directories laid out the way clang's drivers expect.
 - **Fast.** clang and lld are built with PGO and ThinLTO, and linked
   statically against xclang's own libc++ on every host.
-- **Small.** clang, lld and most tools are one program, `llvm`, 95 to
-  128 MB an archive.
+- **Small.** clang, lld and most tools are one program, `llvm`, 86 to
+  94 MB an archive.
 - **For tools on clang** too: each release has the libclang it was built
   from and the option tables.
 
@@ -89,7 +89,7 @@ channels = ["conda-forge", "https://conda.clice.io"]
 platforms = ["linux-64", "linux-aarch64", "osx-64", "osx-arm64", "win-64", "win-arm64"]
 
 [dependencies]
-xclang = "23.1.2.6.*"
+xclang = "23.1.2.7.*"
 ```
 
 The environment puts xclang's `bin/` first in `PATH` and leaves
@@ -119,7 +119,7 @@ target_link_libraries(app PRIVATE xclang::std)
 Bazel, from the clice registry [bazel.clice.io](https://bazel.clice.io):
 
 ```starlark
-bazel_dep(name = "xclang", version = "23.1.2.6")
+bazel_dep(name = "xclang", version = "23.1.2.7")
 ```
 
 and, from 23.1.2.6 on, another target is a platform:

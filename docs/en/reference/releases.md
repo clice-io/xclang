@@ -7,7 +7,7 @@ download. What each release changed is in the
 ## Versions
 
 A release is tagged `<llvm version>.<revision>`. `23.1.2.1` is the first
-build of LLVM 23.1.2, and `23.1.2.6` the sixth. The version sorts the way
+build of LLVM 23.1.2, and `23.1.2.7` the seventh. The version sorts the way
 conda, Bazel and CMake sort versions, and says which LLVM it is.
 
 Nothing published is ever replaced. A fix to a release, even one that only
@@ -18,21 +18,21 @@ the `versions.bzl` of the Bazel module and in the CMake download.
 
 | where | version |
 |---|---|
-| GitHub release and tag | `23.1.2.6` |
-| conda package | `23.1.2.6`; the build number counts packaging fixes of the release, each the same toolchain packaged again |
-| Bazel module | `23.1.2.6` |
+| GitHub release and tag | `23.1.2.7` |
+| conda package | `23.1.2.7`; the build number counts packaging fixes of the release, each the same toolchain packaged again |
+| Bazel module | `23.1.2.7` |
 
 ## Assets
 
 Every [GitHub release](https://github.com/clice-io/xclang/releases) has the
 same 17 assets:
 
-| asset | | size (23.1.2.6) |
+| asset | | size (23.1.2.7) |
 |---|---|---|
-| `xclang-<version>-<host>.tar.xz` | the toolchain, one per host, every target in each | 95 to 128 MB |
-| `libclang-<version>-<host>.tar.xz` | the static libraries and headers of clang and LLVM, one per host ([libclang](../features/libclang.md)) | 260 to 274 MB |
-| `libclang-<version>-<host>-asan.tar.xz` | their ASan build, for Linux x64 and macOS arm64 | 191, 210 MB |
-| `llvm-option-inc-<version>.tar.xz` | the option tables of clang, lld, llvm-lib and llvm-dlltool | 175 KB |
+| `xclang-<version>-<host>.tar.xz` | the toolchain, one per host, every target in each | 86 to 94 MB |
+| `libclang-<version>-<host>.tar.xz` | the static libraries and headers of clang and LLVM, one per host ([libclang](../features/libclang.md)) | 258 to 272 MB |
+| `libclang-<version>-<host>-asan.tar.xz` | their ASan build, for Linux x64 and macOS arm64 | 190, 209 MB |
+| `llvm-option-inc-<version>.tar.xz` | the option tables of clang, lld, llvm-lib and llvm-dlltool | 185 KB |
 | `xclang-<version>.profdata` | the PGO profile the release was built with | 52 MB |
 | `SHA256SUMS` | the sha256 of every other asset | |
 
@@ -47,7 +47,7 @@ uploads. This checks a download against it:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
-gh release download 23.1.2.6 -R clice-io/xclang -p SHA256SUMS -p 'llvm-option-inc-*'
+gh release download 23.1.2.7 -R clice-io/xclang -p SHA256SUMS -p 'llvm-option-inc-*'
 sha256sum -c --ignore-missing SHA256SUMS
 ```
 

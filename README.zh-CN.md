@@ -34,7 +34,7 @@ xclang/bin/clang++ --target=aarch64-w64-mingw32 main.cpp -o main.exe
 - **密封（hermetic）。** 程序运行时只依赖其操作系统每个安装都有、且任何人都不能再分发的系统库：Linux 上是 glibc（2.17 及以上），macOS 上是 libSystem 和程序用到的系统框架，Windows 上是操作系统的 DLL，包括 UCRT（Windows 10 及以上）。其余的一切，包括 libc++、libc++abi、libunwind 和 builtins，都静态链接。构建时唯一来自工具链之外的输入，是 macOS 目标平台用到的、本机 Xcode 的 SDK。sanitizer 运行库是例外（[hermeticity](https://docs.clice.io/xclang/design/hermeticity)）。
 - **每个部分都能单独使用。** sysroot 和运行库都是普通目录，按 clang 驱动期望的方式排布。
 - **快。** clang 和 lld 用 PGO 和 ThinLTO 构建，并且在每个主机平台上都静态链接 xclang 自己的 libc++。
-- **小。** clang、lld 和大部分工具是同一个程序 `llvm`，每个包 95 到 128 MB。
+- **小。** clang、lld 和大部分工具是同一个程序 `llvm`，每个包 86 到 94 MB。
 - **也给基于 clang 的工具用**：每个 release 都带着构建它所用的 libclang 和选项表。
 
 它不是用来构建 conda-forge 包的编译器：conda-forge 的 `clang`/`gcc` 动态链接打包好的运行库，并接入 `run_exports`；xclang 有意两样都不做。
@@ -50,7 +50,7 @@ channels = ["conda-forge", "https://conda.clice.io"]
 platforms = ["linux-64", "linux-aarch64", "osx-64", "osx-arm64", "win-64", "win-arm64"]
 
 [dependencies]
-xclang = "23.1.2.6.*"
+xclang = "23.1.2.7.*"
 ```
 
 环境激活时把 xclang 的 `bin/` 放到 `PATH` 最前面，不影响 conda-forge 的编译器。也可以从 [GitHub release](https://github.com/clice-io/xclang/releases) 下载压缩包，解压到任意位置使用。[快速开始](https://docs.clice.io/xclang/guide/quick-start)从这里开始，一路做到为每个目标平台编译程序，以及一个用 `import std` 的 CMake 项目。
@@ -75,7 +75,7 @@ target_link_libraries(app PRIVATE xclang::std)
 Bazel，来自 clice 的模块仓库 [bazel.clice.io](https://bazel.clice.io)：
 
 ```starlark
-bazel_dep(name = "xclang", version = "23.1.2.6")
+bazel_dep(name = "xclang", version = "23.1.2.7")
 ```
 
 23.1.2.6 起，换个 platform 就是另一个目标：
