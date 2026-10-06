@@ -86,7 +86,9 @@ endif()
 
 if(XCLANG_TARGET_OS STREQUAL "darwin")
     # Apple builds switch architectures with CMAKE_OSX_ARCHITECTURES, not
-    # with a cross-compiling system name; Rosetta runs x86_64 build tools.
+    # with a cross-compiling system name. LLVM's x86_64 build on arm64 takes
+    # its table generators from LLVM_NATIVE_TOOL_DIR (scripts/toolchain.ts),
+    # so no x86_64 program runs through Rosetta.
     if(XCLANG_TARGET_ARCH STREQUAL "aarch64")
         set(CMAKE_OSX_ARCHITECTURES arm64 CACHE STRING "")
     else()

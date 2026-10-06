@@ -44,8 +44,9 @@ if (common.machine() === "macos") {
   process.env.SDKROOT ??= spawnSync("xcrun", ["--show-sdk-path"], { encoding: "utf8" }).stdout.trim();
 }
 
-/// Another OS or architecture needs table generators that run here; macOS
-/// runs the x86_64 ones through Rosetta.
+/// Another OS or architecture needs table generators that run here: those
+/// of nativeTools(), for macOS's x86_64 host as for the others, so that no
+/// x86_64 program runs on arm64 macOS through Rosetta.
 const cross = host.os !== native.os || host.arch !== native.arch;
 
 function nativeTools(): string {
@@ -139,7 +140,10 @@ const args = [
   ...compressionLibs.args,
 ];
 if (cross) args.push(`-DLLVM_HOST_TRIPLE=${host.triple}`);
-if (cross && host.os !== "darwin") args.push(`-DLLVM_NATIVE_TOOL_DIR=${nativeTools()}`);
+/// LLVM takes LLVM_NATIVE_TOOL_DIR's table generators over its own also
+/// where CMake does not cross-compile: macOS's x86_64 build is one of
+/// CMAKE_OSX_ARCHITECTURES (cmake/toolchain.cmake).
+if (cross) args.push(`-DLLVM_NATIVE_TOOL_DIR=${nativeTools()}`);
 /// clice and its tests expect backslash-preferred paths on Windows.
 if (host.os === "mingw") args.push("-DLLVM_WINDOWS_PREFER_FORWARD_SLASH=OFF");
 /// Find the SDK the way Apple's clang does, with no -isysroot or SDKROOT.
@@ -168,6 +172,29 @@ if (profile) {
   args.push(`-DLLVM_PROFDATA_FILE=${profile}`, `-DCMAKE_C_FLAGS=${flags}`, `-DCMAKE_CXX_FLAGS=${flags}`);
 }
 common.run("cmake", args);
+
+/// What toolchain.ts builds of this build tree, by mode.
+const targets = [
+  ...mode !== "asan" ? ["install-toolchain-distribution-stripped"] : [],
+  ...mode !== "instrumented" ? ["install-development-distribution"] : [],
+];
+
+/// A cross build runs none of the programs it builds, which are for another
+/// OS or architecture: checked in the commands ninja runs for what is built
+/// here, and in CMake's configure log, which records the test programs it
+/// ran (try_run).
+function checkCross(): void {
+  if (!cross) return;
+  const commands = common.capture("ninja", ["-C", build, "-t", "commands", ...targets]).split("\n");
+  const escaped = build.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const own = new RegExp(`(?:^|&&|;|\\|\\|)\\s*"?((?:${escaped}/)?bin/[^\\s"]+)`);
+  const ran = [...new Set(commands.map((c) => own.exec(c)?.[1]).filter((p) => p !== undefined))];
+  const log = path.join(build, "CMakeFiles", "CMakeConfigureLog.yaml");
+  const tryRuns = fs.existsSync(log) ? (fs.readFileSync(log, "utf8").match(/kind: "try_run-v\d+"/g) ?? []).length : 0;
+  if (ran.length || tryRuns) common.fail(`the cross build of ${host.triple} runs what it builds: ${ran.join(", ")}; ${tryRuns} try_run`);
+  console.log(`cross build of ${host.triple} on ${native.triple}: none of its ${commands.length} commands runs a program it builds, ` +
+    `and CMake ran no test program`);
+}
 
 function install(target: string, dest: string): void {
   const destdir = `${dest}.destdir`;
@@ -199,6 +226,7 @@ function windowsAliases(dir: string): void {
   console.log(`${links.length} aliases of llvm.exe: ${links.map((f) => path.basename(f, ".exe")).join(", ")}`);
 }
 
+checkCross();
 const out = path.join(common.WORK, "out");
 if (mode !== "asan") install("install-toolchain-distribution-stripped", path.join(out, `toolchain-${name}`));
 if (host.os === "mingw" && mode !== "asan") windowsAliases(path.join(out, `toolchain-${name}`));

@@ -151,7 +151,9 @@ The arm64 and x86_64 targets are both in every archive. To CMake, the
 other macOS architecture is `CMAKE_OSX_ARCHITECTURES`, not
 cross-compiling. x86_64 programs run on arm64 Macs through Rosetta, but
 not the reverse. The x86_64 macOS toolchain itself is cross-compiled on
-arm64 macOS.
+arm64 macOS, as the Linux and Windows hosts' are on Linux x64: its table
+generators are built for arm64 first, so no x86_64 program runs during the
+build. Its programs run in the tests, on an x86_64 Mac.
 
 ## Sanitizers
 

@@ -223,8 +223,10 @@ function compilerRtMsvc(t: common.Target, stage: string): void {
   ]);
 }
 
-/// Link (and, when this machine can, run) a C++ program for the target
-/// with the finished tree: the config file, sysroot and runtimes together.
+/// Link (and, when it is this machine's own, run) a C++ program for the
+/// target with the finished tree: the config file, sysroot and runtimes
+/// together. x86_64 macOS programs are not run on arm64 through Rosetta;
+/// tests/smoke.ts runs them on an x86_64 Mac.
 function check(t: common.Target, stage: string): void {
   const dir = path.join(common.WORK, "build", `check-${t.triple}`);
   fs.rmSync(dir, { recursive: true, force: true });
@@ -245,8 +247,7 @@ function check(t: common.Target, stage: string): void {
   const exe = path.join(dir, `hello${t.os === "mingw" || t.os === "msvc" ? ".exe" : ""}`);
   common.run(path.join(stage, "bin", "clang++"), [`--target=${t.triple}`, "-O2", source, "-o", exe]);
   const native = common.machineTarget();
-  const runnable = t.os === native.os && (t.arch === native.arch || t.os === "darwin");
-  if (runnable) common.run(exe, []);
+  if (t.os === native.os && t.arch === native.arch) common.run(exe, []);
   const tool = t.os === "darwin" ? ["llvm-otool", "-L"] : ["llvm-readobj", "--needed-libs"];
   common.run(path.join(stage, "bin", tool[0]), [tool[1], exe]);
   /// The same with ASan and libc++'s ASan build (cxxAsan), run natively.

@@ -30,7 +30,10 @@ steps for cutting one are in [releasing](releasing.md).
    `SHA256SUMS`. Publishing it, by hand, creates the tag.
 
 Linux and Windows hosts are built on Linux x64, the macOS ones on macOS
-arm64. Every host but those two is cross-compiled.
+arm64. Every host but those two is cross-compiled, with table generators
+built for the machine first: no program of another architecture runs
+during a build, Rosetta's x86_64 included (`scripts/toolchain.ts` checks
+the commands of each cross build).
 
 ## The Bootstrap Chain
 
