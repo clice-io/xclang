@@ -720,6 +720,137 @@ jobs:
           path: ${{ runner.temp }}/programs
           if-no-files-found: error
 
+  # docs/en/integrations/clang.md, cmake.md and cargo.md, guide/
+  # cross-compiling.md and design/macos.md: the MSVC targets, and the macOS
+  # ones from Linux and Windows, with the SDKs the release's own xclang
+  # fetches from Microsoft and Apple, accepting their licenses, as a user
+  # does. Only programs leave the job, never anything of an SDK: it caches
+  # nothing and uploads the programs alone.
+  sdk:
+    name: sdk (${{ matrix.host }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { host: x86_64-unknown-linux-gnu, os: ubuntu-24.04 }
+          - { host: x86_64-w64-mingw32, os: windows-2025 }
+          - { host: aarch64-apple-darwin, os: macos-15 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: examples/quickstart
+    env:
+      # Git Bash would make clang-cl's options (/O2, /EHsc) Windows paths.
+      MSYS_NO_PATHCONV: 1
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: python -m pip install "cmake>=3.28" "ninja>=1.11"
+      # The release's archive, as docs/en/guide/install.md has it, with its
+      # bin/ on PATH and $XCLANG naming it; on Windows unpacked by Windows'
+      # own tar.
+      - name: Toolchain
+        working-directory: ${{ runner.temp }}
+        run: |
+          a=xclang-$VERSION-${{ matrix.host }}.tar.xz
+          curl -sSfLO https://github.com/clice-io/xclang/releases/download/$VERSION/$a
+          curl -sSfLO https://github.com/clice-io/xclang/releases/download/$VERSION/SHA256SUMS
+          want=$(grep " $a\$" SHA256SUMS | cut -d' ' -f1)
+          got=$( (sha256sum "$a" 2> /dev/null || shasum -a 256 "$a") | cut -d' ' -f1)
+          [ "$got" = "$want" ] || { echo "::error::$a: sha256 $got, expected $want"; exit 1; }
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            /c/Windows/System32/tar.exe -xf "$a"; XCLANG=$(cygpath -m "$PWD/xclang")
+          else
+            tar -xf "$a"; XCLANG=$PWD/xclang
+          fi
+          echo "XCLANG=$XCLANG" >> "$GITHUB_ENV"
+          echo "$XCLANG/bin" >> "$GITHUB_PATH"
+      - name: MSVC targets
+        run: |
+          xclang sdk fetch windows --accept-license
+          clang++ -O2 --target=x86_64-pc-windows-msvc hello.cpp -o hello-msvc-x64.exe
+          clang-cl /O2 /EHsc hello.cpp /Fehello-cl.exe
+          clang-cl /O2 /EHsc --target=aarch64-pc-windows-msvc hello.cpp /Fehello-cl-arm64.exe
+          llvm-readobj --needed-libs hello-msvc-x64.exe hello-cl.exe hello-cl-arm64.exe | tee needed.txt
+          grep -i 'api-ms-win-crt' needed.txt
+          if grep -iE 'vcruntime|msvcp' needed.txt; then echo "::error::a program loads the VC runtime's DLLs"; exit 1; fi
+      - name: macOS targets
+        if: runner.os != 'macOS'
+        run: |
+          xclang sdk fetch macos --accept-license
+          clang++ -O2 --target=arm64-apple-macos hello.cpp -o hello-macos-arm64
+          clang++ -O2 --target=x86_64-apple-macos hello.cpp -o hello-macos-x64
+          llvm-otool -L hello-macos-arm64 hello-macos-x64
+      - name: CMake, MSVC targets
+        working-directory: examples/cmake
+        run: |
+          cmake -G Ninja -B build-msvc --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake \
+              -DXCLANG_TARGET=x86_64-pc-windows-msvc
+          cmake --build build-msvc
+      - name: CMake, macOS targets
+        if: runner.os != 'macOS'
+        working-directory: examples/cmake
+        run: |
+          cmake -G Ninja -B build-macos --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake \
+              -DXCLANG_TARGET=aarch64-apple-darwin
+          cmake --build build-macos
+      - name: cargo, macOS and MSVC targets
+        if: runner.os == 'Linux'
+        working-directory: examples/cargo
+        run: |
+          rustup toolchain install
+          rustup target add aarch64-apple-darwin
+          export SDKROOT=$(xclang sdk path macos) MACOSX_DEPLOYMENT_TARGET=13.0
+          export CC_aarch64_apple_darwin=clang AR_aarch64_apple_darwin=llvm-ar
+          export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER=clang
+          export CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS=-Clink-arg=--target=aarch64-apple-darwin
+          cargo build --release --target aarch64-apple-darwin
+          rustup target add x86_64-pc-windows-msvc
+          W=$(xclang sdk path windows)
+          export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=lld-link
+          export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS="-Ctarget-feature=+crt-static -Clink-arg=/winsysroot:$W \
+            -Clink-arg=/nodefaultlib:libucrt.lib -Clink-arg=/defaultlib:ucrt.lib -Clink-arg=/ignore:4099"
+          export CC_x86_64_pc_windows_msvc=clang CFLAGS_x86_64_pc_windows_msvc="-Xmicrosoft-windows-sys-root $W"
+          export CXX_x86_64_pc_windows_msvc=clang++ CXXFLAGS_x86_64_pc_windows_msvc="-Xmicrosoft-windows-sys-root $W"
+          export AR_x86_64_pc_windows_msvc=llvm-lib
+          cargo build --release --target x86_64-pc-windows-msvc
+          git diff --exit-code Cargo.lock
+          llvm-otool -L target/aarch64-apple-darwin/release/hello
+          llvm-readobj --needed-libs target/x86_64-pc-windows-msvc/release/hello.exe
+      - name: Programs to run on their targets
+        if: ${{ !cancelled() }}
+        working-directory: examples
+        run: |
+          stage() {  # <target> <what> <program> <expected.txt>
+            [[ -f "$3" ]] || return 0
+            local dir=$RUNNER_TEMP/programs/$1/$2-${{ matrix.host }}
+            mkdir -p "$dir" && cp "$3" "$dir/" && cp "$4" "$dir/expected.txt"
+          }
+          [[ "${{ matrix.host }}" == aarch64-* ]] && cl=aarch64 || cl=x86_64
+          stage x86_64-pc-windows-msvc clang quickstart/hello-msvc-x64.exe quickstart/expected.txt
+          stage $cl-pc-windows-msvc clang-cl quickstart/hello-cl.exe quickstart/expected.txt
+          stage aarch64-pc-windows-msvc clang-cl-arm64 quickstart/hello-cl-arm64.exe quickstart/expected.txt
+          stage aarch64-apple-darwin clang quickstart/hello-macos-arm64 quickstart/expected.txt
+          stage x86_64-apple-darwin clang quickstart/hello-macos-x64 quickstart/expected.txt
+          stage x86_64-pc-windows-msvc cmake cmake/build-msvc/hello.exe cmake/expected.txt
+          stage aarch64-apple-darwin cmake cmake/build-macos/hello cmake/expected.txt
+          stage aarch64-apple-darwin cargo cargo/target/aarch64-apple-darwin/release/hello cargo/expected.txt
+          stage x86_64-pc-windows-msvc cargo cargo/target/x86_64-pc-windows-msvc/release/hello.exe cargo/expected.txt
+          find "$RUNNER_TEMP/programs" -type f | sort
+      # What the steps before a failure built still runs on its target.
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: programs-sdk-${{ matrix.host }}
+          path: ${{ runner.temp }}/programs
+          if-no-files-found: error
+
   # docs/en/features/modules.md, "Build caches and modules": what ccache
   # does with the command lines CMake gives a module and its importer
   # (the module file named in a response file), built three times: as is,
@@ -809,7 +940,7 @@ jobs:
   # expected.txt of its example.
   on-target:
     name: on-target (${{ matrix.target }})
-    needs: [quickstart, fetch, bazel, features, cargo]
+    needs: [quickstart, fetch, bazel, features, cargo, sdk]
     if: ${{ !cancelled() }}
     strategy:
       fail-fast: false
@@ -821,6 +952,8 @@ jobs:
           - { target: aarch64-w64-mingw32, os: windows-11-arm }
           - { target: aarch64-apple-darwin, os: macos-15 }
           - { target: x86_64-apple-darwin, os: macos-15-intel }
+          - { target: x86_64-pc-windows-msvc, os: windows-2025 }
+          - { target: aarch64-pc-windows-msvc, os: windows-11-arm }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:

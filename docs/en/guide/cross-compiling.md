@@ -36,7 +36,7 @@ targets, such as `x86_64-pc-linux-gnu` or `arm64-apple-macos`, work too
 Fetch Apple's SDK once with the toolchain's `xclang` command, accepting
 Apple's license, and build with a bare `--target`, as on a Mac:
 
-<!-- not run: needs a vendor SDK the user accepts the license of; macos.yml runs this through tests/macos.ts -->
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 xclang sdk fetch macos --accept-license
 clang++ -O2 --target=arm64-apple-macos hello.cpp -o hello-macos-arm64

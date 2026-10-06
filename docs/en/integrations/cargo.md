@@ -202,11 +202,17 @@ macOS targets from Linux and Windows hosts need Apple's SDK, which
 this recipe from Linux.
 
 Use the macOS settings above, and name the fetched SDK. rustc passes
-`SDKROOT` to the linker, and the `cc` crate passes it to clang:
+`SDKROOT` to the linker, and the `cc` crate passes it to clang. For
+`aarch64-apple-darwin`:
 
-<!-- not run: needs a vendor SDK the user accepts the license of; cli.yml runs this recipe through tests/cargo.ts -->
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
-export SDKROOT=$(xclang sdk path macos)
+rustup target add aarch64-apple-darwin
+export SDKROOT=$(xclang sdk path macos) MACOSX_DEPLOYMENT_TARGET=13.0
+export CC_aarch64_apple_darwin=clang AR_aarch64_apple_darwin=llvm-ar
+export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER=clang
+export CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS=-Clink-arg=--target=aarch64-apple-darwin
+cargo build --release --target aarch64-apple-darwin
 ```
 
 ## The MSVC ABI
@@ -220,8 +226,9 @@ It uses the hybrid CRT: the VC runtime linked statically, and UCRT as a
 system DLL. That is the default of the MSVC targets. For
 `x86_64-pc-windows-msvc`:
 
-<!-- not run: needs a vendor SDK the user accepts the license of; cli.yml runs this recipe through tests/cargo.ts -->
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
+rustup target add x86_64-pc-windows-msvc
 W=$(xclang sdk path windows)
 export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=lld-link
 export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS="-Ctarget-feature=+crt-static -Clink-arg=/winsysroot:$W \
@@ -229,6 +236,7 @@ export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS="-Ctarget-feature=+crt-stat
 export CC_x86_64_pc_windows_msvc=clang CFLAGS_x86_64_pc_windows_msvc="-Xmicrosoft-windows-sys-root $W"
 export CXX_x86_64_pc_windows_msvc=clang++ CXXFLAGS_x86_64_pc_windows_msvc="-Xmicrosoft-windows-sys-root $W"
 export AR_x86_64_pc_windows_msvc=llvm-lib
+cargo build --release --target x86_64-pc-windows-msvc
 ```
 
 The C compiler stays `clang`, not `clang-cl`: ring passes it GNU options,

@@ -47,12 +47,12 @@ Microsoft's CRT, STL and Windows SDK, which the toolchain's `xclang`
 command fetches. Fetch them once, accepting Microsoft's license; then they
 build from every host:
 
-<!-- not run: needs a vendor SDK the user accepts the license of; msvc.yml runs these, through tests/msvc.ts, from Linux, macOS and Windows -->
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 xclang sdk fetch windows --accept-license
 clang++ -O2 --target=x86_64-pc-windows-msvc hello.cpp -o hello-msvc-x64.exe
-clang-cl /O2 /EHsc hello.cpp
-clang-cl /O2 /EHsc --target=aarch64-pc-windows-msvc hello.cpp
+clang-cl /O2 /EHsc hello.cpp /Fehello-cl.exe
+clang-cl /O2 /EHsc --target=aarch64-pc-windows-msvc hello.cpp /Fehello-cl-arm64.exe
 ```
 
 A plain `clang-cl` builds for the MSVC target of the host's architecture.

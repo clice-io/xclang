@@ -96,13 +96,13 @@ cmake --build build-aarch64-w64-mingw32
 ## Build for MSVC Targets
 
 `x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc` build with the
-Windows SDK that the toolchain's `xclang` fetched
+Windows SDK that the toolchain's `xclang` fetched,
+`$XCLANG/bin/xclang sdk fetch windows --accept-license`
 ([MSVC targets](clang.md#msvc-targets)). Without it, the toolchain file
 stops and says how to fetch it:
 
-<!-- not run: needs a vendor SDK the user accepts the license of; msvc.yml builds tests/cmake this way, through tests/msvc.ts -->
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
-$XCLANG/bin/xclang sdk fetch windows --accept-license
 cmake -G Ninja -B build-msvc --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake \
     -DXCLANG_TARGET=x86_64-pc-windows-msvc
 cmake --build build-msvc
@@ -123,13 +123,13 @@ cmake --build build-msvc
 ## Build for macOS from Linux or Windows
 
 `aarch64-apple-darwin` and `x86_64-apple-darwin` build on Linux and Windows
-hosts with Apple's SDK that the toolchain's `xclang` fetched
+hosts with Apple's SDK that the toolchain's `xclang` fetched,
+`$XCLANG/bin/xclang sdk fetch macos --accept-license`
 ([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)). Without
 it, the toolchain file stops and says how to fetch it:
 
-<!-- not run: needs a vendor SDK the user accepts the license of; macos.yml builds tests/cmake this way, through tests/macos.ts -->
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
-$XCLANG/bin/xclang sdk fetch macos --accept-license
 cmake -G Ninja -B build-macos --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake \
     -DXCLANG_TARGET=aarch64-apple-darwin
 cmake --build build-macos

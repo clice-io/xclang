@@ -99,7 +99,13 @@ The job fails if any program loads a C++ runtime. That is the
   them. Its `on-target` job runs each on a runner of its target, with
   nothing installed, and compares what it prints with the `expected.txt`
   of its example. That covers every host to every Linux and Windows
-  target, and both macOS targets from both macOS hosts.
+  target, and both macOS targets from both macOS hosts. Its `sdk` job
+  fetches the vendor SDKs with the release's `xclang` on Linux x64,
+  Windows x64 and macOS arm64, as the docs show, and builds for both MSVC
+  targets (clang, clang-cl, CMake, cargo) and, on Linux and Windows, for
+  both macOS targets (clang, CMake, cargo); `on-target` runs those programs
+  on Windows x64 and arm64 and on Macs too. Nothing of an SDK leaves the
+  job.
 
 ## CMake Package
 

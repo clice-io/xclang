@@ -33,10 +33,10 @@ From 23.1.2.7 on, the macOS targets build from Linux and Windows hosts
 too. The SDK is the one the user fetches from Apple, accepting Apple's
 license ([vendor SDKs](vendor-sdks.md)):
 
-<!-- not run: needs a vendor SDK the user accepts the license of; macos.yml runs this through tests/macos.ts -->
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 xclang sdk fetch macos --accept-license
-clang++ --target=arm64-apple-macos -std=c++23 hello.cpp -o hello
+clang++ -O2 --target=arm64-apple-macos hello.cpp -o hello-macos-arm64
 ```
 
 The fetch unpacks the SDK into the toolchain's `sdk/macos-<version>` and
