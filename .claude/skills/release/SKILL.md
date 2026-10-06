@@ -17,8 +17,8 @@ before publishing.
    take the two archives' lines from that release's SHA256SUMS
    (`gh release download <ver> -R clice-io/xclang -p SHA256SUMS`), edit URL
    and sha256, commit `bootstrap: <ver>`. Keep the old one if the new one
-   lacks something the build needs (cmake/toolchain.cmake's macOS
-   `-fuse-ld=ld` waits for a bootstrap with patches/0007, ≥ 23.1.2.5).
+   lacks something the build needs (xclang's own macOS builds link with
+   ld64.lld since the bootstrap had patches/0007, 23.1.2.5).
 2. **Branch.** Push the release's commits to `exp/<version>` (e.g.
    `exp/23.1.2.6`), not main.
 3. **Full run, with a draft.**
