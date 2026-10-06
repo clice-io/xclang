@@ -20,9 +20,12 @@ steps for cutting one are in [releasing](releasing.md).
    profile and ThinLTO, about two hours per host. The same build tree gives
    the libclang archive of that host. The ASan libclang of Linux x64 and
    macOS arm64 is built apart, without profile or ThinLTO.
-5. **Package and test.** The archives of each host are tested on a
-   machine of that host, and the Bazel module and the CMake package are
-   tested with them ([testing](testing.md)).
+5. **Package and test.** The archives of each host are made twice, on
+   two machines, and must be the same bytes: they are reproducible (tar
+   sorted, with the commit's time and no owner; xz in blocks of a fixed
+   size, whatever its number of threads). They are tested on a machine of
+   that host, and the Bazel module and the CMake package are tested with
+   them ([testing](testing.md)).
 6. **Release.** A draft release with every archive, the profile and
    `SHA256SUMS`. Publishing it, by hand, creates the tag.
 

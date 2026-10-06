@@ -2,7 +2,10 @@ name: package
 
 # One host's release archives (scripts/package.ts), as the dist-<host>
 # artifact; with cli-run, the toolchain carries xclang's own command from
-# that run's cli-build-* artifacts (cli.yml).
+# that run's cli-build-* artifacts (cli.yml). A second machine makes them
+# again, as another machine would: in another directory, the inputs
+# unpacked with umask 077 and other times, xz with three threads. compare
+# checks that both made the same bytes.
 
 on:
   workflow_call:
@@ -25,7 +28,12 @@ on:
 
 jobs:
   package:
+    name: ${{ matrix.again && 'package again' || 'package' }}
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        again: [false, true]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -59,15 +67,47 @@ jobs:
           run-id: ${{ inputs.cli-run }}
           github-token: ${{ github.token }}
       - name: Package
+        env:
+          AGAIN: ${{ matrix.again }}
         run: |
-          mkdir -p work/out
-          for archive in work/artifacts/*.tar.zst; do zstd -dc "$archive" | tar -C work/out -xf -; done
+          W=work
+          if [ "$AGAIN" = true ]; then
+            umask 077
+            W=$RUNNER_TEMP/elsewhere
+            export XCLANG_WORK=$W XCLANG_XZ_THREADS=3
+          fi
+          mkdir -p "$W/out"
+          for archive in work/artifacts/*.tar.zst; do zstd -dc "$archive" | tar -C "$W/out" -xf -; done
+          [ "$AGAIN" = true ] && find "$W/out" -exec touch -h -d '2001-02-03 04:05:06' {} +
           pixi run package --host ${{ inputs.host }} --revision ${{ inputs.revision }} ${{ inputs.cli-run != '' && '--cli work/cli' || '' }}
-          ls -la work/dist | tee -a "$GITHUB_STEP_SUMMARY"
+          ls -la "$W/dist" | tee -a "$GITHUB_STEP_SUMMARY"
+          mkdir -p digests
+          (cd "$W/dist" && sha256sum *) > digests/${{ matrix.again && 'again' || 'first' }}.txt
+          mv "$W/dist" work/to-upload
       - uses: actions/upload-artifact@v7
+        if: ${{ !matrix.again }}
         with:
           name: dist-${{ inputs.host }}
-          path: work/dist/*
+          path: work/to-upload/*
           compression-level: 0
           retention-days: 30
           if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: digests-${{ inputs.host }}-${{ matrix.again && 'again' || 'first' }}
+          path: digests
+          retention-days: 7
+
+  compare:
+    needs: package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: digests-${{ inputs.host }}-*
+          path: digests
+          merge-multiple: true
+      - name: Same bytes from both machines
+        run: |
+          cat digests/first.txt | tee -a "$GITHUB_STEP_SUMMARY"
+          diff digests/first.txt digests/again.txt

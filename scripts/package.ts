@@ -54,10 +54,27 @@ const runtimes = fs.readdirSync(out).filter((d) => d.startsWith("runtimes-")).ma
 /// MSVC targets.
 if (runtimes.length !== 6) common.fail(`expected the runtimes of all targets in ${out}, found ${runtimes.length}`);
 
+/// The archives are reproducible: the same files make the same bytes,
+/// whatever the machine, the files' times and permissions, the umask, the
+/// directory or the number of threads. tar lists the files sorted by name,
+/// with the commit's time (SOURCE_DATE_EPOCH), no owner, 755 or 644, hard
+/// links as files, and no pax headers (GNU format). xz always compresses
+/// multi-threaded (one thread is -T+1: -T1 would be its single-threaded
+/// compressor, whose output differs), in blocks of a fixed size, so its
+/// output does not depend on the number of threads (XCLANG_XZ_THREADS, the
+/// processors' by default); --no-adjust makes it fail rather than switch
+/// to the single-threaded one for lack of memory.
+const xzThreads = process.env.XCLANG_XZ_THREADS === "1" ? "+1" : process.env.XCLANG_XZ_THREADS ?? "0";
+const epoch = Math.floor(date.getTime() / 1000);
+
 function archive(dir: string, name: string): void {
   const file = path.join(dist, `${name}.tar.xz`);
-  common.run("bash", ["-c", `set -o pipefail; tar -C "$0" -cf - "$1" | xz -T0 -9 > "$2"`,
-    path.dirname(dir), path.basename(dir), file]);
+  common.run("bash", ["-c", [
+    "set -o pipefail;",
+    `LC_ALL=C tar --sort=name --format=gnu --owner=0 --group=0 --numeric-owner --mtime=@${epoch}`,
+    `--mode=a+rX,u+w,go-w --hard-dereference -C "$0" -cf - "$1"`,
+    `| xz -9 -T${xzThreads} --block-size=192MiB --no-adjust > "$2"`,
+  ].join(" "), path.dirname(dir), path.basename(dir), file]);
 }
 
 const toolchain = path.join(out, `toolchain-${host.triple}`);

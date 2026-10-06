@@ -24,6 +24,7 @@ here instead of naming tests.
 
 | workflow | when | what |
 |---|---|---|
+| main.yml, stage `package` (package.yml) | every release candidate | each host's archives made again on another machine, in another directory, with other file times, umask 077 and three xz threads (the first has four): the same bytes |
 | main.yml, stage `test` (test.yml) | every release candidate | `tests/smoke.ts` and `tests/libclang.ts` on a machine of each host |
 | bazel.yml | every release candidate | `tests/bazel` with the module |
 | bazel.yml | on publishing, and by hand | also `tests/bazel.ts`, and cross builds run on the target (`tests/bazel-cross.ts`) |
