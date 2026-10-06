@@ -315,5 +315,5 @@ A repack of 23.1.2.7: its compiler and runtimes are those of 23.1.2.7's run.
 | bazel.yml, on publishing | [37502667412](https://github.com/clice-io/xclang/actions/runs/37502667412) |
 | cmake.yml, on publishing | [37502667463](https://github.com/clice-io/xclang/actions/runs/37502667463) |
 | conda.yml | [37502733654](https://github.com/clice-io/xclang/actions/runs/37502733654) |
-| examples.yml | 23.1.2.7's: [37494316755](https://github.com/clice-io/xclang/actions/runs/37494316755) |
+| examples.yml | [37505867012](https://github.com/clice-io/xclang/actions/runs/37505867012) |
 | bench.yml | 23.1.2.6's: [37356476645](https://github.com/clice-io/xclang/actions/runs/37356476645) |
