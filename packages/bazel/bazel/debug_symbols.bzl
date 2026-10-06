@@ -59,7 +59,10 @@ def _xclang_debug_symbols_impl(ctx):
     source = dwarf.path
     if dsym:
         source = "%s/Contents/Resources/DWARF/%s" % (dsym.path, binary.basename)
-    args = ["--convert", source, "--out-file", gsym.path, "--quiet"] + ctx.attr.gsymutil_args
+    # One thread: llvm-gsymutil's threads lay the file out differently each
+    # run; one makes the same file from the same DWARF, about 1.4 times as
+    # slow (gsymutil_args = ["--num-threads=0"], the last, undoes it).
+    args = ["--convert", source, "--out-file", gsym.path, "--quiet", "--num-threads=1"] + ctx.attr.gsymutil_args
 
     script = ctx.actions.declare_file(ctx.label.name + (".gsymutil.bat" if windows else ".gsymutil.sh"))
     if windows:
@@ -95,7 +98,7 @@ xclang_debug_symbols = rule(
             doc = "The cc_binary; on macOS, with the generate_dsym_file feature.",
         ),
         "gsymutil_args": attr.string_list(
-            doc = "More options of llvm-gsymutil --convert, e.g. --merged-functions for a program linked with ICF.",
+            doc = "More options of llvm-gsymutil --convert, after the default --num-threads=1, e.g. --merged-functions for a program linked with ICF.",
         ),
         "_macos": attr.label(default = "@platforms//os:macos"),
     },

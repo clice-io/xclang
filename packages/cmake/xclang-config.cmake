@@ -28,11 +28,15 @@
 
 # xclang_debug_symbols' step after a link, cmake -P on this file:
 # llvm-gsymutil, whose warnings (one per DIE it cannot convert, gigabytes
-# for a large program with folded functions) go to <output>.log.
+# for a large program with folded functions) go to <output>.log. One
+# thread, as its threads lay the file out differently each run: the same
+# DWARF makes the same GSYM, about 1.4 times as slow (GSYM_ARGS
+# --num-threads=0, the last, undoes it).
 if(CMAKE_SCRIPT_MODE_FILE STREQUAL CMAKE_CURRENT_LIST_FILE)
     string(REPLACE "|" ";" _xclang_args "${XCLANG_GSYM_ARGS}")
     execute_process(
-        COMMAND "${XCLANG_GSYMUTIL}" --convert "${XCLANG_GSYM_INPUT}" --out-file "${XCLANG_GSYM_OUTPUT}" --quiet ${_xclang_args}
+        COMMAND "${XCLANG_GSYMUTIL}" --convert "${XCLANG_GSYM_INPUT}" --out-file "${XCLANG_GSYM_OUTPUT}" --quiet --num-threads=1
+            ${_xclang_args}
         OUTPUT_FILE "${XCLANG_GSYM_OUTPUT}.log"
         ERROR_FILE "${XCLANG_GSYM_OUTPUT}.log"
         RESULT_VARIABLE _xclang_result)

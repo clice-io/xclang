@@ -65,7 +65,7 @@ A feature is turned on for a build with `--features=<name>`, off with
 | label | |
 |---|---|
 | `@xclang//bazel:std` | the `std` and `std.compat` modules of libc++, for the target platform, as a library to depend on; built with the `--cxxopt` of the build |
-| `xclang_debug_symbols(name, binary, gsymutil_args)` in `@xclang//bazel:debug_symbols.bzl` | `<binary>.gsym` for every target, and `<binary>.dSYM` for macOS ones (with `generate_dsym_file` on the `cc_binary`); llvm-gsymutil's output in the output group `gsym_log` |
+| `xclang_debug_symbols(name, binary, gsymutil_args)` in `@xclang//bazel:debug_symbols.bzl` | `<binary>.gsym` for every target, by llvm-gsymutil with one thread (the same file each run; `gsymutil_args` come after `--num-threads=1`), and `<binary>.dSYM` for macOS ones (with `generate_dsym_file` on the `cc_binary`); llvm-gsymutil's output in the output group `gsym_log` |
 | `xclang_resource_dir(name, srcs)` in `@xclang//bazel:resource_dir.bzl` | clang's resource directory laid out as `lib/clang/<major>/` in the rule's package, for a program `bin/<name>` of that package; `@libclang`'s by default |
 
 ## Repositories

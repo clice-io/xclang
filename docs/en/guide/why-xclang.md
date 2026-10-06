@@ -123,7 +123,7 @@ FetchContent or the Bazel registry.
 | [MemorySanitizer, through libc++ built on demand](../design/roadmap.md#msan) | Planned |
 | [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
 | [Relative debug paths in CMake builds](../design/roadmap.md#cmake-relative-paths) | Planned |
-| [Deterministic GSYM files](../design/roadmap.md#gsym-determinism) | Planned |
+| [Deterministic GSYM files](../design/roadmap.md#gsym-determinism) | Unreleased |
 | [Immutable releases](../design/roadmap.md#immutable-releases) | Planned |
 | [Reproducible archives](../design/roadmap.md#reproducible-archives) | Planned |
 | [Third-party license notices](../design/roadmap.md#license-notices) | Planned |

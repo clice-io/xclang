@@ -222,7 +222,7 @@ The training is widened between releases, not while one is pending
 | item | status |
 |---|---|
 | <a id="cmake-relative-paths"></a>Relative paths in the debug information of CMake builds | Planned |
-| <a id="gsym-determinism"></a>The same GSYM file on every run (`xclang_debug_symbols` passing `--num-threads=1`) | Planned |
+| <a id="gsym-determinism"></a>The same GSYM file on every run (`xclang_debug_symbols` passing `--num-threads=1`) | Unreleased |
 | <a id="immutable-releases"></a>Immutable GitHub releases | Planned |
 | <a id="reproducible-archives"></a>Reproducible release archives | Planned |
 | <a id="license-notices"></a>Third-party license notices in the archives | Planned |
@@ -232,7 +232,8 @@ The training is widened between releases, not while one is pending
   information. Bazel builds already use paths relative to the execution
   root ([debugging](../features/debugging.md#paths-in-debug-information)).
 - **GSYM files** from llvm-gsymutil's default threads differ run to run,
-  with the same lookups. One thread is deterministic.
+  with the same lookups. One thread is deterministic, about 1.4 times as
+  slow; `xclang_debug_symbols` passes `--num-threads=1` by default.
 - **Immutable releases** keep an archive and its `SHA256SUMS` from being
   replaced together
   ([releases](../reference/releases.md#checking-a-download)).
