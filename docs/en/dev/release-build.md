@@ -80,6 +80,15 @@ of building them again.
 | `macos` | macos.yml | the macOS targets from the Linux and Windows hosts' archives; needs `cli` |
 | `release` | release.yml | a draft release of everything, with `SHA256SUMS` |
 
+A **repack** runs `package`, the tests and `release` only, with
+`reuse-run` and `profile-run` naming the run that built the previous
+release: the same compiler, runtimes, libclang and profile, with the
+packaging of the checkout ([releasing](releasing.md#full-rebuild-or-repack)).
+Its input `repack-of` adds the `repack` job (repack.yml), which compares
+each host's archives with that release's, file by file: only the config
+files, the CMake package, the `xclang` command and the license notices
+may differ.
+
 With `cli`, on by default, the `package` stage also builds the
 [xclang command](../reference/xclang-command.md) (cli.yml) and puts it into
 every toolchain archive. 23.1.2.7 was the first release built with

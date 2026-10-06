@@ -16,6 +16,10 @@ refuses a version that exists. So a version, and the sha256 of each of its
 archives, means one thing forever. Pinning by digest relies on that, in
 the `versions.bzl` of the Bazel module and in the CMake download.
 
+A fix of the packaging alone, such as the Bazel module, the CMake package
+or the config files, is a repack: the next revision, whose compiler and
+runtimes are those of the release before it, the same bytes.
+
 | where | version |
 |---|---|
 | GitHub release and tag | `23.1.2.7` |

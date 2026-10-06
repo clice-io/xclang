@@ -29,6 +29,7 @@ here instead of naming tests.
 |---|---|---|
 | main.yml, stage `package` (package.yml) | every release candidate | each host's archives made again on another machine, in another directory, with other file times, umask 077 and three xz threads (the first has four): the same bytes |
 | main.yml, stage `test` (test.yml) | every release candidate | `tests/smoke.ts` and `tests/libclang.ts` on a machine of each host |
+| main.yml with `repack-of` (repack.yml) | every repack | `tests/repack.ts`: each host's archives against those of the release repacked, file by file; only the packaging's files differ |
 | bazel.yml | every release candidate | `tests/bazel` with the module |
 | bazel.yml | on publishing, and by hand | also `tests/bazel.ts`, and cross builds run on the target (`tests/bazel-cross.ts`) |
 | cmake.yml | every release candidate, and on publishing | `tests/cmake.ts`: the package by `PATH`, through the toolchain file, and from FetchContent of the tag |
