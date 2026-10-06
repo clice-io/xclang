@@ -36,6 +36,14 @@ the [patches](docs/en/reference/patches.md) of its tag.
   in a signal handler reaches the crash, and a trace ends at
   `ntdll!RtlUserThreadStart`, in clang, lld and tools on libclang
   (llvm/llvm-project#229371).
+- macOS: a crash trace of the toolchain's clang or lld no longer names its
+  frames after unrelated functions. `llvm` kept 632 weak definitions,
+  which a macOS program exports and strip leaves, and `llvm-symbolizer`
+  and `dladdr` named each frame after the nearest of them; now it exports
+  nothing and keeps no symbols, and its frames are addresses, as on Linux
+  and Windows. LLVM's `__crashreporter_info__` is gone with them: macOS
+  crash reports of clang and lld no longer carry its "Application Specific
+  Information".
 
 ## [23.1.2.9](https://github.com/clice-io/xclang/releases/tag/23.1.2.9) — 2026-10-06
 
