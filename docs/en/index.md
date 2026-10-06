@@ -35,45 +35,23 @@ features:
   - title: Reproducible Builds
     details: Every release is pinned by sha256. Bazel builds carry no absolute paths, so one cache serves every checkout.
     link: ./design/bazel-module
+  - title: MSVC-ABI Targets
+    details: Windows x64 and arm64 with Microsoft's CRT and STL, from every host, with their sanitizers. The xclang command fetches the SDK from Microsoft.
+    link: ./integrations/clang#msvc-targets
+  - title: macOS from Any Host
+    details: arm64 and x64 macOS programs from Linux and Windows too, with Apple's SDK fetched from Apple by the xclang command.
+    link: ./guide/cross-compiling#macos-from-linux-or-windows
+  - title: The xclang Command
+    details: Fetches Apple's and Microsoft's SDKs from the vendor, by a pinned version and digest.
+    link: ./reference/xclang-command
 ---
 
 ## Beyond the Release
 
 The cards above are what a release has today. xclang's vision goes
 further, the way rustup goes for Rust: every target, fetched when a build
-needs it, and vendor SDKs fetched from the vendor. None of the items below
-is in a release. The [roadmap](./design/roadmap.md) has one row for each,
-with its status.
-
-<!-- BEGIN CAPABILITY: unreleased -->
-
-**The xclang command**
-
-Fetches Apple's and Microsoft's SDKs from the vendor, by a pinned version
-and digest. CI builds and tests it from `main`
-([roadmap](./design/roadmap.md#xclang-command)).
-
-<!-- END CAPABILITY -->
-
-<!-- BEGIN CAPABILITY: unreleased -->
-
-**MSVC-ABI targets**
-
-Windows x64 and arm64 with Microsoft's CRT and STL, fetched by the xclang
-command, from every host, with their sanitizers. CI builds and runs them
-from `main` ([roadmap](./design/roadmap.md#msvc)).
-
-<!-- END CAPABILITY -->
-
-<!-- BEGIN CAPABILITY: unreleased -->
-
-**macOS targets from Linux and Windows**
-
-arm64 and x64 macOS programs from every host, with Apple's SDK fetched
-from Apple by the xclang command. CI builds them on Linux and Windows and
-runs them on Macs, from `main` ([roadmap](./design/roadmap.md#macos-any-host)).
-
-<!-- END CAPABILITY -->
+needs it. None of the items below is in a release. The
+[roadmap](./design/roadmap.md) has one row for each, with its status.
 
 <!-- BEGIN CAPABILITY: planned -->
 

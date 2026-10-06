@@ -84,23 +84,30 @@ makes the relinks of tools built on it take seconds.
 
 ## Correctness Tools
 
-ASan, TSan, LSan, UBSan and libFuzzer work for Linux and macOS targets. An
+ASan, TSan, LSan, UBSan and libFuzzer work for Linux and macOS targets;
+UBSan for the MSVC targets, and ASan and libFuzzer for x64 ones. An
 ASan program against an uninstrumented libc++ reports container overflows
 that are not there. So xclang ships an ASan build of libc++, which ASan
 programs link. Debug information holds wherever the build ran, and the
-toolchain makes GSYM files for every target and dSYMs for macOS ones.
+toolchain makes GSYM files for every target, the same file on every run,
+and dSYMs for macOS ones.
 
 ## Supply Chain
 
 Every archive is listed in the `SHA256SUMS` of its release, and the Bazel
 module pins each by sha256. LLVM's source is the release tarball, pinned by
 sha256, with the patches in the repository applied. Every patch has a README
-saying what it changes and where it stands upstream.
+saying what it changes and where it stands upstream. Each host's archives
+are made twice, on two machines, and must be the same bytes. Every archive
+carries the licenses of its components, with an SPDX document
+([layout](../reference/layout.md#licenses)).
 
-Vendor SDKs, such as Apple's and Microsoft's, are never in an archive. A
- toolchain runs on every developer machine and writes every shipped binary.
- Knowing which source built it, and that the bytes downloaded are the bytes
- published, is the minimum.
+Vendor SDKs, such as Apple's and Microsoft's, are never in an archive: the
+user fetches them from the vendor, pinned by version and sha256
+([vendor SDKs](../design/vendor-sdks.md)). A toolchain runs on every
+developer machine and writes every shipped binary. Knowing which source
+built it, and that the bytes downloaded are the bytes published, is the
+minimum.
 
 ## One Toolchain for Every Build
 
@@ -115,18 +122,12 @@ FetchContent or the Bazel registry.
 
 | | status |
 |---|---|
-| [MSVC-ABI targets](../design/roadmap.md#msvc) | Unreleased |
 | [musl targets](../design/roadmap.md#musl), for fully static Linux programs | Planned |
-| [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | Unreleased |
 | [More Linux architectures, WebAssembly, Android, BSDs, bare metal](../design/roadmap.md#targets) | Considered |
-| [The `xclang` command](../design/roadmap.md#xclang-command), which fetches vendor SDKs | Unreleased |
 | [MemorySanitizer, through libc++ built on demand](../design/roadmap.md#msan) | Planned |
 | [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
 | [Relative debug paths in CMake builds](../design/roadmap.md#cmake-relative-paths) | Planned |
-| [Deterministic GSYM files](../design/roadmap.md#gsym-determinism) | Unreleased |
 | [Immutable releases](../design/roadmap.md#immutable-releases) | Planned |
-| [Reproducible archives](../design/roadmap.md#reproducible-archives) | Unreleased |
-| [Third-party license notices](../design/roadmap.md#license-notices) | Unreleased |
 | [SLSA provenance](../design/roadmap.md#slsa) | Considered |
 | [BOLT](../design/roadmap.md#bolt) | In research |
 | [A wider PGO training](../design/roadmap.md#pgo-training) | Planned |

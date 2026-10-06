@@ -25,7 +25,7 @@ line. xclang writes one file per target, and per spelling of it, into
 | Linux | `<arch>-unknown-linux-gnu.cfg`, `<arch>-pc-linux-gnu.cfg` |
 | Windows (MinGW) | `<arch>-w64-windows-gnu.cfg`, `<arch>-pc-windows-gnu.cfg` |
 | macOS | `<arch>-apple-darwin.cfg`, `<arch>-apple-macos.cfg`, `<arch>-apple-macosx.cfg` (`arm64` and `aarch64` for arm64) |
-| Windows (MSVC), [unreleased](roadmap.md#msvc) | `<arch>-pc-windows-msvc.cfg`, `<arch>-unknown-windows-msvc.cfg`, and for clang-cl `<spelling>-clang-cl.cfg` |
+| Windows (MSVC) | `<arch>-pc-windows-msvc.cfg`, `<arch>-unknown-windows-msvc.cfg`, and for clang-cl `<spelling>-clang-cl.cfg` |
 
 Each says this
 ([config/](https://github.com/clice-io/xclang/tree/main/config)):
@@ -72,9 +72,8 @@ link against the system's libstdc++, for example.
   `<default target>-clang-cl.cfg`, then `<default target>.cfg`, before it
   turns to the MSVC target. So it read the MinGW options of the host and
   warned about each. An empty `<spelling>-clang-cl.cfg` for every spelling
-  stops that, since 23.1.2.3. With the [unreleased](roadmap.md#msvc) MSVC
-  targets, that file is the clang-cl file of the MSVC target of its
-  architecture.
+  stops that, since 23.1.2.3. Since 23.1.2.7, with the MSVC targets, that
+  file is the clang-cl file of the MSVC target of its architecture.
 - **Bazel uses its own copy.** clang makes the directory of a config file
   absolute, and Bazel needs no absolute paths in the outputs of its
   actions; the dependency files would name the sandbox. The Bazel module

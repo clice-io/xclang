@@ -142,8 +142,8 @@ The `*-windows-gnu` targets link libgcc and msvcrt instead.
 | `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu` | the same | any host | Supported |
 | `x86_64-pc-windows-gnullvm`, `aarch64-pc-windows-gnullvm` | `x86_64-w64-mingw32`, `aarch64-w64-mingw32` | any host | Supported |
 | `aarch64-apple-darwin`, `x86_64-apple-darwin` | the same | macOS hosts | Supported |
-| `aarch64-apple-darwin`, `x86_64-apple-darwin` | the same | [Linux and Windows hosts](../design/roadmap.md#macos-any-host) | Unreleased |
-| `x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc` | [MSVC targets](../design/roadmap.md#msvc) | any host | Unreleased |
+| `aarch64-apple-darwin`, `x86_64-apple-darwin` | the same | [Linux and Windows hosts](#macos-from-linux-and-windows) | Supported |
+| `x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc` | the same, [MSVC targets](#the-msvc-abi) | any host | Supported |
 
 ## Settings per Target
 
@@ -196,36 +196,31 @@ run time:
 
 ## macOS from Linux and Windows
 
-::: warning Unreleased
-macOS targets from Linux and Windows hosts are
-[unreleased](../design/roadmap.md#macos-any-host). They need Apple's SDK
-from the [unreleased](../design/roadmap.md#xclang-command) `xclang` command.
-CI runs this recipe from Linux; no release supports it.
-:::
+macOS targets from Linux and Windows hosts need Apple's SDK, which
+`xclang sdk fetch macos` fetches
+([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)). CI runs
+this recipe from Linux.
 
 Use the macOS settings above, and name the fetched SDK. rustc passes
 `SDKROOT` to the linker, and the `cc` crate passes it to clang:
 
-<!-- not run: unreleased, as is the xclang command; cli.yml runs this recipe through tests/cargo.ts -->
+<!-- not run: needs a vendor SDK the user accepts the license of; cli.yml runs this recipe through tests/cargo.ts -->
 ```sh
 export SDKROOT=$(xclang sdk path macos)
 ```
 
 ## The MSVC ABI
 
-::: warning Unreleased
-MSVC targets are [unreleased](../design/roadmap.md#msvc), and the Windows
-SDK comes from the [unreleased](../design/roadmap.md#xclang-command)
-`xclang` command. CI runs this recipe from Linux; no release supports it. Built this
-way, `cli/` loads the same Windows DLLs as the MinGW build, and no
-vcruntime.
-:::
+The MSVC targets need the Windows SDK, which `xclang sdk fetch windows`
+fetches ([MSVC targets](clang.md#msvc-targets)). CI runs this recipe from
+Linux. Built this way, `cli/` loads the same Windows DLLs as the MinGW
+build, and no vcruntime.
 
 It uses the hybrid CRT: the VC runtime linked statically, and UCRT as a
 system DLL. That is the default of the MSVC targets. For
 `x86_64-pc-windows-msvc`:
 
-<!-- not run: unreleased, as is the xclang command; cli.yml runs this recipe through tests/cargo.ts -->
+<!-- not run: needs a vendor SDK the user accepts the license of; cli.yml runs this recipe through tests/cargo.ts -->
 ```sh
 W=$(xclang sdk path windows)
 export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=lld-link
@@ -246,8 +241,6 @@ VC runtime name, which are not shipped.
 | | status |
 |---|---|
 | [An `xclang cargo` helper](../design/roadmap.md#cargo-helper) that sets the settings above | Considered |
-| [macOS targets from Linux and Windows hosts](../design/roadmap.md#macos-any-host) | Unreleased |
-| [MSVC targets](../design/roadmap.md#msvc) | Unreleased |
 | [musl targets](../design/roadmap.md#musl) | Planned |
 | [Rust targets for other Linux architectures](../design/roadmap.md#linux-architectures) | Considered |
 | [`libgcc_s.a` as a linker script](../design/roadmap.md#libgcc-s-script), so Linux targets need no `-l:libunwind.a` | Considered |

@@ -9,7 +9,10 @@ here instead of naming tests.
 
 - Before a release, each host archive is tested on a machine of that host
   (`tests/smoke.ts`, `tests/libclang.ts`). The CMake package and the Bazel
-  module are tested with the archives (`tests/cmake.ts`, `tests/bazel`).
+  module are tested with the archives (`tests/cmake.ts`, `tests/bazel`),
+  and so are the MSVC targets and the macOS targets from Linux and Windows
+  hosts (`tests/msvc.ts`, `tests/macos.ts`). The `xclang` command is
+  tested on every host (`tests/cli.ts`).
 - On publishing, the Bazel module is checked further (`tests/bazel.ts`),
   and cross-built programs run on a machine of their target, with no
   emulator: 22 host-to-target pairs.
@@ -32,9 +35,9 @@ here instead of naming tests.
 | conda.yml | before the conda packages are published | each package installed with pixi and used, on every host |
 | examples.yml | after publishing, and on pushes that change `examples/` or the workflow | the commands and `examples/` of the docs, as written; the programs for other targets on their runners |
 | docs.yml | pushes that change the docs, `examples/`, `tests/docs.ts` or a workflow, on every branch | `tests/docs.ts`; on `main`, then publishing to docs.clice.io |
-| cli.yml | by hand, and with `cli` in main.yml | the [unreleased](../design/roadmap.md#xclang-command) `xclang` command: `tests/cli.ts`, `tests/cargo.ts` |
-| main.yml, stage `msvc` (msvc.yml) | with `cli`, as the archives then carry `xclang` | the [unreleased](../design/roadmap.md#msvc) MSVC targets: `tests/msvc.ts` |
-| main.yml, stage `macos` (macos.yml) | with `cli` | the [unreleased](../design/roadmap.md#macos-any-host) macOS targets from Linux and Windows hosts: `tests/macos.ts` |
+| cli.yml | every release candidate, with main.yml's `cli` (on by default), and by hand | the `xclang` command: `tests/cli.ts`, `tests/cargo.ts` |
+| main.yml, stage `msvc` (msvc.yml) | every release candidate; needs `cli`, as the archives' `xclang` fetches the SDK | the MSVC targets: `tests/msvc.ts` |
+| main.yml, stage `macos` (macos.yml) | every release candidate; needs `cli` | the macOS targets from Linux and Windows hosts: `tests/macos.ts` |
 | bench.yml | by hand, for the notes or the docs | compile speed against LLVM's and Apple's builds (`tests/bench.ts`) |
 
 How the stages fit together is in the [build pipeline](release-build.md).
@@ -172,10 +175,9 @@ for another target.
 
 ## The xclang Command
 
-The `xclang` command is [unreleased](../design/roadmap.md#xclang-command).
-cli.yml builds it for every host, with a released xclang as the C compiler
-and linker (`scripts/cli.ts`). On a machine of each host, `tests/cli.ts`
-then:
+cli.yml builds the `xclang` command for every host, with a released xclang
+as the C compiler and linker (`scripts/cli.ts`). On a machine of each
+host, `tests/cli.ts` then:
 
 - fetches both vendor SDKs;
 - cross-compiles C, C++ and Objective-C programs against them, for both
@@ -188,9 +190,8 @@ ABI against the fetched SDKs ([Rust and Cargo](../integrations/cargo.md)).
 
 ## MSVC Targets
 
-The MSVC targets are [unreleased](../design/roadmap.md#msvc). msvc.yml
-tests them with a run's archives, from Linux x64, macOS arm64 and Windows
-x64 hosts. On each, `tests/msvc.ts`:
+msvc.yml tests the MSVC targets with a run's archives, from Linux x64,
+macOS arm64 and Windows x64 hosts. On each, `tests/msvc.ts`:
 
 - checks that clang and clang-cl stop without the SDK and name
   `sdk/windows`;
@@ -213,10 +214,9 @@ anything of the SDK.
 
 ## macOS from Linux and Windows
 
-macOS targets from Linux and Windows hosts are
-[unreleased](../design/roadmap.md#macos-any-host). macos.yml tests them
-with a run's archives, on Linux x64 and arm64 and Windows x64 and arm64
-hosts. On each, `tests/macos.ts`:
+macos.yml tests the macOS targets from Linux and Windows hosts with a
+run's archives, on Linux x64 and arm64 and Windows x64 and arm64 hosts. On
+each, `tests/macos.ts`:
 
 - checks that clang without the SDK names `sdk/macos`, and that the CMake
   package stops and says how to fetch it;

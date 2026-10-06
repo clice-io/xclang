@@ -12,8 +12,9 @@ xclang/
                            llvm-ar, llvm-objcopy, windres, dsymutil,
                            llvm-gsymutil, ...), the tools outside it
                            (llvm-profdata, llvm-cov, llvm-dwarfdump,
-                           llvm-strings, FileCheck), and <target>.cfg for
-                           every spelling of every target
+                           llvm-strings, FileCheck), the xclang command,
+                           and <target>.cfg for every spelling of every
+                           target
   lib/clang/<major>/       clang's resource headers, compiler-rt's headers,
                            and compiler-rt for every target
   lib/cmake/xclang/        the CMake package
@@ -27,19 +28,19 @@ xclang/
                            (below)
   <target>/                the sysroot of each target (below)
   sdk/                     not in the archive: the vendor SDKs that the
-                           unreleased xclang command fetches, and
-                           sdk/windows, sdk/macos, those in use
+                           xclang command fetches, and sdk/windows,
+                           sdk/macos, those in use
 ```
 
-The [unreleased](../design/roadmap.md#msvc) MSVC targets have no
-sysroot: their compiler-rt is `lib/clang/<major>/lib/windows`, their C and
-C++ libraries are the fetched SDK's.
+The MSVC targets have no sysroot: their compiler-rt is
+`lib/clang/<major>/lib/windows`, their C and C++ libraries are the fetched
+SDK's.
 
 ## Sysroots
 
 | | Linux | Windows (MinGW) | macOS |
 |---|---|---|---|
-| C library | glibc 2.17's headers in `usr/include`, its startup files and libraries in `lib64`, `usr/lib64` | mingw-w64 (UCRT) and winpthreads: the libraries in `lib`, the headers in the shared `mingw-w64/include` | none: Apple's SDK, Xcode's, or on Linux and Windows hosts `sdk/macos` ([unreleased](../design/roadmap.md#macos-any-host)) |
+| C library | glibc 2.17's headers in `usr/include`, its startup files and libraries in `lib64`, `usr/lib64` | mingw-w64 (UCRT) and winpthreads: the libraries in `lib`, the headers in the shared `mingw-w64/include` | none: Apple's SDK, Xcode's, or on Linux and Windows hosts `sdk/macos` ([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)) |
 | libc++, libc++abi, libunwind | `usr/lib`; the headers in the shared `libc++/include/c++/v1` | `lib`; the same | `lib` (no libunwind: the system's, in libSystem); the same |
 | libc++ module sources | `usr/share/libc++/v1` | `share/libc++/v1` | `share/libc++/v1` |
 | libc++ module manifest | `usr/lib/libc++.modules.json` | `lib/libc++.modules.json` | `lib/libc++.modules.json` |

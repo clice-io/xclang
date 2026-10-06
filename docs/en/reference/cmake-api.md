@@ -26,7 +26,7 @@ must be xclang's `clang++`. It finds the package through `PATH`
 
 | name | kind | |
 |---|---|---|
-| `xclang::std` | CMake target | a static library of the `std` and `std.compat` modules of libc++ (of Microsoft's STL for the [unreleased](../design/roadmap.md#msvc) MSVC targets), for the build's target; built only when something links it ([language options](../integrations/cmake.md#use-c-20-modules-and-import-std)) |
+| `xclang::std` | CMake target | a static library of the `std` and `std.compat` modules of libc++ (of Microsoft's STL for the MSVC targets), for the build's target; built only when something links it ([language options](../integrations/cmake.md#use-c-20-modules-and-import-std)) |
 | `xclang_add_std(<name>)` | function | another such library; its `PUBLIC` options reach its importers |
 | `xclang_debug_symbols(<program> [GSYM_ARGS <option>...])` | function | after each link of the CMake target `<program>`: `<program>.gsym` next to it, by llvm-gsymutil with one thread (the same file each run; `GSYM_ARGS` come after `--num-threads=1`), with its output in `<program>.gsym.log`; for a macOS target, `<program>.dSYM` first ([debugging](../features/debugging.md#usage)); nothing for an MSVC target, whose link writes a PDB |
 | `XCLANG_ROOT` | variable | the toolchain directory |
@@ -43,7 +43,7 @@ cmake -G Ninja -B build --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake [-D
 
 | variable | |
 |---|---|
-| `XCLANG_TARGET` | `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-w64-mingw32`, `aarch64-w64-mingw32`, `aarch64-apple-darwin` or `x86_64-apple-darwin`; the host's by default. In releases, macOS targets build on macOS only; [unreleased](../design/roadmap.md#macos-any-host), on Linux and Windows too. [Unreleased](../design/roadmap.md#msvc): `x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc` |
+| `XCLANG_TARGET` | `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-w64-mingw32`, `aarch64-w64-mingw32`, `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-pc-windows-msvc` or `aarch64-pc-windows-msvc`; the host's by default. The MSVC targets, and the macOS targets on Linux and Windows hosts, build with the SDK that the toolchain's `xclang` fetched |
 | `XCLANG_ROOT` | the toolchain directory, when the file is used from outside one |
 
 It sets the C, C++ and ASM compilers, and the binary tools, to those of the
@@ -72,9 +72,8 @@ on the output of the target's clang. `CMAKE_MSVC_RUNTIME_LIBRARY` is
 `CMAKE_FIND_ROOT_PATH`, except on a Windows host for its own architecture,
 which is no cross build to CMake.
 
-For a macOS target on a Linux or Windows host
-([unreleased](../design/roadmap.md#macos-any-host)), `CMAKE_OSX_SYSROOT`
-is the one given, else `SDKROOT`, else the toolchain's `sdk/macos`, and it
+For a macOS target on a Linux or Windows host, `CMAKE_OSX_SYSROOT` is the
+one given, else `SDKROOT`, else the toolchain's `sdk/macos`, and it
 stops if that has no SDK. It sets `CMAKE_SYSTEM_NAME` to `Darwin`,
 `CMAKE_SYSTEM_PROCESSOR` and `CMAKE_OSX_ARCHITECTURES` to `arm64` or
 `x86_64`, `CMAKE_<LANG>_COMPILER_TARGET` (C, C++, ASM, Objective-C), and

@@ -12,10 +12,11 @@ xclang holds every target to one rule:
 A program built by xclang is one file that runs on any machine of its
 target: glibc 2.17 or later on Linux, Windows 10 or later, macOS 13 or
 later. libc++ and the other runtimes are inside it. The price is size, and
-one copy of libc++ in every shared library. In releases the one vendor
-SDK is Xcode's, for the macOS targets, and xclang does not pin it; on
-`main` the user fetches pinned SDKs from the vendors
-([unreleased](roadmap.md#macos-any-host)).
+one copy of libc++ in every shared library. The vendor SDKs are Xcode's,
+for the macOS targets on macOS hosts, which xclang does not pin, and the
+ones the user fetches from the vendors with the `xclang` command, pinned
+by version and sha256: Microsoft's for the MSVC targets, Apple's for the
+macOS targets on Linux and Windows hosts.
 
 ## What a Program Loads
 
@@ -24,6 +25,7 @@ SDK is Xcode's, for the macOS targets, and xclang does not pin it; on
 | Linux (glibc) | glibc 2.17 or later: `libc`, `libm`, `libpthread`, `libdl`, `librt`, the dynamic loader | libc++, libc++abi, libunwind, the builtins |
 | macOS | libSystem (the C library and the unwinder), the system frameworks the program links | libc++, libc++abi, the builtins |
 | Windows (MinGW) | the OS DLLs (`kernel32`, ...) and UCRT (`api-ms-win-crt-*`), part of Windows 10 and later | libc++, libc++abi, libunwind, the builtins, winpthreads, the mingw-w64 runtime |
+| Windows (MSVC) | the OS DLLs and UCRT (`ucrtbase.dll`), as for MinGW | Microsoft's VC runtime and STL (the "hybrid CRT"), the builtins |
 
 No one can ship the libraries in the left column with a program. glibc's
 dynamic loader and libc form one ABI with the kernel interface of the
@@ -171,19 +173,19 @@ themselves ([Rust and Cargo](../integrations/cargo.md)).
 
 | | status |
 |---|---|
-| [A pinned macOS SDK, fetched from Apple by the user](roadmap.md#macos-any-host) | Unreleased |
 | [musl targets](roadmap.md#musl), for fully static Linux programs | Planned |
-| [MSVC targets](roadmap.md#msvc), with Microsoft's "hybrid CRT": the VC runtime and the STL static, UCRT dynamic | Unreleased |
 
 Planned targets keep the same rule.
 
 ## Known Limitations
 
 - **Sanitizer runtimes.** On macOS they are dylibs, which a program loads
-  from the toolchain or from its own directory. An ASan build is for
-  testing, not for shipping.
+  from the toolchain or from its own directory. For the MSVC targets,
+  ASan's runtime is a DLL, copied next to the program
+  ([sanitizers](../features/sanitizers.md#msvc-targets)). An ASan build is
+  for testing, not for shipping.
 - **The macOS SDK.** Apple's SDK cannot be redistributed, so on macOS
   hosts the macOS targets build against Xcode's, found by `xcrun`. It is
   an input from outside the toolchain, and xclang does not pin it. On
   Linux and Windows hosts, the SDK the user fetches is pinned by version
-  and sha256 ([unreleased](roadmap.md#macos-any-host)).
+  and sha256 ([macOS](macos.md#the-sdk-on-linux-and-windows-hosts)).

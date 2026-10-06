@@ -61,8 +61,7 @@ common:linux --sandbox_writable_path=/data/xclang-thinlto
 
 Pass the cache flag of the linker: `-Wl,--thinlto-cache-dir=<dir>` for
 Linux and MinGW targets, `-Wl,-cache_path_lto,<dir>` for macOS targets,
-and `-Wl,/lldltocache:<dir>` for the
-[unreleased](../design/roadmap.md#msvc) MSVC targets. The CMake package and
+and `-Wl,/lldltocache:<dir>` for the MSVC targets. The CMake package and
 the Bazel module pass the same flags.
 
 ## Options

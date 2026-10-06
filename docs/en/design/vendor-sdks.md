@@ -1,12 +1,5 @@
 # Vendor SDKs
 
-::: warning Unreleased
-The `xclang sdk fetch` command this page describes is in no release; CI
-builds and tests it from `main`
-([the xclang command](../reference/xclang-command.md)). In releases, the
-macOS targets use the installed Xcode's SDK, on macOS hosts.
-:::
-
 Some targets need an SDK that only its vendor may distribute: Apple's for
 macOS, and Microsoft's MSVC libraries and Windows SDK for the MSVC ABI.
 
@@ -14,12 +7,13 @@ macOS, and Microsoft's MSVC libraries and Windows SDK for the MSVC ABI.
 
 xclang never redistributes a vendor SDK. Its design is that the user fetches
 it from the vendor, by a pinned version and digest, after accepting the
-vendor's license. The command for that is
-[unreleased](roadmap.md#xclang-command). The targets that need it are
-[unreleased](roadmap.md#msvc) (MSVC) and
-[unreleased](roadmap.md#macos-any-host) (macOS from Linux and Windows
-hosts). The SDK in use is a link in the toolchain's `sdk/`, so config
-files name a fixed path while versions change
+vendor's license. The command for that is `xclang sdk fetch`, which every
+toolchain archive carries
+([the xclang command](../reference/xclang-command.md)). The targets that
+need it are the MSVC targets, and the macOS targets on Linux and Windows
+hosts; on macOS hosts, the macOS targets use the installed Xcode's SDK.
+The SDK in use is a link in the toolchain's `sdk/`, so config files name a
+fixed path while versions change
 ([the SDK in use](../reference/xclang-command.md#the-sdk-in-use)).
 
 ## Why Fetch, Not Ship

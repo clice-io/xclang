@@ -14,9 +14,10 @@ clang++ --target=aarch64-w64-mingw32 hello.cpp -o hello.exe
 
 The compiler is stock LLVM, with a few [patches](../reference/patches.md)
 on their way upstream, built with PGO and ThinLTO for six hosts. The six
-common targets come with the toolchain. xclang's vision goes further: more
-targets, and vendor SDKs fetched when a build needs them. None of that is
-in a release; the [roadmap](../design/roadmap.md#the-vision) gives each
+common targets come with the toolchain, and its `xclang` command fetches
+the vendor SDKs that no one may redistribute. xclang's vision goes
+further: more targets, fetched when a build needs them. None of that is in
+a release; the [roadmap](../design/roadmap.md#the-vision) gives each
 item's status.
 
 ## What Is in It
@@ -26,10 +27,13 @@ item's status.
   94 MB.
 - **Six targets in every archive**: Linux x64 and arm64 (glibc 2.17),
   Windows x64 and arm64 (MinGW-w64 with UCRT), macOS arm64 and x64. The
-  macOS targets use Xcode's SDK, so in releases they build on macOS hosts
-  ([unreleased](../design/roadmap.md#macos-any-host) from others). Each target
-  has its sysroot, libc++, libc++abi, libunwind and compiler-rt, prebuilt,
-  and a config file that points clang at them.
+  macOS targets use Apple's SDK: Xcode's on macOS hosts, and on Linux and
+  Windows hosts the one the `xclang` command fetches from Apple. Each
+  target has its sysroot, libc++, libc++abi, libunwind and compiler-rt,
+  prebuilt, and a config file that points clang at them.
+- **The MSVC targets**, Windows x64 and arm64 with Microsoft's CRT and
+  STL, from every host, against the SDK that the `xclang` command fetches
+  from Microsoft ([MSVC targets](../integrations/clang.md#msvc-targets)).
 - **Programs that run where they are copied.** Everything but the OS's own
   libraries is linked in ([hermeticity](../design/hermeticity.md)).
 - **A CMake package and a Bazel module**: the toolchain for the host or
@@ -70,13 +74,10 @@ other toolchains serve these:
 
 | | status | today, use |
 |---|---|---|
-| [MSVC-ABI targets](../design/roadmap.md#msvc), against your own MSVC and Windows SDK | Unreleased | clang-cl with Visual Studio |
 | [musl targets](../design/roadmap.md#musl) | Planned | zig cc, or a musl cross toolchain |
-| [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | Unreleased | a Mac |
 | [Android, WebAssembly, bare metal, more Linux architectures](../design/roadmap.md#targets) | Considered | the NDK, wasi-sdk, zig cc, or a GCC cross toolchain |
 | [iOS and Apple's other devices](../design/roadmap.md#ios) | In research | Xcode |
 | [MemorySanitizer](../design/roadmap.md#msan) | Planned | |
-| [Sanitizers for MSVC targets](../design/roadmap.md#msvc) | Unreleased | |
 | [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered | |
 
 ## Known Limitations
@@ -87,8 +88,10 @@ toolchain is the better one.
 - **C++ libraries from another toolchain do not link.** xclang's C++
   library is libc++, linked into every program. A library built with GCC's
   libstdc++ (a distribution's Qt or Boost) or with MSVC's STL has another
-  ABI. Build C++ dependencies with xclang for the target, through CMake,
-  Bazel or vcpkg's chain-loaded toolchain file. C libraries are fine.
+  ABI; only the MSVC targets, whose C++ library is Microsoft's STL, link
+  the latter. Build C++ dependencies with xclang for the target, through
+  CMake, Bazel or vcpkg's chain-loaded toolchain file. C libraries are
+  fine.
 - **C++ objects should not cross shared libraries.** Each shared library
   carries its own libc++. On Linux and macOS, a standard exception from one
   is caught in another only by `catch (...)`

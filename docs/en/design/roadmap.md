@@ -29,8 +29,10 @@ for clang: one compiler for every target.
 - Runtimes can also be built from source on demand, for options the
   prebuilt ones lack.
 
-Today, only the first is in a release. The rest is planned, in research or
-considered, item by item, in the tables below.
+Today, the first and the third are in a release: the six targets, and
+since 23.1.2.7 Microsoft's and Apple's SDKs, which the user fetches with
+the [`xclang` command](#xclang-command). The rest is planned, in research
+or considered, item by item, in the tables below.
 
 Every target keeps the [hermeticity](hermeticity.md) rule. A program
 depends at run time only on the libraries of its OS that cannot be
@@ -51,8 +53,8 @@ license.
 | <a id="linux"></a>Linux x64, arm64 | glibc 2.17 | the toolchain | 1 | Supported |
 | <a id="mingw"></a>Windows x64, arm64 (MinGW) | mingw-w64, UCRT | the toolchain | 1 | Supported |
 | <a id="macos"></a>macOS arm64, x64, from macOS hosts | Apple's SDK | Xcode | 1 | Supported |
-| <a id="msvc"></a>Windows x64, arm64 (MSVC), with their sanitizers | Microsoft's CRT and STL, Windows SDK | the user (SDK) | 1 | Unreleased |
-| <a id="macos-any-host"></a>macOS arm64, x64, from Linux and Windows hosts | Apple's SDK | the user (SDK) | 1 | Unreleased |
+| <a id="msvc"></a>Windows x64, arm64 (MSVC), with their sanitizers | Microsoft's CRT and STL, Windows SDK | the user (SDK) | 1 | Supported |
+| <a id="macos-any-host"></a>macOS arm64, x64, from Linux and Windows hosts | Apple's SDK | the user (SDK) | 1 | Supported |
 | <a id="musl"></a>Linux x64, arm64 (musl) | musl | xclang | 1 | Planned |
 | <a id="windows-x86-msvc"></a>Windows x86 (MSVC) | Microsoft's CRT and STL, Windows SDK | the user (SDK) | 1 | In research |
 | <a id="windows-7"></a>Windows 7 and XP (MSVC) | Microsoft's CRT, static, with YY-Thunks | the user (SDK) | 3 | In research |
@@ -77,19 +79,19 @@ license.
 
 What sets these targets apart:
 
-- **MSVC targets.** First-class targets, as the MinGW ones are, on `main`
-  and in no release. The default C runtime is Microsoft's "hybrid CRT":
-  the VC runtime and the STL static, UCRT dynamic. xclang builds their
+- **MSVC targets.** First-class targets, as the MinGW ones are, since
+  23.1.2.7. The default C runtime is Microsoft's "hybrid CRT": the VC
+  runtime and the STL static, UCRT dynamic. xclang builds their
   compiler-rt: the builtins, the profile runtime and UBSan, and for x64
   AddressSanitizer, whose runtime is a DLL, and libFuzzer. The MSVC and
   Windows SDK versions are pinned to ones the shipped clang accepts, and
-  the user fetches them with the [`xclang` command](#xclang-command), so a
-  release with them carries the command too
+  the user fetches them with the [`xclang` command](#xclang-command),
+  which every toolchain archive carries
   ([Windows](windows.md#msvc-targets)). CMake builds them; the Bazel module
   does not yet ([below](#msvc-bazel)).
-- **macOS from any host.** On `main` and in no release. Apple's macOS SDK
-  is in the Command Line Tools package on Apple's update servers, and
-  needs no Apple ID to download. The user fetches it with the
+- **macOS from any host.** Since 23.1.2.7. Apple's macOS SDK is in the
+  Command Line Tools package on Apple's update servers, and needs no
+  Apple ID to download. The user fetches it with the
   [`xclang` command](#xclang-command) into the toolchain, whose config
   files then use it on Linux and Windows hosts; on macOS, Xcode's SDK
   stays the one in use. The programs are those of a macOS host: xclang's
@@ -122,20 +124,20 @@ What sets these targets apart:
 
 | item | status |
 |---|---|
-| <a id="xclang-command"></a>The `xclang` command: `xclang sdk fetch` for the vendor SDKs | Unreleased |
+| <a id="xclang-command"></a>The `xclang` command: `xclang sdk fetch` for the vendor SDKs | Supported |
 | <a id="target-archives"></a>Target archives and a release index, for `xclang target add` | Planned |
 | <a id="fetched-targets-in-build-systems"></a>Fetched targets and vendor SDKs in the CMake package and the Bazel module | Planned |
 | <a id="msvc-bazel"></a>The MSVC targets in the Bazel module, with the Windows SDK fetched by a repository rule | Planned |
 | <a id="macos-any-host-bazel"></a>macOS targets from Linux and Windows hosts in the Bazel module, with the macOS SDK fetched by a repository rule | Planned |
 
 `xclang` is a program in Rust (`cli/`), built for every host with xclang as
-its C compiler and linker. CI builds and tests it on every host, but no
-release carries it yet
-([the xclang command](../reference/xclang-command.md)). The plan is to ship
-it in every toolchain archive.
+its C compiler and linker. Every toolchain archive carries it, as
+`bin/xclang`, since 23.1.2.7
+([the xclang command](../reference/xclang-command.md)).
 
 - `xclang sdk fetch` downloads a vendor SDK from the vendor, by version and
-  sha256, once the user accepts its license. It works on `main` today.
+  sha256, once the user accepts its license. It is in every release since
+  23.1.2.7.
 - `xclang target add` unpacks a target's archive of the same release into
   the toolchain: its sysroot, its runtimes, compiler-rt, its config files
   and the licenses of its C runtime. No release publishes target archives
@@ -162,7 +164,7 @@ it in every toolchain archive.
 | <a id="libc-on-demand"></a>libc++, libc++abi and libunwind built from source on demand | Planned |
 | <a id="msan"></a>MemorySanitizer, through libc++ built on demand | Planned |
 | <a id="mingw-sanitizers"></a>Sanitizers for MinGW targets | Considered |
-| <a id="bazel-gsymutil"></a>`@xclang//bazel:llvm-gsymutil`, the toolchain's llvm-gsymutil for `bazel run` | Unreleased |
+| <a id="bazel-gsymutil"></a>`@xclang//bazel:llvm-gsymutil`, the toolchain's llvm-gsymutil for `bazel run` | Supported |
 | <a id="cargo-helper"></a>An `xclang cargo` helper that sets cargo's variables | Considered |
 | <a id="libgcc-s-script"></a>`libgcc_s.a` as a linker script naming libunwind, for Rust's Linux targets | Considered |
 | <a id="libcxx-msvc"></a>libc++ as the C++ library of MSVC targets | Planned |
@@ -223,10 +225,10 @@ The training is widened between releases, not while one is pending
 | item | status |
 |---|---|
 | <a id="cmake-relative-paths"></a>Relative paths in the debug information of CMake builds | Planned |
-| <a id="gsym-determinism"></a>The same GSYM file on every run (`xclang_debug_symbols` passing `--num-threads=1`) | Unreleased |
+| <a id="gsym-determinism"></a>The same GSYM file on every run (`xclang_debug_symbols` passing `--num-threads=1`) | Supported |
 | <a id="immutable-releases"></a>Immutable GitHub releases | Planned |
-| <a id="reproducible-archives"></a>Reproducible release archives | Unreleased |
-| <a id="license-notices"></a>Third-party license notices in the archives | Unreleased |
+| <a id="reproducible-archives"></a>Reproducible release archives | Supported |
+| <a id="license-notices"></a>Third-party license notices in the archives | Supported |
 | <a id="slsa"></a>SLSA provenance attestations | Considered |
 
 - **CMake builds** write the build tree's absolute paths into debug
@@ -234,17 +236,18 @@ The training is widened between releases, not while one is pending
   root ([debugging](../features/debugging.md#paths-in-debug-information)).
 - **GSYM files** from llvm-gsymutil's default threads differ run to run,
   with the same lookups. One thread is deterministic, about 1.4 times as
-  slow; `xclang_debug_symbols` passes `--num-threads=1` by default.
+  slow; `xclang_debug_symbols` passes `--num-threads=1` by default since
+  23.1.2.7.
 - **Immutable releases** keep an archive and its `SHA256SUMS` from being
   replaced together
   ([releases](../reference/releases.md#checking-a-download)).
-- **Reproducible archives**: sorted entries, the commit's time and no
-  owner in the `.tar.xz` files, xz in fixed blocks whatever its threads;
-  each host's archives are made twice, on two machines, and compared
-  ([build](../dev/release-build.md#the-stages)). The toolchain builds
-  themselves are not compared.
-- **License notices**: every archive has `share/licenses`, each
-  component's license files and an SPDX document
+- **Reproducible archives**, since 23.1.2.7: sorted entries, the commit's
+  time and no owner in the `.tar.xz` files, xz in fixed blocks whatever
+  its threads; each host's archives are made twice, on two machines, and
+  compared ([build](../dev/release-build.md#the-stages)). The toolchain
+  builds themselves are not compared.
+- **License notices**, since 23.1.2.7: every archive has `share/licenses`,
+  each component's license files and an SPDX document
   ([layout](../reference/layout.md#licenses)).
 
 ## Following LLVM

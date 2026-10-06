@@ -32,20 +32,19 @@ What a program loads at run time is in
 | Xcode | any whose SDK ld64.lld reads; Xcode 27 needs 23.1.2.6 or later | the macOS 27 SDK lists `arm64e.x1`, which ld64.lld reads with [patch 0009](patches.md) |
 | Rust | the `*-windows-gnullvm` targets for Windows, not `*-windows-gnu` | their std links libunwind and UCRT, as the MinGW sysroots have them ([Rust and Cargo](../integrations/cargo.md)) |
 
+Since 23.1.2.7, clang and clang-cl build for `*-pc-windows-msvc` against
+the SDK the `xclang` command fetches, not an installed Visual Studio
+([MSVC targets](../integrations/clang.md#msvc-targets)); lld-link, which
+reads no config file, finds its libraries where they say, or by
+`/winsysroot`. `--no-default-config` looks for Visual Studio, as upstream
+clang does and releases before 23.1.2.7 did.
+
 ## Not Yet Supported
 
 | | status |
 |---|---|
-| [MSVC-ABI targets](../design/roadmap.md#msvc) (`*-pc-windows-msvc`), with their sanitizers | Unreleased |
-| [macOS targets from Linux or Windows hosts](../design/roadmap.md#macos-any-host) | Unreleased |
 | [MemorySanitizer](../design/roadmap.md#msan) | Planned |
 | [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
-
-In a release, clang, clang-cl and lld-link build for `*-pc-windows-msvc`
-against an installed Visual Studio, as upstream clang does. With the
-[unreleased](../design/roadmap.md#msvc) MSVC targets they build against the
-SDK the `xclang` command fetches instead, and `--no-default-config` looks
-for Visual Studio as before.
 
 ## Known Limitations
 

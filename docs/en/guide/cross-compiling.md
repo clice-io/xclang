@@ -21,27 +21,22 @@ The same command builds for any of the six targets:
 | `aarch64-unknown-linux-gnu` | Linux arm64, glibc 2.17 or later | every host |
 | `x86_64-w64-mingw32` | Windows x64, 10 or later | every host |
 | `aarch64-w64-mingw32` | Windows arm64, 10 or later | every host |
-| `aarch64-apple-darwin` | macOS arm64, 13 or later | macOS hosts |
-| `x86_64-apple-darwin` | macOS x64, 13 or later | macOS hosts |
+| `aarch64-apple-darwin` | macOS arm64, 13 or later | every host |
+| `x86_64-apple-darwin` | macOS x64, 13 or later | every host |
 
 The macOS targets build against Apple's SDK, which xclang cannot
-redistribute. In releases they build on macOS hosts only, with Xcode's.
-From Linux and Windows hosts, with the SDK the user fetches from Apple,
-they are [unreleased](../design/roadmap.md#macos-any-host)
+redistribute. On macOS hosts they build with Xcode's; on Linux and
+Windows hosts, with the SDK the user fetches from Apple
 ([below](#macos-from-linux-or-windows)). clang's other spellings of the
 targets, such as `x86_64-pc-linux-gnu` or `arm64-apple-macos`, work too
 ([targets](../reference/targets.md#targets)).
 
 ### macOS from Linux or Windows
 
-::: warning Unreleased
-This needs the `xclang` command, which no release carries yet.
-:::
+Fetch Apple's SDK once with the toolchain's `xclang` command, accepting
+Apple's license, and build with a bare `--target`, as on a Mac:
 
-Fetch Apple's SDK once, accepting Apple's license, and build with a bare
-`--target`, as on a Mac:
-
-<!-- not run: needs the unreleased xclang command; macos.yml runs this through tests/macos.ts -->
+<!-- not run: needs a vendor SDK the user accepts the license of; macos.yml runs this through tests/macos.ts -->
 ```sh
 xclang sdk fetch macos --accept-license
 clang++ -O2 --target=arm64-apple-macos hello.cpp -o hello-macos-arm64
@@ -49,6 +44,13 @@ clang++ -O2 --target=arm64-apple-macos hello.cpp -o hello-macos-arm64
 
 The program runs on macOS 13 or later, signed ad hoc as Apple silicon
 needs. Why and how: [macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts).
+
+### MSVC Targets
+
+`x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc` build from every
+host against Microsoft's CRT, STL and Windows SDK, which the user fetches
+from Microsoft with the `xclang` command
+([MSVC targets](../integrations/clang.md#msvc-targets)).
 
 ## In Your Build System
 
@@ -125,18 +127,15 @@ also has a tier, which says how it is tested
 
 ## Not Yet Supported
 
-The toolchain has the six targets above, and no others. xclang's vision is
-what rustup and cross-rs do for Rust. Every other target is an archive of
-its own, fetched when a build needs it. Vendor SDKs are fetched from the
-vendor by the user. None of it is in a release:
+The toolchain has the six targets above and the MSVC targets, and no
+others. xclang's vision is what rustup and cross-rs do for Rust. Every
+other target is an archive of its own, fetched when a build needs it. None
+of it is in a release:
 
 | | status |
 |---|---|
-| [The `xclang` command](../design/roadmap.md#xclang-command), which fetches vendor SDKs | Unreleased |
 | [Target archives for `xclang target add`](../design/roadmap.md#target-archives) | Planned |
-| [MSVC-ABI targets](../design/roadmap.md#msvc) | Unreleased |
 | [musl targets](../design/roadmap.md#musl) | Planned |
-| [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | Unreleased |
 | [WebAssembly](../design/roadmap.md#wasm), [more Linux architectures](../design/roadmap.md#linux-architectures), [Android](../design/roadmap.md#android) | Considered |
 
 The [roadmap](../design/roadmap.md#targets) lists every target, with its

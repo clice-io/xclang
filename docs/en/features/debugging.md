@@ -125,8 +125,8 @@ program to ship ([strip](#strip)). The fastbuild mode strips debug
 information unless `--strip=never` is given. Without the toolchain on
 `PATH`, `bazel run @xclang//bazel:llvm-gsymutil -- $PWD/bazel-bin/tool.gsym
 --address=0x<address>` looks an address up with the toolchain's
-llvm-gsymutil ([unreleased](../design/roadmap.md#bazel-gsymutil)); `bazel
-run` runs it in another directory, so the path is absolute.
+llvm-gsymutil; `bazel run` runs it in another directory, so the path is
+absolute.
 
 ## Options
 
@@ -220,7 +220,6 @@ dSYM or GSYM names them correctly. `--stripopt` adds options to the strip.
 | | status |
 |---|---|
 | [Relative paths in the debug information of CMake builds](../design/roadmap.md#cmake-relative-paths) | Planned |
-| [The same GSYM file on every run](../design/roadmap.md#gsym-determinism) | Unreleased |
 
 ## Known Limitations
 
@@ -228,14 +227,14 @@ dSYM or GSYM names them correctly. `--stripopt` adds options to the strip.
   LLVM 23 loads no function from that DWARF. The GSYM then holds only the
   names of the symbol table, and a lookup gives the function without its
   file and line. Build with `-g`.
-- **GSYM files are not deterministic.** `llvm-gsymutil --convert` with its
-  default threads writes a different file each run from the same DWARF.
+- **GSYM files from several threads are not deterministic.**
+  `llvm-gsymutil --convert` with its default threads writes a different
+  file each run from the same DWARF.
   On one program, three runs gave three digests, 3,043,120 to 3,053,168
   bytes. The lookups agree; the layout does not. With `--num-threads=1`
   the file is the same every run, and about 0.6% smaller. On
   `libclang-cpp.so.18`'s and `libLLVM.so.18`'s DWARF (Ubuntu 24.04's debug
   symbols; 98 and 118 MB of GSYM) one thread took 6.0 and 7.8 s where four
-  took 4.3 and 5.7 s, on a 4-core runner. `xclang_debug_symbols` of
-  23.1.2.6 does not pass it, so the GSYM of a release cannot be compared
-  byte for byte with that of a rebuild; passing it is
-  [unreleased](../design/roadmap.md#gsym-determinism).
+  took 4.3 and 5.7 s, on a 4-core runner. `xclang_debug_symbols` passes
+  it since 23.1.2.7; with 23.1.2.6 and earlier, a GSYM cannot be compared
+  byte for byte with that of a rebuild.

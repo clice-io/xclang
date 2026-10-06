@@ -23,8 +23,7 @@ clang++ -O2 --target=aarch64-w64-mingw32 hello.cpp -o hello-windows-arm64.exe
 On macOS hosts, `--target=aarch64-apple-darwin` and
 `--target=x86_64-apple-darwin` build against Xcode's SDK, found by `xcrun`
 or given with `-isysroot`. On Linux and Windows hosts they build against
-the SDK that `xclang sdk fetch macos` fetched into the toolchain, which is
-[unreleased](../design/roadmap.md#macos-any-host)
+the SDK that `xclang sdk fetch macos` fetched into the toolchain
 ([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)). clang's
 other spellings of the targets, such as
 `x86_64-pc-linux-gnu` or `arm64-apple-macos`, reach the same config files.
@@ -43,17 +42,12 @@ Build scripts written for GCC keep working. `-latomic`, `-lgcc`,
 
 ## MSVC Targets
 
-::: warning Unreleased
-The MSVC targets are in no release
-([roadmap](../design/roadmap.md#msvc)). They need the Windows SDK, which
-the `xclang` command fetches, and no release carries that command either.
-:::
-
 `x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc` build against
-Microsoft's CRT, STL and Windows SDK. Fetch them once, accepting
-Microsoft's license; then they build from every host:
+Microsoft's CRT, STL and Windows SDK, which the toolchain's `xclang`
+command fetches. Fetch them once, accepting Microsoft's license; then they
+build from every host:
 
-<!-- not run: unreleased; msvc.yml runs these, through tests/msvc.ts, from Linux, macOS and Windows -->
+<!-- not run: needs a vendor SDK the user accepts the license of; msvc.yml runs these, through tests/msvc.ts, from Linux, macOS and Windows -->
 ```sh
 xclang sdk fetch windows --accept-license
 clang++ -O2 --target=x86_64-pc-windows-msvc hello.cpp -o hello-msvc-x64.exe

@@ -4,7 +4,7 @@
 
 > 文档目前只有英文版，中文版[计划中](https://docs.clice.io/xclang/design/roadmap#zh-docs)。
 
-像 rustup、cross-rs 和 cargo-zigbuild 让 Rust 交叉编译那样，用 clang 交叉编译：一个编译器面向所有目标平台。现在每个工具链都预编译好了六个常用目标平台，交叉编译到它们只需要一个 `--target`。xclang 的方向是：更多目标平台，以及不能再分发的厂商 SDK，在构建需要时再下载；运行库也能按需从源码构建。这些都还没有进入任何 release，每一项的状态见[路线图](https://docs.clice.io/xclang/design/roadmap)。
+像 rustup、cross-rs 和 cargo-zigbuild 让 Rust 交叉编译那样，用 clang 交叉编译：一个编译器面向所有目标平台。现在每个工具链都预编译好了六个常用目标平台，交叉编译到它们只需要一个 `--target`。它的 `xclang` 命令下载不能再分发的厂商 SDK（微软的和 Apple 的），供 MSVC 目标平台、以及在 Linux 和 Windows 主机上构建 macOS 程序使用。xclang 的方向是：更多目标平台，在构建需要时再下载；运行库也能按需从源码构建。这些都还没有进入任何 release，每一项的状态见[路线图](https://docs.clice.io/xclang/design/roadmap)。
 
 它的目标是接近当下密封（hermetic）的现代 C++ 构建的最佳实践：[Why xclang?](https://docs.clice.io/xclang/guide/why-xclang) 从各个角度论证这一点。
 
@@ -18,20 +18,23 @@ xclang/bin/clang++ --target=aarch64-w64-mingw32 main.cpp -o main.exe
 
 ## 目标平台
 
-每个主机平台（Linux、Windows、macOS 的 x64 和 arm64）的工具链都带着六个常用目标平台：使用 glibc 2.17 的 Linux x64 和 arm64，使用 MinGW-w64（UCRT）的 Windows x64 和 arm64，以及 macOS arm64 和 x64，后者用 Xcode 的 SDK，所以只能在 macOS 主机上构建。
+每个主机平台（Linux、Windows、macOS 的 x64 和 arm64）的工具链都带着六个常用目标平台：使用 glibc 2.17 的 Linux x64 和 arm64，使用 MinGW-w64（UCRT）的 Windows x64 和 arm64，以及 macOS arm64 和 x64，在 macOS 主机上用 Xcode 的 SDK。
+
+用户用工具链自带的 `xclang` 命令（`xclang sdk fetch`）下载 SDK 后，从 23.1.2.7 起还支持：
+
+- **MSVC ABI 的目标平台**：使用微软 CRT、STL 和 Windows SDK 的 Windows x64 和 arm64，可在任何主机上构建（[MSVC targets](https://docs.clice.io/xclang/integrations/clang#msvc-targets)）。
+- **从 Linux 和 Windows 构建 macOS 程序**，使用 Apple 的 SDK（[macOS](https://docs.clice.io/xclang/design/macos#the-sdk-on-linux-and-windows-hosts)）。
 
 还不支持的，各自在路线图里的状态：
 
-- **MSVC ABI 的目标平台**（使用用户用 `xclang` 命令下载的微软 CRT、STL 和 Windows SDK）：[未发布](https://docs.clice.io/xclang/design/roadmap#msvc)。
-- **从 Linux 或 Windows 构建 macOS 程序**（使用用户用 `xclang` 命令从 Apple 下载的 SDK）：[未发布](https://docs.clice.io/xclang/design/roadmap#macos-any-host)。
 - **musl 目标平台**（Linux x64、arm64）：[计划中](https://docs.clice.io/xclang/design/roadmap#musl)。其它 Linux 架构、WebAssembly、Android、FreeBSD 和裸机：[考虑中](https://docs.clice.io/xclang/design/roadmap#targets)。
-- **`xclang` 命令**（`xclang sdk fetch`、`xclang target add`）：[未发布](https://docs.clice.io/xclang/design/roadmap#xclang-command)。它在仓库里，由 CI 测试，但还没有进入任何 release，也还没有 release 发布供它下载的目标平台包。
+- **目标平台包**，供 `xclang target add` 下载上述之外的目标平台：[计划中](https://docs.clice.io/xclang/design/roadmap#target-archives)。
 
 ## 适合谁
 
 想要一套可以锁定版本、随项目分发、可复现的工具链，并且希望编出来的程序拷到哪都能跑的人：
 
-- **密封（hermetic）。** 程序运行时只依赖其操作系统每个安装都有、且任何人都不能再分发的系统库：Linux 上是 glibc（2.17 及以上），macOS 上是 libSystem 和程序用到的系统框架，Windows 上是操作系统的 DLL，包括 UCRT（Windows 10 及以上）。其余的一切，包括 libc++、libc++abi、libunwind 和 builtins，都静态链接。构建时唯一来自工具链之外的输入，是 macOS 目标平台用到的、本机 Xcode 的 SDK。sanitizer 运行库是例外（[hermeticity](https://docs.clice.io/xclang/design/hermeticity)）。
+- **密封（hermetic）。** 程序运行时只依赖其操作系统每个安装都有、且任何人都不能再分发的系统库：Linux 上是 glibc（2.17 及以上），macOS 上是 libSystem 和程序用到的系统框架，Windows 上是操作系统的 DLL，包括 UCRT（Windows 10 及以上）。其余的一切，包括 libc++、libc++abi、libunwind 和 builtins，都静态链接。构建时来自工具链之外的输入只有厂商 SDK：macOS 主机上本机 Xcode 的 SDK，以及用户用 `xclang` 命令下载的 SDK。sanitizer 运行库是例外（[hermeticity](https://docs.clice.io/xclang/design/hermeticity)）。
 - **每个部分都能单独使用。** sysroot 和运行库都是普通目录，按 clang 驱动期望的方式排布。
 - **快。** clang 和 lld 用 PGO 和 ThinLTO 构建，并且在每个主机平台上都静态链接 xclang 自己的 libc++。
 - **小。** clang、lld 和大部分工具是同一个程序 `llvm`，每个包 86 到 94 MB。
@@ -91,7 +94,7 @@ bazel build --platforms=@xclang//platforms:x86_64-w64-mingw32 //...
 - Guide：[What is xclang?](https://docs.clice.io/xclang/guide/what-is-xclang)、[Quick Start](https://docs.clice.io/xclang/guide/quick-start)、[Installation](https://docs.clice.io/xclang/guide/install)、[Cross-Compiling](https://docs.clice.io/xclang/guide/cross-compiling)、[Why xclang?](https://docs.clice.io/xclang/guide/why-xclang)、[Comparisons](https://docs.clice.io/xclang/guide/comparisons)（与 zig cc、llvm-mingw、conda-forge 等的对比）、[FAQ](https://docs.clice.io/xclang/guide/faq)
 - Integrations：[CMake](https://docs.clice.io/xclang/integrations/cmake)、[Bazel](https://docs.clice.io/xclang/integrations/bazel)、[Make and Meson](https://docs.clice.io/xclang/integrations/clang)、[Cargo](https://docs.clice.io/xclang/integrations/cargo)、[CI](https://docs.clice.io/xclang/integrations/ci)
 - Features：[Modules](https://docs.clice.io/xclang/features/modules)、[Sanitizers](https://docs.clice.io/xclang/features/sanitizers)、[Debugging](https://docs.clice.io/xclang/features/debugging)、[libclang](https://docs.clice.io/xclang/features/libclang)、[ThinLTO Cache](https://docs.clice.io/xclang/features/thinlto-cache)
-- Reference：[Targets](https://docs.clice.io/xclang/reference/targets)、[Compatibility](https://docs.clice.io/xclang/reference/compatibility)、[Archive Layout](https://docs.clice.io/xclang/reference/layout)、[CMake API](https://docs.clice.io/xclang/reference/cmake-api)、[Bazel API](https://docs.clice.io/xclang/reference/bazel-api)、[Releases](https://docs.clice.io/xclang/reference/releases)、[LLVM Patches](https://docs.clice.io/xclang/reference/patches)
+- Reference：[Targets](https://docs.clice.io/xclang/reference/targets)、[Compatibility](https://docs.clice.io/xclang/reference/compatibility)、[Archive Layout](https://docs.clice.io/xclang/reference/layout)、[CMake API](https://docs.clice.io/xclang/reference/cmake-api)、[Bazel API](https://docs.clice.io/xclang/reference/bazel-api)、[Releases](https://docs.clice.io/xclang/reference/releases)、[LLVM Patches](https://docs.clice.io/xclang/reference/patches)、[xclang Command](https://docs.clice.io/xclang/reference/xclang-command)
 - Design：[Hermeticity](https://docs.clice.io/xclang/design/hermeticity)、[PGO](https://docs.clice.io/xclang/design/pgo)、[Roadmap](https://docs.clice.io/xclang/design/roadmap) 等
 - Development：[Contributing](https://docs.clice.io/xclang/dev/contributing)、[Build Pipeline](https://docs.clice.io/xclang/dev/release-build)、[Testing](https://docs.clice.io/xclang/dev/testing)、[Releasing](https://docs.clice.io/xclang/dev/releasing)
 - [CHANGELOG](CHANGELOG.md)、[贡献](CONTRIBUTING.md)、[安全](SECURITY.md)

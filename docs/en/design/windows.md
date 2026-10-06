@@ -1,10 +1,10 @@
 # Windows
 
-The Windows targets of a release, `x86_64-w64-mingw32` and
-`aarch64-w64-mingw32`, are MinGW-w64 on UCRT. The MSVC-ABI targets,
-`x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc`, are
-[unreleased](roadmap.md#msvc). The Windows toolchains are MinGW programs
-built on Linux.
+xclang has two kinds of Windows targets. `x86_64-w64-mingw32` and
+`aarch64-w64-mingw32` are MinGW-w64 on UCRT, with their sysroots in every
+archive. The MSVC-ABI targets, `x86_64-pc-windows-msvc` and
+`aarch64-pc-windows-msvc`, build against the SDK the user fetches. The
+Windows toolchains are MinGW programs built on Linux.
 
 ## Summary
 
@@ -35,8 +35,7 @@ MSVC programs use too. Programs need Windows 10 or later.
 
 MinGW is not the only Windows ABI people need. Libraries built with MSVC,
 COM-heavy code and vendor SDKs expect the MSVC ABI. So the MSVC targets
-are first-class targets too ([unreleased](roadmap.md#msvc)). Until a
-release has them, use clang-cl with Visual Studio for the MSVC ABI.
+are first-class targets too.
 
 ## MSVC Targets
 
@@ -164,9 +163,8 @@ xclang does not add links for every spelling to the MinGW sysroots.
 kotatsu, built from Linux by xclang's CI, changed its `<BaseTsd.h>` for
 this.
 
-The MSVC CRT, STL and Windows SDK that the
-[unreleased](roadmap.md#xclang-command) `xclang sdk fetch windows` lays out
-on Linux do get case links, 3.6k of them. Microsoft's own headers and
+The MSVC CRT, STL and Windows SDK that `xclang sdk fetch windows` lays
+out on Linux do get case links, 3.6k of them. Microsoft's own headers and
 libraries use mixed spellings.
 
 ## Visual Studio from a MinGW-Built Clang
@@ -185,7 +183,6 @@ sent upstream as llvm/llvm-project#226794.
 
 | | status |
 |---|---|
-| [MSVC-ABI targets, x64 and arm64, with their sanitizers](roadmap.md#msvc) | Unreleased |
 | [MSVC targets in the Bazel module](roadmap.md#msvc-bazel) | Planned |
 | [Windows x86 (MSVC)](roadmap.md#windows-x86-msvc) | In research |
 | [Windows 7 and XP](roadmap.md#windows-7) | In research |

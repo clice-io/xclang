@@ -53,10 +53,8 @@ reference:
       label: Releases
     - file: patches
       label: LLVM Patches
-    # Unreleased: reached by links only, until a release carries the command.
     - file: xclang-command
       label: xclang Command
-      hidden: true
 
 design:
   label: Design

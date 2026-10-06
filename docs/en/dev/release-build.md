@@ -8,9 +8,8 @@ steps for cutting one are in [releasing](releasing.md).
 
 1. **Runtimes.** A bootstrap clang builds the sysroot, libc++, libc++abi,
    libunwind and compiler-rt of every target, and the ASan libc++. The
-   compiler-rt of the [unreleased](../design/roadmap.md#msvc) MSVC targets
-   is built with clang-cl against a Windows SDK fetched in the job by
-   `xclang`; only the libraries leave it.
+   compiler-rt of the MSVC targets is built with clang-cl against a
+   Windows SDK fetched in the job by `xclang`; only the libraries leave it.
 2. **Instrumented compiler.** The bootstrap clang builds a clang and lld
    with frontend instrumentation, on Linux x64.
 3. **Training.** The instrumented toolchain compiles a fixed training set
@@ -83,10 +82,8 @@ of building them again.
 
 With `cli`, on by default, the `package` stage also builds the
 [xclang command](../reference/xclang-command.md) (cli.yml) and puts it into
-every toolchain archive. The command is
-[unreleased](../design/roadmap.md#xclang-command): no published release has
-been built with `cli` yet. cli.yml also runs on its own, testing the command
-on every host.
+every toolchain archive. 23.1.2.7 was the first release built with
+`cli`. cli.yml also runs on its own, testing the command on every host.
 
 A draft creates no tag; publishing it does. Publishing starts two
 workflows:
@@ -112,9 +109,9 @@ is in [contributing](contributing.md#where-things-are).
 
 ## The xclang Command
 
-The [xclang command](../reference/xclang-command.md) is
-[unreleased](../design/roadmap.md#xclang-command). `node scripts/cli.ts`
-builds it for the hosts of the machine it runs on, with a released xclang
+`node scripts/cli.ts` builds the
+[xclang command](../reference/xclang-command.md) for the hosts of the
+machine it runs on, with a released xclang
 (23.1.2.5, pinned in `scripts/common.ts`) as the C compiler and linker:
 both Linux and both Windows hosts from Linux x64, both macOS hosts from
 macOS. It checks what each binary loads at run time:

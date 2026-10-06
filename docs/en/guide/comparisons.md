@@ -9,7 +9,7 @@ the documentation of each project, linked. Corrections are welcome as
 
 | | what it is | targets out of the box | sysroots and SDKs | C++ runtime in programs | Linux programs run on | build systems | compiler built with PGO |
 |---|---|---|---|---|---|---|---|
-| **xclang** | clang, lld and six targets' runtimes, prebuilt | Linux x64/arm64, Windows x64/arm64 (MinGW), macOS from macOS hosts | bundled; macOS SDK from Xcode | libc++, static | glibc 2.17+ | CMake package, Bazel module, conda | yes, PGO + ThinLTO, every host |
+| **xclang** | clang, lld and six targets' runtimes, prebuilt | Linux x64/arm64, Windows x64/arm64 (MinGW, MSVC), macOS x64/arm64 | bundled; Apple's and Microsoft's SDKs fetched by the user from the vendor, or Xcode's | libc++, static; for MSVC targets, Microsoft's STL, static | glibc 2.17+ | CMake package, Bazel module, conda | yes, PGO + ThinLTO, every host |
 | **zig cc** 0.17 | Zig's driver around its clang | dozens: glibc, musl, MinGW, macOS, BSDs, WASI | libc sources and stubs bundled, built on first use | libc++, static | any glibc version chosen per target; 2.31 by default | `zig build`; `CC="zig cc"` | not stated |
 | **cargo-zigbuild** | zig cc as cargo's linker | Linux, macOS, as its README lists | through zig; macOS SDK from the user | through zig | glibc version chosen per target | cargo | as zig |
 | **cross-rs** | cargo in Docker images with GCC cross toolchains | most of Rust's Linux, Windows and other targets | per-target images; Apple and MSVC images built by the user | libstdc++ | 2.31; 2.17 in `:centos` images | cargo | no; GCC |
@@ -41,10 +41,11 @@ work. It differs from xclang in how it gets there:
   (`x86_64-linux-gnu.2.17`), the BSDs and WASI. It also builds for macOS
   from any host, with Apple's libc headers and a `libSystem` stub
   ([0.17.0 release notes](https://ziglang.org/download/0.17.0/release-notes.html)).
-  In xclang, musl targets are [planned](../design/roadmap.md#musl), a newer
-  glibc and the BSDs are [considered](../design/roadmap.md#glibc-newer), and
-  macOS from any host, with Apple's own SDK fetched by the user, is
-  [unreleased](../design/roadmap.md#macos-any-host).
+  In xclang, musl targets are [planned](../design/roadmap.md#musl), and a
+  newer glibc and the BSDs are [considered](../design/roadmap.md#glibc-newer).
+  xclang builds for macOS from any host too, with Apple's own SDK, which
+  the user fetches
+  ([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)).
 - **Its clang is Zig's.** 0.17.0 has LLVM 22, with loop vectorization
   disabled to work around a regression since 0.16.0. xclang follows LLVM's
   releases with stock clang, built with PGO and ThinLTO.
@@ -53,7 +54,9 @@ work. It differs from xclang in how it gets there:
   ([#24831](https://github.com/ziglang/zig/issues/24831)). It ships no
   ASan runtime ([#11403](https://github.com/ziglang/zig/issues/11403)),
   and its `windows-msvc` target uses an installed Visual Studio. xclang has
-  ASan, TSan, LSan, UBSan and libFuzzer for Linux and macOS.
+  ASan, TSan, LSan, UBSan and libFuzzer for Linux and macOS, and its MSVC
+  targets build from every host against an SDK the user fetches, with
+  UBSan, and ASan and libFuzzer for x64.
 - **Integration.** zig cc is a drop-in `CC`. xclang adds a CMake package
   with `import std`, a Bazel module, and libclang.
 
@@ -172,8 +175,6 @@ libclang.
 | | status | who has it |
 |---|---|---|
 | [musl targets](../design/roadmap.md#musl) | Planned | zig cc |
-| [MSVC-ABI targets](../design/roadmap.md#msvc) | Unreleased | clang-cl with Visual Studio |
-| [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | Unreleased | zig cc |
 | [Android](../design/roadmap.md#android), [WebAssembly](../design/roadmap.md#wasm), [the BSDs](../design/roadmap.md#freebsd), [bare metal](../design/roadmap.md#bare-metal) | Considered | the NDK, wasi-sdk, zig cc |
 | [iOS and Apple's other devices](../design/roadmap.md#ios) | In research | Xcode |
 | [Windows 7 and XP](../design/roadmap.md#windows-7) | In research | llvm-mingw's msvcrt variant |

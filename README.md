@@ -5,9 +5,11 @@
 Cross-compiling with clang the way rustup, cross-rs and cargo-zigbuild let
 Rust do it: one compiler for every target. Today every toolchain carries six
 common targets, prebuilt, and cross-compiling to them is a `--target` flag.
-Where it is going: more targets and the vendor SDKs that cannot be
-redistributed, fetched when a build needs them, and runtimes built from
-source on demand. None of that is in a release yet; the
+Its `xclang` command fetches the vendor SDKs that cannot be redistributed,
+Microsoft's and Apple's, for the MSVC targets and for macOS targets on
+Linux and Windows hosts. Where it is going: more targets, fetched when a
+build needs them, and runtimes built from source on demand. None of that
+is in a release yet; the
 [roadmap](https://docs.clice.io/xclang/design/roadmap) gives each item's
 status.
 
@@ -31,25 +33,26 @@ compiler-rt built for that exact target.
 
 Every host toolchain (Linux, Windows and macOS, x64 and arm64) carries the
 six common targets: Linux x64 and arm64 with glibc 2.17, Windows x64 and
-arm64 with MinGW-w64 (UCRT), and macOS arm64 and x64, which use Xcode's SDK
-and so build on macOS hosts only.
+arm64 with MinGW-w64 (UCRT), and macOS arm64 and x64, with Xcode's SDK on
+macOS hosts.
+
+With the SDKs the user fetches with the toolchain's `xclang` command
+(`xclang sdk fetch`), from 23.1.2.7 on:
+
+- **MSVC-ABI targets**, Windows x64 and arm64 against Microsoft's CRT, STL
+  and Windows SDK, from every host
+  ([MSVC targets](https://docs.clice.io/xclang/integrations/clang#msvc-targets)).
+- **macOS targets from Linux and Windows**, with Apple's SDK
+  ([macOS](https://docs.clice.io/xclang/design/macos#the-sdk-on-linux-and-windows-hosts)).
 
 Not supported yet, each with its status in the roadmap:
 
-- **MSVC-ABI targets**, against Microsoft's CRT, STL and Windows SDK, which
-  the user fetches with the `xclang` command:
-  [unreleased](https://docs.clice.io/xclang/design/roadmap#msvc).
-- **macOS targets from Linux or Windows**, with Apple's SDK, which the user
-  fetches with the `xclang` command:
-  [unreleased](https://docs.clice.io/xclang/design/roadmap#macos-any-host).
 - **musl targets** (Linux x64, arm64):
   [planned](https://docs.clice.io/xclang/design/roadmap#musl). Other Linux
   architectures, WebAssembly, Android, FreeBSD and bare metal:
   [considered](https://docs.clice.io/xclang/design/roadmap#targets).
-- **The `xclang` command** (`xclang sdk fetch`, `xclang target add`):
-  [unreleased](https://docs.clice.io/xclang/design/roadmap#xclang-command).
-  It is in the repository and tested by CI, but no release carries it, and
-  no release publishes target archives for it.
+- **Target archives** for `xclang target add`, to fetch targets beyond
+  these: [planned](https://docs.clice.io/xclang/design/roadmap#target-archives).
 
 ## Who it is for
 
@@ -61,9 +64,10 @@ that run wherever they are copied:
   Linux (2.17 or later), libSystem and the system frameworks it uses on
   macOS, the OS's DLLs on Windows, UCRT included (Windows 10 and later).
   Everything else, libc++, libc++abi, libunwind and the builtins among them,
-  is linked statically. At build time the only input from outside the
-  toolchain is, for macOS targets, the installed Xcode's SDK. Sanitizer
-  runtimes are the exception
+  is linked statically. At build time the only inputs from outside the
+  toolchain are the vendor SDKs: the installed Xcode's on macOS hosts, and
+  those the user fetches with the `xclang` command. Sanitizer runtimes are
+  the exception
   ([hermeticity](https://docs.clice.io/xclang/design/hermeticity)).
 - **Every piece is usable on its own.** The sysroots and runtimes are plain
   directories laid out the way clang's drivers expect.
@@ -158,7 +162,8 @@ At [docs.clice.io/xclang](https://docs.clice.io/xclang), from
   [CMake API](https://docs.clice.io/xclang/reference/cmake-api),
   [Bazel API](https://docs.clice.io/xclang/reference/bazel-api),
   [Releases](https://docs.clice.io/xclang/reference/releases),
-  [LLVM Patches](https://docs.clice.io/xclang/reference/patches)
+  [LLVM Patches](https://docs.clice.io/xclang/reference/patches),
+  [xclang Command](https://docs.clice.io/xclang/reference/xclang-command)
 - Design: [Hermeticity](https://docs.clice.io/xclang/design/hermeticity),
   [PGO](https://docs.clice.io/xclang/design/pgo),
   [Roadmap](https://docs.clice.io/xclang/design/roadmap), and more

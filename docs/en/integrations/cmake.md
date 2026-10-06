@@ -77,12 +77,13 @@ cmake -G Ninja -B build-aarch64-w64-mingw32 --toolchain $XCLANG/lib/cmake/xclang
 cmake --build build-aarch64-w64-mingw32
 ```
 
-- Linux and Windows targets build on every host. Released, macOS targets
-  build on macOS hosts only ([why](../design/macos.md#the-sdk-is-xcode-s));
-  from Linux and Windows hosts they are
-  [unreleased](#build-for-macos-from-linux-or-windows). On a macOS host,
-  the other macOS architecture is `CMAKE_OSX_ARCHITECTURES` to CMake, not
-  cross-compiling.
+- Linux and MinGW targets build on every host. So do the
+  [MSVC targets](#build-for-msvc-targets), with the Windows SDK that the
+  toolchain's `xclang` fetched, and the macOS targets: with Xcode's SDK on
+  macOS hosts ([why](../design/macos.md#the-sdk-is-xcode-s)), and with the
+  fetched SDK on [Linux and Windows hosts](#build-for-macos-from-linux-or-windows).
+  On a macOS host, the other macOS architecture is
+  `CMAKE_OSX_ARCHITECTURES` to CMake, not cross-compiling.
 - CMake looks for the libraries, headers and packages of another target
   in its sysroot only. Name a dependency built for the target with
   `<Package>_DIR`, or add its prefix to `CMAKE_FIND_ROOT_PATH`. A library
@@ -94,16 +95,12 @@ cmake --build build-aarch64-w64-mingw32
 
 ## Build for MSVC Targets
 
-::: warning Unreleased
-The [MSVC targets](../design/roadmap.md#msvc) are in no release.
-:::
-
 `x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc` build with the
 Windows SDK that the toolchain's `xclang` fetched
 ([MSVC targets](clang.md#msvc-targets)). Without it, the toolchain file
 stops and says how to fetch it:
 
-<!-- not run: unreleased; msvc.yml builds tests/cmake this way, through tests/msvc.ts -->
+<!-- not run: needs a vendor SDK the user accepts the license of; msvc.yml builds tests/cmake this way, through tests/msvc.ts -->
 ```sh
 $XCLANG/bin/xclang sdk fetch windows --accept-license
 cmake -G Ninja -B build-msvc --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake \
@@ -125,17 +122,12 @@ cmake --build build-msvc
 
 ## Build for macOS from Linux or Windows
 
-::: warning Unreleased
-[macOS targets from Linux and Windows hosts](../design/roadmap.md#macos-any-host)
-are in no release.
-:::
-
 `aarch64-apple-darwin` and `x86_64-apple-darwin` build on Linux and Windows
 hosts with Apple's SDK that the toolchain's `xclang` fetched
 ([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)). Without
 it, the toolchain file stops and says how to fetch it:
 
-<!-- not run: unreleased; macos.yml builds tests/cmake this way, through tests/macos.ts -->
+<!-- not run: needs a vendor SDK the user accepts the license of; macos.yml builds tests/cmake this way, through tests/macos.ts -->
 ```sh
 $XCLANG/bin/xclang sdk fetch macos --accept-license
 cmake -G Ninja -B build-macos --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake \
@@ -308,8 +300,6 @@ subdirectories ([the ThinLTO cache](../features/thinlto-cache.md)).
 
 | | status |
 |---|---|
-| [MSVC-ABI targets](../design/roadmap.md#msvc) for `XCLANG_TARGET` | Unreleased |
-| [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) for `XCLANG_TARGET` | Unreleased |
 | [Relative paths in debug information](../design/roadmap.md#cmake-relative-paths), as Bazel builds have | Planned |
 | [Fetched targets](../design/roadmap.md#fetched-targets-in-build-systems) beyond the six | Planned |
 

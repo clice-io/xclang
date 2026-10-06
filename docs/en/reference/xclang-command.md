@@ -1,16 +1,12 @@
 # The xclang Command
 
-::: warning Unreleased
-No release carries `xclang`. CI builds and tests it from `main` (cli.yml),
-and `node scripts/cli.ts` builds it. Its SDK commands work. No release
-publishes target archives, so `xclang target add` has nothing to add;
-target archives are [planned](../design/roadmap.md#target-archives).
-:::
-
 `xclang` fetches what the toolchain does not carry: the vendor SDKs that
-cannot be redistributed, and targets beyond the six every toolchain has. The
-plan is to ship it in every toolchain archive, as `bin/xclang`. Why SDKs are
-fetched and not shipped is in [vendor SDKs](../design/vendor-sdks.md).
+cannot be redistributed, and targets beyond the six every toolchain has.
+Every toolchain archive carries it, as `bin/xclang` (`xclang.exe` on
+Windows), since 23.1.2.7. Why SDKs are fetched and not shipped is in
+[vendor SDKs](../design/vendor-sdks.md). No release publishes target
+archives yet, so `xclang target add` has nothing to add; target archives
+are [planned](../design/roadmap.md#target-archives).
 
 ```text
 xclang sdk list [macos|windows]
