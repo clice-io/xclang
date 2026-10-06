@@ -37,4 +37,12 @@ dbghelp's own symbols alike, instead of once for each.
   ([clice-io/clice#775](https://github.com/clice-io/clice/pull/775)),
   which walks the same way.
 - Checked: applies to 23.1.2 with `patch -F0`; `Signals.inc` is the same on
-  LLVM's main of 2026-10-06.
+  LLVM's main of 2026-10-06. On windows-11-arm (dbghelp 10.0.26100),
+  23.1.2.6 ends every crash trace of clang and lld with a signed address,
+  and the libclang test's tool, crashing in a qsort comparator, shows
+  nothing past ucrtbase's frame (exp/win-stacktrace, run 37434185698).
+  Built with the patch (run 37434367448), the same traces end at
+  `ntdll!RtlUserThreadStart`, and the tool's, from the comparator and from
+  its signal handler, reach `main`; on windows-2025 the traces have the
+  same frames as without it. MSVC compiles the patched `Signals.cpp` for
+  x64 and arm64 (run 37447339805).
