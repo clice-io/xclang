@@ -15,6 +15,9 @@ name: main
 #   cmake          the CMake package with every host's archives (cmake.yml)
 #   msvc           the MSVC targets, with the Windows SDK the archives' own
 #                  command fetches (msvc.yml; needs cli)
+#   macos          the macOS targets from Linux and Windows hosts, with the
+#                  macOS SDK the archives' own command fetches (macos.yml;
+#                  needs cli)
 #   release        a draft release of everything (needs the profile)
 #
 # With cli, the package stage builds xclang's own command (cli.yml) and puts
@@ -24,7 +27,7 @@ on:
   workflow_dispatch:
     inputs:
       stages:
-        description: "Comma-separated stages: runtimes, instrumented, train, toolchain, asan, package, test, bazel, cmake, msvc, release"
+        description: "Comma-separated stages: runtimes, instrumented, train, toolchain, asan, package, test, bazel, cmake, msvc, macos, release"
         type: string
         default: runtimes,instrumented,train,toolchain,asan,package,test,bazel,cmake
       runtimes:
@@ -167,8 +170,15 @@ jobs:
     with:
       dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
 
+  macos:
+    needs: package
+    if: ${{ !cancelled() && contains(inputs.stages, 'macos') && needs.package.result != 'failure' }}
+    uses: ./.github/workflows/macos.yml
+    with:
+      dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
+
   release:
-    needs: [train, package, test, bazel, cmake, msvc]
+    needs: [train, package, test, bazel, cmake, msvc, macos]
     if: ${{ !cancelled() && contains(inputs.stages, 'release') && !contains(needs.*.result, 'failure') }}
     permissions:
       contents: write

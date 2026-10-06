@@ -49,7 +49,7 @@ function archive(dir: string, name: string): void {
 
 const toolchain = path.join(out, `toolchain-${host.triple}`);
 if (!fs.existsSync(path.join(toolchain, "bin"))) common.fail(`missing ${toolchain}`);
-const tree = common.makeTree(path.join(common.WORK, "package", host.triple, "xclang"), toolchain, runtimes);
+const tree = common.makeTree(path.join(common.WORK, "package", host.triple, "xclang"), toolchain, runtimes, host.os);
 fs.copyFileSync(path.join(common.ROOT, "LICENSE"), path.join(tree, "LICENSE"));
 /// find_package(xclang) and the toolchain file (packages/cmake).
 common.writeCMakePackage(path.join(tree, "lib", "cmake", "xclang"), version);

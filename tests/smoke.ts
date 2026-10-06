@@ -268,6 +268,18 @@ exports:
   }
 }
 
+/// The macOS targets' SDK: on a macOS host the one clang finds by itself
+/// (Xcode's), elsewhere the one the tree's xclang fetches into sdk/macos,
+/// which clang names when it is not there (tests/macos.ts builds with it).
+{
+  const args = ["--target=arm64-apple-macos", "-c", helloC, "-o", path.join(work, "hello-macos.o")];
+  const result = spawnSync(tool("clang"), process.platform === "darwin" ? ["-###", ...args] : args, { encoding: "utf8", cwd: work });
+  const named = /sdk[\\/]macos/.test(result.stderr ?? "");
+  if (process.platform === "darwin" ? named : !fs.existsSync(path.join(tree, "sdk", "macos")) && (result.status === 0 || !named)) {
+    failures.push(`clang ${args.join(" ")} ${process.platform === "darwin" ? "names sdk/macos" : "without the macOS SDK"}: ${result.stderr}`);
+  }
+}
+
 /// The MSVC targets: compiler-rt in the layout lld-link searches, and the
 /// config files of clang and of clang-cl (a plain clang-cl too: none of the
 /// host target's options), which read the Windows SDK the tree's xclang

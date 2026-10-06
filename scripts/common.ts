@@ -334,10 +334,10 @@ export function copyTree(src: string, dest: string): void {
 
 /// A toolchain tree at dest: the programs and resource headers of the tree
 /// `programs` (the bootstrap, or a build here), the target directories and
-/// compiler-rt of every tree in `parts`, and the config files. The
-/// programs' own compiler-rt is left out, so every runtime in the tree is
-/// one built here.
-export function makeTree(dest: string, programs: string, parts: string[] = []): string {
+/// compiler-rt of every tree in `parts`, and the config files for a tree of
+/// `host` (this machine's by default). The programs' own compiler-rt is
+/// left out, so every runtime in the tree is one built here.
+export function makeTree(dest: string, programs: string, parts: string[] = [], host: Os = machineTarget().os): string {
   fs.rmSync(dest, { recursive: true, force: true });
   copyTree(path.join(programs, "bin"), path.join(dest, "bin"));
   fs.mkdirSync(path.join(dest, "lib"), { recursive: true });
@@ -346,15 +346,17 @@ export function makeTree(dest: string, programs: string, parts: string[] = []): 
   }
   copyTree(path.join(resourceDir(programs), "include"), path.join(resourceDir(dest), "include"));
   for (const part of parts) copyTree(part, dest);
-  writeConfigs(dest);
+  writeConfigs(dest, host);
   return dest;
 }
 
 /// Install the per-target clang config files (config/) into tree/bin.
 /// clang reads bin/<triple>.cfg for the target it compiles for, so every
 /// target directory of the tree works with a bare --target; clang-cl reads
-/// bin/<triple>-clang-cl.cfg.
-export function writeConfigs(tree: string): void {
+/// bin/<triple>-clang-cl.cfg. The macOS targets' files differ by the tree's
+/// host: Apple's SDK is Xcode's on macOS, the fetched one in the tree's
+/// sdk/macos elsewhere.
+export function writeConfigs(tree: string, host: Os): void {
   const bin = path.join(tree, "bin");
   fs.mkdirSync(bin, { recursive: true });
   const config = (name: string, t: Target) => fs
@@ -374,8 +376,9 @@ export function writeConfigs(tree: string): void {
     /// clang-cl reads the clang-cl file of the MSVC target of its
     /// architecture, and none of the host target's options.
     const cl = config("msvc-clang-cl.cfg", MSVC_TARGETS.find((m) => m.arch === t.arch)!);
+    const sdk = t.os !== "darwin" ? "" : config(host === "darwin" ? "darwin-xcode.cfg" : "darwin-sdk.cfg", t);
     for (const name of cfgNames(t)) {
-      fs.writeFileSync(path.join(bin, `${name}.cfg`), config(`${t.os}.cfg`, t));
+      fs.writeFileSync(path.join(bin, `${name}.cfg`), sdk + config(`${t.os}.cfg`, t));
       fs.writeFileSync(path.join(bin, `${name}-clang-cl.cfg`), cl);
     }
   }
