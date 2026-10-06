@@ -1,29 +1,26 @@
 name: docs
 
-# tests/docs/docs.ts on every branch: the docs' files and command blocks are
-# examples/'s files and examples.yml's steps, their links reach pages and
-# headings, their status cells are status words. On main, then, docs/ to
-# docs.clice.io/xclang: clice-io/docs's sync action copies docs/en into that
-# repository as en/xclang, in a pull request that merges itself once the
-# site builds (none when nothing changed).
+# The repository's own consistency, on every push and pull request (a
+# minute; no path filter, as the docs show files from all over it):
+# tests/docs/docs.ts (the docs' files and command blocks are examples/'s
+# files and examples.yml's steps, their links reach pages and headings,
+# their status cells are status words) and the scripts' and tests' types
+# (npm run check). On main, then, docs/ to docs.clice.io/xclang:
+# clice-io/docs's sync action copies docs/en into that repository as
+# en/xclang, in a pull request that merges itself once the site builds
+# (none when nothing changed).
 
 on:
   push:
-    paths:
-      - "docs/**"
-      - "examples/**"
-      - "tests/docs/**"
-      - ".github/workflows/**"
-      - "README.md"
-      - "README.zh-CN.md"
-      - "CHANGELOG.md"
-      - "CONTRIBUTING.md"
-      - "SECURITY.md"
-      - "packages/README.md"
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   check:
@@ -36,6 +33,7 @@ jobs:
         with:
           node-version: 24
       - run: node tests/docs/docs.ts
+      - run: npm ci && npm run check
 
   publish:
     needs: check

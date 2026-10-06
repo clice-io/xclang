@@ -4,12 +4,14 @@
 ///   glibc newer than 2.17;
 /// - a C and a C++ program (exceptions, iostreams, threads) build for every
 ///   target it carries (macOS ones only on macOS: the SDK) and run where
-///   this machine can run them;
+///   this machine can run them; with --out, those it cannot run go to
+///   <dir>/<target>/smoke-<host>, for tests/lib/on-target.ts to run on a
+///   machine of the target;
 /// - natively also `import std;`, a precompiled header and ThinLTO;
 /// - dSYM and GSYM debug symbols by the tree's dsymutil and llvm-gsymutil;
 /// - share/licenses names every component.
 ///
-///   node tests/toolchain/smoke.ts --tree <xclang>
+///   node tests/toolchain/smoke.ts --tree <xclang> [--out <dir>]
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -17,9 +19,10 @@ import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import * as licenses from "../../scripts/licenses.ts";
+import { programsDir, writePrograms, type Program } from "../lib/on-target.ts";
 
-const { values } = parseArgs({ options: { tree: { type: "string" } } });
-if (!values.tree) fail("--tree <xclang>");
+const { values } = parseArgs({ options: { tree: { type: "string" }, out: { type: "string" } } });
+if (!values.tree) fail("--tree <xclang> [--out <dir>]");
 const tree = path.resolve(values.tree);
 const windows = process.platform === "win32";
 const exe = windows ? ".exe" : "";
@@ -142,12 +145,21 @@ const targets = [
 const runnable = (t: string) => t === native ||
   (native === "aarch64-apple-darwin" && t === "x86_64-apple-darwin") ||
   (native === "aarch64-w64-mingw32" && t === "x86_64-w64-mingw32");
+/// What does not run here, kept for a machine of its target (--out).
+const elsewhere = new Map<string, Program[]>();
+function keep(t: string, file: string, expect: string): void {
+  if (!values.out || runnable(t)) return;
+  const dir = programsDir(path.resolve(values.out), t, "smoke");
+  fs.copyFileSync(file, path.join(dir, path.basename(file)));
+  elsewhere.set(dir, [...elsewhere.get(dir) ?? [], { file: path.basename(file), expect }]);
+}
 for (const t of targets) {
   const suffix = t.endsWith("mingw32") ? ".exe" : "";
   for (const [source, driver, expected] of [[helloC, "clang", "hello c"], [helloCxx, "clang++", "hello c++"]]) {
     const out = path.join(work, `${path.basename(source)}-${t}${suffix}`);
     if (run(tool(driver), [`--target=${t}`, "-O2", source, "-o", out]) === undefined) continue;
     run(tool("llvm-readobj"), ["--file-headers", out]);
+    keep(t, out, expected);
     if (runnable(t)) {
       const output = run(out, []);
       if (output !== undefined && !output.includes(expected)) failures.push(`${out} printed ${JSON.stringify(output)}`);
@@ -172,7 +184,9 @@ int main() {
 for (const t of targets) {
   const out = path.join(work, `atomics-${t}${t.endsWith("mingw32") ? ".exe" : ""}`);
   const latomic = t.includes("apple") ? [] : ["-latomic"];
-  if (run(tool("clang++"), [`--target=${t}`, "-O2", atomics, "-o", out, ...latomic]) === undefined || !runnable(t)) continue;
+  if (run(tool("clang++"), [`--target=${t}`, "-O2", atomics, "-o", out, ...latomic]) === undefined) continue;
+  keep(t, out, "atomics 4 42");
+  if (!runnable(t)) continue;
   const output = run(out, []);
   if (output !== undefined && !output.includes("atomics 4 42")) failures.push(`${out} printed ${JSON.stringify(output)}`);
 }
@@ -187,7 +201,8 @@ for (const t of targets) {
   }
   if (!t.includes("linux")) continue;
   const staticOut = path.join(work, `static-${t}`);
-  if (run(tool("clang++"), [`--target=${t}`, "-static", "-O2", helloCxx, "-o", staticOut]) !== undefined && runnable(t)) {
+  if (run(tool("clang++"), [`--target=${t}`, "-static", "-O2", helloCxx, "-o", staticOut]) !== undefined) keep(t, staticOut, "hello c++");
+  if (fs.existsSync(staticOut) && runnable(t)) {
     const output = run(staticOut, []);
     if (output !== undefined && !output.includes("hello c++")) failures.push(`${staticOut} printed ${JSON.stringify(output)}`);
   }
@@ -501,5 +516,6 @@ if (run(tool("clang++"), [`--target=${native}`, "-O2", "-flto=thin", helloCxx, "
   if (output !== undefined && !output.includes("hello c++")) failures.push(`${lto} printed ${JSON.stringify(output)}`);
 }
 
+for (const [dir, programs] of elsewhere) writePrograms(dir, programs);
 if (failures.length) fail(`${failures.length} checks failed:\n  ${failures.join("\n  ")}`);
 console.log("all checks passed");

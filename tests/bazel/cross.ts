@@ -1,19 +1,17 @@
 /// Cross-compiling with the Bazel module, end to end: a workspace's tests
 /// built for another target, then run on a machine of that target
-/// (bazel.yml's cross and run jobs).
+/// (test-bazel.yml's cross jobs, then on-target.yml).
 ///
 ///   node tests/bazel/cross.ts build <triple> <dir> [--workspace <ws>] [-- <bazel arguments>]
 ///       builds the workspace (tests/bazel by default; the targets of the
 ///       arguments, //... if none) for @xclang//platforms:<triple>, and puts
 ///       every cc_test of them into <dir>: its runfiles, and its command line
-///       in tests.json
+///       in programs.json, which tests/lib/on-target.ts runs as Bazel runs a
+///       test, from the workspace's directory of its runfiles
 ///   node tests/bazel/cross.ts registry <module> <ws>
 ///       <ws>: the latest version of a module of the clice registry
 ///       (bazel.clice.io), from its source archive, on this checkout's
 ///       xclang module
-///   node tests/bazel/cross.ts run <dir>
-///       runs the tests of every tests.json under <dir> here, as Bazel runs
-///       a test: from the workspace's directory of its runfiles
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -22,32 +20,19 @@ import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import * as common from "../../scripts/common.ts";
+import { host, writePrograms } from "../lib/on-target.ts";
 
 const windows = process.platform === "win32";
 
-/// What tests.json says of a test (cross.bzl): the paths of its
-/// executable and its arguments relative to the workspace's directory of its
-/// runfiles, which is relative to tests.json.
+/// What the aspect (cross.bzl) says of a test: the paths of its executable
+/// and its arguments relative to the workspace's directory of its runfiles,
+/// which is relative to the execution root.
 interface Test {
   label: string;
   runfiles: string;
   executable: string;
   args: string[];
   env: Record<string, string>;
-}
-
-interface Bundle {
-  host: string;
-  target: string;
-  tests: Test[];
-}
-
-/// The host of this machine, as a release names it (bazel/hosts.bzl).
-function host(): string {
-  const arch = os.arch() === "arm64" ? "aarch64" : "x86_64";
-  if (windows) return `${arch}-w64-mingw32`;
-  if (process.platform === "darwin") return `${arch}-apple-darwin`;
-  return `${arch}-unknown-linux-gnu`;
 }
 
 function bazel(cwd: string, args: string[]): string {
@@ -139,8 +124,13 @@ function build(argv: string[]): void {
     }
   }
   tests.sort((a, b) => (a.label < b.label ? -1 : 1));
-  const bundle: Bundle = { host: host(), target, tests };
-  fs.writeFileSync(path.join(out, "tests.json"), JSON.stringify(bundle, null, 2));
+  writePrograms(out, tests.map((t) => ({
+    name: `${t.label.replace(/^@@\/\//, "//")}, built on ${host()}`,
+    file: `${t.runfiles}/_main/${t.executable}`,
+    runfiles: t.runfiles,
+    args: t.args,
+    env: t.env,
+  })));
   console.log(`${out}: ${tests.length} tests of ${workspace} for ${target}`);
 }
 
@@ -189,61 +179,7 @@ local_path_override(
   console.log(`${workspace}: ${name} ${version}`);
 }
 
-function runTests(argv: string[]): void {
-  const [root] = argv;
-  if (!root) common.fail("run <dir>");
-  const dirs: string[] = [];
-  walk(root, (file) => {
-    if (path.basename(file) === "tests.json") dirs.push(path.dirname(file));
-  }, false);
-  if (!dirs.length) common.fail(`no tests.json under ${root}`);
-  const report: string[] = [];
-  let failed = 0;
-  for (const dir of dirs.sort()) {
-    const bundle = JSON.parse(fs.readFileSync(path.join(dir, "tests.json"), "utf8")) as Bundle;
-    for (const test of bundle.tests) {
-      const runfiles = path.resolve(dir, test.runfiles);
-      /// An artifact keeps no permissions.
-      if (!windows) walk(runfiles, (file) => fs.chmodSync(file, 0o755));
-      const cwd = path.join(runfiles, "_main");
-      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "test-"));
-      const start = Date.now();
-      const result = spawnSync(path.join(cwd, test.executable), test.args, {
-        cwd,
-        encoding: "utf8",
-        maxBuffer: 1 << 28,
-        timeout: 600_000,
-        env: {
-          ...process.env,
-          ...test.env,
-          RUNFILES_DIR: runfiles,
-          TEST_SRCDIR: runfiles,
-          TEST_WORKSPACE: "_main",
-          TEST_TMPDIR: tmp,
-        },
-      });
-      const seconds = ((Date.now() - start) / 1000).toFixed(1);
-      const ok = result.status === 0;
-      const label = test.label.replace(/^@@\/\//, "//");
-      const line = `${bundle.host} → ${bundle.target}: ${label}`;
-      console.log(`${ok ? "PASSED" : "FAILED"}: ${line} (${seconds} s)`);
-      if (!ok) {
-        failed++;
-        const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.split("\n").slice(-60).join("\n");
-        console.log(`${result.error ?? `exit ${result.status ?? result.signal}`}\n${output}`);
-      }
-      report.push(`| ${ok ? "passed" : "**failed**"} | ${bundle.host} | ${label} | ${seconds} s |`);
-    }
-  }
-  if (process.env.GITHUB_STEP_SUMMARY) {
-    fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
-      `### Cross-compiled, run on ${host()}\n\n| | built on | test | |\n|---|---|---|---|\n${report.join("\n")}\n\n`);
-  }
-  if (failed) common.fail(`${failed} of ${report.length} tests failed`);
-}
-
 const [command, ...rest] = process.argv.slice(2);
 if (command === "build") build(rest);
 else if (command === "registry") await registry(rest);
-else if (command === "run") runTests(rest);
-else common.fail("build <triple> <dir> [--workspace <ws>] [-- <bazel arguments>] | registry <module> <ws> | run <dir>");
+else common.fail("build <triple> <dir> [--workspace <ws>] [-- <bazel arguments>] | registry <module> <ws>");

@@ -5,10 +5,9 @@
 ///       sdk list; both SDKs fetched from the vendors into the tree; C, C++
 ///       and Objective-C programs cross-compiled against them for arm64 and
 ///       x86_64 macOS and for x64 and arm64 Windows (MSVC ABI), into
-///       <dir>/macos/<arch> and <dir>/msvc/<arch> (programs only: nothing
-///       of an SDK); target list, add and remove against a test index
-///   node tests/cli/cli.ts --run <dir>...
-///       run every program in the directories: those built for this machine
+///       <dir>/<target>/cli-<host> (programs only: nothing of an SDK), which
+///       tests/lib/on-target.ts runs on a machine of each target; target
+///       list, add and remove against a test index
 ///
 /// The programs and what they check are the SDK probe's (tests/sdk).
 
@@ -18,11 +17,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
+import { programsDir, writePrograms } from "../lib/on-target.ts";
 
-const { values, positionals } = parseArgs({
-  options: { tree: { type: "string" }, out: { type: "string" }, run: { type: "boolean" } },
-  allowPositionals: true,
-});
+const { values } = parseArgs({ options: { tree: { type: "string" }, out: { type: "string" } } });
 const windows = process.platform === "win32";
 const exe = windows ? ".exe" : "";
 const sources = path.join(import.meta.dirname, "..", "sdk");
@@ -65,21 +62,7 @@ function finish(): void {
   console.log("all passed");
 }
 
-if (values.run) {
-  for (const dir of positionals) {
-    for (const name of fs.readdirSync(dir).sort()) {
-      const file = path.resolve(dir, name);
-      if (!fs.statSync(file).isFile() || name.endsWith(".txt")) continue;
-      fs.chmodSync(file, 0o755);
-      const r = run(file, [], null);
-      check(r.status === 0, `${file} runs`);
-    }
-  }
-  finish();
-  process.exit(0);
-}
-
-if (!values.tree || !values.out) fail("--tree <xclang> --out <dir>, or --run <dir>...");
+if (!values.tree || !values.out) fail("--tree <xclang> --out <dir>");
 const tree = path.resolve(values.tree);
 const out = path.resolve(values.out);
 const tool = (name: string) => path.join(tree, "bin", name + exe);
@@ -117,7 +100,7 @@ function build(name: string, cmd: string, args: string[], output: string): void 
 }
 const src = (f: string) => path.join(sources, f);
 for (const arch of ["arm64", "x86_64"]) {
-  const o = path.join(out, "macos", arch);
+  const o = programsDir(out, `${arch === "arm64" ? "aarch64" : arch}-apple-darwin`, "cli");
   const cc = [`--target=${arch}-apple-macos`, "-isysroot", sdks.macos!, "-O2"];
   build(`macOS ${arch} C`, "clang", [...cc, src("hello.c"), "-o", path.join(o, "hello-c")], path.join(o, "hello-c"));
   build(`macOS ${arch} C++ (exceptions, threads, filesystem, format)`, "clang++",
@@ -129,8 +112,9 @@ for (const arch of ["arm64", "x86_64"]) {
   build(`macOS ${arch} Objective-C, Foundation`, "clang",
     [...cc, "-fobjc-arc", src("objc.m"), "-framework", "Foundation", "-o", path.join(o, "objc")], path.join(o, "objc"));
 }
+const msvc = (arch: string) => programsDir(out, `${arch}-pc-windows-msvc`, "cli");
 for (const arch of ["x86_64", "aarch64"]) {
-  const o = path.join(out, "msvc", arch);
+  const o = msvc(arch);
   /// Inputs after --: clang-cl takes /Users/... (macOS) for its /U option.
   const cl = [`--target=${arch}-pc-windows-msvc`, "/winsysroot", sdks.windows!, "-fuse-ld=lld", "/O2"];
   const fe = (n: string) => [`/Fe${path.join(o, n)}`];
@@ -148,13 +132,17 @@ for (const arch of ["x86_64", "aarch64"]) {
     [...cl, ...fe("win32.exe"), "--", src("win32.c"), "user32.lib", "advapi32.lib"], path.join(o, "win32.exe"));
 }
 /// Only the programs leave the job: no import libraries, no objects.
-for (const dir of [path.join(out, "msvc", "x86_64"), path.join(out, "msvc", "aarch64")]) {
-  for (const f of fs.existsSync(dir) ? fs.readdirSync(dir) : []) {
+for (const dir of [msvc("x86_64"), msvc("aarch64")]) {
+  for (const f of fs.readdirSync(dir)) {
     if (!f.endsWith(".exe")) fs.rmSync(path.join(dir, f));
   }
 }
+/// Each must run and end with 0 on a machine of its target.
+for (const dir of new Set(built.map((f) => path.dirname(f)))) {
+  writePrograms(dir, built.filter((f) => path.dirname(f) === dir).map((f) => ({ file: path.basename(f) })));
+}
 for (const [file, runtime] of [["hello-cpp.exe", false], ["hello-cpp-md.exe", true]] as const) {
-  const f = path.join(out, "msvc", "x86_64", file);
+  const f = path.join(msvc("x86_64"), file);
   if (!fs.existsSync(f)) continue;
   const dlls = [...run(tool("llvm-objdump"), ["-p", f]).out.matchAll(/DLL Name: (\S+)/g)].map((m) => m[1]!);
   check(dlls.some((d) => /^vcruntime/i.test(d)) === runtime, `${file} loads ${runtime ? "the" : "no"} VC runtime DLL: ${dlls.join(" ")}`);

@@ -1,0 +1,25 @@
+name: weekly
+
+# Every Monday, what changes under xclang without a commit: the runners'
+# images, the vendors' SDK downloads, the registries and channels. Against
+# the latest release, nothing built: the docs' commands and examples/
+# (examples.yml), the Bazel module with its cross builds run on their
+# targets and kotatsu of the clice registry (test-bazel.yml), and the
+# xclang command with both SDKs fetched (cli.yml).
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  examples:
+    uses: ./.github/workflows/examples.yml
+  bazel:
+    uses: ./.github/workflows/test-bazel.yml
+  cli:
+    uses: ./.github/workflows/cli.yml

@@ -7,39 +7,63 @@ here instead of naming tests.
 
 ## Summary
 
-- Before a release, each host archive is tested on a machine of that host
-  (`tests/toolchain/smoke.ts`, `tests/libclang/libclang.ts`). The CMake package and the Bazel
-  module are tested with the archives (`tests/cmake/cmake.ts`, `tests/bazel`),
-  and so are the MSVC targets and the macOS targets from Linux and Windows
-  hosts (`tests/sdk/msvc.ts`, `tests/sdk/macos.ts`). The `xclang` command is
-  tested on every host (`tests/cli/cli.ts`).
-- On publishing, the Bazel module is checked further (`tests/bazel/bazel.ts`),
-  and cross-built programs run on a machine of their target, with no
-  emulator: 22 host-to-target pairs.
-- After a release is published, examples.yml runs the commands of the docs
-  as written, from conda.clice.io, the archives, the tag and bazel.clice.io.
-  What they build for another target then runs on a runner of that target.
+- **Every push and pull request** is tested for what it changed
+  (checks.yml), against the latest release, with nothing built but the
+  `xclang` command: the release's archives with the checkout's config files
+  and CMake package (`tests/toolchain/smoke.ts`,
+  `tests/libclang/libclang.ts`), the CMake package (`tests/cmake/cmake.ts`),
+  the Bazel module (`tests/bazel`), the MSVC targets and the macOS targets
+  from Linux and Windows hosts (`tests/sdk/msvc.ts`, `tests/sdk/macos.ts`),
+  the command (`tests/cli/cli.ts`) and the examples. docs.yml checks the
+  docs and the scripts' types on every push.
+- **Before a release**, release.yml tests each host's archives on a
+  machine of that host, and the same checks run with them. The programs
+  they build for other targets run on a machine of those targets, with no
+  emulator (on-target.yml).
+- **On publishing**, published.yml tests the release on every channel: the
+  Bazel module further (`tests/bazel/bazel.ts`) with cross-built programs
+  run on their targets (22 host-to-target pairs), the CMake package from
+  the tag, the conda packages. Then examples.yml runs the commands of the
+  docs as written, from conda.clice.io, the archives, the `latest` branch
+  and bazel.clice.io; what they build for another target runs on a runner
+  of that target.
+- **Every week**, weekly.yml runs the examples, the Bazel module with its
+  cross builds, and the command with both vendor SDKs fetched, against the
+  latest release: what changes under xclang without a commit.
 - `tests/docs/docs.ts` checks that the files the docs show are the files CI
   builds, that their commands are the steps examples.yml runs, and that
   every link reaches its page and heading.
 
 ## When Tests Run
 
-| workflow | when | what |
-|---|---|---|
-| main.yml, stage `package` (package.yml) | every release candidate | each host's archives made again on another machine, in another directory, with other file times, umask 077 and three xz threads (the first has four): the same bytes |
-| main.yml, stage `test` (test.yml) | every release candidate | `tests/toolchain/smoke.ts` and `tests/libclang/libclang.ts` on a machine of each host |
-| main.yml with `repack-of` (repack.yml) | every repack | `tests/release/repack.ts`: each host's archives against those of the release repacked, file by file; only the packaging's files differ |
-| bazel.yml | every release candidate | `tests/bazel` with the module |
-| bazel.yml | on publishing, and by hand | also `tests/bazel/bazel.ts`, and cross builds run on the target (`tests/bazel/cross.ts`) |
-| cmake.yml | every release candidate, and on publishing | `tests/cmake/cmake.ts`: the package by `PATH`, through the toolchain file, and from FetchContent of the tag |
-| conda.yml | before the conda packages are published | each package installed with pixi and used, on every host |
-| examples.yml | after publishing, and on pushes that change `examples/` or the workflow | the commands and `examples/` of the docs, as written; the programs for other targets on their runners |
-| docs.yml | pushes that change the docs, `examples/`, `tests/docs/docs.ts` or a workflow, on every branch | `tests/docs/docs.ts`; on `main`, then publishing to docs.clice.io |
-| cli.yml | every release candidate, with main.yml's `cli` (on by default), and by hand | the `xclang` command: `tests/cli/cli.ts`, `tests/cli/cargo.ts` |
-| main.yml, stage `msvc` (msvc.yml) | every release candidate; needs `cli`, as the archives' `xclang` fetches the SDK | the MSVC targets: `tests/sdk/msvc.ts` |
-| main.yml, stage `macos` (macos.yml) | every release candidate; needs `cli` | the macOS targets from Linux and Windows hosts: `tests/sdk/macos.ts` |
-| bench.yml | by hand, for the notes or the docs | compile speed against LLVM's and Apple's builds (`tests/bench/bench.ts`) |
+Three workflows start the others: checks.yml on a push or pull request,
+published.yml when a release is published, weekly.yml every Monday. The
+rest are called by them, by release.yml, or started by hand.
+
+| workflow | push, pull request (checks.yml), when these change | release.yml, with a candidate's archives | published.yml | weekly.yml | what |
+|---|---|---|---|---|---|
+| docs.yml | every push and pull request, by itself | | | | `tests/docs/docs.ts` and the types (`npm run check`); on `main`, then publishing to docs.clice.io |
+| test-archives.yml | `tests/toolchain`, `tests/libclang`, `config` | stage `test` | | | `tests/toolchain/smoke.ts` and `tests/libclang/libclang.ts` on a machine of each host; the programs the smoke test builds for other targets run on those (on-target.yml); with `repack-of`, `tests/release/repack.ts`: each host's archives against those of the release repacked, file by file, only the packaging's files differ |
+| test-cmake.yml | `packages/cmake`, `tests/cmake`, `tests/libclang` | stage `cmake` | the tag fetched from GitHub | | `tests/cmake/cmake.ts`: the package by `PATH`, through the toolchain file, and from FetchContent |
+| test-bazel.yml | `packages/bazel`, `tests/bazel`, `scripts/bazel.ts` | stage `bazel`: `tests/bazel` only | ✓ | ✓ | `tests/bazel` with the module, `tests/bazel/bazel.ts`, and cross builds run on the target (`tests/bazel/cross.ts`) |
+| test-sdk.yml | `tests/sdk`, `config`, `packages/cmake` | stage `sdk`; needs `cli`, as the archives' `xclang` fetches the SDKs | | | the MSVC targets (`tests/sdk/msvc.ts`) and the macOS targets from Linux and Windows hosts (`tests/sdk/macos.ts`); their programs on Windows and Macs |
+| cli.yml | `cli`, `scripts/cli.ts`, `tests/cli`, `tests/sdk` | the build, for stage `package`; stage `cli` | | ✓ | the `xclang` command: rustfmt, clippy, unit tests, `tests/cli/cli.ts`, `tests/cli/cargo.ts` |
+| examples.yml | `examples` | | once conda.clice.io has the release and `latest` names it | ✓ | the commands and `examples/` of the docs, as written; the programs for other targets on their runners |
+| conda.yml | | | build 0, published | | each package installed with pixi and used, on every host |
+| stage-package.yml | | stage `package` | | | each host's archives made again on another machine, in another directory, with other file times, umask 077 and three xz threads (the first has four): the same bytes |
+
+A change to on-target.yml, to the archives action
+(`.github/actions/archives`) or to `tests/lib` runs every workflow of
+checks.yml. A newer push to a branch or pull request cancels the checks
+still running for the one before, but on `main`. A pull request from a
+branch of this repository is tested by the push of that branch.
+
+By hand only, and on purpose: release.yml, which builds for three hours,
+and bench.yml (about 550 runner-minutes for five shards), compile speed
+against LLVM's and Apple's builds (`tests/bench/bench.ts`), for the notes
+or the docs; and conda.yml with a later build number, which publishes a
+packaging fix. Every test workflow also runs by hand, with a run's
+archives or a published release's.
 
 How the stages fit together is in the [build pipeline](release-build.md).
 
@@ -89,12 +113,17 @@ The job fails if any program loads a C++ runtime. That is the
 
 - `tests/toolchain/smoke.ts` and `tests/cmake/cmake.ts` build for every target on every
   host.
-- bazel.yml builds `tests/bazel` on every host for every other target it
-  can build for: 22 host-to-target pairs. A machine of the target then runs
-  the tests (`tests/bazel/cross.ts`): Linux-built Windows programs on
-  Windows, Windows-built Linux programs on Linux, and so on.
-- From Linux x64, bazel.yml builds kotatsu's tests, from the registry, for
-  Windows x64, and runs them on Windows.
+- Every workflow that builds for another target runs the programs on a
+  runner of that target, with nothing installed there (on-target.yml,
+  `tests/lib/on-target.ts`). The smoke test does it for every release
+  candidate: what each host builds for a target it cannot run.
+- test-bazel.yml builds `tests/bazel` on every host for every other target
+  it can build for: 22 host-to-target pairs. A machine of the target then
+  runs the tests as Bazel runs them (`tests/bazel/cross.ts`): Linux-built
+  Windows programs on Windows, Windows-built Linux programs on Linux, and
+  so on.
+- From Linux x64, test-bazel.yml builds kotatsu's tests, from the
+  registry, for Windows x64, and runs them on Windows.
 - examples.yml builds the programs of the docs for other targets, with
   clang, CMake, FetchContent, Meson, Make, Bazel and cargo, and uploads
   them. Its `on-target` job runs each on a runner of its target, with
@@ -184,7 +213,8 @@ for another target.
 
 cli.yml builds the `xclang` command for every host, with a released xclang
 as the C compiler and linker (`scripts/cli.ts`). On a machine of each
-host, `tests/cli/cli.ts` then:
+host, in the latest release's toolchain (or a run's archives, with the
+command they carry), `tests/cli/cli.ts` then:
 
 - fetches both vendor SDKs;
 - cross-compiles C, C++ and Objective-C programs against them, for both
@@ -197,8 +227,8 @@ ABI against the fetched SDKs ([Rust and Cargo](../integrations/cargo.md)).
 
 ## MSVC Targets
 
-msvc.yml tests the MSVC targets with a run's archives, from Linux x64,
-macOS arm64 and Windows x64 hosts. On each, `tests/sdk/msvc.ts`:
+test-sdk.yml tests the MSVC targets with a run's archives, or the latest
+release's, from Linux x64, macOS arm64 and Windows x64 hosts. On each, `tests/sdk/msvc.ts`:
 
 - checks that clang and clang-cl stop without the SDK and name
   `sdk/windows`;
@@ -221,8 +251,9 @@ anything of the SDK.
 
 ## macOS from Linux and Windows
 
-macos.yml tests the macOS targets from Linux and Windows hosts with a
-run's archives, on Linux x64 and arm64 and Windows x64 and arm64 hosts. On
+test-sdk.yml tests the macOS targets from Linux and Windows hosts with a
+run's archives, or the latest release's, on Linux x64 and arm64 and
+Windows x64 and arm64 hosts. On
 each, `tests/sdk/macos.ts`:
 
 - checks that clang without the SDK names `sdk/macos`, and that the CMake
@@ -303,17 +334,16 @@ bench.yml compares the compile speed of a release with LLVM's own build of
 the same version, and with Apple's clang on macOS. The method and the
 numbers are in [PGO](../design/pgo.md#what-it-buys).
 
-## Runs for 23.1.2.8
+## Runs
 
-A repack of 23.1.2.7: its compiler and runtimes are those of 23.1.2.7's run.
-
-| workflow | run |
-|---|---|
-| main.yml (`package`, `test`, `bazel`, `cmake`, `msvc` and `macos` stages, with 23.1.2.7's build) | [37498675574](https://github.com/clice-io/xclang/actions/runs/37498675574) |
-| main.yml, `repack-of` 23.1.2.7 | [37501122064](https://github.com/clice-io/xclang/actions/runs/37501122064) |
-| main.yml, 23.1.2.7's build | [37454002667](https://github.com/clice-io/xclang/actions/runs/37454002667) |
-| bazel.yml, on publishing | [37502667412](https://github.com/clice-io/xclang/actions/runs/37502667412) |
-| cmake.yml, on publishing | [37502667463](https://github.com/clice-io/xclang/actions/runs/37502667463) |
-| conda.yml | [37502733654](https://github.com/clice-io/xclang/actions/runs/37502733654) |
-| examples.yml | [37505867012](https://github.com/clice-io/xclang/actions/runs/37505867012) |
-| bench.yml | 23.1.2.6's: [37356476645](https://github.com/clice-io/xclang/actions/runs/37356476645) |
+Each release's notes link the release.yml run that built it. The runs of
+every workflow are on its page:
+[checks.yml](https://github.com/clice-io/xclang/actions/workflows/checks.yml),
+[release.yml](https://github.com/clice-io/xclang/actions/workflows/release.yml),
+[published.yml](https://github.com/clice-io/xclang/actions/workflows/published.yml)
+(one per release),
+[weekly.yml](https://github.com/clice-io/xclang/actions/workflows/weekly.yml),
+[bench.yml](https://github.com/clice-io/xclang/actions/workflows/bench.yml).
+The numbers of [PGO](../design/pgo.md#what-it-buys) are from bench.yml's
+run [37356476645](https://github.com/clice-io/xclang/actions/runs/37356476645),
+on 23.1.2.6.

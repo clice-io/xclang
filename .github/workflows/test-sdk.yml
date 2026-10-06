@@ -1,0 +1,127 @@
+name: test-sdk
+
+# The targets that build against a vendor's SDK, which the toolchain's own
+# command fetches (the archives carry it with release.yml's cli): the MSVC
+# targets, x86_64- and aarch64-pc-windows-msvc (tests/sdk/msvc.ts), on a
+# machine of three hosts, with kotatsu and its tests from Linux; the macOS
+# targets from the Linux and Windows hosts (tests/sdk/macos.ts). Their
+# programs then run on Windows x64 and arm64 and on both Macs
+# (on-target.yml). Only programs leave a job, never anything of an SDK.
+#
+#   release.yml     a run's archives (dist-run), before they are released
+#   checks.yml      the latest release's archives, with this checkout's
+#                   config files and CMake package
+#   by hand         either
+
+on:
+  workflow_call:
+    inputs:
+      dist-run:
+        description: Run whose dist-<host> archives to test; none for a published release's
+        type: string
+        default: ""
+      release:
+        description: Published release, without dist-run
+        type: string
+        default: latest
+  workflow_dispatch:
+    inputs:
+      dist-run:
+        description: Run whose dist-<host> archives to test; none for a published release's
+        type: string
+        default: ""
+      release:
+        description: Published release, without dist-run
+        type: string
+        default: latest
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  # kotatsu, as the SDK probe built it for MSVC.
+  KOTATSU: d3b82f79499bd8e2e5e557f7bf7eca7a27b928b7
+
+jobs:
+  msvc:
+    name: msvc (${{ matrix.host }})
+    strategy:
+      fail-fast: false
+      matrix:
+        host: [x86_64-unknown-linux-gnu, aarch64-apple-darwin, x86_64-w64-mingw32]
+    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-apple-darwin":"macos-15","x86_64-w64-mingw32":"windows-2025"}')[matrix.host] }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: python -m pip install cmake ninja
+      - uses: ./.github/actions/archives
+        with:
+          host: ${{ matrix.host }}
+          dist-run: ${{ inputs.dist-run }}
+          release: ${{ inputs.release }}
+      - name: kotatsu
+        if: matrix.host == 'x86_64-unknown-linux-gnu'
+        run: |
+          git clone -q --filter=blob:none https://github.com/clice-io/kotatsu "$RUNNER_TEMP/kotatsu"
+          git -C "$RUNNER_TEMP/kotatsu" checkout -q "$KOTATSU"
+          echo "KOTATSU_ARGS=--kotatsu $RUNNER_TEMP/kotatsu" >> "$GITHUB_ENV"
+      - name: Build
+        run: node tests/sdk/msvc.ts --tree "$XCLANG_TREE" --out "$RUNNER_TEMP/programs" $KOTATSU_ARGS
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: programs-sdk-msvc-${{ matrix.host }}
+          path: ${{ runner.temp }}/programs
+          if-no-files-found: error
+
+  macos:
+    name: macos (${{ matrix.host }})
+    strategy:
+      fail-fast: false
+      matrix:
+        host: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, x86_64-w64-mingw32, aarch64-w64-mingw32]
+    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm"}')[matrix.host] }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: python -m pip install cmake ninja
+      - uses: ./.github/actions/archives
+        with:
+          host: ${{ matrix.host }}
+          dist-run: ${{ inputs.dist-run }}
+          release: ${{ inputs.release }}
+      - name: Build
+        run: node tests/sdk/macos.ts --tree "$XCLANG_TREE" --out "$RUNNER_TEMP/programs"
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: programs-sdk-macos-${{ matrix.host }}
+          path: ${{ runner.temp }}/programs
+          if-no-files-found: error
+
+  run:
+    needs: [msvc, macos]
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/on-target.yml
+    with:
+      targets: '["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc", "aarch64-apple-darwin", "x86_64-apple-darwin"]'
+      pattern: programs-sdk-*
+      # KOTATSU's, which a call cannot read.
+      kotatsu: d3b82f79499bd8e2e5e557f7bf7eca7a27b928b7

@@ -28,7 +28,7 @@ description: Move xclang to a new LLVM release (e.g. 23.1.2 → 23.1.3 or 24.1.0
    - pgo/remap.txt, if mangled names of the profile changed;
    - `LIBRARIES` in packages/bazel/bazel/libclang.bzl, @libclang's names
      before any archive is fetched: a libclang archive with a library it
-     lacks fails to load (bazel.yml of the run says which).
+     lacks fails to load (test-bazel.yml of the run says which).
    lib/clang/<major> and the Bazel module's resource directory follow the
    tree by themselves.
 4. **Bootstrap**: the previous xclang release builds the new LLVM. If a
@@ -36,7 +36,7 @@ description: Move xclang to a new LLVM release (e.g. 23.1.2 → 23.1.3 or 24.1.0
    release build again (`bootstrap-linux`/`-macos` pointing at
    `llvm-linux-x64`/`llvm-macos-arm64`, as 23.1.2.1 did; see
    scripts/bootstrap.ts).
-5. **CI** on `exp/<llvm version>`: the full main.yml run, revision 1. Fix
+5. **CI** on `exp/<llvm version>`: the full release.yml run, revision 1. Fix
    on the branch, rerun failed stages with `reuse-run`. The training and
    the smoke tests are where a new version breaks most.
 6. **Docs**: docs/en/dev/release-build.md and docs/en/reference/patches.md if the pipeline or the

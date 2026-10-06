@@ -3,19 +3,18 @@
 /// fetches:
 ///
 ///   node tests/sdk/msvc.ts --tree <xclang> --out <dir> [--kotatsu <source>]
-///       without the SDK, clang says where it looks for it; the SDK of the
-///       default preset fetched into the tree, and windows-2022's for x64
-///       (then the first in use again: sdk use); for both targets programs
-///       built with clang, clang++ and clang-cl into <dir>/<arch>, and in
-///       programs.json what each prints and how it ends: C, C++ with the
-///       STL (exceptions, threads, <filesystem>, <format>), __int128, Win32,
-///       the hybrid CRT and /MT, /MD and /MTd, debug information, ThinLTO,
-///       UBSan, the profile runtime, and for x64 ASan and libFuzzer; the
-///       DLLs each program imports checked here. tests/cmake for both
-///       targets through the CMake package; with --kotatsu, kotatsu's tests
-///       for x64. Programs built for this machine run here too.
-///   node tests/sdk/msvc.ts --run <dir>...
-///       run the programs of programs.json in each directory
+///
+/// Without the SDK, clang says where it looks for it; the SDK of the
+/// default preset fetched into the tree, and windows-2022's for x64 (then
+/// the first in use again: sdk use); for both targets programs built with
+/// clang, clang++ and clang-cl into <dir>/<target>/msvc-<host>, and in
+/// programs.json what each prints and how it ends (tests/lib/on-target.ts
+/// runs them on Windows): C, C++ with the STL (exceptions, threads,
+/// <filesystem>, <format>), __int128, Win32, the hybrid CRT and /MT, /MD
+/// and /MTd, debug information, ThinLTO, UBSan, the profile runtime, and
+/// for x64 ASan and libFuzzer; the DLLs each program imports checked here.
+/// tests/cmake for both targets through the CMake package; with --kotatsu,
+/// kotatsu's tests for x64. Programs built for this machine run here too.
 ///
 /// Only programs leave the job, and xclang's ASan DLL next to them: nothing
 /// of the SDK.
@@ -26,33 +25,19 @@ import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import * as common from "../../scripts/common.ts";
+import { programsDir, runPrograms, writePrograms, type Program } from "../lib/on-target.ts";
 
-const { values, positionals } = parseArgs({
+const { values } = parseArgs({
   options: {
     tree: { type: "string" },
     out: { type: "string" },
     kotatsu: { type: "string" },
-    run: { type: "boolean" },
   },
-  allowPositionals: true,
 });
 const windows = process.platform === "win32";
 const exe = windows ? ".exe" : "";
 const failures: string[] = [];
 const summary: string[] = [];
-
-/// A program of programs.json: its arguments, a text its output must have,
-/// whether it must exit with 0, and where it runs (kotatsu's tests: in its
-/// source tree, $KOTATSU_SRC).
-interface Program {
-  file: string;
-  args?: string[];
-  expect: string;
-  fails?: boolean;
-  cwd?: string;
-  /// A profile it must write (LLVM_PROFILE_FILE).
-  profile?: boolean;
-}
 
 function check(ok: boolean, what: string): void {
   console.log(`${ok ? "PASS" : "FAIL"} ${what}`);
@@ -79,27 +64,7 @@ function finish(): never {
   process.exit(0);
 }
 
-/// Run every program of dir/programs.json.
-function runAll(dir: string): void {
-  const programs: Program[] = JSON.parse(fs.readFileSync(path.join(dir, "programs.json"), "utf8"));
-  for (const p of programs) {
-    const file = path.resolve(dir, p.file);
-    const cwd = p.cwd === "kotatsu" ? process.env.KOTATSU_SRC ?? common.fail("KOTATSU_SRC: kotatsu's source, for its tests") : dir;
-    const profile = `${file}.profraw`;
-    fs.rmSync(profile, { force: true });
-    const r = run(file, p.args ?? [], { cwd, env: { ...process.env, LLVM_PROFILE_FILE: profile } });
-    const ok = (p.fails ? r.status !== 0 && r.status !== null : r.status === 0) && r.out.includes(p.expect) &&
-      (!p.profile || (fs.existsSync(profile) && fs.statSync(profile).size > 0));
-    check(ok, `${p.file}: exit ${r.status}${p.profile ? ", a profile" : ""}, "${p.expect}"`);
-  }
-}
-
-if (values.run) {
-  for (const dir of positionals) runAll(path.resolve(dir));
-  finish();
-}
-
-if (!values.tree || !values.out) common.fail("--tree <xclang> --out <dir> [--kotatsu <source>], or --run <dir>...");
+if (!values.tree || !values.out) common.fail("--tree <xclang> --out <dir> [--kotatsu <source>]");
 const tree = path.resolve(values.tree);
 const out = path.resolve(values.out);
 const tool = (name: string) => path.join(tree, "bin", name + exe);
@@ -183,8 +148,7 @@ function imports(file: string, crt: Crt): void {
 const native = windows && arch === "x86_64";
 for (const a of ["x86_64", "aarch64"]) {
   const triple = `${a}-pc-windows-msvc`;
-  const dir = path.join(out, a);
-  fs.mkdirSync(dir, { recursive: true });
+  const dir = programsDir(out, triple, "msvc");
   const programs: Program[] = [];
   const build = (name: string, driver: string, args: string[], expect: string, crt: Crt | null, extra: Partial<Program> = {}) => {
     const file = path.join(dir, `${name}.exe`);
@@ -237,7 +201,7 @@ for (const a of ["x86_64", "aarch64"]) {
     xclang(["sdk", "use", latest]);
     check(inUse() === latest, `sdk use ${latest}`);
   }
-  fs.writeFileSync(path.join(dir, "programs.json"), JSON.stringify(programs, null, 1) + "\n");
+  writePrograms(dir, programs);
   summary.push(`- ${triple}: ${programs.length} programs`);
 }
 
@@ -264,25 +228,26 @@ if (values.kotatsu) {
     run("cmake", ["--build", dir, "--target", "unit_tests", "system_tests"]).status === 0;
   check(ok, "kotatsu for x86_64-pc-windows-msvc");
   if (ok) {
-    const programs: Program[] = JSON.parse(fs.readFileSync(path.join(out, "x86_64", "programs.json"), "utf8"));
+    const x64 = programsDir(out, "x86_64-pc-windows-msvc", "msvc");
+    const programs: Program[] = JSON.parse(fs.readFileSync(path.join(x64, "programs.json"), "utf8"));
     for (const name of ["unit_tests.exe", "system_tests.exe"]) {
-      fs.copyFileSync(path.join(dir, name), path.join(out, "x86_64", name));
-      imports(path.join(out, "x86_64", name), "hybrid");
-      programs.push({ file: name, args: ["--snapshot-dir=tests/snapshots"], expect: "", cwd: "kotatsu" });
+      fs.copyFileSync(path.join(dir, name), path.join(x64, name));
+      imports(path.join(x64, name), "hybrid");
+      programs.push({ file: name, args: ["--snapshot-dir=tests/snapshots"], cwd: "$KOTATSU_SRC" });
     }
-    fs.writeFileSync(path.join(out, "x86_64", "programs.json"), JSON.stringify(programs, null, 1) + "\n");
+    writePrograms(x64, programs);
   }
 }
 
 /// Only the programs leave the job (and ASan's DLL): no PDBs, no import
 /// libraries.
 for (const a of ["x86_64", "aarch64"]) {
-  const dir = path.join(out, a);
-  for (const f of fs.existsSync(dir) ? fs.readdirSync(dir) : []) {
+  const dir = programsDir(out, `${a}-pc-windows-msvc`, "msvc");
+  for (const f of fs.readdirSync(dir)) {
     if (!/\.(exe|dll)$|^programs\.json$/.test(f)) fs.rmSync(path.join(dir, f));
   }
 }
 
 /// 6. Here, what runs here.
-if (native) runAll(path.join(out, "x86_64"));
+if (native) check(runPrograms([path.join(out, "x86_64-pc-windows-msvc")]) === 0, "the x64 programs run here");
 finish();

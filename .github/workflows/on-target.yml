@@ -1,0 +1,65 @@
+name: on-target
+
+# Programs built for another target, run on a runner of that target with
+# nothing installed (tests/lib/on-target.ts): every check that builds for
+# another target uploads its programs as artifacts, and calls this to run
+# them, one job per target.
+
+on:
+  workflow_call:
+    inputs:
+      targets:
+        description: JSON list of the targets to run programs on
+        type: string
+        required: true
+      pattern:
+        description: Artifacts holding the programs, merged; {0} is the target
+        type: string
+        default: programs-*
+      dir:
+        description: The directory under the merged artifacts with the target's programs; {0} is the target
+        type: string
+        default: "{0}"
+      kotatsu:
+        description: kotatsu's commit, checked out as $KOTATSU_SRC (its tests read its snapshots)
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  run:
+    name: run (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(inputs.targets) }}
+    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm","x86_64-pc-windows-msvc":"windows-2025","aarch64-pc-windows-msvc":"windows-11-arm","aarch64-apple-darwin":"macos-15","x86_64-apple-darwin":"macos-15-intel"}')[matrix.target] }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      # A short directory: Bazel's runfiles trees are deep, and Windows'
+      # paths short.
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: ${{ format(inputs.pattern, matrix.target) }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/p
+      - name: kotatsu
+        if: inputs.kotatsu != ''
+        run: |
+          git clone -q --filter=blob:none https://github.com/clice-io/kotatsu "$RUNNER_TEMP/kotatsu"
+          git -C "$RUNNER_TEMP/kotatsu" checkout -q "${{ inputs.kotatsu }}"
+          echo "KOTATSU_SRC=$RUNNER_TEMP/kotatsu" >> "$GITHUB_ENV"
+      - name: Run
+        run: node tests/lib/on-target.ts "$RUNNER_TEMP/p/${{ format(inputs.dir, matrix.target) }}"

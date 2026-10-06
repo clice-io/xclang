@@ -4,26 +4,28 @@ name: examples
 # a machine of every host: against the latest release, from where users get
 # it (conda.clice.io with pixi, the GitHub release's archives, the `latest`
 # branch with FetchContent; bazel.clice.io, at the release the Bazel
-# examples ask for at least). A page's command
-# block is lines of a step here, which tests/docs/docs.ts checks
+# examples ask for at least). A page's command block is lines of a step
+# here, which tests/docs/docs.ts checks
 # (`<!-- excerpt: .github/workflows/examples.yml -->`); the steps check what
 # the commands print against the examples' expected.txt. Programs built for
-# another target are uploaded, and on-target runs them on a runner of their
-# target, with nothing installed there.
+# another target are uploaded, and on-target.yml runs them on a runner of
+# their target, with nothing installed there.
 #
-#   by hand          after a release is on conda.clice.io and the `latest`
-#                    branch names it (the release skill)
-#   a push           that changes examples/ or this file, on any branch
+#   checks.yml      a push or pull request that changes examples/ or this
+#                   file
+#   published.yml   a release, once conda.clice.io has it and `latest`
+#                   names it
+#   weekly.yml      every week: the runners' images and the channels change
+#                   under the examples
+#   by hand
 
 on:
+  workflow_call:
   workflow_dispatch:
-  push:
-    paths:
-      - "examples/**"
-      - ".github/workflows/examples.yml"
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   # docs/en/guide/quick-start.md, install.md and cross-compiling.md with
@@ -197,7 +199,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
-          name: programs-quickstart-${{ matrix.host }}
+          name: examples-quickstart-${{ matrix.host }}
           path: ${{ runner.temp }}/programs
           if-no-files-found: error
 
@@ -260,7 +262,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
-          name: programs-fetch-${{ matrix.host }}
+          name: examples-fetch-${{ matrix.host }}
           path: ${{ runner.temp }}/programs
           if-no-files-found: error
 
@@ -468,7 +470,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
-          name: programs-bazel-${{ matrix.host }}
+          name: examples-bazel-${{ matrix.host }}
           path: ${{ runner.temp }}/programs
           if-no-files-found: error
 
@@ -663,7 +665,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
-          name: programs-features-${{ matrix.host }}
+          name: examples-features-${{ matrix.host }}
           path: ${{ runner.temp }}/programs
           if-no-files-found: error
 
@@ -729,7 +731,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
-          name: programs-cargo-${{ matrix.host }}
+          name: examples-cargo-${{ matrix.host }}
           path: ${{ runner.temp }}/programs
           if-no-files-found: error
 
@@ -860,7 +862,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
-          name: programs-sdk-${{ matrix.host }}
+          name: examples-sdk-${{ matrix.host }}
           path: ${{ runner.temp }}/programs
           if-no-files-found: error
 
@@ -952,48 +954,9 @@ jobs:
   # of that target with nothing installed: its output against the
   # expected.txt of its example.
   on-target:
-    name: on-target (${{ matrix.target }})
     needs: [quickstart, fetch, bazel, features, cargo, sdk]
     if: ${{ !cancelled() }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { target: x86_64-unknown-linux-gnu, os: ubuntu-24.04 }
-          - { target: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm }
-          - { target: x86_64-w64-mingw32, os: windows-2025 }
-          - { target: aarch64-w64-mingw32, os: windows-11-arm }
-          - { target: aarch64-apple-darwin, os: macos-15 }
-          - { target: x86_64-apple-darwin, os: macos-15-intel }
-          - { target: x86_64-pc-windows-msvc, os: windows-2025 }
-          - { target: aarch64-pc-windows-msvc, os: windows-11-arm }
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: programs-*
-          merge-multiple: true
-          path: programs
-      - name: Run
-        shell: bash
-        run: |
-          shopt -s nullglob
-          ran=0 failed=0
-          echo "| program, built by | prints |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
-          for dir in programs/${{ matrix.target }}/*/; do
-            for program in "$dir"*; do
-              [[ $program == */expected.txt ]] && continue
-              chmod +x "$program"
-              output=$("$program" 2>&1 | tr -d '\r') || { echo "::error::$program failed"; failed=1; }
-              echo "| \`${program#programs/*/}\` | $output |" >> "$GITHUB_STEP_SUMMARY"
-              if [[ "$output" != "$(tr -d '\r' < "$dir/expected.txt")" ]]; then
-                echo "::error::$program printed '$output', not what $dir/expected.txt says"; failed=1
-              fi
-              ran=$((ran + 1))
-            done
-          done
-          echo "$ran programs ran"
-          test "$ran" -gt 0
-          test "$failed" = 0
+    uses: ./.github/workflows/on-target.yml
+    with:
+      targets: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]'
+      pattern: examples-*

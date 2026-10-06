@@ -1,4 +1,4 @@
-name: package
+name: stage-package
 
 # One host's release archives (scripts/package.ts), as the dist-<host>
 # artifact; with cli-run, the toolchain carries xclang's own command from

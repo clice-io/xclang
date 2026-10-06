@@ -1,0 +1,91 @@
+name: test-cmake
+
+# The CMake package (packages/cmake) on a machine of every host, with the
+# oldest CMake and Ninja it supports and the newest: tests/cmake/cmake.ts
+# builds tests/cmake by PATH, for every other target through the toolchain
+# file, and from nothing installed, xclang.cmake downloading the toolchain.
+#
+#   release.yml     a run's archives (dist-run), before they are released
+#   checks.yml      the latest release's archives, with this checkout's
+#                   package
+#   published.yml   a published release as its users have it: its tag
+#                   fetched from GitHub (git-ref), its archives from the
+#                   release
+#   by hand         any of those
+
+on:
+  workflow_call:
+    inputs:
+      dist-run:
+        description: Run whose dist-<host> archives the package is tested with; none for a published release's
+        type: string
+        default: ""
+      release:
+        description: Published release, without dist-run
+        type: string
+        default: latest
+      git-ref:
+        description: Tag, branch or commit of this repository that FetchContent fetches from GitHub instead of using this checkout
+        type: string
+        default: ""
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Published release whose archives to test with
+        type: string
+        default: latest
+      git-ref:
+        description: Tag, branch or commit of this repository that FetchContent fetches from GitHub instead of using this checkout
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  consumer:
+    name: consumer (${{ matrix.host }}, CMake ${{ matrix.cmake }})
+    strategy:
+      fail-fast: false
+      matrix:
+        host:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - x86_64-w64-mingw32
+          - aarch64-w64-mingw32
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+        cmake: ["3.28.1", latest]
+        include:
+          - { cmake: "3.28.1", ninja: "1.11.1" }
+    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm","aarch64-apple-darwin":"macos-15","x86_64-apple-darwin":"macos-15-intel"}')[matrix.host] }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: CMake and Ninja
+        run: |
+          if [[ "${{ matrix.cmake }}" == latest ]]; then
+            python -m pip install cmake ninja
+          else
+            python -m pip install "cmake==${{ matrix.cmake }}" "ninja==${{ matrix.ninja }}"
+          fi
+      - uses: ./.github/actions/archives
+        with:
+          host: ${{ matrix.host }}
+          dist-run: ${{ inputs.dist-run }}
+          release: ${{ inputs.release }}
+      - name: Test
+        env:
+          GIT_REF: ${{ inputs.git-ref }}
+        run: |
+          node tests/cmake/cmake.ts --tree "$XCLANG_TREE" --libclang "$XCLANG_LIBCLANG" \
+            --sums "$XCLANG_DIST/SHA256SUMS" --url "$XCLANG_URL" ${GIT_REF:+--git "$GIT_REF"}

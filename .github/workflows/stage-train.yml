@@ -1,4 +1,4 @@
-name: train
+name: stage-train
 
 # The training run on Linux x64: the instrumented clang and lld build the
 # corpus of pgo/train.ts, and their counters become the `profile` artifact.

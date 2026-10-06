@@ -1,0 +1,97 @@
+name: checks
+
+# What a push or a pull request changed, checked against the latest
+# release, nothing built but the xclang command: each workflow below runs
+# when one of its paths changed (the changes job). A newer push to the same
+# branch or pull request cancels the run before it, but on main.
+# docs.yml runs on every push by itself.
+#
+#   test-archives.yml   tests/toolchain, tests/libclang, tests/lib, config:
+#                       the release's archives with this checkout's config
+#                       files and CMake package, on every host
+#   test-cmake.yml      packages/cmake, tests/cmake, tests/libclang
+#   test-bazel.yml      packages/bazel, tests/bazel, scripts/bazel.ts
+#   test-sdk.yml        tests/sdk, config, packages/cmake
+#   cli.yml             cli, scripts/cli.ts, tests/cli, tests/sdk
+#   examples.yml        examples
+#
+# A change to one of these workflows, to on-target.yml, to the archives
+# action or to tests/lib runs what uses it. The release's own pipeline
+# (release.yml) is not among them: its stages build for hours.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  changes:
+    # A pull request from a branch of this repository is checked by the
+    # push already.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-24.04
+    outputs:
+      archives: ${{ steps.paths.outputs.archives }}
+      cmake: ${{ steps.paths.outputs.cmake }}
+      bazel: ${{ steps.paths.outputs.bazel }}
+      sdk: ${{ steps.paths.outputs.sdk }}
+      cli: ${{ steps.paths.outputs.cli }}
+      examples: ${{ steps.paths.outputs.examples }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # The files changed: by the pull request, by the push, or, for a new
+      # branch (or a push whose base is gone), since it left main.
+      - id: paths
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -z "$BASE" || "$BASE" =~ ^0+$ ]] || ! git cat-file -e "$BASE^{commit}" 2> /dev/null; then
+            BASE=$(git merge-base origin/main HEAD)
+          fi
+          git diff --name-only "$BASE" HEAD | tee changed.txt
+          shared='^(tests/lib/|\.github/workflows/(checks|on-target)\.yml|\.github/actions/archives/)'
+          area() {  # <name> <regex>
+            if grep -qE "$2|$shared" changed.txt; then echo "$1=true"; else echo "$1=false"; fi | tee -a "$GITHUB_OUTPUT"
+          }
+          area archives '^(tests/toolchain/|tests/libclang/|config/|\.github/workflows/test-archives\.yml)'
+          area cmake '^(packages/cmake/|tests/cmake/|tests/libclang/|\.github/workflows/test-cmake\.yml)'
+          area bazel '^(packages/bazel/|tests/bazel/|scripts/bazel\.ts|\.github/workflows/test-bazel\.yml)'
+          area sdk '^(tests/sdk/|config/|packages/cmake/|\.github/workflows/test-sdk\.yml)'
+          area cli '^(cli/|scripts/cli\.ts|tests/cli/|tests/sdk/|\.github/workflows/cli\.yml)'
+          area examples '^(examples/|\.github/workflows/examples\.yml)'
+
+  archives:
+    needs: changes
+    if: needs.changes.outputs.archives == 'true'
+    uses: ./.github/workflows/test-archives.yml
+  cmake:
+    needs: changes
+    if: needs.changes.outputs.cmake == 'true'
+    uses: ./.github/workflows/test-cmake.yml
+  bazel:
+    needs: changes
+    if: needs.changes.outputs.bazel == 'true'
+    uses: ./.github/workflows/test-bazel.yml
+  sdk:
+    needs: changes
+    if: needs.changes.outputs.sdk == 'true'
+    uses: ./.github/workflows/test-sdk.yml
+  cli:
+    needs: changes
+    if: needs.changes.outputs.cli == 'true'
+    uses: ./.github/workflows/cli.yml
+  examples:
+    needs: changes
+    if: needs.changes.outputs.examples == 'true'
+    uses: ./.github/workflows/examples.yml

@@ -1,0 +1,38 @@
+name: archives
+description: >-
+  One host's archives unpacked (tests/lib/archives.ts): a run's dist-<host>
+  artifact, or a published release's (the latest by default) with this
+  checkout's config files and CMake package. Sets XCLANG_TREE,
+  XCLANG_LIBCLANG, XCLANG_LIBCLANG_ASAN, XCLANG_DIST, XCLANG_URL and
+  XCLANG_VERSION.
+
+inputs:
+  host:
+    description: The host whose archives
+    required: true
+  dist-run:
+    description: Run whose dist-<host> artifact to unpack; none for a release
+    default: ""
+  release:
+    description: Published release, without dist-run
+    default: latest
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 24
+    - uses: actions/download-artifact@v8
+      if: inputs.dist-run != ''
+      with:
+        name: dist-${{ inputs.host }}
+        path: ${{ runner.temp }}/dist
+        run-id: ${{ inputs.dist-run }}
+        github-token: ${{ github.token }}
+    - name: Unpack
+      shell: bash
+      env:
+        SOURCE: ${{ inputs.dist-run != '' && '--dist' || '--release' }}
+        FROM: ${{ inputs.dist-run != '' && format('{0}/dist', runner.temp) || inputs.release }}
+      run: node tests/lib/archives.ts --host "${{ inputs.host }}" --out "$RUNNER_TEMP/archives" "$SOURCE" "$FROM"

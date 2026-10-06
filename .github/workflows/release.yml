@@ -1,57 +1,206 @@
 name: release
+run-name: "release: revision ${{ inputs.revision }}, ${{ inputs.stages }}"
 
-# A draft release <llvm version>.<revision> with every archive and the
-# profile. Drafts create no tag; publishing one is done by hand.
+# The release pipeline: a full build of a release, or a repack, up to a
+# draft. By hand on purpose: a full build takes three hours and about a
+# thousand runner-minutes, and a release is the maintainers' decision.
+# Each stage is a reusable workflow; `stages` picks which run, and the *-run
+# inputs take a stage's artifacts from an earlier run instead of building
+# them again.
+#
+#   runtimes       runtimes of every target (stage-runtimes.yml)
+#   instrumented   the clang and lld that record the profile, Linux x64
+#                  (stage-toolchain.yml)
+#   train          the training run, giving `profile` (stage-train.yml)
+#   toolchain      every host's toolchain and libclang (stage-toolchain.yml)
+#   asan           the ASan libclang of Linux x64 and macOS arm64
+#   package        every host's release archives (stage-package.yml)
+#   test           every host's archives checked on a machine of that host,
+#                  and the programs they build for other targets on a
+#                  machine of those (test-archives.yml)
+#   bazel          the Bazel module with every host's archives
+#                  (test-bazel.yml)
+#   cmake          the CMake package with every host's archives
+#                  (test-cmake.yml)
+#   sdk            the MSVC targets, and the macOS ones from Linux and
+#                  Windows hosts, with the SDKs the archives' own command
+#                  fetches (test-sdk.yml; needs cli)
+#   cli            the archives' own command (cli.yml)
+#   release        a draft release of everything (stage-draft.yml; needs
+#                  the profile)
+#
+# A repack is a release whose compiler and runtimes are an earlier
+# release's: reuse-run and profile-run name that release's run, and the
+# stages are package, the tests and release. With repack-of, the test
+# stage also checks every host's archives against that release's: only
+# what the packaging writes differs (tests/release/repack.ts).
+#
+# With cli (the default), the package stage builds xclang's own command
+# (cli.yml) and puts it into every toolchain archive.
 
 on:
-  workflow_call:
+  workflow_dispatch:
     inputs:
-      revision:
+      stages:
+        description: "Comma-separated stages: runtimes, instrumented, train, toolchain, asan, package, test, bazel, cmake, sdk, cli, release"
         type: string
-        required: true
-      dist-run:
+        default: runtimes,instrumented,train,toolchain,asan,package,test,bazel,cmake,sdk,cli
+      runtimes:
+        description: JSON list of the runtimes units to build; the others come from reuse-run
         type: string
-        required: true
+        default: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "darwin", "msvc"]'
+      hosts:
+        description: JSON list of the hosts to build a toolchain for
+        type: string
+        default: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin"]'
+      reuse-run:
+        description: Run whose artifacts stand in for the stages not run
+        type: string
+        default: ""
+      runtimes-run:
+        description: Run to copy the runtimes from instead of reuse-run
+        type: string
+        default: ""
       profile-run:
+        description: Run holding the profile when train does not run; none builds without PGO
         type: string
-        required: true
+        default: none
+      revision:
+        description: Release revision, the last component of <llvm version>.<revision>
+        type: string
+        default: "1"
+      repack-of:
+        description: Release whose compiler and runtimes this run reuses; its archives must equal this run's but for the packaging
+        type: string
+        default: ""
+      cli:
+        description: Put xclang's own command (cli/) into the toolchain archives
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: read
 
 jobs:
-  draft:
-    runs-on: ubuntu-24.04
+  # Always runs: without the runtimes stage it copies every unit from
+  # reuse-run, so the later stages find the runtimes in this run.
+  runtimes:
+    uses: ./.github/workflows/stage-runtimes.yml
+    with:
+      build: ${{ contains(inputs.stages, 'runtimes') && inputs.runtimes || '[]' }}
+      reuse-run: ${{ inputs.runtimes-run || inputs.reuse-run }}
+
+  instrumented:
+    needs: runtimes
+    if: ${{ !cancelled() && contains(inputs.stages, 'instrumented') && needs.runtimes.result == 'success' }}
+    uses: ./.github/workflows/stage-toolchain.yml
+    with:
+      host: x86_64-unknown-linux-gnu
+      mode: instrumented
+      runtimes-run: ${{ github.run_id }}
+
+  train:
+    needs: [runtimes, instrumented]
+    if: ${{ !cancelled() && contains(inputs.stages, 'train') && !contains(needs.*.result, 'failure') }}
+    uses: ./.github/workflows/stage-train.yml
+    with:
+      runtimes-run: ${{ github.run_id }}
+      instrumented-run: ${{ needs.instrumented.result == 'success' && github.run_id || inputs.reuse-run }}
+
+  toolchain:
+    needs: [runtimes, train]
+    if: ${{ !cancelled() && contains(inputs.stages, 'toolchain') && !contains(needs.*.result, 'failure') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        host: ${{ fromJSON(inputs.hosts) }}
+    uses: ./.github/workflows/stage-toolchain.yml
+    with:
+      host: ${{ matrix.host }}
+      runtimes-run: ${{ github.run_id }}
+      profile-run: ${{ needs.train.result == 'success' && github.run_id || inputs.profile-run }}
+
+  asan:
+    needs: runtimes
+    if: ${{ !cancelled() && contains(inputs.stages, 'asan') && needs.runtimes.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        host: [x86_64-unknown-linux-gnu, aarch64-apple-darwin]
+    uses: ./.github/workflows/stage-toolchain.yml
+    with:
+      host: ${{ matrix.host }}
+      mode: asan
+      runtimes-run: ${{ github.run_id }}
+
+  cli:
+    if: ${{ inputs.cli && contains(inputs.stages, 'package') }}
+    uses: ./.github/workflows/cli.yml
+    with:
+      revision: ${{ inputs.revision }}
+      build-only: true
+
+  package:
+    needs: [runtimes, toolchain, asan, cli]
+    if: ${{ !cancelled() && contains(inputs.stages, 'package') && !contains(needs.*.result, 'failure') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        host: ${{ fromJSON(inputs.hosts) }}
+    uses: ./.github/workflows/stage-package.yml
+    with:
+      host: ${{ matrix.host }}
+      revision: ${{ inputs.revision }}
+      runtimes-run: ${{ github.run_id }}
+      toolchain-run: ${{ needs.toolchain.result == 'success' && github.run_id || inputs.reuse-run }}
+      cli-run: ${{ needs.cli.result == 'success' && github.run_id || '' }}
+
+  test:
+    needs: package
+    if: ${{ !cancelled() && contains(inputs.stages, 'test') && needs.package.result != 'failure' }}
+    uses: ./.github/workflows/test-archives.yml
+    with:
+      hosts: ${{ inputs.hosts }}
+      dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
+      repack-of: ${{ inputs.repack-of }}
+
+  bazel:
+    needs: package
+    if: ${{ !cancelled() && contains(inputs.stages, 'bazel') && needs.package.result != 'failure' }}
+    uses: ./.github/workflows/test-bazel.yml
+    with:
+      dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
+
+  cmake:
+    needs: package
+    if: ${{ !cancelled() && contains(inputs.stages, 'cmake') && needs.package.result != 'failure' }}
+    uses: ./.github/workflows/test-cmake.yml
+    with:
+      dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
+
+  sdk:
+    needs: package
+    if: ${{ !cancelled() && contains(inputs.stages, 'sdk') && needs.package.result != 'failure' }}
+    uses: ./.github/workflows/test-sdk.yml
+    with:
+      dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
+
+  cli-test:
+    needs: package
+    if: ${{ !cancelled() && contains(inputs.stages, 'cli') && needs.package.result != 'failure' }}
+    uses: ./.github/workflows/cli.yml
+    with:
+      dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
+
+  release:
+    needs: [train, package, test, bazel, cmake, sdk, cli-test]
+    if: ${{ !cancelled() && contains(inputs.stages, 'release') && !contains(needs.*.result, 'failure') }}
     permissions:
       contents: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: dist-*
-          path: dist
-          merge-multiple: true
-          run-id: ${{ inputs.dist-run }}
-          github-token: ${{ github.token }}
-      - uses: actions/download-artifact@v8
-        with:
-          name: profile
-          path: profile
-          run-id: ${{ inputs.profile-run }}
-          github-token: ${{ github.token }}
-      - name: Draft
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          llvm=$(sed -n 's/^export const LLVM_VERSION = "\(.*\)";/\1/p' scripts/common.ts)
-          version="$llvm.${{ inputs.revision }}"
-          if gh release view "$version" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            echo "::error::release $version exists; a rebuild gets the next revision"
-            exit 1
-          fi
-          cp profile/profile.profdata "dist/xclang-$version.profdata"
-          (cd dist && sha256sum * > SHA256SUMS)
-          cat dist/SHA256SUMS | tee -a "$GITHUB_STEP_SUMMARY"
-          gh release create "$version" -R "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" \
-            --title "$version" \
-            --notes "LLVM $llvm, build run https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-            dist/*
+      actions: read
+    uses: ./.github/workflows/stage-draft.yml
+    with:
+      revision: ${{ inputs.revision }}
+      dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
+      profile-run: ${{ needs.train.result == 'success' && github.run_id || inputs.profile-run }}

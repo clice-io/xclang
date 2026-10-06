@@ -33,7 +33,7 @@ this page is the same, for people. What each patch does is in
    llvmorg-<version>> -i patches/NNNN-*/NNNN.patch`, and compile the
    patched file against the release's headers. Do not build LLVM locally.
 3. Add the check to tests/toolchain/smoke.ts, and confirm it on CI on an
-   `exp/<name>` branch: a main.yml run with and without the patch, a
+   `exp/<name>` branch: a release.yml run with and without the patch, a
    toolchain without PGO for a quick A/B.
 4. Docs: the table in [LLVM patches](../reference/patches.md), and a
    CHANGELOG Unreleased entry.
@@ -53,7 +53,7 @@ this page is the same, for people. What each patch does is in
    paths, pgo/remap.txt, the Bazel module's library list).
 4. The bootstrap: the previous xclang release, unless a major version
    needs a newer compiler; then LLVM's own release build, as for 23.1.2.1.
-5. A full main.yml run on `exp/<llvm version>`; the training and the smoke
+5. A full release.yml run on `exp/<llvm version>`; the training and the smoke
    tests are where a new version breaks most.
 6. The first release of the new version is `<version>.1`
    ([releasing](releasing.md)).

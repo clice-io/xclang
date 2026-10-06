@@ -3,22 +3,21 @@
 /// own command fetches:
 ///
 ///   node tests/sdk/macos.ts --tree <xclang> --out <dir>
-///       without the SDK, clang names sdk/macos and the CMake package stops;
-///       the SDK of the default preset fetched into the tree; for both
-///       targets programs built with a bare --target into <dir>/<arch>, and
-///       in programs.json what each prints and how it ends: C, C++ with
-///       libc++ (exceptions, threads, <filesystem>, <format>), import std,
-///       ThinLTO, debug information in a dSYM (dsymutil), CoreFoundation,
-///       Objective-C with Foundation, a dylib whose program
-///       llvm-install-name-tool changes, UBSan, ASan, TSan, libFuzzer and
-///       the profile runtime, each checked here for the libraries it loads
-///       (llvm-otool -L: only the system's) and the macOS and SDK versions
-///       it names; tests/cmake for both targets through the CMake package;
-///       universal programs of both (llvm-lipo) in <dir>/universal.
-///   node tests/sdk/macos.ts --run <dir>...
-///       run the programs of programs.json in each directory; on arm64,
-///       their ad-hoc signature is the linker's; Apple's tools read the
-///       dSYMs (dwarfdump's UUIDs, atos).
+///
+/// Without the SDK, clang names sdk/macos and the CMake package stops; the
+/// SDK of the default preset fetched into the tree; for both targets
+/// programs built with a bare --target into <dir>/<target>/macos-<host>,
+/// and in programs.json what each prints and how it ends: C, C++ with
+/// libc++ (exceptions, threads, <filesystem>, <format>), import std,
+/// ThinLTO, debug information in a dSYM (dsymutil), CoreFoundation,
+/// Objective-C with Foundation, a dylib whose program
+/// llvm-install-name-tool changes, UBSan, ASan, TSan, libFuzzer and the
+/// profile runtime, each checked here for the libraries it loads
+/// (llvm-otool -L: only the system's) and the macOS and SDK versions it
+/// names; tests/cmake for both targets through the CMake package;
+/// universal programs of both (llvm-lipo), for either Mac. On a Mac,
+/// tests/lib/on-target.ts runs them: on arm64, their ad-hoc signature is
+/// the linker's; Apple's tools read the dSYMs (dwarfdump's UUIDs, atos).
 ///
 /// Only programs leave the job, with their dSYMs and xclang's sanitizer
 /// runtimes next to them: nothing of the SDK.
@@ -29,32 +28,18 @@ import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import * as common from "../../scripts/common.ts";
+import { programsDir, writePrograms, type Program } from "../lib/on-target.ts";
 
-const { values, positionals } = parseArgs({
+const { values } = parseArgs({
   options: {
     tree: { type: "string" },
     out: { type: "string" },
-    run: { type: "boolean" },
   },
-  allowPositionals: true,
 });
 const windows = process.platform === "win32";
 const exe = windows ? ".exe" : "";
 const failures: string[] = [];
 const summary: string[] = [];
-
-/// A program of programs.json: its arguments, a text its output must have,
-/// whether it must fail (exit with other than 0, or abort, as ASan and TSan
-/// do on macOS), a profile it must write (LLVM_PROFILE_FILE), and its dSYM:
-/// next to it, with the address of a function of `source`.
-interface Program {
-  file: string;
-  args?: string[];
-  expect: string;
-  fails?: boolean;
-  profile?: boolean;
-  dsym?: { address: string; source: string };
-}
 
 function check(ok: boolean, what: string): void {
   console.log(`${ok ? "PASS" : "FAIL"} ${what}`);
@@ -82,44 +67,7 @@ function finish(): never {
   process.exit(0);
 }
 
-/// Run every program of dir/programs.json, on a Mac.
-function runAll(dir: string): void {
-  const programs: Program[] = JSON.parse(fs.readFileSync(path.join(dir, "programs.json"), "utf8"));
-  const arch = os.arch() === "arm64" ? "arm64" : "x86_64";
-  for (const p of programs) {
-    const file = path.resolve(dir, p.file);
-    /// Artifacts lose the mode.
-    fs.chmodSync(file, 0o755);
-    const profile = `${file}.profraw`;
-    fs.rmSync(profile, { force: true });
-    const r = run(file, p.args ?? [], { cwd: dir, env: { ...process.env, LLVM_PROFILE_FILE: profile } });
-    const ended = p.fails ? (r.status !== null && r.status !== 0) || r.signal === "SIGABRT" : r.status === 0;
-    const ok = ended && r.out.includes(p.expect) && (!p.profile || (fs.existsSync(profile) && fs.statSync(profile).size > 0));
-    check(ok, `${p.file}: exit ${r.status ?? r.signal}${p.profile ? ", a profile" : ""}, "${p.expect}"`);
-    /// Run unsigned by codesign: on Apple silicon the kernel runs only
-    /// signed code, and ld64.lld signs what it links for arm64 ad hoc.
-    if (arch === "arm64") {
-      const sign = run("codesign", ["-dv", file]);
-      check(/Signature=adhoc/.test(sign.out), `${p.file}: an ad-hoc signature`);
-    }
-    if (p.dsym) {
-      const dsym = `${file}.dSYM`;
-      const uuids = (f: string) => [...run("dwarfdump", ["--uuid", f]).out.matchAll(/UUID: (\S+) \((\w+)\)/g)].map((m) => `${m[1]} ${m[2]}`).sort();
-      const [own, its] = [uuids(file), uuids(dsym)];
-      check(own.length > 0 && JSON.stringify(own) === JSON.stringify(its), `${p.file}.dSYM: the program's UUIDs (${own.join(", ")})`);
-      const dwarf = path.join(dsym, "Contents", "Resources", "DWARF", path.basename(file));
-      const where = run("atos", ["-o", dwarf, "-arch", arch, p.dsym.address]).out;
-      check(where.includes(`${p.dsym.source}:`), `atos ${p.dsym.address} in ${p.file}.dSYM: ${where.trim()}`);
-    }
-  }
-}
-
-if (values.run) {
-  for (const dir of positionals) runAll(path.resolve(dir));
-  finish();
-}
-
-if (!values.tree || !values.out) common.fail("--tree <xclang> --out <dir>, or --run <dir>...");
+if (!values.tree || !values.out) common.fail("--tree <xclang> --out <dir>");
 if (process.platform === "darwin") common.fail("macOS hosts build with Xcode's SDK (tests/toolchain/smoke.ts); this is for the others");
 const tree = path.resolve(values.tree);
 const out = path.resolve(values.out);
@@ -226,8 +174,7 @@ function versions(file: string): void {
 const ARCHS = [["arm64", "aarch64-apple-darwin"], ["x86_64", "x86_64-apple-darwin"]] as const;
 const runtimes = path.join(common.resourceDir(tree), "lib", "darwin");
 for (const [a, triple] of ARCHS) {
-  const dir = path.join(out, a);
-  fs.mkdirSync(dir, { recursive: true });
+  const dir = programsDir(out, triple, "macos");
   const programs: Program[] = [];
   const build = (name: string, driver: string, args: string[], expect: string, extra: RegExp[] = [], more: Partial<Program> = {}): Program | undefined => {
     const file = path.join(dir, name);
@@ -236,7 +183,7 @@ for (const [a, triple] of ARCHS) {
     if (!fs.existsSync(file)) return undefined;
     loads(file, extra);
     versions(file);
-    const p = { file: name, expect, ...more };
+    const p: Program = { file: name, expect, adhoc: true, ...more };
     programs.push(p);
     return p;
   };
@@ -305,7 +252,7 @@ for (const [a, triple] of ARCHS) {
     loads(dylib, [/^@rpath\/libnames\.dylib$/]);
     loads(path.join(dir, "dylib"), [/^@rpath\/libnames\.dylib$/]);
     check(/path @executable_path/.test(run(tool("llvm-otool"), ["-l", path.join(dir, "dylib")]).out), "dylib's rpath is @executable_path");
-    programs.push({ file: "dylib", expect: "hello, dylib" });
+    programs.push({ file: "dylib", expect: "hello, dylib", adhoc: true });
   }
 
   /// 4. CMake: tests/cmake through the package's toolchain file; its
@@ -327,37 +274,36 @@ for (const [a, triple] of ARCHS) {
       fs.copyFileSync(path.join(cmakeDir, program), path.join(dir, name));
       loads(path.join(dir, name));
       versions(path.join(dir, name));
-      programs.push({ file: name, expect });
+      programs.push({ file: name, expect, adhoc: true });
     }
   }
-  fs.writeFileSync(path.join(dir, "programs.json"), JSON.stringify(programs, null, 1) + "\n");
+  writePrograms(dir, programs);
   summary.push(`- ${triple}: ${programs.length} programs`);
 }
 
 /// 5. Universal programs, both architectures in one file (llvm-lipo), for
 /// either Mac.
 {
-  const dir = path.join(out, "universal");
-  fs.mkdirSync(dir, { recursive: true });
+  const dirs = ARCHS.map(([, triple]) => programsDir(out, triple, "macos-universal"));
   const programs: Program[] = [];
   for (const [name, expect] of [["cpp", "threads: 10"], ["objc", "caught: thrown 1"]] as const) {
-    const slices = ARCHS.map(([a]) => path.join(out, a, name));
+    const slices = ARCHS.map(([, triple]) => path.join(programsDir(out, triple, "macos"), name));
     if (!slices.every((f) => fs.existsSync(f))) continue;
-    const file = path.join(dir, name);
+    const file = path.join(dirs[0]!, name);
     run(tool("llvm-lipo"), ["-create", ...slices, "-output", file]);
     const archs = run(tool("llvm-lipo"), ["-archs", file]).stdout.trim().split(/\s+/).sort().join(" ");
     check(archs === "arm64 x86_64", `universal ${name}: ${archs}`);
-    programs.push({ file: name, expect });
+    fs.copyFileSync(file, path.join(dirs[1]!, name));
+    programs.push({ file: name, expect, adhoc: true });
   }
-  fs.writeFileSync(path.join(dir, "programs.json"), JSON.stringify(programs, null, 1) + "\n");
+  for (const dir of dirs) writePrograms(dir, programs);
   summary.push(`- universal: ${programs.length} programs`);
 }
 
 /// Only the programs leave the job, with their dSYMs and the sanitizers'
 /// runtimes: no objects, no profiles.
-for (const a of [...ARCHS.map(([a]) => a), "universal"]) {
-  const dir = path.join(out, a);
-  for (const f of fs.existsSync(dir) ? fs.readdirSync(dir) : []) {
+for (const dir of ARCHS.flatMap(([, triple]) => [programsDir(out, triple, "macos"), programsDir(out, triple, "macos-universal")])) {
+  for (const f of fs.readdirSync(dir)) {
     if (/\.(o|pcm|profraw|lto)$/.test(f)) fs.rmSync(path.join(dir, f), { recursive: true });
   }
 }

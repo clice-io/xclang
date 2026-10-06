@@ -1,14 +1,22 @@
 name: cli
 
-# xclang's own command (cli/, Rust), built for every host with a released
-# xclang as the C compiler and linker (scripts/cli.ts): Linux and Windows
-# from Linux x64, macOS on macOS arm64, as the cli-build-* artifacts. Then,
-# unless called with build-only, on a machine of each host
+# xclang's own command (cli/, Rust). The build job builds it for every host
+# with a released xclang as the C compiler and linker (scripts/cli.ts):
+# Linux and Windows from Linux x64, macOS on macOS arm64, as the
+# cli-build-* artifacts, and runs its rustfmt, clippy and unit tests. The
+# test jobs then check it in a toolchain, on a machine of each host
 # (tests/cli/cli.ts): both vendor SDKs fetched, C, C++ and Objective-C
 # programs cross-compiled against them, target add and remove against a
 # test index; from Linux, cli/ itself cross-built with cargo for macOS and
-# the MSVC ABI against the SDKs (tests/cli/cargo.ts). The programs run on macOS
-# and Windows. Only the programs leave a job, never an SDK.
+# the MSVC ABI against the SDKs (tests/cli/cargo.ts). The programs run on
+# macOS and Windows (on-target.yml). Only programs leave a job, never an
+# SDK.
+#
+#   release.yml     the build, for the archives (build-only); after them,
+#                   the tests of the command the archives carry (dist-run)
+#   checks.yml,     the build, and the tests of it in the latest release's
+#   weekly.yml,     toolchain; weekly too, as the vendors' downloads change
+#   by hand         under it
 
 on:
   workflow_dispatch:
@@ -22,13 +30,19 @@ on:
         description: Build, without the tests
         type: boolean
         default: false
+      dist-run:
+        description: Run whose archives' command to test, without building it
+        type: string
+        default: ""
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   build:
     name: build on ${{ matrix.runner }}
+    if: ${{ !inputs.dist-run }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -62,7 +76,7 @@ jobs:
   test:
     name: test on ${{ matrix.host }}
     needs: build
-    if: ${{ !inputs.build-only }}
+    if: ${{ !cancelled() && !inputs.build-only && needs.build.result != 'failure' }}
     runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm","aarch64-apple-darwin":"macos-15","x86_64-apple-darwin":"macos-15-intel"}')[matrix.host] }}
     strategy:
       fail-fast: false
@@ -71,77 +85,44 @@ jobs:
     defaults:
       run:
         shell: bash
-    env:
-      XCLANG: 23.1.2.6
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v5
+      # A run's archives with their command, or the latest release's
+      # toolchain with the one built above.
+      - uses: ./.github/actions/archives
         with:
-          node-version: 24
+          host: ${{ matrix.host }}
+          dist-run: ${{ inputs.dist-run }}
       - uses: actions/download-artifact@v8
+        if: ${{ !inputs.dist-run }}
         with:
           pattern: cli-build-*
           path: built
           merge-multiple: true
-      # The toolchain the binary goes into, checked against the release's
-      # SHA256SUMS; on Windows unpacked by Windows' own tar, as a user does.
-      - name: xclang ${{ env.XCLANG }}
+      - name: The command built
+        if: ${{ !inputs.dist-run }}
         run: |
-          A=xclang-$XCLANG-${{ matrix.host }}.tar.xz
-          cd "$RUNNER_TEMP"
-          curl -sSfLO -A "xclang/ci" "https://github.com/clice-io/xclang/releases/download/$XCLANG/$A"
-          curl -sSfLO -A "xclang/ci" "https://github.com/clice-io/xclang/releases/download/$XCLANG/SHA256SUMS"
-          want=$(grep " $A\$" SHA256SUMS | cut -d' ' -f1)
-          got=$( (sha256sum "$A" 2> /dev/null || shasum -a 256 "$A") | cut -d' ' -f1)
-          [ "$got" = "$want" ] || { echo "$A: sha256 $got, expected $want"; exit 1; }
-          case "$RUNNER_OS" in
-            Windows) /c/Windows/System32/tar.exe -xf "$A"; T=$(cygpath -m "$PWD/xclang") ;;
-            *) tar -xf "$A"; T=$PWD/xclang ;;
-          esac
-          cp "$GITHUB_WORKSPACE"/built/cli-${{ matrix.host }}/xclang* "$T/bin/"
-          chmod +x "$T"/bin/xclang*
-          echo "T=$T" >> "$GITHUB_ENV"
+          cp built/cli-${{ matrix.host }}/xclang* "$XCLANG_TREE/bin/"
+          chmod +x "$XCLANG_TREE"/bin/xclang*
       - name: Test
-        run: node tests/cli/cli.ts --tree "$T" --out programs
+        run: node tests/cli/cli.ts --tree "$XCLANG_TREE" --out "$RUNNER_TEMP/programs"
       # cargo with xclang for the SDKs' targets, from Linux (docs/en/integrations/cargo.md).
       - name: cargo for macOS and MSVC targets
         if: ${{ matrix.host == 'x86_64-unknown-linux-gnu' }}
-        run: node tests/cli/cargo.ts --tree "$T" --out programs
+        run: node tests/cli/cargo.ts --tree "$XCLANG_TREE" --out "$RUNNER_TEMP/programs"
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
-          name: sdk-programs-${{ matrix.host }}
-          path: programs
+          name: programs-cli-${{ matrix.host }}
+          path: ${{ runner.temp }}/programs
+          if-no-files-found: ignore
 
   run:
-    name: run on ${{ matrix.runner }}
     needs: test
     if: ${{ !cancelled() && !inputs.build-only }}
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { runner: macos-15, dir: macos/arm64 }
-          - { runner: macos-15-intel, dir: macos/x86_64 }
-          - { runner: windows-2025, dir: msvc/x86_64 }
-          - { runner: windows-11-arm, dir: msvc/aarch64 }
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: sdk-programs-*
-          path: programs
-      # Every host's programs for this machine.
-      - name: Run
-        run: node tests/cli/cli.ts --run programs/*/${{ matrix.dir }}
+    uses: ./.github/workflows/on-target.yml
+    with:
+      targets: '["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]'
+      pattern: programs-cli-*

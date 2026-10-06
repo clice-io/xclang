@@ -5,7 +5,7 @@ Thanks for helping. The full guide is
 ([source](docs/en/dev/contributing.md)); in short:
 
 - **Builds run on CI.** A release run is about three hours on
-  GitHub-hosted runners; run `main.yml` on a branch of your own
+  GitHub-hosted runners; run `release.yml` on a branch of your own
   (`exp/<name>`), reusing earlier stages with `reuse-run`. Locally, check
   types (`npm install && npm run check`), the docs (`node tests/docs/docs.ts`),
   the xclang command (`cd cli && cargo test`), and patches with

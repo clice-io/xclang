@@ -6,14 +6,15 @@
 ///
 ///   node tests/cli/cargo.ts --tree <xclang> --out <dir>
 ///
-/// The binaries go to <dir>/macos/<arch>/xclang and
-/// <dir>/msvc/<arch>/xclang.exe, where cli.yml's run jobs start them. What
-/// each target needs is docs/en/integrations/cargo.md's.
+/// The binaries go to <dir>/<target>/cargo-<host>, where
+/// tests/lib/on-target.ts runs them on a machine of the target. What each
+/// target needs is docs/en/integrations/cargo.md's.
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
+import { programsDir, writePrograms } from "../lib/on-target.ts";
 
 const { values } = parseArgs({ options: { tree: { type: "string" }, out: { type: "string" } } });
 if (!values.tree || !values.out) fail("--tree <xclang> --out <dir>");
@@ -53,7 +54,6 @@ for (const target of targets) {
   const T = target.toUpperCase().replaceAll("-", "_");
   const t = target.replaceAll("-", "_");
   const msvc = target.endsWith("msvc");
-  const arch = target.split("-")[0]!;
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     /// ring builds its arm64 Windows assembly with a `clang` from PATH.
@@ -83,9 +83,9 @@ for (const target of targets) {
   }
   run("cargo", ["build", "--release", "--locked", "--target", target], env);
   const name = msvc ? "xclang.exe" : "xclang";
-  const dest = path.join(out, msvc ? "msvc" : "macos", msvc ? arch : arch === "aarch64" ? "arm64" : arch, name);
-  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  const dest = path.join(programsDir(out, target, "cargo"), name);
   fs.copyFileSync(path.join(cli, "target", target, "release", name), dest);
+  writePrograms(path.dirname(dest), [{ file: name, args: ["--version"], expect: "xclang " }]);
   const libs = msvc
     ? [...run(tool("llvm-objdump"), ["-p", dest], env, false).matchAll(/DLL Name: (\S+)/g)].map((m) => m[1]!)
     : [...run(tool("llvm-otool"), ["-L", dest], env, false).matchAll(/^\s+(\/\S+)/gm)].map((m) => m[1]!);

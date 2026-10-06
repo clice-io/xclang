@@ -1,11 +1,13 @@
 name: bench
 
 # Compile speed of xclang against LLVM's own 23.1.2 build (and Apple's
-# clang on macOS), each host on machines of that host (tests/bench/bench.ts).
-# Hosted runners are noisy, so every job compares the compilers on one
-# machine, interleaved, and the report is the median ratio over several
-# machines (shards). The first shard of each host also lists the sizes of
-# the unpacked toolchain.
+# clang on macOS), each host on machines of that host
+# (tests/bench/bench.ts). Hosted runners are noisy, so every job compares
+# the compilers on one machine, interleaved, and the report is the median
+# ratio over several machines (shards). The first shard of each host also
+# lists the sizes of the unpacked toolchain. By hand on purpose: five
+# shards are about 550 runner-minutes, for the notes of a release or the
+# docs.
 
 on:
   workflow_dispatch:

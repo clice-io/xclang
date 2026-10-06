@@ -28,12 +28,26 @@ packages/          what xclang's users build with (packages/README.md):
                    FetchContent download)
   conda/           the activation scripts of the conda packages;
                    scripts/conda.ts makes the packages
-tests/             smoke.ts and libclang.ts, the per-host checks; bazel/
-                   and cmake/, the build systems' consumers; bench.ts,
-                   compile speed; docs.ts, the docs against examples/
+tests/             one directory per thing tested, its script beside its
+                   fixtures:
+  toolchain/       smoke.ts, a host's toolchain archive on its host
+  libclang/        libclang.ts and a tool on libclang
+  cmake/           cmake.ts and a project on the CMake package
+  bazel/           bazel.ts and cross.ts, and a workspace on the module
+  sdk/             msvc.ts and macos.ts, the targets of the vendor SDKs
+  cli/             cli.ts and cargo.ts, the xclang command
+  release/         repack.ts, a repack against the release it repacks
+  docs/            docs.ts, the docs against examples/ and examples.yml
+  bench/           bench.ts and report.ts, compile speed
+  lib/             what the others share: a host's archives unpacked
+                   (archives.ts), programs run on their target
+                   (on-target.ts)
 examples/          the projects the docs show, built by examples.yml
 docs/en/           this site
-.github/workflows/ CI; main.yml runs the stages of a release
+.github/workflows/ CI: release.yml and its stage-*.yml build a release;
+                   test-*.yml and cli.yml test it, and every push
+                   (checks.yml); published.yml follows publishing;
+                   weekly.yml runs every week
 ```
 
 The [build pipeline](release-build.md) has the stages and the workflows.
@@ -45,9 +59,14 @@ on GitHub-hosted runners, and the toolchain stage about two hours per
 host. Run them on CI, on a branch of your own:
 
 ```sh
-gh workflow run main.yml --ref <branch> \
+gh workflow run release.yml --ref <branch> \
   -f stages=runtimes,instrumented,train,toolchain,asan,package,test -f revision=<n>
 ```
+
+(The workflow must be on `main` for `gh workflow run`; the branch's copy
+of it is what runs.) A push runs checks.yml: the tests of what it changed,
+against the latest release, in minutes
+([testing](testing.md#when-tests-run)).
 
 `reuse-run`, with `runtimes-run` and `profile-run`, takes the artifacts of
 a stage from an earlier run instead of building them again. A toolchain
@@ -84,12 +103,15 @@ touches. What each test covers is in [testing](testing.md).
 
 | change | test |
 |---|---|
-| the toolchain, the runtimes, a patch | `tests/toolchain/smoke.ts` (the `test` stage of main.yml, every host) |
+| the toolchain, the runtimes, a patch | `tests/toolchain/smoke.ts` (the `test` stage of release.yml, every host) |
+| the config files | `tests/toolchain/smoke.ts`, `tests/sdk` (test-archives.yml, test-sdk.yml, on a push) |
 | libclang | `tests/libclang/libclang.ts` |
-| the CMake package | `tests/cmake` (cmake.yml) |
-| the Bazel module | `tests/bazel`, `tests/bazel/bazel.ts`, `tests/bazel/cross.ts` (bazel.yml) |
+| the CMake package | `tests/cmake` (test-cmake.yml) |
+| the Bazel module | `tests/bazel`, `tests/bazel/bazel.ts`, `tests/bazel/cross.ts` (test-bazel.yml) |
+| the MSVC and macOS targets | `tests/sdk/msvc.ts`, `tests/sdk/macos.ts` (test-sdk.yml) |
 | the xclang command | `tests/cli/cli.ts`, `tests/cli/cargo.ts` (cli.yml) |
 | the commands of the docs, `examples/` | examples.yml |
+| a program run on another target | `tests/lib/on-target.ts` (on-target.yml): write its `programs.json` |
 
 ## The Docs
 

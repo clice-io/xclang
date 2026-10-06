@@ -1,4 +1,4 @@
-name: runtimes
+name: stage-runtimes
 
 # The runtimes of every target, built once with the bootstrap compiler:
 # one artifact runtimes-<triple> per Linux and MinGW target, one

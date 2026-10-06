@@ -5,8 +5,8 @@
 ///       sha256 of each of its archives
 ///   node scripts/bazel.ts archive <SHA256SUMS> <dir>
 ///       <dir>/xclang-bazel-<version>.tar.gz: packages/bazel at that
-///       release, its source archive in the clice Bazel registry (bazel.yml
-///       publishes it); prints its integrity
+///       release, its source archive in the clice Bazel registry
+///       (published.yml publishes it); prints its integrity
 ///
 /// The release is tagged before its archives exist, so the module of the
 /// tag cannot hold their digests: the archive made here does.

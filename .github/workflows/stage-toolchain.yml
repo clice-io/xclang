@@ -1,4 +1,4 @@
-name: toolchain
+name: stage-toolchain
 
 # One host's build: its toolchain and its libclang (release), the
 # instrumented clang and lld (instrumented), or the ASan libclang (asan).

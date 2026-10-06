@@ -33,7 +33,7 @@ stays gone).
    translation unit against the release's headers. Never build LLVM here.
 5. **A check that fails without it**, in tests/toolchain/smoke.ts (runs on every
    host's toolchain), or tests/bazel / tests/cmake when it is about them.
-   Confirm on CI: push `exp/<name>` and run main.yml
+   Confirm on CI: push `exp/<name>` and run release.yml
    (`stages=runtimes,instrumented,train,toolchain,asan,package,test`, or
    fewer with `reuse-run`); for a quick A/B, a toolchain without PGO is
    enough (`profile-run` none, `hosts` the one that matters).

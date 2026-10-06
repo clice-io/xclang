@@ -1,0 +1,130 @@
+name: test-archives
+
+# Each host's archives unpacked and checked on a machine of that host
+# (tests/toolchain/smoke.ts, tests/libclang/libclang.ts); what the smoke
+# test builds for targets the machine cannot run, run on a machine of those
+# (on-target.yml). With repack-of, also each host's archives against those
+# of the release they repack (tests/release/repack.ts).
+#
+#   release.yml     a run's archives (dist-run), before they are released
+#   checks.yml      a published release's (the latest), with this
+#                   checkout's config files and CMake package
+#   by hand         either
+
+on:
+  workflow_call:
+    inputs:
+      dist-run:
+        description: Run whose dist-<host> archives to check; none for a published release's
+        type: string
+        default: ""
+      release:
+        description: Published release, without dist-run
+        type: string
+        default: latest
+      repack-of:
+        description: Release the run's archives repack, with dist-run
+        type: string
+        default: ""
+      hosts:
+        type: string
+        default: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin"]'
+  workflow_dispatch:
+    inputs:
+      dist-run:
+        description: Run whose dist-<host> archives to check; none for a published release's
+        type: string
+        default: ""
+      release:
+        description: Published release, without dist-run
+        type: string
+        default: latest
+      repack-of:
+        description: Release the run's archives repack, with dist-run
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  smoke:
+    name: smoke (${{ matrix.host }})
+    strategy:
+      fail-fast: false
+      matrix:
+        host: ${{ fromJSON(inputs.hosts || '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin"]') }}
+    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm","aarch64-apple-darwin":"macos-15","x86_64-apple-darwin":"macos-15-intel"}')[matrix.host] }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/archives
+        with:
+          host: ${{ matrix.host }}
+          dist-run: ${{ inputs.dist-run }}
+          release: ${{ inputs.release }}
+      - name: Smoke test
+        run: node tests/toolchain/smoke.ts --tree "$XCLANG_TREE" --out "$RUNNER_TEMP/programs"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: python -m pip install cmake ninja
+      - name: libclang
+        if: ${{ !cancelled() }}
+        run: node tests/libclang/libclang.ts --tree "$XCLANG_TREE" --libclang "$XCLANG_LIBCLANG"
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: programs-smoke-${{ matrix.host }}
+          path: ${{ runner.temp }}/programs
+          if-no-files-found: ignore
+
+  on-target:
+    needs: smoke
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/on-target.yml
+    with:
+      # x86_64 macOS programs run on both Macs, natively or through Rosetta.
+      targets: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin"]'
+      pattern: programs-smoke-*
+
+  # The members of each archive against the release's: reading them takes a
+  # minute, on any machine.
+  repack:
+    name: repack (${{ matrix.host }})
+    if: inputs.repack-of != '' && inputs.dist-run != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        host: ${{ fromJSON(inputs.hosts || '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin"]') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist-${{ matrix.host }}
+          path: dist
+          run-id: ${{ inputs.dist-run }}
+          github-token: ${{ github.token }}
+      - name: The release's archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir previous
+          for file in dist/*.tar.xz; do
+            name=$(basename "$file" | sed -E "s/-[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+([-.])/-${{ inputs.repack-of }}\1/")
+            gh release download "${{ inputs.repack-of }}" -R "$GITHUB_REPOSITORY" -p "$name" -D previous
+          done
+      - name: Compare
+        run: node tests/release/repack.ts --previous previous --dist dist

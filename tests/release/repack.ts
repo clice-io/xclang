@@ -1,5 +1,5 @@
 /// Check a repack: archives of a release whose compiler and runtimes are an
-/// earlier release's (main.yml with reuse-run, no toolchain stage) against
+/// earlier release's (release.yml with reuse-run, no toolchain stage) against
 /// that release's archives of the same names, file by file:
 ///
 ///   node tests/release/repack.ts --previous <dir> --dist <dir>

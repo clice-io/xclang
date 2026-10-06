@@ -1,0 +1,125 @@
+name: published
+
+# What follows publishing a release, the last thing done by hand: the
+# release as its users get it, on every channel.
+#
+#   1. test-bazel.yml with the release's archives, then the module of its
+#      tag (scripts/bazel.ts archive) published to the clice Bazel registry,
+#      https://bazel.clice.io, through clice-io/bazel's action;
+#   2. test-cmake.yml with its archives and its tag fetched from GitHub, as
+#      a user's FetchContent does;
+#   3. conda.yml: its packages, build 0, published to conda.clice.io;
+#   4. the `latest` branch moved to its tag, which the docs' FetchContent
+#      fetches;
+#   5. examples.yml, the docs' commands against it, once conda.clice.io
+#      serves it.
+#
+# By hand with a tag, it tests the release again; with publish, it also
+# publishes what has not been (a registry's own check refuses a version it
+# has).
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release, e.g. 23.1.2.8
+        type: string
+        required: true
+      publish:
+        description: Publish to bazel.clice.io and conda.clice.io, and move `latest`
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  TAG: ${{ inputs.tag || github.event.release.tag_name }}
+  PUBLISH: ${{ github.event_name == 'release' || inputs.publish }}
+
+jobs:
+  # The release's version, for the calls (which read no env).
+  release:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ env.TAG }}
+      publish: ${{ env.PUBLISH }}
+    steps:
+      - run: echo "$TAG, publish $PUBLISH"
+
+  bazel:
+    needs: release
+    uses: ./.github/workflows/test-bazel.yml
+    with:
+      release: ${{ needs.release.outputs.tag }}
+
+  cmake:
+    needs: release
+    uses: ./.github/workflows/test-cmake.yml
+    with:
+      release: ${{ needs.release.outputs.tag }}
+      git-ref: ${{ needs.release.outputs.tag }}
+
+  conda:
+    needs: release
+    uses: ./.github/workflows/conda.yml
+    with:
+      tag: ${{ needs.release.outputs.tag }}
+      build: "0"
+      publish: ${{ needs.release.outputs.publish == 'true' }}
+    secrets: inherit
+
+  bazel-registry:
+    needs: [release, bazel]
+    if: needs.release.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Module archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
+          node scripts/bazel.ts archive "$RUNNER_TEMP/SHA256SUMS" dist
+      - uses: clice-io/bazel@main
+        with:
+          archives: dist/xclang-bazel-*.tar.gz
+          token: ${{ secrets.UPLOAD_BAZEL }}
+
+  # Forward only: a release is never older than the one before it.
+  latest:
+    needs: [release, cmake, conda, bazel-registry]
+    if: needs.release.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Move latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" -q .sha)
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/latest" -f sha="$sha" -F force=false
+          echo "latest: $TAG ($sha)" | tee -a "$GITHUB_STEP_SUMMARY"
+      # The channel's index, which the conda action's publishing updates.
+      - name: conda.clice.io serves it
+        run: |
+          for i in $(seq 60); do
+            curl -sSfL -A "xclang/ci" https://conda.clice.io/linux-64/repodata.json | grep -q "\"xclang-$TAG-" && exit 0
+            sleep 30
+          done
+          echo "::error::conda.clice.io has no xclang $TAG after 30 minutes"; exit 1
+
+  examples:
+    needs: [release, latest]
+    if: ${{ !cancelled() && (needs.latest.result == 'success' || needs.release.outputs.publish != 'true') }}
+    uses: ./.github/workflows/examples.yml

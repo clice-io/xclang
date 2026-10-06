@@ -1,42 +1,47 @@
-name: bazel
+name: test-bazel
 
 # The Bazel module (packages/bazel) on a machine of every host:
-# tests/bazel's tests, then tests/bazel/bazel.ts's checks of the actions' keys and
-# of the module as the registry and git_override have it; and every host's
-# toolchain for every other target it builds for, tests/bazel's tests (and,
-# from Linux x64 to Windows x64, kotatsu's) cross-compiled there and run on a
-# machine of the target (tests/bazel/cross.ts).
+# tests/bazel's tests, then tests/bazel/bazel.ts's checks of the actions'
+# keys and of the module as the registry and git_override have it; and
+# every host's toolchain for every other target it builds for, tests/bazel's
+# tests (and, from Linux x64 to Windows x64, kotatsu's) cross-compiled there
+# and run on a machine of the target (tests/bazel/cross.ts, on-target.yml).
 #
-#   by hand         with the archives packages/bazel/bazel/versions.bzl names
-#   main.yml        with a run's archives (dist-run), unpacked and named by
-#                   XCLANG_ROOT and the like, before they are released
-#   a published     the module of that release (its tree, with the digests
-#   release, or     of its SHA256SUMS), then published to the clice Bazel
-#   by hand with    registry, https://bazel.clice.io, through clice-io/bazel's
-#   its tag         action
+#   release.yml     with a run's archives (dist-run), unpacked and named by
+#                   XCLANG_ROOT and the like, before they are released: the
+#                   module's tests only
+#   checks.yml,     with a published release's archives (the latest by
+#   weekly.yml,     default), versions.bzl made from its SHA256SUMS
+#   published.yml,
+#   by hand
+#
+# Publishing the module to bazel.clice.io is published.yml's.
 
 on:
-  release:
-    types: [published]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: Published release whose module to test and publish to bazel.clice.io, e.g. 23.1.2.5
-        type: string
-        default: ""
   workflow_call:
     inputs:
       dist-run:
-        description: Run whose dist-<host> archives the module is tested with
+        description: Run whose dist-<host> archives the module is tested with; none for a published release's
         type: string
-        required: true
+        default: ""
+      release:
+        description: Published release whose archives, without dist-run
+        type: string
+        default: latest
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Published release whose archives the module is tested with
+        type: string
+        default: latest
 
 permissions:
   contents: read
   actions: read
 
 env:
-  TAG: ${{ inputs.tag || github.event.release.tag_name }}
+  # gh release download's release: none for the latest.
+  RELEASE: ${{ inputs.release != 'latest' && inputs.release || '' }}
 
 jobs:
   module:
@@ -59,38 +64,30 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ env.TAG || github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: 24
       - run: npm install -g @bazel/bazelisk
-      # The tag's tree names the release before it: the digests are known
-      # only once its archives are.
+      # A tag's tree names the release before it: the digests are known only
+      # once its archives are.
       - name: Release digests
-        if: env.TAG
+        if: ${{ !inputs.dist-run }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
+          gh release download $RELEASE -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
           node scripts/bazel.ts versions "$RUNNER_TEMP/SHA256SUMS"
-      - uses: actions/download-artifact@v8
+      - uses: ./.github/actions/archives
         if: inputs.dist-run
         with:
-          name: dist-${{ matrix.host }}
-          path: ${{ runner.temp }}/dist
-          run-id: ${{ inputs.dist-run }}
-          github-token: ${{ github.token }}
-      # Windows' own tar (bsdtar), as test.yml unpacks them.
-      - name: Unpack
+          host: ${{ matrix.host }}
+          dist-run: ${{ inputs.dist-run }}
+      - name: The archives
         if: inputs.dist-run
         run: |
-          tar=tar; [[ "$RUNNER_OS" == Windows ]] && tar=/c/Windows/System32/tar.exe
-          dir="$RUNNER_TEMP/unpacked"; mkdir -p "$dir"
-          for a in "$RUNNER_TEMP"/dist/xclang-*.tar.xz "$RUNNER_TEMP"/dist/libclang-*.tar.xz; do "$tar" -xf "$a" -C "$dir"; done
-          [[ "$RUNNER_OS" == Windows ]] && dir="$(cygpath -m "$dir")"
-          env="--repo_env=XCLANG_ROOT=$dir/xclang --repo_env=XCLANG_LIBCLANG_ROOT=$dir/libclang"
-          [[ -d "$dir/libclang-asan" ]] && env="$env --repo_env=XCLANG_LIBCLANG_ASAN_ROOT=$dir/libclang-asan"
+          env="--repo_env=XCLANG_ROOT=$XCLANG_TREE --repo_env=XCLANG_LIBCLANG_ROOT=$XCLANG_LIBCLANG"
+          [[ -n "$XCLANG_LIBCLANG_ASAN" ]] && env="$env --repo_env=XCLANG_LIBCLANG_ASAN_ROOT=$XCLANG_LIBCLANG_ASAN"
           echo "REPO_ENV=$env" >> "$GITHUB_ENV"
       - name: Test
         working-directory: tests/bazel
@@ -112,11 +109,13 @@ jobs:
       # named by packages/bazel/bazel/versions.bzl.
       - name: Cache keys and inputs
         if: ${{ !inputs.dist-run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: node tests/bazel/bazel.ts --disk-cache "$RUNNER_TEMP/disk"
 
-  # Built here, run by the run job on a machine of the target: macOS targets
-  # build on macOS hosts only. Not for a run's archives, whose libclang is the
-  # host's only.
+  # Built here, run on a machine of the target by on-target.yml: macOS
+  # targets build on macOS hosts only. Not for a run's archives, whose
+  # libclang is the host's only.
   cross:
     if: ${{ !inputs.dist-run }}
     name: cross (${{ matrix.host }} to ${{ matrix.target }})
@@ -154,18 +153,16 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ env.TAG || github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: 24
       - run: npm install -g @bazel/bazelisk
       - name: Release digests
-        if: env.TAG
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
+          gh release download $RELEASE -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
           node scripts/bazel.ts versions "$RUNNER_TEMP/SHA256SUMS"
       - name: Build
         run: node tests/bazel/cross.ts build "${{ matrix.target }}" "$RUNNER_TEMP/out/${{ matrix.host }}/tests"
@@ -180,61 +177,18 @@ jobs:
             --workspace "$RUNNER_TEMP/kotatsu" -- --@bazel_tools//tools/test:incompatible_use_default_test_toolchain=false
       - uses: actions/upload-artifact@v7
         with:
-          name: cross-${{ matrix.host }}-to-${{ matrix.target }}
+          name: programs-bazel-${{ matrix.host }}-to-${{ matrix.target }}
           path: ${{ runner.temp }}/out
           if-no-files-found: error
           retention-days: 7
 
-  # What every other host built for this target, run here.
+  # What every other host built for this target, run there: <host>/tests,
+  # <host>/kotatsu, short paths for Windows.
   run:
     needs: cross
     if: ${{ !cancelled() && !inputs.dist-run }}
-    name: run (${{ matrix.target }})
-    strategy:
-      fail-fast: false
-      matrix:
-        target: *hosts
-    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm","aarch64-apple-darwin":"macos-15","x86_64-apple-darwin":"macos-15-intel"}')[matrix.target] }}
-    timeout-minutes: 30
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ env.TAG || github.sha }}
-          persist-credentials: false
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-      # <host>/tests, <host>/kotatsu: short paths, for Windows.
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: cross-*-to-${{ matrix.target }}
-          path: ${{ runner.temp }}/c
-          merge-multiple: true
-      - name: Run
-        run: node tests/bazel/cross.ts run "$RUNNER_TEMP/c"
-
-  publish:
-    if: ${{ inputs.tag || github.event.release.tag_name }}
-    needs: [module, cross, run]
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ env.TAG }}
-          persist-credentials: false
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-      - name: Module archive
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
-          node scripts/bazel.ts archive "$RUNNER_TEMP/SHA256SUMS" dist
-      - uses: clice-io/bazel@main
-        with:
-          archives: dist/xclang-bazel-*.tar.gz
-          token: ${{ secrets.UPLOAD_BAZEL }}
+    uses: ./.github/workflows/on-target.yml
+    with:
+      targets: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin"]'
+      pattern: programs-bazel-*-to-{0}
+      dir: .

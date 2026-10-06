@@ -4,6 +4,11 @@ name: conda
 # and used on a machine of every host, then, if asked, published to the
 # clice conda channel (https://conda.clice.io) through clice-io/conda's
 # action.
+#
+#   published.yml   build 0 of every release, published
+#   by hand         a packaging fix of a published release: the next build
+#                   number, the same toolchain packaged again; by hand on
+#                   purpose, as it publishes
 
 on:
   workflow_dispatch:
@@ -18,6 +23,17 @@ on:
         default: "0"
       publish:
         description: Publish to conda.clice.io once every host passed
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+      build:
+        type: string
+        default: "0"
+      publish:
         type: boolean
         default: false
 
