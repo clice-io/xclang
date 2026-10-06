@@ -146,6 +146,21 @@ failures.push(...licenses.check(tree, ["xclang", "llvm-project", "zstd", "glibc"
 run(tool("FileCheck"), [write("check.txt", "CHECK: hello\nCHECK-NEXT: world\n"),
   `--input-file=${write("input.txt", "hello\nworld\n")}`]);
 
+/// clang's crash stack trace, by the tree's llvm-symbolizer: every frame in
+/// a module, down to the thread's start (on arm64 Windows the last one was
+/// a system DLL's signed return address, patches/0010).
+{
+  const args = ["-fno-crash-diagnostics", "-c", write("crash.c", "#pragma clang __debug crash\n"), "-o", path.join(work, "crash.o")];
+  console.log(`+ ${tool("clang")} ${args.join(" ")}`);
+  const result = spawnSync(tool("clang"), args, { encoding: "utf8", cwd: work });
+  process.stderr.write(result.stderr ?? "");
+  const frames = (result.stderr ?? "").split(/\r?\n/).filter((line) => /^\s*#\d+ 0x[0-9a-f]+/i.test(line));
+  const bare = frames.filter((line) => /^\s*#\d+ 0x[0-9a-f]+\s*$/i.test(line));
+  if (result.status === 0 || frames.length < 10 || bare.length) {
+    failures.push(`clang's crash stack trace: ${frames.length} frames, ${bare.length} in no module`);
+  }
+}
+
 /// 2. Every target this machine can build for.
 const targets = [
   "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32",

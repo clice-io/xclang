@@ -1,0 +1,118 @@
+diff --git a/llvm/lib/Support/Windows/Signals.inc b/llvm/lib/Support/Windows/Signals.inc
+index ec55af0..01a7ca7 100644
+--- a/llvm/lib/Support/Windows/Signals.inc
++++ b/llvm/lib/Support/Windows/Signals.inc
+@@ -178,33 +178,58 @@ enum {
+ #endif
+ };
+ 
+-static bool printStackTraceWithLLVMSymbolizer(llvm::raw_ostream &OS,
+-                                              HANDLE hProcess, HANDLE hThread,
+-                                              STACKFRAME64 &StackFrameOrig,
+-                                              CONTEXT *ContextOrig) {
+-  // StackWalk64 modifies the incoming stack frame and context, so copy them.
+-  STACKFRAME64 StackFrame = StackFrameOrig;
+-
+-  // Copy the register context so that we don't modify it while we unwind. We
+-  // could use InitializeContext + CopyContext, but that's only required to get
+-  // at AVX registers, which typically aren't needed by StackWalk64. Reduce the
+-  // flag set to indicate that there's less data.
+-  CONTEXT Context = *ContextOrig;
+-  Context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
+-
+-  static void *StackTrace[256];
++/// Walk the stack from the frame that \p StackFrame and \p Context describe,
++/// storing each frame's program counter in \p StackTrace. Returns the number of
++/// frames stored.
++static size_t walkStack(HANDLE hProcess, HANDLE hThread,
++                        STACKFRAME64 StackFrame, CONTEXT Context,
++                        void **StackTrace, size_t MaxDepth) {
+   size_t Depth = 0;
+-  while (fStackWalk64(NativeMachineType, hProcess, hThread, &StackFrame,
++#if defined(_M_ARM64)
++  // On arm64, Windows' own DLLs sign the return addresses they save with
++  // pointer authentication. StackWalk64 doesn't strip the signature, finds no
++  // function at the signed address and ends the walk at the first system DLL
++  // frame, e.g. when the crash is in a callback such as a qsort comparator,
++  // or when walking from inside an exception handler. ntdll's unwinder strips
++  // it.
++  while (Depth < MaxDepth) {
++    DWORD64 PC = Context.Pc, SP = Context.Sp;
++    StackTrace[Depth++] = (void *)(uintptr_t)PC;
++    DWORD64 ImageBase;
++    if (PRUNTIME_FUNCTION Function =
++            ::RtlLookupFunctionEntry(PC, &ImageBase, nullptr)) {
++      void *HandlerData;
++      DWORD64 EstablisherFrame;
++      ::RtlVirtualUnwind(UNW_FLAG_NHANDLER, ImageBase, PC, Function, &Context,
++                         &HandlerData, &EstablisherFrame, nullptr);
++    } else if (Depth == 1) {
++      // A leaf function without unwind data returns through the link
++      // register.
++      Context.Pc = Context.Lr;
++    } else {
++      break;
++    }
++    // RtlVirtualUnwind ends the stack with a zero PC, or by leaving the
++    // context as it was.
++    if (!Context.Pc || (Context.Pc == PC && Context.Sp == SP))
++      break;
++  }
++#else
++  // Context is a copy, so that we don't modify the caller's while we unwind.
++  // We could use InitializeContext + CopyContext, but that's only required to
++  // get at AVX registers, which typically aren't needed by StackWalk64. Reduce
++  // the flag set to indicate that there's less data.
++  Context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
++  while (Depth < MaxDepth &&
++         fStackWalk64(NativeMachineType, hProcess, hThread, &StackFrame,
+                       &Context, 0, fSymFunctionTableAccess64,
+                       fSymGetModuleBase64, 0)) {
+     if (StackFrame.AddrFrame.Offset == 0)
+       break;
+     StackTrace[Depth++] = (void *)(uintptr_t)StackFrame.AddrPC.Offset;
+-    if (Depth >= std::size(StackTrace))
+-      break;
+   }
+-
+-  return printSymbolizedStackTrace(Argv0, &StackTrace[0], Depth, OS);
++#endif
++  return Depth;
+ }
+ 
+ namespace {
+@@ -268,27 +293,20 @@ static void PrintStackTraceForThread(llvm::raw_ostream &OS, HANDLE hProcess,
+   fSymSetOptions(SYMOPT_DEFERRED_LOADS | SYMOPT_LOAD_LINES);
+   fSymInitialize(hProcess, NULL, TRUE);
+ 
++  static void *StackTrace[256];
++  size_t Depth = walkStack(hProcess, hThread, StackFrame, *Context, StackTrace,
++                           std::size(StackTrace));
++
+   // Try llvm-symbolizer first. llvm-symbolizer knows how to deal with both PDBs
+   // and DWARF, so it should do a good job regardless of what debug info or
+   // linker is in use.
+-  if (printStackTraceWithLLVMSymbolizer(OS, hProcess, hThread, StackFrame,
+-                                        Context)) {
++  if (printSymbolizedStackTrace(Argv0, StackTrace, Depth, OS))
+     return;
+-  }
+-
+-  while (true) {
+-    if (!fStackWalk64(NativeMachineType, hProcess, hThread, &StackFrame,
+-                      Context, 0, fSymFunctionTableAccess64,
+-                      fSymGetModuleBase64, 0)) {
+-      break;
+-    }
+-
+-    if (StackFrame.AddrFrame.Offset == 0)
+-      break;
+ 
++  for (size_t I = 0; I < Depth; ++I) {
+     using namespace llvm;
+     // Print the PC in hexadecimal.
+-    DWORD64 PC = StackFrame.AddrPC.Offset;
++    DWORD64 PC = (uintptr_t)StackTrace[I];
+ #if defined(_M_X64) || defined(_M_ARM64)
+     OS << format("0x%016llX", PC);
+ #elif defined(_M_IX86) || defined(_M_ARM)
