@@ -19,7 +19,7 @@ def _thinlto_cache_impl(rctx):
             if res.return_code != 0:
                 fail("cannot create %s: %s" % (path, res.stderr))
         flags = {
-            # ld64.lld (and Apple's ld, with libLTO).
+            # ld64.lld.
             "mach_o": ["-Wl,-cache_path_lto," + path],
             # lld for ELF and for COFF (MinGW).
             "lld": ["-Wl,--thinlto-cache-dir=" + path],

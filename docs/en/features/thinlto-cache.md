@@ -156,7 +156,9 @@ branch `exp/bazel-lto`):
 | cache size | 352–403 MiB | 414–425 MiB | 394–660 MiB |
 
 In 23.1.2.4, macOS targets linked with Apple's ld and xclang's libLTO
-(`-cache_path_lto`); from 23.1.2.5 on, they link with ld64.lld.
+(`-cache_path_lto`); from 23.1.2.5 on, they link with ld64.lld. Since
+23.1.2.7 the macOS archives carry no `libLTO.dylib`: `-fuse-ld=ld` still
+selects Apple's ld, for links without LTO, and so without this cache.
 
 The tests of 23.1.2.6 link a small tool on libclang without the cache, with
 an empty one, and with a full one, on every host: 7 to 20 s cold, 0.6 to

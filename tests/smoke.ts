@@ -79,7 +79,6 @@ run(tool("clang"), ["--version"]);
 /// llvm is clang, lld and most tools; elsewhere they are its names (on
 /// Windows, programs that start it). FileCheck stands alone.
 const programs = [tool("llvm"), tool("clang"), tool("ld.lld"), tool("llvm-ar"), tool("FileCheck")];
-if (process.platform === "darwin") programs.push(path.join(tree, "lib", "libLTO.dylib"));
 /// xclang's own command, in the archives that carry it (scripts/cli.ts),
 /// built for the release of the archive.
 if (fs.existsSync(tool("xclang"))) {

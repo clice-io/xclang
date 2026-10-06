@@ -50,7 +50,7 @@ runs their programs on Windows x64 and arm64 runners
 | compiler-rt builtins, profile | Supported | Supported | Supported | Unreleased |
 | ASan, TSan, LSan, UBSan, libFuzzer | Supported | Considered | Supported | Unreleased: UBSan; ASan and libFuzzer for x64 |
 | ASan libc++ | Supported | Considered | Supported | none: the STL |
-| linker | ld.lld | ld.lld (MinGW driver) | ld64.lld; `-fuse-ld=ld` for Apple's | lld-link |
+| linker | ld.lld | ld.lld (MinGW driver) | ld64.lld; `-fuse-ld=ld` for Apple's, without LTO | lld-link |
 
 Sanitizers for the MinGW targets are
 [considered](../design/roadmap.md#mingw-sanitizers); those of the MSVC

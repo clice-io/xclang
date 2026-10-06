@@ -130,9 +130,6 @@ fs.rmSync(build, { recursive: true, force: true });
 const args = [
   "-G", "Ninja", "-S", path.join(src, "llvm"), "-B", build,
   ...common.cmakeToolchainArgs(stage, host),
-  /// libLTO.dylib, LTO for the system's ld (-fuse-ld=ld); read by
-  /// clang.cmake.
-  ...(host.os === "darwin" ? ["-DXCLANG_EXTRA_TOOLCHAIN_COMPONENTS=LTO"] : []),
   "-C", path.join(caches, "clang.cmake"),
   ...(mode === "release" ? [] : ["-C", path.join(caches, `${mode}.cmake`)]),
   /// Installed with DESTDIR, then moved out of it (install() below); "/"

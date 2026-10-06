@@ -231,7 +231,7 @@ if(XCLANG_THINLTO_CACHE)
     endif()
     file(MAKE_DIRECTORY "${_xclang_cache}")
     if(APPLE)
-        # ld64.lld (and Apple's ld, with libLTO).
+        # ld64.lld.
         set(_xclang_cache "LINKER:-cache_path_lto,${_xclang_cache}")
     elseif(CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
         # lld-link.

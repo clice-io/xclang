@@ -92,7 +92,11 @@ Programs run on macOS 13.0 and later. The config file passes
 ## ld64.lld
 
 macOS targets link with ld64.lld, on macOS hosts too. `-fuse-ld=ld`
-selects Apple's `ld` instead, with xclang's `lib/libLTO.dylib` for LTO.
+selects Apple's `ld` instead, for objects without LTO. Apple's `ld` reads
+LTO bitcode through Xcode's `libLTO.dylib`, which cannot read the bitcode
+of a newer LLVM. xclang carries no `libLTO.dylib` of its own since
+23.1.2.7, as it carries no LTO plugin for the system linkers of the other
+hosts either; before, it was 120 MB of every macOS host's archive.
 
 Why the LLVM linker and not Apple's:
 

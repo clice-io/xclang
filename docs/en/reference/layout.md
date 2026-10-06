@@ -17,7 +17,6 @@ xclang/
   lib/clang/<major>/       clang's resource headers, compiler-rt's headers,
                            and compiler-rt for every target
   lib/cmake/xclang/        the CMake package
-  lib/libLTO.dylib         macOS hosts: LTO for the system's ld (-fuse-ld=ld)
   libc++/include/c++/v1/   libc++'s headers, the same for every target
   libc++/include/<target>/c++/v1/
                            each target's own __config_site, <target> as
