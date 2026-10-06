@@ -20,6 +20,12 @@ name: main
 #                  needs cli)
 #   release        a draft release of everything (needs the profile)
 #
+# A repack is a release whose compiler and runtimes are an earlier
+# release's: reuse-run and profile-run name that release's run, and the
+# stages are package, the tests and release. With repack-of, the repack
+# job checks every host's archives against that release's: only what the
+# packaging writes differs (repack.yml).
+#
 # With cli (the default), the package stage builds xclang's own command
 # (cli.yml) and puts it into every toolchain archive; msvc and macos test
 # the targets that need it.
@@ -55,6 +61,10 @@ on:
         description: Release revision, the last component of <llvm version>.<revision>
         type: string
         default: "1"
+      repack-of:
+        description: Release whose compiler and runtimes this run reuses; its archives must equal this run's but for the packaging
+        type: string
+        default: ""
       cli:
         description: Put xclang's own command (cli/) into the toolchain archives
         type: boolean
@@ -178,8 +188,21 @@ jobs:
     with:
       dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
 
+  repack:
+    needs: package
+    if: ${{ !cancelled() && inputs.repack-of != '' && needs.package.result != 'failure' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        host: ${{ fromJSON(inputs.hosts) }}
+    uses: ./.github/workflows/repack.yml
+    with:
+      host: ${{ matrix.host }}
+      previous: ${{ inputs.repack-of }}
+      dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
+
   release:
-    needs: [train, package, test, bazel, cmake, msvc, macos]
+    needs: [train, package, test, bazel, cmake, msvc, macos, repack]
     if: ${{ !cancelled() && contains(inputs.stages, 'release') && !contains(needs.*.result, 'failure') }}
     permissions:
       contents: write
