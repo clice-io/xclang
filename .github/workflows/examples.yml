@@ -436,6 +436,8 @@ jobs:
           ls -l bazel-bin/ | tee -a "$GITHUB_STEP_SUMMARY"
           test -s bazel-bin/tool.gsym
           test -s bazel-bin/tool.stripped
+          bazel run @xclang//bazel:llvm-gsymutil -- "$PWD/bazel-bin/tool.gsym"
+          bazel run @xclang//bazel:llvm-gsymutil -- "$PWD/bazel-bin/tool.gsym" | grep '"answer"'
           bazel shutdown
       # docs/en/features/libclang.md and thinlto-cache.md: the libclang of
       # the host, and the ThinLTO cache its .bazelrc names.

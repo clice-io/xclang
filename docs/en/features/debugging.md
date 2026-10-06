@@ -123,10 +123,15 @@ bazel build --strip=never //:tool_symbols //:tool.stripped
 `bazel-bin/tool.gsym` is the GSYM, and `bazel-bin/tool.stripped` the
 program to ship ([strip](#strip)). The fastbuild mode strips debug
 information unless `--strip=never` is given. Without the toolchain on
-`PATH`, `bazel run @xclang//bazel:llvm-gsymutil -- $PWD/bazel-bin/tool.gsym
---address=0x<address>` looks an address up with the toolchain's
-llvm-gsymutil; `bazel run` runs it in another directory, so the path is
-absolute.
+`PATH`, `@xclang//bazel:llvm-gsymutil` is the toolchain's llvm-gsymutil;
+`bazel run` runs it in another directory, so the path is absolute. This
+prints the functions, files and lines of the GSYM, and with
+`--address=0x<address>` looks an address up:
+
+<!-- excerpt: .github/workflows/examples.yml -->
+```sh
+bazel run @xclang//bazel:llvm-gsymutil -- "$PWD/bazel-bin/tool.gsym"
+```
 
 ## Options
 
