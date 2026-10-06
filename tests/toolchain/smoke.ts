@@ -146,10 +146,11 @@ failures.push(...licenses.check(tree, ["xclang", "llvm-project", "zstd", "glibc"
 run(tool("FileCheck"), [write("check.txt", "CHECK: hello\nCHECK-NEXT: world\n"),
   `--input-file=${write("input.txt", "hello\nworld\n")}`]);
 
-/// clang's crash stack trace, by the tree's llvm-symbolizer: every frame in
-/// a module, down to the thread's start (on arm64 Windows the last one was
-/// a system DLL's signed return address, patches/0010).
-{
+/// On Windows, clang's crash stack trace by the tree's llvm-symbolizer: every
+/// frame in a module, down to the thread's start (on arm64 the last one was
+/// a system DLL's signed return address, patches/0010). On macOS the last
+/// one, dyld's, is in none of the images LLVM lists.
+if (windows) {
   const args = ["-fno-crash-diagnostics", "-c", write("crash.c", "#pragma clang __debug crash\n"), "-o", path.join(work, "crash.o")];
   console.log(`+ ${tool("clang")} ${args.join(" ")}`);
   const result = spawnSync(tool("clang"), args, { encoding: "utf8", cwd: work });

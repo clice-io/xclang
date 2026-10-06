@@ -13,10 +13,12 @@ target_include_directories(consumer SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS} ${CLANG_
 target_link_libraries(consumer PRIVATE clangBasic clangLex LLVMSupport)
 
 # A crash's stack trace as a tool on libclang prints it (tests/libclang.ts),
-# with -g for llvm-symbolizer to name the tool's frames.
+# with -g for llvm-symbolizer to name the tool's frames, and -O0: optimized,
+# a function that always traps is noreturn, and the return address of its
+# call names the function after the caller.
 add_executable(stacktrace stacktrace.cpp)
 set_target_properties(stacktrace PROPERTIES CXX_STANDARD 17)
-target_compile_options(stacktrace PRIVATE -fno-rtti -g)
+target_compile_options(stacktrace PRIVATE -fno-rtti -g -O0)
 target_include_directories(stacktrace SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
 target_link_libraries(stacktrace PRIVATE LLVMSupport)
 
