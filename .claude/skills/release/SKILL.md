@@ -24,17 +24,24 @@ before publishing.
 3. **Full run, with a draft.**
    ```sh
    gh workflow run main.yml -R clice-io/xclang --ref exp/<version> \
-     -f stages=runtimes,instrumented,train,toolchain,asan,package,test,bazel,cmake,release \
+     -f stages=runtimes,instrumented,train,toolchain,asan,package,test,bazel,cmake,msvc,macos,release \
      -f revision=<n>
    ```
-   About 3 h. A failed stage is rerun without rebuilding the rest:
-   `-f reuse-run=<run id>` plus only the stages still to do (and
+   About 3 h. `cli` is on by default: the archives carry the `xclang`
+   command (cli.yml builds it), which the `msvc` and `macos` stages need to
+   fetch the vendor SDKs. A failed stage is rerun without rebuilding the
+   rest: `-f reuse-run=<run id>` plus only the stages still to do (and
    `-f profile-run=<run id>` when `release` runs without `train`). The
    `release` stage refuses an existing version.
 4. **Check the draft**: 17 assets (six toolchains, six libclang, two ASan
    libclang, option tables, profdata, SHA256SUMS), and the run's test,
-   bazel and cmake jobs all green. Sizes vs the previous release
-   (`gh release view <prev> --json assets`).
+   bazel, cmake, msvc and macos jobs all green: msvc (msvc.yml) builds for
+   both MSVC targets on Linux, macOS and Windows hosts and runs the
+   programs on Windows x64 and arm64; macos (macos.yml) builds for both
+   macOS targets on the Linux and Windows hosts and runs the programs on
+   macOS arm64 and x86_64. Every toolchain archive has `bin/xclang`
+   (`bin/xclang.exe`), and `xclang --version` names the release. Sizes vs
+   the previous release (`gh release view <prev> --json assets`).
 5. **Notes.** Write them as the earlier releases' are (`gh release view
    23.1.2.4 -R clice-io/xclang`): what it was built by, then what changed
    for users; take the items from CHANGELOG.md's Unreleased section.

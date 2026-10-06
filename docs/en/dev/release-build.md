@@ -74,12 +74,12 @@ of building them again.
 | `macos` | macos.yml | the macOS targets from the Linux and Windows hosts' archives; needs `cli` |
 | `release` | release.yml | a draft release of everything, with `SHA256SUMS` |
 
-With `cli`, the `package` stage also builds the
+With `cli`, on by default, the `package` stage also builds the
 [xclang command](../reference/xclang-command.md) (cli.yml) and puts it into
 every toolchain archive. The command is
-[unreleased](../design/roadmap.md#xclang-command), so no release has been
-built with `cli`. cli.yml also runs on its own, testing the command on every
-host.
+[unreleased](../design/roadmap.md#xclang-command): no published release has
+been built with `cli` yet. cli.yml also runs on its own, testing the command
+on every host.
 
 A draft creates no tag; publishing it does. Publishing starts two
 workflows:

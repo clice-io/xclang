@@ -20,8 +20,9 @@ name: main
 #                  needs cli)
 #   release        a draft release of everything (needs the profile)
 #
-# With cli, the package stage builds xclang's own command (cli.yml) and puts
-# it into every toolchain archive; off until it ships.
+# With cli (the default), the package stage builds xclang's own command
+# (cli.yml) and puts it into every toolchain archive; msvc and macos test
+# the targets that need it.
 
 on:
   workflow_dispatch:
@@ -29,7 +30,7 @@ on:
       stages:
         description: "Comma-separated stages: runtimes, instrumented, train, toolchain, asan, package, test, bazel, cmake, msvc, macos, release"
         type: string
-        default: runtimes,instrumented,train,toolchain,asan,package,test,bazel,cmake
+        default: runtimes,instrumented,train,toolchain,asan,package,test,bazel,cmake,msvc,macos
       runtimes:
         description: JSON list of the runtimes units to build; the others come from reuse-run
         type: string
@@ -57,7 +58,7 @@ on:
       cli:
         description: Put xclang's own command (cli/) into the toolchain archives
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: read
