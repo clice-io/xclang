@@ -18,6 +18,7 @@ again, builds the same thing; libclang's manifest lists them
 | [`0007-lld-macho-empty-section-unwind`](https://github.com/clice-io/xclang/blob/main/patches/0007-lld-macho-empty-section-unwind/README.md) | ld64.lld keeps a function's unwind entry when an empty section's symbol shares its address: ThinLTO programs linked by one clang command catch their exceptions on arm64 macOS |
 | [`0008-preprocessed-raw-string-lines`](https://github.com/clice-io/xclang/blob/main/patches/0008-preprocessed-raw-string-lines/README.md) | `clang -E` writes a raw string literal's CRLF line breaks as `\n`, what they mean, and counts its lines: its output, compiled (build caches such as xmake's), gives the same strings and line numbers |
 | [`0009-textapi-arm64e-x1`](https://github.com/clice-io/xclang/blob/main/patches/0009-textapi-arm64e-x1/README.md) | ld64.lld reads the macOS 27 SDK's `.tbd` stubs, which list `arm64e.x1`: macOS programs link against Xcode 27's SDK (release/23.x's backport, in 23.1.3) |
+| [`0010-windows-stack-trace`](https://github.com/clice-io/xclang/blob/main/patches/0010-windows-stack-trace/README.md) | crash stack traces on arm64 Windows go past system DLL frames, whose return addresses are signed: a crash in a C library callback, or a trace printed from a signal handler, reaches the code that crashed |
 
 0005 (ASan's container checks in libc++'s ODR signature) was in 23.1.2.3 and
 23.1.2.4; the ASan libc++ replaced it in 23.1.2.5.

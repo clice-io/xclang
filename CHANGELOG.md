@@ -30,6 +30,11 @@ the [patches](docs/en/reference/patches.md) of its tag.
   `packages/`, and the xclang command's build script is in `cli/`. What a
   project takes from the repository has not moved: `packages/bazel` for
   `git_override`, `packages/cmake` for FetchContent.
+- Patches: **0010** added, crash stack traces on arm64 Windows go past
+  the frames of system DLLs, which sign their return addresses: a crash in
+  a `qsort` comparator shows the code that sorted, `sys::PrintStackTrace`
+  in a signal handler reaches the crash, and a trace ends at
+  `ntdll!RtlUserThreadStart`, in clang, lld and tools on libclang.
 
 ## [23.1.2.9](https://github.com/clice-io/xclang/releases/tag/23.1.2.9) — 2026-10-06
 
