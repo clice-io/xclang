@@ -2,17 +2,19 @@
 # a release, downloaded once into a cache shared by every build tree and
 # checked against the digest the release's SHA256SUMS gives it.
 #
-#   set(XCLANG_VERSION <version>)
 #   include(FetchContent)
 #   FetchContent_Declare(xclang
 #       GIT_REPOSITORY https://github.com/clice-io/xclang
-#       GIT_TAG ${XCLANG_VERSION})
+#       GIT_TAG latest)
 #   FetchContent_MakeAvailable(xclang)
 #   include(${xclang_SOURCE_DIR}/packages/cmake/xclang.cmake)
 #   project(...)
 #
-#   XCLANG_VERSION    the release whose toolchain to download, e.g. 23.1.2.8;
-#                     by default the one tagging this checkout
+# `latest` is a branch at the newest release's tag; a release's tag, as
+# GIT_TAG, keeps that release.
+#
+#   XCLANG_VERSION    the release whose toolchain to download; by default
+#                     the one tagging this checkout
 #   XCLANG_TARGET     another target to build for (toolchain.cmake)
 #   XCLANG_ROOT       an unpacked xclang to use instead of downloading one
 #   XCLANG_CACHE_DIR  where toolchains are unpacked, <version>/<host> each;

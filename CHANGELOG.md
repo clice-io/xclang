@@ -8,6 +8,14 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+- The newest release without naming it: `xclang = "*"` in a pixi
+  workspace, the toolchain and libclang from `releases/latest` (whose
+  `SHA256SUMS` names the version), and `GIT_TAG latest` for CMake's
+  FetchContent, a branch at the tag of the newest release
+  ([installing](docs/en/guide/install.md), [versions](docs/en/reference/releases.md#versions)).
+  The docs and `examples/` use these; a release's version keeps it. The
+  Bazel module's version stays the oldest release a project takes.
+
 ## [23.1.2.8](https://github.com/clice-io/xclang/releases/tag/23.1.2.8) — 2026-10-06
 
 The compiler and runtimes are 23.1.2.7's.

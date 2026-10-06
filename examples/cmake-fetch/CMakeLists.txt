@@ -1,10 +1,9 @@
 cmake_minimum_required(VERSION 3.28)
 
-set(XCLANG_VERSION 23.1.2.8)
 include(FetchContent)
 FetchContent_Declare(xclang
     GIT_REPOSITORY https://github.com/clice-io/xclang
-    GIT_TAG ${XCLANG_VERSION})
+    GIT_TAG latest)
 FetchContent_MakeAvailable(xclang)
 include(${xclang_SOURCE_DIR}/packages/cmake/xclang.cmake)
 

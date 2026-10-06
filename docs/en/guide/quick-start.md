@@ -33,7 +33,7 @@ channels = ["conda-forge", "https://conda.clice.io"]
 platforms = ["linux-64", "linux-aarch64", "osx-64", "osx-arm64", "win-64", "win-arm64"]
 
 [dependencies]
-xclang = "23.1.2.8.*"
+xclang = "*"
 ```
 
 <!-- excerpt: .github/workflows/examples.yml -->

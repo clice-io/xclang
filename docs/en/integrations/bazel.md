@@ -25,7 +25,10 @@ bazel_dep(name = "rules_cc", version = "0.2.25")
 bazel_dep(name = "xclang", version = "23.1.2.8")
 ```
 
-`.bazelrc` adds the registry, and the options `import std` needs:
+The version is the oldest release the project takes: Bazel uses the newest
+one that a module of the build asks for
+([releases](https://github.com/clice-io/xclang/releases) has the newer
+ones). `.bazelrc` adds the registry, and the options `import std` needs:
 
 <!-- file: examples/bazel/.bazelrc -->
 ```

@@ -53,10 +53,10 @@ channels = ["conda-forge", "https://conda.clice.io"]
 platforms = ["linux-64", "linux-aarch64", "osx-64", "osx-arm64", "win-64", "win-arm64"]
 
 [dependencies]
-xclang = "23.1.2.8.*"
+xclang = "*"
 ```
 
-环境激活时把 xclang 的 `bin/` 放到 `PATH` 最前面，不影响 conda-forge 的编译器。也可以从 [GitHub release](https://github.com/clice-io/xclang/releases) 下载压缩包，解压到任意位置使用。[快速开始](https://docs.clice.io/xclang/guide/quick-start)从这里开始，一路做到为每个目标平台编译程序，以及一个用 `import std` 的 CMake 项目。
+`"*"` 即最新的 release，`pixi.lock` 会一直锁定它，直到 `pixi update`。环境激活时把 xclang 的 `bin/` 放到 `PATH` 最前面，不影响 conda-forge 的编译器。也可以从 [GitHub release](https://github.com/clice-io/xclang/releases) 下载压缩包，解压到任意位置使用。[快速开始](https://docs.clice.io/xclang/guide/quick-start)从这里开始，一路做到为每个目标平台编译程序，以及一个用 `import std` 的 CMake 项目。
 
 ## 使用
 
@@ -78,7 +78,7 @@ target_link_libraries(app PRIVATE xclang::std)
 Bazel，来自 clice 的模块仓库 [bazel.clice.io](https://bazel.clice.io)：
 
 ```starlark
-bazel_dep(name = "xclang", version = "23.1.2.8")
+bazel_dep(name = "xclang", version = "23.1.2.8")  # 或更新的版本
 ```
 
 23.1.2.6 起，换个 platform 就是另一个目标：

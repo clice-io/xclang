@@ -15,7 +15,8 @@
 ///    strip_prefix = "packages/bazel", builds the programs (from the disk
 ///    cache, if HEAD's versions.bzl names the same release).
 /// 4. The copy at the previous release (packages/bazel/bazel/versions.bzl
-///    of --previous) runs every compile and link again: the toolchain's
+///    of --previous; by default the release before the one versions.bzl
+///    names) runs every compile and link again: the toolchain's
 ///    files are the actions' inputs. (Bazel's own module maps of the same
 ///    scans, with its tools built alike, may come from the cache.)
 /// 5. lld's --gc-sections in optimized links: on by default for Linux,
@@ -51,7 +52,7 @@ import * as common from "../../scripts/common.ts";
 const { values } = parseArgs({
   options: {
     "disk-cache": { type: "string" },
-    previous: { type: "string", default: "23.1.2.7" },
+    previous: { type: "string" },
   },
 });
 if (!values["disk-cache"]) common.fail("--disk-cache <dir> [--previous <version>]");
@@ -176,6 +177,23 @@ const versionsBzl = path.join(copy, "packages", "bazel", "bazel", "versions.bzl"
 const versions = fs.readFileSync(versionsBzl, "utf8").replaceAll("\r\n", "\n");
 const version = /^VERSION = "(.+)"$/m.exec(versions)?.[1];
 if (!version) common.fail(`no VERSION in ${versionsBzl}`);
+/// Versions compared part by part.
+const older = (a: string, b: string) => {
+  const [x, y] = [a, b].map((v) => v.split(".").map(Number));
+  const i = x!.findIndex((n, k) => n !== y![k]);
+  return i >= 0 && x![i]! < y![i]!;
+};
+if (!values.previous) {
+  const token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
+  const response = await fetch("https://api.github.com/repos/clice-io/xclang/releases?per_page=100", {
+    headers: { "User-Agent": "xclang/ci", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  });
+  if (!response.ok) common.fail(`the releases: ${response.status}`);
+  const tags = (await response.json() as { tag_name: string; draft: boolean }[])
+    .filter((r) => !r.draft && /^\d+\.\d+\.\d+\.\d+$/.test(r.tag_name) && older(r.tag_name, version)).map((r) => r.tag_name);
+  values.previous = tags.reduce((a, b) => (older(a, b) ? b : a), tags[0] ?? common.fail(`no release before ${version}`));
+  console.log(`the release before ${version}: ${values.previous}`);
+}
 function consumer(name: string, override: string, args: string[]): Processes {
   const dir = path.join(path.dirname(copy), name);
   fs.cpSync(tests, dir, {
@@ -186,7 +204,7 @@ function consumer(name: string, override: string, args: string[]): Processes {
   const local = /^local_path_override\([^)]*\)\n/m;
   if (!local.test(module)) common.fail("no local_path_override in tests/bazel/MODULE.bazel");
   fs.writeFileSync(path.join(dir, "MODULE.bazel"), module.replace(local, override)
-    .replace(/^(bazel_dep\(name = "xclang", version = )"[^"]*"/m, `$1"${version}"`));
+    .replace(/^bazel_dep\(name = "xclang"(, version = "[^"]*")?\)/m, `bazel_dep(name = "xclang", version = "${version}")`));
   const processes = bazel(dir, args);
   run(dir, ["clean", "--expunge"]);
   return processes;
@@ -239,11 +257,6 @@ common.run(process.execPath, [path.join(copy, "scripts", "bazel.ts"), "versions"
 /// Releases before 23.1.2.5 link macOS programs with the system's ld, which
 /// this module no longer points at their libLTO.dylib: libclang's ThinLTO
 /// bitcode does not link with them.
-const older = (a: string, b: string) => {
-  const [x, y] = [a, b].map((v) => v.split(".").map(Number));
-  const i = x!.findIndex((n, k) => n !== y![k]);
-  return i >= 0 && x![i]! < y![i]!;
-};
 const previousTargets = process.platform === "darwin" && older(values.previous!, "23.1.2.5")
   ? PROGRAMS : TARGETS;
 const log = path.join(path.dirname(copy), "previous.json");

@@ -155,18 +155,18 @@ cmake --build build-macos
 
 A project can download the toolchain itself, before `project()`, so it
 configures on a machine with nothing but CMake and Ninja. FetchContent
-fetches this repository at the tag of the release, and
-`packages/cmake/xclang.cmake` downloads the host toolchain of that release:
+fetches this repository at `latest`, a branch at the tag of the newest
+release, and `packages/cmake/xclang.cmake` downloads the host toolchain of
+that release. A release's tag, as `GIT_TAG`, keeps that release:
 
 <!-- file: examples/cmake-fetch/CMakeLists.txt -->
 ```cmake
 cmake_minimum_required(VERSION 3.28)
 
-set(XCLANG_VERSION 23.1.2.8)
 include(FetchContent)
 FetchContent_Declare(xclang
     GIT_REPOSITORY https://github.com/clice-io/xclang
-    GIT_TAG ${XCLANG_VERSION})
+    GIT_TAG latest)
 FetchContent_MakeAvailable(xclang)
 include(${xclang_SOURCE_DIR}/packages/cmake/xclang.cmake)
 

@@ -25,14 +25,21 @@ Requires: a GitHub Actions workflow, with the hosted runners of
 
 **CMake with FetchContent.** The project downloads the toolchain itself
 ([CMake](cmake.md#without-xclang-installed)). Keep the download between
-runs by putting `XCLANG_CACHE_DIR` in a cache entry keyed on the release:
+runs by putting `XCLANG_CACHE_DIR` in a cache entry keyed on the release,
+which the newest release's `SHA256SUMS` names:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```yaml
+- name: The latest release
+  id: xclang
+  shell: bash
+  run: |
+    curl -sSfLO https://github.com/clice-io/xclang/releases/latest/download/SHA256SUMS
+    echo "version=$(sed -n 's/^[0-9a-f]*  llvm-option-inc-\(.*\)\.tar\.xz$/\1/p' SHA256SUMS)" >> "$GITHUB_OUTPUT"
 - uses: actions/cache@v6
   with:
     path: ${{ runner.temp }}/xclang
-    key: xclang-${{ runner.os }}-${{ runner.arch }}-23.1.2.8
+    key: xclang-${{ runner.os }}-${{ runner.arch }}-${{ steps.xclang.outputs.version }}
 - name: Build
   env:
     XCLANG_CACHE_DIR: ${{ runner.temp }}/xclang
@@ -86,15 +93,15 @@ time of an entry when it uses it, so the cache holds what the current tree
 needs.
 
 **The ThinLTO cache alone**, for CMake, or for a project without the disk
-cache: key it on the xclang release.
+cache: key it on the xclang release, as the step above finds it.
 
 <!-- not run: xclang's examples keep no ThinLTO cache between runs -->
 ```yaml
 - uses: actions/cache@v6
   with:
     path: ${{ runner.os == 'Windows' && 'C:/xclang-thinlto' || '/var/tmp/xclang-thinlto' }}
-    key: thinlto-${{ runner.os }}-${{ runner.arch }}-xclang-23.1.2.8-${{ github.sha }}
-    restore-keys: thinlto-${{ runner.os }}-${{ runner.arch }}-xclang-23.1.2.8-
+    key: thinlto-${{ runner.os }}-${{ runner.arch }}-xclang-${{ steps.xclang.outputs.version }}-${{ github.sha }}
+    restore-keys: thinlto-${{ runner.os }}-${{ runner.arch }}-xclang-${{ steps.xclang.outputs.version }}-
 ```
 
 Restoring a cache sets the last access of every file to the time of the

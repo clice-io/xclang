@@ -17,7 +17,7 @@ and the other tools ([archive layout](../reference/layout.md)).
 ## pixi and conda
 
 xclang is in the [clice conda channel](https://conda.clice.io). With
-pixi, a workspace names the channel and the release:
+pixi, a workspace names the channel and the package:
 
 <!-- file: examples/quickstart/pixi.toml -->
 ```toml
@@ -27,7 +27,7 @@ channels = ["conda-forge", "https://conda.clice.io"]
 platforms = ["linux-64", "linux-aarch64", "osx-64", "osx-arm64", "win-64", "win-arm64"]
 
 [dependencies]
-xclang = "23.1.2.8.*"
+xclang = "*"
 ```
 
 <!-- excerpt: .github/workflows/examples.yml -->
@@ -41,8 +41,10 @@ pixi install
   conda-forge stay as they are.
 - There is one package per host: `linux-64`, `linux-aarch64`, `osx-64`,
   `osx-arm64`, `win-64` and `win-arm64`.
-- `23.1.2.8.*` takes the newest build of the release. The build number
-  counts packaging fixes ([versions](../reference/releases.md#versions)).
+- `*` takes the newest release, and `pixi.lock` keeps the one installed
+  until `pixi update`. `"<version>.*"` keeps one release, its newest
+  build: the build number counts packaging fixes
+  ([versions](../reference/releases.md#versions)).
 - `llvm-option-inc`, a noarch package, holds the option tables in
   `$PREFIX/include/llvm-options-td`.
 
@@ -54,13 +56,15 @@ xclang is not a compiler for building conda-forge packages
 Every [GitHub release](https://github.com/clice-io/xclang/releases) has
 the toolchain for each host, `xclang-<version>-<host>.tar.xz`, 86 to
 94 MB. It unpacks anywhere, and is used from there: the toolchain
-directory is `xclang/`. On Linux:
+directory is `xclang/`. The `SHA256SUMS` of the newest release names its
+archives, and so its version. On Linux:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
-v=23.1.2.8 h=x86_64-unknown-linux-gnu
+h=x86_64-unknown-linux-gnu
+curl -LO https://github.com/clice-io/xclang/releases/latest/download/SHA256SUMS
+v=$(sed -n "s/^[0-9a-f]*  xclang-\(.*\)-$h\.tar\.xz$/\1/p" SHA256SUMS)
 curl -LO https://github.com/clice-io/xclang/releases/download/$v/xclang-$v-$h.tar.xz
-curl -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
 sha256sum -c --ignore-missing SHA256SUMS
 tar -xf xclang-$v-$h.tar.xz
 xclang/bin/clang++ --target=aarch64-w64-mingw32 hello.cpp -o hello.exe
@@ -72,16 +76,19 @@ whose `tar` is the one of the system (`C:\Windows\System32\tar.exe`):
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```powershell
-$v = "23.1.2.8"; $h = "x86_64-w64-mingw32"
+$h = "x86_64-w64-mingw32"
+curl.exe -LO https://github.com/clice-io/xclang/releases/latest/download/SHA256SUMS
+$v = (Select-String -Path SHA256SUMS -Pattern "  xclang-(.+)-$h\.tar\.xz$").Matches[0].Groups[1].Value
 curl.exe -LO https://github.com/clice-io/xclang/releases/download/$v/xclang-$v-$h.tar.xz
-curl.exe -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
 $sum = (Get-FileHash xclang-$v-$h.tar.xz -Algorithm SHA256).Hash.ToLower()
 if (-not (Select-String -SimpleMatch -Quiet "$sum  xclang-$v-$h.tar.xz" SHA256SUMS)) { throw "sha256 mismatch" }
 tar -xf xclang-$v-$h.tar.xz
 xclang\bin\clang++ --target=aarch64-unknown-linux-gnu hello.cpp -o hello
 ```
 
-`hello.cpp` is the one of the [quick start](quick-start.md). Put
+For one release, set `v` to its version and download its `SHA256SUMS`
+from `releases/download/$v`. `hello.cpp` is the one of the
+[quick start](quick-start.md). Put
 `xclang/bin` in `PATH`, or name the programs by their path. A Windows
 archive holds no symbolic links, so it unpacks without extra rights
 ([launchers](../design/windows.md#the-launchers)). The other assets of a
@@ -95,17 +102,18 @@ it configures on a machine with nothing but CMake and Ninja:
 
 <!-- excerpt: examples/cmake-fetch/CMakeLists.txt -->
 ```cmake
-set(XCLANG_VERSION 23.1.2.8)
 include(FetchContent)
 FetchContent_Declare(xclang
     GIT_REPOSITORY https://github.com/clice-io/xclang
-    GIT_TAG ${XCLANG_VERSION})
+    GIT_TAG latest)
 FetchContent_MakeAvailable(xclang)
 include(${xclang_SOURCE_DIR}/packages/cmake/xclang.cmake)
 ```
 
-It checks the archive against the `SHA256SUMS` of the release, and unpacks
-it into the cache of the user, once per release and host. The whole
+`latest` is a branch at the tag of the newest release; a release's tag
+keeps that release. It checks the archive against the `SHA256SUMS` of the
+release, and unpacks it into the cache of the user, once per release and
+host. The whole
 project is in [CMake](../integrations/cmake.md#without-xclang-installed).
 
 ## Bazel
@@ -126,7 +134,9 @@ Then depend on xclang in `MODULE.bazel`:
 bazel_dep(name = "xclang", version = "23.1.2.8")
 ```
 
-The module downloads the host archive by the sha256 that its release pins,
+The version is the oldest release the project takes: Bazel uses the
+newest one that a module of the build asks for. The module downloads the
+host archive by the sha256 that its release pins,
 and registers it as the C++ toolchain for every target. The whole project
 is in [Bazel](../integrations/bazel.md#set-up-a-project).
 
@@ -140,7 +150,7 @@ the clang version and `InstalledDir`, the `bin/` it runs from:
 pixi run clang++ --version
 ```
 
-The release, `23.1.2.8`, is tagged `<llvm version>.<revision>`
+`xclang --version` names the release, tagged `<llvm version>.<revision>`
 ([versions](../reference/releases.md#versions)). What each release changed
 is in the
 [CHANGELOG](https://github.com/clice-io/xclang/blob/main/CHANGELOG.md).

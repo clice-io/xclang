@@ -7,7 +7,7 @@ download. What each release changed is in the
 ## Versions
 
 A release is tagged `<llvm version>.<revision>`. `23.1.2.1` is the first
-build of LLVM 23.1.2, and `23.1.2.8` the eighth. The version sorts the way
+build of LLVM 23.1.2, `23.1.2.2` the second. The version sorts the way
 conda, Bazel and CMake sort versions, and says which LLVM it is.
 
 Nothing published is ever replaced. A fix to a release, even one that only
@@ -20,11 +20,14 @@ A fix of the packaging alone, such as the Bazel module, the CMake package
 or the config files, is a repack: the next revision, whose compiler and
 runtimes are those of the release before it, the same bytes.
 
-| where | version |
-|---|---|
-| GitHub release and tag | `23.1.2.8` |
-| conda package | `23.1.2.8`; the build number counts packaging fixes of the release, each the same toolchain packaged again |
-| Bazel module | `23.1.2.8` |
+Every channel has the release under its version, and a way to the newest:
+
+| where | version | the newest |
+|---|---|---|
+| GitHub release and tag | `<version>` | `releases/latest`, whose `SHA256SUMS` names its archives |
+| conda package | `<version>`; the build number counts packaging fixes of the release, each the same toolchain packaged again | `xclang = "*"` |
+| Bazel module | `<version>` | Bazel takes the newest version a module of the build asks for |
+| CMake FetchContent | the tag `<version>` | the branch `latest`, at the tag of the newest release |
 
 ## Assets
 
@@ -47,11 +50,12 @@ The hosts are `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`,
 ## Checking a Download
 
 The workflow that drafts the release writes `SHA256SUMS` from the files it
-uploads. This checks a download against it:
+uploads. This checks a download of the newest release against it (`gh
+release download <version>` for another):
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
-gh release download 23.1.2.8 -R clice-io/xclang -p SHA256SUMS -p 'llvm-option-inc-*'
+gh release download -R clice-io/xclang -p SHA256SUMS -p 'llvm-option-inc-*'
 sha256sum -c --ignore-missing SHA256SUMS
 ```
 

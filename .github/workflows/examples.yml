@@ -1,17 +1,18 @@
 name: examples
 
 # The docs' commands and examples/, run as written, as a user runs them, on
-# a machine of every host: against the published release the examples name,
-# from where users get it (conda.clice.io with pixi, the GitHub release's
-# archives, the tag with FetchContent, bazel.clice.io). A page's command
+# a machine of every host: against the latest release, from where users get
+# it (conda.clice.io with pixi, the GitHub release's archives, the `latest`
+# branch with FetchContent; bazel.clice.io, at the release the Bazel
+# examples ask for at least). A page's command
 # block is lines of a step here, which tests/docs/docs.ts checks
 # (`<!-- excerpt: .github/workflows/examples.yml -->`); the steps check what
 # the commands print against the examples' expected.txt. Programs built for
 # another target are uploaded, and on-target runs them on a runner of their
 # target, with nothing installed there.
 #
-#   by hand          after a release is on conda.clice.io and bazel.clice.io
-#                    and examples/ name it (the release skill)
+#   by hand          after a release is on conda.clice.io and the `latest`
+#                    branch names it (the release skill)
 #   a push           that changes examples/ or this file, on any branch
 
 on:
@@ -23,9 +24,6 @@ on:
 
 permissions:
   contents: read
-
-env:
-  VERSION: "23.1.2.8"
 
 jobs:
   # docs/en/guide/quick-start.md, install.md and cross-compiling.md with
@@ -230,11 +228,18 @@ jobs:
         with:
           python-version: "3.13"
       - run: python -m pip install "cmake>=3.28" "ninja>=1.11"
-      # docs/en/integrations/ci.md: the downloaded toolchain kept between runs.
+      # docs/en/integrations/ci.md: the downloaded toolchain kept between
+      # runs, one cache entry per release.
+      - name: The latest release
+        id: xclang
+        shell: bash
+        run: |
+          curl -sSfLO https://github.com/clice-io/xclang/releases/latest/download/SHA256SUMS
+          echo "version=$(sed -n 's/^[0-9a-f]*  llvm-option-inc-\(.*\)\.tar\.xz$/\1/p' SHA256SUMS)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/xclang
-          key: xclang-${{ runner.os }}-${{ runner.arch }}-23.1.2.8
+          key: xclang-${{ runner.os }}-${{ runner.arch }}-${{ steps.xclang.outputs.version }}
       - name: Build
         env:
           XCLANG_CACHE_DIR: ${{ runner.temp }}/xclang
@@ -283,9 +288,10 @@ jobs:
         shell: bash
         working-directory: examples/quickstart
         run: |
-          v=23.1.2.8 h=x86_64-unknown-linux-gnu
+          h=x86_64-unknown-linux-gnu
+          curl -LO https://github.com/clice-io/xclang/releases/latest/download/SHA256SUMS
+          v=$(sed -n "s/^[0-9a-f]*  xclang-\(.*\)-$h\.tar\.xz$/\1/p" SHA256SUMS)
           curl -LO https://github.com/clice-io/xclang/releases/download/$v/xclang-$v-$h.tar.xz
-          curl -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
           sha256sum -c --ignore-missing SHA256SUMS
           tar -xf xclang-$v-$h.tar.xz
           xclang/bin/clang++ --target=aarch64-w64-mingw32 hello.cpp -o hello.exe
@@ -296,9 +302,10 @@ jobs:
         shell: bash
         working-directory: examples/quickstart
         run: |
-          v=$VERSION h=${{ matrix.host }}
+          h=${{ matrix.host }}
+          curl -LO https://github.com/clice-io/xclang/releases/latest/download/SHA256SUMS
+          v=$(sed -n "s/^[0-9a-f]*  xclang-\(.*\)-$h\.tar\.xz$/\1/p" SHA256SUMS)
           curl -LO https://github.com/clice-io/xclang/releases/download/$v/xclang-$v-$h.tar.xz
-          curl -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
           if [[ "$RUNNER_OS" == macOS ]]; then
             shasum -a 256 -c --ignore-missing SHA256SUMS
           else
@@ -315,9 +322,10 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
-          $v = "23.1.2.8"; $h = "x86_64-w64-mingw32"
+          $h = "x86_64-w64-mingw32"
+          curl.exe -LO https://github.com/clice-io/xclang/releases/latest/download/SHA256SUMS
+          $v = (Select-String -Path SHA256SUMS -Pattern "  xclang-(.+)-$h\.tar\.xz$").Matches[0].Groups[1].Value
           curl.exe -LO https://github.com/clice-io/xclang/releases/download/$v/xclang-$v-$h.tar.xz
-          curl.exe -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
           $sum = (Get-FileHash xclang-$v-$h.tar.xz -Algorithm SHA256).Hash.ToLower()
           if (-not (Select-String -SimpleMatch -Quiet "$sum  xclang-$v-$h.tar.xz" SHA256SUMS)) { throw "sha256 mismatch" }
           tar -xf xclang-$v-$h.tar.xz
@@ -332,9 +340,10 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
-          $v = $env:VERSION; $h = "${{ matrix.host }}"
+          $h = "${{ matrix.host }}"
+          curl.exe -LO https://github.com/clice-io/xclang/releases/latest/download/SHA256SUMS
+          $v = (Select-String -Path SHA256SUMS -Pattern "  xclang-(.+)-$h\.tar\.xz$").Matches[0].Groups[1].Value
           curl.exe -LO https://github.com/clice-io/xclang/releases/download/$v/xclang-$v-$h.tar.xz
-          curl.exe -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
           $sum = (Get-FileHash xclang-$v-$h.tar.xz -Algorithm SHA256).Hash.ToLower()
           if (-not (Select-String -SimpleMatch -Quiet "$sum  xclang-$v-$h.tar.xz" SHA256SUMS)) { throw "sha256 mismatch" }
           tar -xf xclang-$v-$h.tar.xz
@@ -348,7 +357,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download 23.1.2.8 -R clice-io/xclang -p SHA256SUMS -p 'llvm-option-inc-*'
+          gh release download -R clice-io/xclang -p SHA256SUMS -p 'llvm-option-inc-*'
           sha256sum -c --ignore-missing SHA256SUMS
 
   # docs/en/integrations/bazel.md and the Bazel sections of the feature
@@ -590,9 +599,10 @@ jobs:
         run: |
           pixi install
           export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
-          v=23.1.2.8 h=x86_64-unknown-linux-gnu
+          h=x86_64-unknown-linux-gnu
+          curl -LO https://github.com/clice-io/xclang/releases/latest/download/SHA256SUMS
+          v=$(sed -n "s/^[0-9a-f]*  libclang-\(.*\)-$h\.tar\.xz$/\1/p" SHA256SUMS)
           curl -LO https://github.com/clice-io/xclang/releases/download/$v/libclang-$v-$h.tar.xz
-          curl -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
           sha256sum -c --ignore-missing SHA256SUMS
           tar -xf libclang-$v-$h.tar.xz
           start=$SECONDS
@@ -617,9 +627,10 @@ jobs:
         run: |
           pixi install
           export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
-          v=$VERSION h=${{ matrix.host }}
+          h=${{ matrix.host }}
+          curl -LO https://github.com/clice-io/xclang/releases/latest/download/SHA256SUMS
+          v=$(sed -n "s/^[0-9a-f]*  libclang-\(.*\)-$h\.tar\.xz$/\1/p" SHA256SUMS)
           curl -LO https://github.com/clice-io/xclang/releases/download/$v/libclang-$v-$h.tar.xz
-          curl -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
           prefix=$PWD/libclang cache=/var/tmp/xclang-thinlto
           if [[ "$RUNNER_OS" == macOS ]]; then
             shasum -a 256 -c --ignore-missing SHA256SUMS
@@ -760,9 +771,9 @@ jobs:
       - name: Toolchain
         working-directory: ${{ runner.temp }}
         run: |
-          a=xclang-$VERSION-${{ matrix.host }}.tar.xz
-          curl -sSfLO https://github.com/clice-io/xclang/releases/download/$VERSION/$a
-          curl -sSfLO https://github.com/clice-io/xclang/releases/download/$VERSION/SHA256SUMS
+          curl -sSfLO https://github.com/clice-io/xclang/releases/latest/download/SHA256SUMS
+          a=$(grep -o "xclang-[0-9.]*-${{ matrix.host }}\.tar\.xz\$" SHA256SUMS)
+          curl -sSfLO "https://github.com/clice-io/xclang/releases/download/$(echo "$a" | cut -d- -f2)/$a"
           want=$(grep " $a\$" SHA256SUMS | cut -d' ' -f1)
           got=$( (sha256sum "$a" 2> /dev/null || shasum -a 256 "$a") | cut -d' ' -f1)
           [ "$got" = "$want" ] || { echo "::error::$a: sha256 $got, expected $want"; exit 1; }

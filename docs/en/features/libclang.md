@@ -54,13 +54,16 @@ It prints the clang version, then `tokens 9 zlib 1 zstd 1`.
 
 libclang comes as a release archive, not from conda or FetchContent. In
 `examples/libclang`, in a `pixi shell` after `pixi install`, this
-downloads, checks and unpacks it on Linux x64:
+downloads, checks and unpacks the newest release's on Linux x64, the
+release pixi installed too (see
+[the rules](#rules-for-code-that-links-it)):
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
-v=23.1.2.8 h=x86_64-unknown-linux-gnu
+h=x86_64-unknown-linux-gnu
+curl -LO https://github.com/clice-io/xclang/releases/latest/download/SHA256SUMS
+v=$(sed -n "s/^[0-9a-f]*  libclang-\(.*\)-$h\.tar\.xz$/\1/p" SHA256SUMS)
 curl -LO https://github.com/clice-io/xclang/releases/download/$v/libclang-$v-$h.tar.xz
-curl -LO https://github.com/clice-io/xclang/releases/download/$v/SHA256SUMS
 sha256sum -c --ignore-missing SHA256SUMS
 tar -xf libclang-$v-$h.tar.xz
 ```
