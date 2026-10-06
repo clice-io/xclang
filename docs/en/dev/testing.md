@@ -310,5 +310,5 @@ numbers are in [PGO](../design/pgo.md#what-it-buys).
 | bazel.yml, on publishing | [37481563479](https://github.com/clice-io/xclang/actions/runs/37481563479) |
 | cmake.yml, on publishing | [37481563519](https://github.com/clice-io/xclang/actions/runs/37481563519) |
 | conda.yml | [37481672889](https://github.com/clice-io/xclang/actions/runs/37481672889) |
-| examples.yml | 23.1.2.6's: [37354730630](https://github.com/clice-io/xclang/actions/runs/37354730630); the `ccache` job: [37356757050](https://github.com/clice-io/xclang/actions/runs/37356757050) |
+| examples.yml | [37494316755](https://github.com/clice-io/xclang/actions/runs/37494316755) |
 | bench.yml | 23.1.2.6's: [37356476645](https://github.com/clice-io/xclang/actions/runs/37356476645) |
