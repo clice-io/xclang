@@ -22,7 +22,11 @@ clang++ -O2 --target=aarch64-w64-mingw32 hello.cpp -o hello-windows-arm64.exe
 
 On macOS hosts, `--target=aarch64-apple-darwin` and
 `--target=x86_64-apple-darwin` build against Xcode's SDK, found by `xcrun`
-or given with `-isysroot`. clang's other spellings of the targets, such as
+or given with `-isysroot`. On Linux and Windows hosts they build against
+the SDK that `xclang sdk fetch macos` fetched into the toolchain, which is
+[unreleased](../design/roadmap.md#macos-any-host)
+([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)). clang's
+other spellings of the targets, such as
 `x86_64-pc-linux-gnu` or `arm64-apple-macos`, reach the same config files.
 
 The config file of each target decides what a command does not have to.

@@ -43,16 +43,16 @@ cmake -G Ninja -B build --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake [-D
 
 | variable | |
 |---|---|
-| `XCLANG_TARGET` | `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-w64-mingw32`, `aarch64-w64-mingw32`, `aarch64-apple-darwin` or `x86_64-apple-darwin`; the host's by default. macOS targets build on macOS only. [Unreleased](../design/roadmap.md#msvc): `x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc` |
+| `XCLANG_TARGET` | `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-w64-mingw32`, `aarch64-w64-mingw32`, `aarch64-apple-darwin` or `x86_64-apple-darwin`; the host's by default. In releases, macOS targets build on macOS only; [unreleased](../design/roadmap.md#macos-any-host), on Linux and Windows too. [Unreleased](../design/roadmap.md#msvc): `x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc` |
 | `XCLANG_ROOT` | the toolchain directory, when the file is used from outside one |
 
 It sets the C, C++ and ASM compilers, and the binary tools, to those of the
 toolchain directory: `llvm-ar`, `llvm-ranlib`, `llvm-nm`, `llvm-objcopy`,
 `llvm-objdump`, `llvm-readelf`, `llvm-strip`, `llvm-addr2line`,
 `llvm-dlltool`; for Windows targets `llvm-windres` as the RC compiler; for
-macOS targets `llvm-libtool-darwin`, `llvm-lipo` and
-`llvm-install-name-tool` (Apple's `libtool` cannot read the bitcode of a
-newer LLVM).
+macOS targets the Objective-C compilers (clang and clang++),
+`llvm-libtool-darwin`, `llvm-lipo` and `llvm-install-name-tool` (Apple's
+`libtool` cannot read the bitcode of a newer LLVM).
 
 For a Linux or Windows target other than the host, it also sets
 `CMAKE_SYSTEM_NAME`, `CMAKE_SYSTEM_PROCESSOR`,
@@ -71,6 +71,14 @@ on the output of the target's clang. `CMAKE_MSVC_RUNTIME_LIBRARY` is
 `MultiThreadedDebugDLL` gets `/nodefaultlib:ucrt.lib`. The SDK is
 `CMAKE_FIND_ROOT_PATH`, except on a Windows host for its own architecture,
 which is no cross build to CMake.
+
+For a macOS target on a Linux or Windows host
+([unreleased](../design/roadmap.md#macos-any-host)), `CMAKE_OSX_SYSROOT`
+is the one given, else `SDKROOT`, else the toolchain's `sdk/macos`, and it
+stops if that has no SDK. It sets `CMAKE_SYSTEM_NAME` to `Darwin`,
+`CMAKE_SYSTEM_PROCESSOR` and `CMAKE_OSX_ARCHITECTURES` to `arm64` or
+`x86_64`, `CMAKE_<LANG>_COMPILER_TARGET` (C, C++, ASM, Objective-C), and
+the SDK as `CMAKE_FIND_ROOT_PATH`, with the modes above.
 
 ## `xclang.cmake`
 

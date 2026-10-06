@@ -77,9 +77,11 @@ cmake -G Ninja -B build-aarch64-w64-mingw32 --toolchain $XCLANG/lib/cmake/xclang
 cmake --build build-aarch64-w64-mingw32
 ```
 
-- Linux and Windows targets build on every host. macOS targets build on
-  macOS hosts only ([why](../design/macos.md#the-sdk-is-xcode-s)). To
-  CMake, the other macOS architecture is `CMAKE_OSX_ARCHITECTURES`, not
+- Linux and Windows targets build on every host. Released, macOS targets
+  build on macOS hosts only ([why](../design/macos.md#the-sdk-is-xcode-s));
+  from Linux and Windows hosts they are
+  [unreleased](#build-for-macos-from-linux-or-windows). On a macOS host,
+  the other macOS architecture is `CMAKE_OSX_ARCHITECTURES` to CMake, not
   cross-compiling.
 - CMake looks for the libraries, headers and packages of another target
   in its sysroot only. Name a dependency built for the target with
@@ -120,6 +122,42 @@ cmake --build build-msvc
 - A link writes a PDB when it has `-g`: Debug and RelWithDebInfo do; a
   target given `-g` in another configuration needs it in
   `target_link_options` too.
+
+## Build for macOS from Linux or Windows
+
+::: warning Unreleased
+[macOS targets from Linux and Windows hosts](../design/roadmap.md#macos-any-host)
+are in no release.
+:::
+
+`aarch64-apple-darwin` and `x86_64-apple-darwin` build on Linux and Windows
+hosts with Apple's SDK that the toolchain's `xclang` fetched
+([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)). Without
+it, the toolchain file stops and says how to fetch it:
+
+<!-- not run: unreleased; macos.yml builds tests/cmake this way, through tests/macos.ts -->
+```sh
+$XCLANG/bin/xclang sdk fetch macos --accept-license
+cmake -G Ninja -B build-macos --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake \
+    -DXCLANG_TARGET=aarch64-apple-darwin
+cmake --build build-macos
+```
+
+- `APPLE` is true, `CMAKE_SYSTEM_NAME` is `Darwin`, and
+  `CMAKE_OSX_ARCHITECTURES` is the target's architecture. No CMake step
+  needs `xcrun` or Xcode: `install_name_tool`, `lipo` and `libtool` are
+  the toolchain's `llvm-install-name-tool`, `llvm-lipo` and
+  `llvm-libtool-darwin`, and `xclang_debug_symbols` makes the dSYM with
+  its `dsymutil`.
+- `CMAKE_OSX_SYSROOT` is the SDK, as on a macOS host: the one given, else
+  `SDKROOT`, else the toolchain's `sdk/macos`. CMake passes it as
+  `-isysroot`, and looks for libraries, headers and packages in it only.
+- `CMAKE_OSX_DEPLOYMENT_TARGET` works as on a macOS host; without it,
+  programs run on macOS 13.0 and later.
+- One build is one architecture, since each has its config file. A
+  universal program is two builds and `llvm-lipo -create`.
+- Objective-C (`OBJC`, `OBJCXX`) compiles with the toolchain's clang.
+- Tests run on a Mac, not on the host.
 
 ## Without xclang Installed
 
@@ -271,7 +309,7 @@ subdirectories ([the ThinLTO cache](../features/thinlto-cache.md)).
 | | status |
 |---|---|
 | [MSVC-ABI targets](../design/roadmap.md#msvc) for `XCLANG_TARGET` | Unreleased |
-| [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | In research |
+| [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) for `XCLANG_TARGET` | Unreleased |
 | [Relative paths in debug information](../design/roadmap.md#cmake-relative-paths), as Bazel builds have | Planned |
 | [Fetched targets](../design/roadmap.md#fetched-targets-in-build-systems) beyond the six | Planned |
 

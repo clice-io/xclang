@@ -39,9 +39,9 @@ Not supported yet, each with its status in the roadmap:
 - **MSVC-ABI targets**, against Microsoft's CRT, STL and Windows SDK, which
   the user fetches with the `xclang` command:
   [unreleased](https://docs.clice.io/xclang/design/roadmap#msvc).
-- **macOS targets from Linux or Windows**, with Apple's SDK fetched by the
-  user:
-  [in research](https://docs.clice.io/xclang/design/roadmap#macos-any-host).
+- **macOS targets from Linux or Windows**, with Apple's SDK, which the user
+  fetches with the `xclang` command:
+  [unreleased](https://docs.clice.io/xclang/design/roadmap#macos-any-host).
 - **musl targets** (Linux x64, arm64):
   [planned](https://docs.clice.io/xclang/design/roadmap#musl). Other Linux
   architectures, WebAssembly, Android, FreeBSD and bare metal:

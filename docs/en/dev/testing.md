@@ -33,6 +33,7 @@ here instead of naming tests.
 | docs.yml | pushes that change the docs, `examples/`, `tests/docs.ts` or a workflow, on every branch | `tests/docs.ts`; on `main`, then publishing to docs.clice.io |
 | cli.yml | by hand, and with `cli` in main.yml | the [unreleased](../design/roadmap.md#xclang-command) `xclang` command: `tests/cli.ts`, `tests/cargo.ts` |
 | main.yml, stage `msvc` (msvc.yml) | with `cli`, as the archives then carry `xclang` | the [unreleased](../design/roadmap.md#msvc) MSVC targets: `tests/msvc.ts` |
+| main.yml, stage `macos` (macos.yml) | with `cli` | the [unreleased](../design/roadmap.md#macos-any-host) macOS targets from Linux and Windows hosts: `tests/macos.ts` |
 | bench.yml | by hand, for the notes or the docs | compile speed against LLVM's and Apple's builds (`tests/bench.ts`) |
 
 How the stages fit together is in the [build pipeline](release-build.md).
@@ -207,6 +208,37 @@ x64 hosts. On each, `tests/msvc.ts`:
 The programs of every host then run on windows-2025 and windows-11-arm,
 and kotatsu's tests in its source tree. Only programs leave a job, never
 anything of the SDK.
+
+## macOS from Linux and Windows
+
+macOS targets from Linux and Windows hosts are
+[unreleased](../design/roadmap.md#macos-any-host). macos.yml tests them
+with a run's archives, on Linux x64 and arm64 and Windows x64 and arm64
+hosts. On each, `tests/macos.ts`:
+
+- checks that clang without the SDK names `sdk/macos`, and that the CMake
+  package stops and says how to fetch it;
+- fetches the SDK of `macos-latest` with the archive's `xclang`, and checks
+  that an `-isysroot` of the command line replaces `sdk/macos`;
+- builds, for arm64 and x86_64, with a bare `--target`: C, C++
+  (exceptions, threads, `<filesystem>`, `<format>`), `import std`,
+  ThinLTO, debug information in a dSYM, with ThinLTO too, CoreFoundation,
+  Objective-C with Foundation, a dylib and a program that
+  `llvm-install-name-tool` gives an rpath, UBSan, ASan, TSan, libFuzzer and
+  the profile runtime;
+- checks with `llvm-otool` that each program loads `libSystem` and only
+  what else it uses (its frameworks, `libobjc`, xclang's sanitizer
+  runtimes, its dylib), never `libc++.dylib`, and that it names macOS 13.0
+  and the fetched SDK's version;
+- builds `tests/cmake` for both targets through the toolchain file, and
+  reads its GSYM, made from the dSYM;
+- makes universal programs of both with `llvm-lipo`.
+
+The programs of every host then run on macos-15 (arm64) and
+macos-15-intel, with the sanitizers' dylibs next to them. On arm64 each is
+checked for the linker's ad-hoc signature, with no `codesign` run; Apple's
+`dwarfdump` and `atos` read the dSYMs. Only programs leave a job, with
+their dSYMs, never anything of the SDK.
 
 ## The Feature Examples
 

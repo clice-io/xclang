@@ -24,10 +24,31 @@ The same command builds for any of the six targets:
 | `aarch64-apple-darwin` | macOS arm64, 13 or later | macOS hosts |
 | `x86_64-apple-darwin` | macOS x64, 13 or later | macOS hosts |
 
-The macOS targets build against Xcode's SDK, which xclang cannot
-redistribute, so they build on macOS hosts only. clang's other spellings
-of the targets, such as `x86_64-pc-linux-gnu` or `arm64-apple-macos`, work
-too ([targets](../reference/targets.md#targets)).
+The macOS targets build against Apple's SDK, which xclang cannot
+redistribute. In releases they build on macOS hosts only, with Xcode's.
+From Linux and Windows hosts, with the SDK the user fetches from Apple,
+they are [unreleased](../design/roadmap.md#macos-any-host)
+([below](#macos-from-linux-or-windows)). clang's other spellings of the
+targets, such as `x86_64-pc-linux-gnu` or `arm64-apple-macos`, work too
+([targets](../reference/targets.md#targets)).
+
+### macOS from Linux or Windows
+
+::: warning Unreleased
+This needs the `xclang` command, which no release carries yet.
+:::
+
+Fetch Apple's SDK once, accepting Apple's license, and build with a bare
+`--target`, as on a Mac:
+
+<!-- not run: needs the unreleased xclang command; macos.yml runs this through tests/macos.ts -->
+```sh
+xclang sdk fetch macos --accept-license
+clang++ -O2 --target=arm64-apple-macos hello.cpp -o hello-macos-arm64
+```
+
+The program runs on macOS 13 or later, signed ad hoc as Apple silicon
+needs. Why and how: [macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts).
 
 ## In Your Build System
 
@@ -115,7 +136,7 @@ vendor by the user. None of it is in a release:
 | [Target archives for `xclang target add`](../design/roadmap.md#target-archives) | Planned |
 | [MSVC-ABI targets](../design/roadmap.md#msvc) | Unreleased |
 | [musl targets](../design/roadmap.md#musl) | Planned |
-| [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | In research |
+| [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | Unreleased |
 | [WebAssembly](../design/roadmap.md#wasm), [more Linux architectures](../design/roadmap.md#linux-architectures), [Android](../design/roadmap.md#android) | Considered |
 
 The [roadmap](../design/roadmap.md#targets) lists every target, with its

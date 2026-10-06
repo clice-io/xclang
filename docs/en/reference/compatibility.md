@@ -37,7 +37,7 @@ What a program loads at run time is in
 | | status |
 |---|---|
 | [MSVC-ABI targets](../design/roadmap.md#msvc) (`*-pc-windows-msvc`), with their sanitizers | Unreleased |
-| [macOS targets from Linux or Windows hosts](../design/roadmap.md#macos-any-host) | In research |
+| [macOS targets from Linux or Windows hosts](../design/roadmap.md#macos-any-host) | Unreleased |
 | [MemorySanitizer](../design/roadmap.md#msan) | Planned |
 | [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
 

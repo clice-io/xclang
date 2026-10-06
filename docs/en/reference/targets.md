@@ -27,15 +27,18 @@ GitHub-hosted runner.
 | `aarch64-unknown-linux-gnu` | `aarch64-pc-linux-gnu`, `aarch64-linux-gnu` (Bazel) | glibc 2.17 | glibc 2.17 or later | every host |
 | `x86_64-w64-mingw32` | `x86_64-w64-windows-gnu`, `x86_64-pc-windows-gnu` | mingw-w64 with UCRT | Windows 10 or later | every host |
 | `aarch64-w64-mingw32` | `aarch64-w64-windows-gnu`, `aarch64-pc-windows-gnu` | mingw-w64 with UCRT | Windows 10 or later | every host |
-| `aarch64-apple-darwin` | `arm64-apple-darwin`, `arm64-apple-macos`, `aarch64-apple-macosx`, ... | the SDK's libSystem | macOS 13.0 or later | macOS hosts |
-| `x86_64-apple-darwin` | `x86_64-apple-macos`, `x86_64-apple-macosx` | the SDK's libSystem | macOS 13.0 or later | macOS hosts |
+| `aarch64-apple-darwin` | `arm64-apple-darwin`, `arm64-apple-macos`, `aarch64-apple-macosx`, ... | the SDK's libSystem | macOS 13.0 or later | macOS hosts; Linux and Windows hosts with the SDK `xclang` fetches, [unreleased](../design/roadmap.md#macos-any-host) |
+| `x86_64-apple-darwin` | `x86_64-apple-macos`, `x86_64-apple-macosx` | the SDK's libSystem | macOS 13.0 or later | macOS hosts; Linux and Windows hosts with the SDK `xclang` fetches, [unreleased](../design/roadmap.md#macos-any-host) |
 | `x86_64-pc-windows-msvc`, [unreleased](../design/roadmap.md#msvc) | `x86_64-unknown-windows-msvc` | Microsoft's CRT and STL, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches |
 | `aarch64-pc-windows-msvc`, [unreleased](../design/roadmap.md#msvc) | `aarch64-unknown-windows-msvc` | Microsoft's CRT and STL, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches |
 
-All six are tier 1. The macOS targets build on macOS hosts only, because
-they need Apple's SDK, which comes from Xcode there
-([macOS](../design/macos.md#the-sdk-is-xcode-s)). The MSVC targets are
-tier 1 too: CI runs their programs on Windows x64 and arm64 runners
+All six are tier 1. In releases, the macOS targets build on macOS hosts
+only, because they need Apple's SDK, which comes from Xcode there
+([macOS](../design/macos.md#the-sdk-is-xcode-s)). On `main` they build on
+Linux and Windows hosts too, with the SDK the user fetches from Apple
+([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)); CI runs
+those programs on arm64 and x64 Macs. The MSVC targets are tier 1 too: CI
+runs their programs on Windows x64 and arm64 runners
 ([MSVC targets](../integrations/clang.md#msvc-targets)).
 
 ## What Each Target Has
@@ -75,7 +78,7 @@ their target, with no emulator
 |---|---|
 | [MSVC targets](../design/roadmap.md#msvc), with their sanitizers | Unreleased |
 | [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
-| [macOS targets from Linux and Windows hosts](../design/roadmap.md#macos-any-host) | In research |
+| [macOS targets from Linux and Windows hosts](../design/roadmap.md#macos-any-host) | Unreleased |
 
 Every other target, with its planned tier and its status, is in the
 [roadmap](../design/roadmap.md#targets).

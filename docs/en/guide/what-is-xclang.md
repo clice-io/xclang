@@ -26,7 +26,8 @@ item's status.
   128 MB.
 - **Six targets in every archive**: Linux x64 and arm64 (glibc 2.17),
   Windows x64 and arm64 (MinGW-w64 with UCRT), macOS arm64 and x64. The
-  macOS targets use Xcode's SDK, so they build on macOS hosts. Each target
+  macOS targets use Xcode's SDK, so in releases they build on macOS hosts
+  ([unreleased](../design/roadmap.md#macos-any-host) from others). Each target
   has its sysroot, libc++, libc++abi, libunwind and compiler-rt, prebuilt,
   and a config file that points clang at them.
 - **Programs that run where they are copied.** Everything but the OS's own
@@ -71,7 +72,7 @@ other toolchains serve these:
 |---|---|---|
 | [MSVC-ABI targets](../design/roadmap.md#msvc), against your own MSVC and Windows SDK | Unreleased | clang-cl with Visual Studio |
 | [musl targets](../design/roadmap.md#musl) | Planned | zig cc, or a musl cross toolchain |
-| [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | In research | a Mac |
+| [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | Unreleased | a Mac |
 | [Android, WebAssembly, bare metal, more Linux architectures](../design/roadmap.md#targets) | Considered | the NDK, wasi-sdk, zig cc, or a GCC cross toolchain |
 | [iOS and Apple's other devices](../design/roadmap.md#ios) | In research | Xcode |
 | [MemorySanitizer](../design/roadmap.md#msan) | Planned | |

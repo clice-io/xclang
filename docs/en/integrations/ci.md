@@ -169,7 +169,9 @@ target:
 | `aarch64-apple-darwin` | `macos-15` |
 | `x86_64-apple-darwin` | `macos-15-intel` |
 
-macOS targets build on macOS runners only. x86_64 macOS programs also run
+In releases, macOS targets build on macOS runners only
+([unreleased](../design/roadmap.md#macos-any-host) from Linux and Windows
+ones). x86_64 macOS programs also run
 on arm64 runners through Rosetta, and x86_64 Windows programs on
 `windows-11-arm`.
 

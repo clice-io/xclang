@@ -32,7 +32,7 @@ C++ libraries are the fetched SDK's.
 
 | | Linux | Windows (MinGW) | macOS |
 |---|---|---|---|
-| C library | glibc 2.17's headers in `usr/include`, its startup files and libraries in `lib64`, `usr/lib64` | mingw-w64 (UCRT) and winpthreads in `include`, `lib` | none: Xcode's SDK |
+| C library | glibc 2.17's headers in `usr/include`, its startup files and libraries in `lib64`, `usr/lib64` | mingw-w64 (UCRT) and winpthreads in `include`, `lib` | none: Apple's SDK, Xcode's, or on Linux and Windows hosts `sdk/macos` ([unreleased](../design/roadmap.md#macos-any-host)) |
 | libc++, libc++abi, libunwind | `usr/include/c++/v1`, `usr/lib` | `include/c++/v1`, `lib` | `include/c++/v1`, `lib` (no libunwind: the system's, in libSystem) |
 | libc++ module sources | `usr/share/libc++/v1` | `share/libc++/v1` | `share/libc++/v1` |
 | libc++ module manifest | `usr/lib/libc++.modules.json` | `lib/libc++.modules.json` | `lib/libc++.modules.json` |

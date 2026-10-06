@@ -43,7 +43,8 @@ work. It differs from xclang in how it gets there:
   ([0.17.0 release notes](https://ziglang.org/download/0.17.0/release-notes.html)).
   In xclang, musl targets are [planned](../design/roadmap.md#musl), a newer
   glibc and the BSDs are [considered](../design/roadmap.md#glibc-newer), and
-  macOS from any host is [in research](../design/roadmap.md#macos-any-host).
+  macOS from any host, with Apple's own SDK fetched by the user, is
+  [unreleased](../design/roadmap.md#macos-any-host).
 - **Its clang is Zig's.** 0.17.0 has LLVM 22, with loop vectorization
   disabled to work around a regression since 0.16.0. xclang follows LLVM's
   releases with stock clang, built with PGO and ThinLTO.
@@ -172,7 +173,7 @@ libclang.
 |---|---|---|
 | [musl targets](../design/roadmap.md#musl) | Planned | zig cc |
 | [MSVC-ABI targets](../design/roadmap.md#msvc) | Unreleased | clang-cl with Visual Studio |
-| [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | In research | zig cc |
+| [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | Unreleased | zig cc |
 | [Android](../design/roadmap.md#android), [WebAssembly](../design/roadmap.md#wasm), [the BSDs](../design/roadmap.md#freebsd), [bare metal](../design/roadmap.md#bare-metal) | Considered | the NDK, wasi-sdk, zig cc |
 | [iOS and Apple's other devices](../design/roadmap.md#ios) | In research | Xcode |
 | [Windows 7 and XP](../design/roadmap.md#windows-7) | In research | llvm-mingw's msvcrt variant |

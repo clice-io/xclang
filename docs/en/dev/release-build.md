@@ -71,6 +71,7 @@ of building them again.
 | `bazel` | bazel.yml | the Bazel module with every host's archives |
 | `cmake` | cmake.yml | the CMake package with every host's archives |
 | `msvc` | msvc.yml | the MSVC targets with every host's archives; needs `cli` |
+| `macos` | macos.yml | the macOS targets from the Linux and Windows hosts' archives; needs `cli` |
 | `release` | release.yml | a draft release of everything, with `SHA256SUMS` |
 
 With `cli`, the `package` stage also builds the

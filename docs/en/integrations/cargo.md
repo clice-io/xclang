@@ -142,7 +142,7 @@ The `*-windows-gnu` targets link libgcc and msvcrt instead.
 | `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu` | the same | any host | Supported |
 | `x86_64-pc-windows-gnullvm`, `aarch64-pc-windows-gnullvm` | `x86_64-w64-mingw32`, `aarch64-w64-mingw32` | any host | Supported |
 | `aarch64-apple-darwin`, `x86_64-apple-darwin` | the same | macOS hosts | Supported |
-| `aarch64-apple-darwin`, `x86_64-apple-darwin` | the same | [Linux and Windows hosts](../design/roadmap.md#macos-any-host) | In research |
+| `aarch64-apple-darwin`, `x86_64-apple-darwin` | the same | [Linux and Windows hosts](../design/roadmap.md#macos-any-host) | Unreleased |
 | `x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc` | [MSVC targets](../design/roadmap.md#msvc) | any host | Planned |
 
 ## Settings per Target
@@ -196,9 +196,9 @@ run time:
 
 ## macOS from Linux and Windows
 
-::: info In research
+::: warning Unreleased
 macOS targets from Linux and Windows hosts are
-[in research](../design/roadmap.md#macos-any-host). They need Apple's SDK
+[unreleased](../design/roadmap.md#macos-any-host). They need Apple's SDK
 from the [unreleased](../design/roadmap.md#xclang-command) `xclang` command.
 CI runs this recipe from Linux; no release supports it.
 :::
@@ -206,7 +206,7 @@ CI runs this recipe from Linux; no release supports it.
 Use the macOS settings above, and name the fetched SDK. rustc passes
 `SDKROOT` to the linker, and the `cc` crate passes it to clang:
 
-<!-- not run: in research, and the xclang command is unreleased; cli.yml runs this recipe through tests/cargo.ts -->
+<!-- not run: unreleased, as is the xclang command; cli.yml runs this recipe through tests/cargo.ts -->
 ```sh
 export SDKROOT=$(xclang sdk path macos)
 ```
@@ -246,7 +246,7 @@ VC runtime name, which are not shipped.
 | | status |
 |---|---|
 | [An `xclang cargo` helper](../design/roadmap.md#cargo-helper) that sets the settings above | Considered |
-| [macOS targets from Linux and Windows hosts](../design/roadmap.md#macos-any-host) | In research |
+| [macOS targets from Linux and Windows hosts](../design/roadmap.md#macos-any-host) | Unreleased |
 | [MSVC targets](../design/roadmap.md#msvc) | Unreleased |
 | [musl targets](../design/roadmap.md#musl) | Planned |
 | [Rust targets for other Linux architectures](../design/roadmap.md#linux-architectures) | Considered |

@@ -73,10 +73,14 @@ names ignore case, and the headers of MinGW-w64 are lower case (`windows.h`,
 
 ### A macOS target fails on Linux or Windows
 
-Build macOS targets on a macOS host. They build against Xcode's SDK, which
-only a Mac has ([macOS](../design/macos.md#the-sdk-is-xcode-s)). Building
-for macOS from other hosts, with the SDK fetched from Apple, is
-[in research](../design/roadmap.md#macos-any-host).
+In releases, build macOS targets on a macOS host. They build against
+Apple's SDK, which comes with Xcode there
+([macOS](../design/macos.md#the-sdk-is-xcode-s)). Building for macOS from
+other hosts, with the SDK the `xclang` command fetches from Apple, is
+[unreleased](../design/roadmap.md#macos-any-host). With it, `no such
+sysroot directory: '.../sdk/macos'` means the SDK is not fetched yet:
+`xclang sdk fetch macos --accept-license`
+([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)).
 
 ### Linking against the macOS 27 SDK fails: "malformed file", "arm64e.x1"
 

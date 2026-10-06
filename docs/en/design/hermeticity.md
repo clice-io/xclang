@@ -12,8 +12,10 @@ xclang holds every target to one rule:
 A program built by xclang is one file that runs on any machine of its
 target: glibc 2.17 or later on Linux, Windows 10 or later, macOS 13 or
 later. libc++ and the other runtimes are inside it. The price is size, and
-one copy of libc++ in every shared library. Today the one vendor SDK is
-Xcode's, for the macOS targets, and xclang does not pin it.
+one copy of libc++ in every shared library. In releases the one vendor
+SDK is Xcode's, for the macOS targets, and xclang does not pin it; on
+`main` the user fetches pinned SDKs from the vendors
+([unreleased](roadmap.md#macos-any-host)).
 
 ## What a Program Loads
 
@@ -169,7 +171,7 @@ themselves ([Rust and Cargo](../integrations/cargo.md)).
 
 | | status |
 |---|---|
-| [A pinned macOS SDK, fetched from Apple by the user](roadmap.md#macos-any-host) | In research |
+| [A pinned macOS SDK, fetched from Apple by the user](roadmap.md#macos-any-host) | Unreleased |
 | [musl targets](roadmap.md#musl), for fully static Linux programs | Planned |
 | [MSVC targets](roadmap.md#msvc), with Microsoft's "hybrid CRT": the VC runtime and the STL static, UCRT dynamic | Unreleased |
 
@@ -180,6 +182,8 @@ Planned targets keep the same rule.
 - **Sanitizer runtimes.** On macOS they are dylibs, which a program loads
   from the toolchain or from its own directory. An ASan build is for
   testing, not for shipping.
-- **The macOS SDK.** Apple's SDK cannot be redistributed, so macOS targets
-  build against Xcode's, found by `xcrun`. It is the one input from
-  outside the toolchain, and xclang does not pin it.
+- **The macOS SDK.** Apple's SDK cannot be redistributed, so on macOS
+  hosts the macOS targets build against Xcode's, found by `xcrun`. It is
+  an input from outside the toolchain, and xclang does not pin it. On
+  Linux and Windows hosts, the SDK the user fetches is pinned by version
+  and sha256 ([unreleased](roadmap.md#macos-any-host)).

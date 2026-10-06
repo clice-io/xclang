@@ -3,8 +3,8 @@
 ::: warning Unreleased
 The `xclang sdk fetch` command this page describes is in no release; CI
 builds and tests it from `main`
-([the xclang command](../reference/xclang-command.md)). Today the macOS
-targets use the installed Xcode's SDK, on macOS hosts.
+([the xclang command](../reference/xclang-command.md)). In releases, the
+macOS targets use the installed Xcode's SDK, on macOS hosts.
 :::
 
 Some targets need an SDK that only its vendor may distribute: Apple's for
@@ -17,7 +17,7 @@ it from the vendor, by a pinned version and digest, after accepting the
 vendor's license. The command for that is
 [unreleased](roadmap.md#xclang-command). The targets that need it are
 [unreleased](roadmap.md#msvc) (MSVC) and
-[in research](roadmap.md#macos-any-host) (macOS from Linux and Windows
+[unreleased](roadmap.md#macos-any-host) (macOS from Linux and Windows
 hosts). The SDK in use is a link in the toolchain's `sdk/`, so config
 files name a fixed path while versions change
 ([the SDK in use](../reference/xclang-command.md#the-sdk-in-use)).
@@ -53,6 +53,13 @@ ID is needed. The package is a xar archive. Its payload is pbzx, a stream
 of xz chunks, holding a cpio archive. xclang reads all three with its own
 code, a few hundred lines, so the fetch works on every host without macOS
 tools. Man pages, tools and Perl are left out.
+
+On Linux and Windows hosts, the config files of the macOS targets use the
+SDK in use, `sdk/macos`; on macOS hosts, Xcode's
+([macOS](macos.md#the-sdk-on-linux-and-windows-hosts)). The Command Line
+Tools hold the SDK and its compilers, not Xcode's other tools: app
+bundles' asset catalogs and nibs, which need `actool` and `ibtool`, do not
+build off macOS.
 
 **The iOS family is a hard limit.** The SDKs for iOS, tvOS, watchOS,
 visionOS and their simulators come only with full Xcode, downloaded with

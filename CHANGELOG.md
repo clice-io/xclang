@@ -47,6 +47,24 @@ the [patches](docs/en/reference/patches.md) of its tag.
   `MultiThreaded` unless set); `xclang::std` is the STL's `std` and
   `std.compat` for them
   ([CMake](docs/en/integrations/cmake.md#build-for-msvc-targets)).
+- **macOS targets from Linux and Windows hosts**:
+  `clang++ --target=arm64-apple-macos` (or x86_64) builds against Apple's
+  macOS SDK, which the toolchain's own
+  `xclang sdk fetch macos --accept-license` fetches into its `sdk/macos`
+  ([macOS](docs/en/design/macos.md#the-sdk-on-linux-and-windows-hosts)).
+  On those hosts the macOS targets' config files begin with
+  `-isysroot <CFGDIR>/../sdk/macos`: an `-isysroot` on the command line
+  replaces it, and clang no longer reads `SDKROOT` there. On macOS hosts
+  nothing changes. The programs are those of a Mac: xclang's libc++,
+  ld64.lld's ad-hoc signature for arm64, dSYMs, universal programs by
+  `llvm-lipo`, and the sanitizers' dylibs. They need the `xclang` command
+  in the archives.
+- CMake: `XCLANG_TARGET=aarch64-apple-darwin` (or x86_64) on Linux and
+  Windows hosts: `CMAKE_SYSTEM_NAME` `Darwin`, `CMAKE_OSX_SYSROOT` the one
+  given, else `SDKROOT`, else the toolchain's `sdk/macos`, and no `xcrun`
+  ([CMake](docs/en/integrations/cmake.md#build-for-macos-from-linux-or-windows)).
+- `xclang sdk fetch macos` takes the preset's SDK, the macOS 27 one too,
+  where it passed over SDKs from 27 on.
 
 ## [23.1.2.6](https://github.com/clice-io/xclang/releases/tag/23.1.2.6) — 2026-10-05
 

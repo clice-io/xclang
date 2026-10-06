@@ -23,7 +23,7 @@ xclang/bin/clang++ --target=aarch64-w64-mingw32 main.cpp -o main.exe
 还不支持的，各自在路线图里的状态：
 
 - **MSVC ABI 的目标平台**（使用用户用 `xclang` 命令下载的微软 CRT、STL 和 Windows SDK）：[未发布](https://docs.clice.io/xclang/design/roadmap#msvc)。
-- **从 Linux 或 Windows 构建 macOS 程序**（用户自己从 Apple 下载 SDK）：[研究中](https://docs.clice.io/xclang/design/roadmap#macos-any-host)。
+- **从 Linux 或 Windows 构建 macOS 程序**（使用用户用 `xclang` 命令从 Apple 下载的 SDK）：[未发布](https://docs.clice.io/xclang/design/roadmap#macos-any-host)。
 - **musl 目标平台**（Linux x64、arm64）：[计划中](https://docs.clice.io/xclang/design/roadmap#musl)。其它 Linux 架构、WebAssembly、Android、FreeBSD 和裸机：[考虑中](https://docs.clice.io/xclang/design/roadmap#targets)。
 - **`xclang` 命令**（`xclang sdk fetch`、`xclang target add`）：[未发布](https://docs.clice.io/xclang/design/roadmap#xclang-command)。它在仓库里，由 CI 测试，但还没有进入任何 release，也还没有 release 发布供它下载的目标平台包。
 

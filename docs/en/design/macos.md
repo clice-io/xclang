@@ -6,21 +6,20 @@ ld64.lld.
 
 ## Summary
 
-macOS targets build on macOS hosts only, because Apple's SDK cannot be
-redistributed and comes from Xcode there. Programs carry their own libc++
-and run on macOS 13 or later. ld64.lld links them on every host, which
-took a patch to lld. Building for macOS from Linux or Windows is in
-research.
+Apple's SDK cannot be redistributed. On a macOS host it comes from Xcode.
+On Linux and Windows hosts the user fetches it from Apple with the
+`xclang` command, and the toolchain's config files use it from there;
+that is [unreleased](roadmap.md#macos-any-host). Programs carry their own
+libc++ and run on macOS 13 or later. ld64.lld links them on every host,
+which took a patch to lld.
 
 ## The SDK Is Xcode's
 
 Apple's SDK holds the headers and `.tbd` stubs of libSystem and the
 frameworks. No xclang archive has it, because it cannot be redistributed.
-On a macOS host, clang finds it the usual way: `xcrun`, `SDKROOT`, or
-`-isysroot`. That is why the macOS targets build on macOS hosts only.
-Building them from Linux or Windows, with the SDK fetched from Apple by
-the user, is [in research](roadmap.md#macos-any-host)
-([vendor SDKs](vendor-sdks.md)).
+On a macOS host, clang finds it the usual way: the last `-isysroot`, else
+`SDKROOT`, else the SDK of Xcode or the Command Line Tools (xcselect, as
+`xcrun` finds it).
 
 When Xcode 27 shipped the macOS 27 SDK, its `.tbd` stubs listed a new
 architecture, `arm64e.x1`, that the TextAPI of LLVM 23.1.2 did not know.
@@ -28,6 +27,50 @@ ld64.lld rejected the stubs of libSystem and every framework, and no program
 linked against the newest SDK. xclang carries LLVM's fix, which release/23.x
 backported for 23.1.3, as [patch 0009](../reference/patches.md) from
 23.1.2.6 on.
+
+## The SDK on Linux and Windows Hosts
+
+On `main`, and in no release, the macOS targets build from Linux and
+Windows hosts too ([unreleased](roadmap.md#macos-any-host)). The SDK is
+the one the user fetches from Apple, accepting Apple's license
+([vendor SDKs](vendor-sdks.md)):
+
+<!-- not run: needs the unreleased xclang command; macos.yml runs this through tests/macos.ts -->
+```sh
+xclang sdk fetch macos --accept-license
+clang++ --target=arm64-apple-macos -std=c++23 hello.cpp -o hello
+```
+
+The fetch unpacks the SDK into the toolchain's `sdk/macos-<version>` and
+points `sdk/macos` at it ([the SDK in use](../reference/xclang-command.md#the-sdk-in-use)).
+On those hosts the config files of the macOS targets begin with
+`-isysroot <CFGDIR>/../sdk/macos`, so a bare `--target` finds it. Which
+SDK a compile uses:
+
+| host | the SDK |
+|---|---|
+| macOS | the last `-isysroot`, else `SDKROOT`, else Xcode's (xcselect) |
+| Linux, Windows | the last `-isysroot` of the command line, else `sdk/macos` |
+
+On Linux and Windows clang does not read `SDKROOT`: it does so only when
+there is no `-isysroot`, and the config file has one. Build systems that
+honor `SDKROOT` pass it as `-isysroot`, which wins: cargo and rustc, and
+the CMake package ([CMake](../integrations/cmake.md#build-for-macos-from-linux-or-windows)).
+Without the SDK, clang warns that `sdk/macos` does not exist and finds no
+C header.
+
+Why a fixed path in the config file, and not a config file that the fetch
+writes, as the MSVC targets have
+([Windows](windows.md#msvc-targets)): a macOS SDK needs no versions or
+options besides its path, and an `-isysroot` of the command line still
+works when no SDK is fetched into the toolchain.
+
+The programs are those of a macOS host: the same libc++, linker, dSYMs,
+universal programs and sanitizers. ld64.lld signs arm64 programs ad hoc,
+as Apple's `ld` does, so they run on Apple silicon without `codesign`;
+`llvm-install-name-tool` signs them again when it changes them. CI builds
+them on Linux and Windows hosts, x64 and arm64, and runs them on arm64 and
+x64 Macs ([testing](../dev/testing.md#macos-from-linux-and-windows)).
 
 ## xclang's libc++, Not the System's
 
@@ -117,5 +160,17 @@ or from the directory of the program. That is the one exception to
 
 | | status |
 |---|---|
-| [macOS targets from Linux and Windows hosts](roadmap.md#macos-any-host) | In research |
+| [macOS targets from Linux and Windows hosts](roadmap.md#macos-any-host) | Unreleased |
+| [macOS targets from Linux and Windows hosts in the Bazel module](roadmap.md#macos-any-host-bazel) | Planned |
 | [iOS, tvOS, watchOS, visionOS and their simulators](roadmap.md#ios) | In research |
+
+## Known Limitations
+
+- **No app bundles' resources off macOS.** Asset catalogs and nibs need
+  Apple's `actool` and `ibtool`, which run only on macOS. Command-line
+  programs, dylibs and frameworks of code build on every host.
+- **No notarization.** Programs are signed ad hoc by the linker. Signing
+  with a Developer ID and notarizing need Apple's tools and an Apple
+  account.
+- **Apple's license.** The SDK is used under Apple's terms, which the user
+  accepts when fetching it ([vendor SDKs](vendor-sdks.md)).

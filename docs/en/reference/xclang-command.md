@@ -34,7 +34,7 @@ unpacks the SDK into a directory of its own:
 
 | SDK | directory | use |
 |---|---|---|
-| macOS | `$XCLANG/sdk/macos-<version>` | `clang --target=arm64-apple-macos -isysroot <dir>` |
+| macOS | `$XCLANG/sdk/macos-<version>` | `clang++ --target=arm64-apple-macos` on Linux and Windows hosts ([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)); on macOS hosts, and for an SDK outside the toolchain, `-isysroot <dir>` |
 | MSVC and the Windows SDK | `$XCLANG/sdk/windows-msvc<version>-sdk<version>` | `clang++ --target=x86_64-pc-windows-msvc`, `clang-cl`: the [MSVC targets](../integrations/clang.md#msvc-targets) |
 
 | command or option | |
@@ -58,8 +58,12 @@ config files a fixed path. A Windows SDK holds a config file per
 architecture fetched and per driver, `<arch>-pc-windows-msvc.cfg` and
 `<arch>-pc-windows-msvc-clang-cl.cfg`, which name the SDK and its versions;
 the MSVC targets' own config files read them through `sdk/windows`
-([why](../design/windows.md#msvc-targets)). An SDK fetched with `--sdk-dir`
-is outside the toolchain, where its config files do not look.
+([why](../design/windows.md#msvc-targets)). On Linux and Windows hosts the
+macOS targets' config files name `sdk/macos` as their `-isysroot`
+([why](../design/macos.md#the-sdk-on-linux-and-windows-hosts)); on macOS
+hosts they use Xcode's SDK, and a fetched one takes `-isysroot`. An SDK
+fetched with `--sdk-dir` is outside the toolchain, where its config files
+do not look.
 
 ### Versions
 
@@ -73,8 +77,9 @@ version the vendors offer:
   build matches what a workflow gets. `windows-2022` has MSVC 14.44, whose
   STL still serves Windows 7 SP1 and 8.1.
 
-The macOS 27 SDK is listed, but passed over by default. That rule dates
-from before 23.1.2.6, which links against it ([patch 0009](patches.md)).
+With no version given, the preset's is taken, the macOS 27 SDK too: the
+releases that carry the command link against it
+([patch 0009](patches.md)).
 
 ### What Is Fetched
 

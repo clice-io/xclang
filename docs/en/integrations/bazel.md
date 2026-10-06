@@ -315,7 +315,7 @@ Another target's libclang comes from the release.
 | | status |
 |---|---|
 | [MSVC-ABI targets in the module](../design/roadmap.md#msvc-bazel) | Planned |
-| [macOS targets from Linux or Windows](../design/roadmap.md#macos-any-host) | In research |
+| [macOS targets from Linux or Windows in the module](../design/roadmap.md#macos-any-host-bazel) | Planned |
 | [Fetched targets and vendor SDKs](../design/roadmap.md#fetched-targets-in-build-systems) in the module | Planned |
 | [Sanitizer features for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
 

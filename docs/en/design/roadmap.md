@@ -52,7 +52,7 @@ license.
 | <a id="mingw"></a>Windows x64, arm64 (MinGW) | mingw-w64, UCRT | the toolchain | 1 | Supported |
 | <a id="macos"></a>macOS arm64, x64, from macOS hosts | Apple's SDK | Xcode | 1 | Supported |
 | <a id="msvc"></a>Windows x64, arm64 (MSVC), with their sanitizers | Microsoft's CRT and STL, Windows SDK | the user (SDK) | 1 | Unreleased |
-| <a id="macos-any-host"></a>macOS arm64, x64, from Linux and Windows hosts | Apple's SDK | the user (SDK) | 1 | In research |
+| <a id="macos-any-host"></a>macOS arm64, x64, from Linux and Windows hosts | Apple's SDK | the user (SDK) | 1 | Unreleased |
 | <a id="musl"></a>Linux x64, arm64 (musl) | musl | xclang | 1 | Planned |
 | <a id="windows-x86-msvc"></a>Windows x86 (MSVC) | Microsoft's CRT and STL, Windows SDK | the user (SDK) | 1 | In research |
 | <a id="windows-7"></a>Windows 7 and XP (MSVC) | Microsoft's CRT, static, with YY-Thunks | the user (SDK) | 3 | In research |
@@ -87,10 +87,15 @@ What sets these targets apart:
   release with them carries the command too
   ([Windows](windows.md#msvc-targets)). CMake builds them; the Bazel module
   does not yet ([below](#msvc-bazel)).
-- **macOS from any host.** Apple's macOS SDK is in the Command Line Tools
-  package on Apple's update servers, and needs no Apple ID to download.
-  Whether building with it outside a Mac can be done well is in research
-  ([vendor SDKs](vendor-sdks.md)).
+- **macOS from any host.** On `main` and in no release. Apple's macOS SDK
+  is in the Command Line Tools package on Apple's update servers, and
+  needs no Apple ID to download. The user fetches it with the
+  [`xclang` command](#xclang-command) into the toolchain, whose config
+  files then use it on Linux and Windows hosts; on macOS, Xcode's SDK
+  stays the one in use. The programs are those of a macOS host: xclang's
+  libc++ linked in, ld64.lld, dSYMs, the sanitizers
+  ([macOS](macos.md#the-sdk-on-linux-and-windows-hosts)). CMake builds
+  them; the Bazel module does not yet ([below](#macos-any-host-bazel)).
 - **musl.** Static programs that take nothing from the system they run on.
 - **A newer glibc.** The same targets for programs that need what glibc
   2.17 lacks, such as `-static-pie` and newer functions, with the same
@@ -121,6 +126,7 @@ What sets these targets apart:
 | <a id="target-archives"></a>Target archives and a release index, for `xclang target add` | Planned |
 | <a id="fetched-targets-in-build-systems"></a>Fetched targets and vendor SDKs in the CMake package and the Bazel module | Planned |
 | <a id="msvc-bazel"></a>The MSVC targets in the Bazel module, with the Windows SDK fetched by a repository rule | Planned |
+| <a id="macos-any-host-bazel"></a>macOS targets from Linux and Windows hosts in the Bazel module, with the macOS SDK fetched by a repository rule | Planned |
 
 `xclang` is a program in Rust (`cli/`), built for every host with xclang as
 its C compiler and linker. CI builds and tests it on every host, but no
@@ -138,12 +144,16 @@ it in every toolchain archive.
   manifests are: archive, sha256, size, tier and the SDK it needs.
 - The CMake package and the Bazel module take fetched targets as they
   come. Today their toolchains build for the six targets of the host's
-  archive, and the CMake package for the MSVC targets with the fetched
-  SDK.
+  archive, and the CMake package also for the MSVC targets, and for macOS
+  from Linux and Windows hosts, with the fetched SDKs.
 - The plan for the MSVC targets in the Bazel module: a repository rule
   fetches the Windows SDK once the user accepts its license in
   `MODULE.bazel`, and the targets build with the GNU-style clang of the
   other toolchains.
+- The plan for macOS from Linux and Windows hosts in the Bazel module: the
+  same repository rule fetches the macOS SDK, which stands in for the one
+  a macOS host's rule finds with `xcrun`, and the macOS toolchains are
+  registered on every host.
 
 ## Runtimes and Tools
 

@@ -65,6 +65,16 @@ from `main` ([roadmap](./design/roadmap.md#msvc)).
 
 <!-- END CAPABILITY -->
 
+<!-- BEGIN CAPABILITY: unreleased -->
+
+**macOS targets from Linux and Windows**
+
+arm64 and x64 macOS programs from every host, with Apple's SDK fetched
+from Apple by the xclang command. CI builds them on Linux and Windows and
+runs them on Macs, from `main` ([roadmap](./design/roadmap.md#macos-any-host)).
+
+<!-- END CAPABILITY -->
+
 <!-- BEGIN CAPABILITY: planned -->
 
 **Target archives**
@@ -80,15 +90,6 @@ Targets beyond the six, each an archive that `xclang target add` fetches
 
 Fully static Linux programs, for x64 and arm64
 ([roadmap](./design/roadmap.md#musl)).
-
-<!-- END CAPABILITY -->
-
-<!-- BEGIN CAPABILITY: in-research -->
-
-**macOS targets from Linux and Windows**
-
-With Apple's SDK, fetched from Apple by the user
-([roadmap](./design/roadmap.md#macos-any-host)).
 
 <!-- END CAPABILITY -->
 
