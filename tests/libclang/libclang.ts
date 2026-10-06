@@ -10,8 +10,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import * as common from "../../scripts/common.ts";
-import * as licenses from "../../scripts/licenses.ts";
+import * as common from "../../toolchain/common.ts";
+import * as licenses from "../../toolchain/licenses.ts";
 
 const { values } = parseArgs({ options: { tree: { type: "string" }, libclang: { type: "string" } } });
 if (!values.tree || !values.libclang) common.fail("--tree <xclang> --libclang <libclang>");
@@ -20,7 +20,7 @@ const tree = path.resolve(values.tree);
 const libclang = path.resolve(values.libclang);
 const build = fs.mkdtempSync(path.join(os.tmpdir(), "xclang-libclang-"));
 
-/// The license notices of what the archive holds (scripts/licenses.ts).
+/// The license notices of what the archive holds (toolchain/licenses.ts).
 const missing = licenses.check(libclang, ["xclang", "llvm-project", "zstd"]);
 if (missing.length) common.fail(missing.join("\n"));
 

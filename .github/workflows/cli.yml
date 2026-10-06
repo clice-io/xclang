@@ -1,7 +1,7 @@
 name: cli
 
 # xclang's own command (cli/, Rust). The build job builds it for every host
-# with a released xclang as the C compiler and linker (scripts/cli.ts):
+# with a released xclang as the C compiler and linker (cli/cli.ts):
 # Linux and Windows from Linux x64, macOS on macOS arm64, as the
 # cli-build-* artifacts, and runs its rustfmt, clippy and unit tests. The
 # test jobs then check it in a toolchain, on a machine of each host
@@ -58,7 +58,7 @@ jobs:
         with:
           node-version: 24
       - name: Build
-        run: node scripts/cli.ts ${{ inputs.revision && format('--revision {0}', inputs.revision) || '' }}
+        run: node cli/cli.ts ${{ inputs.revision && format('--revision {0}', inputs.revision) || '' }}
       - name: rustfmt, clippy, unit tests
         if: ${{ matrix.machine == 'linux' }}
         working-directory: cli

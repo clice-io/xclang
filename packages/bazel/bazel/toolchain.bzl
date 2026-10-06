@@ -74,7 +74,7 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
     resource = "lib/clang/" + clang_version
     config = "cfg/%s.cfg" % target
 
-    # The headers targets share (scripts/common.ts, shareHeaders): libc++'s,
+    # The headers targets share (toolchain/common.ts, shareHeaders): libc++'s,
     # after the target's own __config_site, and the Windows targets'
     # mingw-w64. Releases before 23.1.2.7 have them in the target's directory.
     shared_dirs = ["libc++/include/%s/c++/v1" % t.cfg, "libc++/include/c++/v1"] + (["mingw-w64/include"] if t.os == "windows" else [])

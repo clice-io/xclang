@@ -1,6 +1,6 @@
 name: stage-package
 
-# One host's release archives (scripts/package.ts), as the dist-<host>
+# One host's release archives (toolchain/package.ts), as the dist-<host>
 # artifact; with cli-run, the toolchain carries xclang's own command from
 # that run's cli-build-* artifacts (cli.yml). A second machine makes them
 # again, as another machine would: in another directory, the inputs

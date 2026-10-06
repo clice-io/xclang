@@ -2,10 +2,10 @@
 /// component, its license files in share/licenses/<component>/, and for all
 /// of them a README.md (what each is, its version, license and source) and
 /// sbom.spdx.json, the same as an SPDX 2.3 document. The files come from the
-/// pinned sources (scripts/common.ts' SOURCES), the pixi environment's
-/// glibc sysroots, licenses/ (what no source ships: the Linux UAPI headers',
-/// NSS's) and, for the xclang command, what scripts/cli.ts collected from
-/// its crates.
+/// pinned sources (toolchain/common.ts' SOURCES), the pixi environment's
+/// glibc sysroots, toolchain/licenses/ (what no source ships: the Linux
+/// UAPI headers', NSS's) and, for the xclang command, what cli/cli.ts
+/// collected from its crates.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -136,7 +136,7 @@ export async function mingwW64(what: string): Promise<Component> {
 }
 
 /// The conda packages of the pixi environment the Linux sysroots come from
-/// (scripts/sysroot.ts), as conda-meta records them.
+/// (toolchain/sysroot.ts), as conda-meta records them.
 function condaPackages(pattern: RegExp): string[] {
   const prefix = process.env.CONDA_PREFIX;
   if (!prefix) common.fail("the Linux sysroots' notices come from the pixi environment (CONDA_PREFIX is unset)");
@@ -162,12 +162,12 @@ export function linuxSysroots(): Component[] {
   const prefix = process.env.CONDA_PREFIX ?? "";
   const sysroots = condaPackages(/^sysroot_linux-(64|aarch64)-2\.17-.*\.json$/);
   if (!SYSROOT_BUILDS.every((b) => sysroots.some((s) => s.includes(` ${b}:`)))) {
-    common.fail(`the sources named in scripts/licenses.ts are those of the sysroot packages ${SYSROOT_BUILDS.join(", ")}, ` +
+    common.fail(`the sources named in toolchain/licenses.ts are those of the sysroot packages ${SYSROOT_BUILDS.join(", ")}, ` +
       `not of ${sysroots.join("; ")}`);
   }
   const doc = path.join(prefix, "x86_64-conda-linux-gnu", "sysroot", "usr", "share", "doc", "glibc-2.17");
-  const vendored = (dir: string) => Object.fromEntries(fs.readdirSync(path.join(common.ROOT, "licenses", dir))
-    .sort().map((f) => [f, path.join(common.ROOT, "licenses", dir, f)]));
+  const vendored = (dir: string) => Object.fromEntries(fs.readdirSync(path.join(import.meta.dirname, "licenses", dir))
+    .sort().map((f) => [f, path.join(import.meta.dirname, "licenses", dir, f)]));
   return [
     {
       name: "glibc",
@@ -205,7 +205,7 @@ export function linuxSysroots(): Component[] {
   ];
 }
 
-/// The xclang command's components as scripts/cli.ts recorded them in
+/// The xclang command's components as cli/cli.ts recorded them in
 /// <dir>/components.json, their files below <dir>.
 export function collected(dir: string): Component[] {
   const components = JSON.parse(fs.readFileSync(path.join(dir, "components.json"), "utf8")) as Component[];
@@ -260,7 +260,7 @@ export function write(root: string, archive: string, version: string, components
     SPDXID: "SPDXRef-DOCUMENT",
     name: archive,
     documentNamespace: `https://github.com/clice-io/xclang/releases/download/${version}/${archive}.tar.xz`,
-    creationInfo: { created: date.toISOString().replace(/\.\d+Z$/, "Z"), creators: ["Tool: xclang-scripts/package.ts"] },
+    creationInfo: { created: date.toISOString().replace(/\.\d+Z$/, "Z"), creators: ["Tool: xclang-toolchain/package.ts"] },
     packages: [
       {
         SPDXID: id(archive),

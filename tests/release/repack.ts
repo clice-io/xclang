@@ -7,7 +7,7 @@
 /// Every archive of <dist> has its counterpart in <previous>, the version
 /// in the name aside. Each pair is read as a stream (xz | tar, nothing
 /// unpacked), and every member compared: its kind, mode, link target and
-/// the sha256 of its bytes. Only what scripts/package.ts writes from the
+/// the sha256 of its bytes. Only what toolchain/package.ts writes from the
 /// checkout may differ: the config files, the CMake package, the xclang
 /// command and the license notices. Any other file that differs, comes or
 /// goes fails the check; the programs, libraries and headers are the
@@ -19,7 +19,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import * as common from "../../scripts/common.ts";
+import * as common from "../../toolchain/common.ts";
 
 const { values } = parseArgs({ options: { previous: { type: "string" }, dist: { type: "string" } } });
 if (!values.previous || !values.dist) common.fail("--previous <dir> --dist <dir>");

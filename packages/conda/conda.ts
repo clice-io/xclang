@@ -10,14 +10,14 @@
 /// $PREFIX/bin, so conda-forge's clang is left alone. Versions are the
 /// release's (23.1.2.1); a build number counts packaging fixes only.
 ///
-///   node scripts/conda.ts --dist <release assets> --version <x.y.z.r>
+///   node packages/conda/conda.ts --dist <release assets> --version <x.y.z.r>
 ///     [--build n] [--rattler-build <path>] [--hosts <triple>,...]
 ///     [--option-inc] --out <dir>
 
 import fs from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import * as common from "./common.ts";
+import * as common from "../../toolchain/common.ts";
 
 const { values } = parseArgs({
   options: {
@@ -53,7 +53,7 @@ const SUBDIRS: Record<string, string> = {
   "aarch64-apple-darwin": "osx-arm64",
 };
 /// The main licenses of the toolchain archive, whose share/licenses has
-/// every component's (scripts/licenses.ts): LLVM, libc++ and compiler-rt;
+/// every component's (toolchain/licenses.ts): LLVM, libc++ and compiler-rt;
 /// glibc 2.17, the kernel's UAPI headers and NSS's freebl (Linux targets);
 /// mingw-w64 and winpthreads (Windows targets); zlib and zstd; the xclang
 /// command's crates.
@@ -80,7 +80,7 @@ for (const host of hosts) {
     for (const ext of host.os === "mingw" ? ["bat", "ps1"] : ["sh"]) {
       const to = path.join(stage, "etc", "conda", `${phase}.d`, `xclang.${ext}`);
       fs.mkdirSync(path.dirname(to), { recursive: true });
-      fs.copyFileSync(path.join(common.ROOT, "packages", "conda", `${phase}.${ext}`), to);
+      fs.copyFileSync(path.join(import.meta.dirname, `${phase}.${ext}`), to);
     }
   }
   packages.push({

@@ -1,5 +1,5 @@
 """The release the module stands for: its version, and the sha256 of each
-of its archives (scripts/bazel.ts, from the release's SHA256SUMS)."""
+of its archives (packages/bazel/bazel.ts, from the release's SHA256SUMS)."""
 
 VERSION = "23.1.2.8"
 

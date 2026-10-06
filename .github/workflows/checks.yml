@@ -6,13 +6,14 @@ name: checks
 # branch or pull request cancels the run before it, but on main.
 # docs.yml runs on every push by itself.
 #
-#   test-archives.yml   tests/toolchain, tests/libclang, tests/lib, config:
-#                       the release's archives with this checkout's config
-#                       files and CMake package, on every host
+#   test-archives.yml   tests/toolchain, tests/libclang, tests/lib,
+#                       toolchain/config: the release's archives with this
+#                       checkout's config files and CMake package, on every
+#                       host
 #   test-cmake.yml      packages/cmake, tests/cmake, tests/libclang
-#   test-bazel.yml      packages/bazel, tests/bazel, scripts/bazel.ts
-#   test-sdk.yml        tests/sdk, config, packages/cmake
-#   cli.yml             cli, scripts/cli.ts, tests/cli, tests/sdk
+#   test-bazel.yml      packages/bazel, tests/bazel
+#   test-sdk.yml        tests/sdk, toolchain/config, packages/cmake
+#   cli.yml             cli, tests/cli, tests/sdk
 #   examples.yml        examples
 #
 # A change to one of these workflows, to on-target.yml, to the archives
@@ -64,11 +65,11 @@ jobs:
           area() {  # <name> <regex>
             if grep -qE "$2|$shared" changed.txt; then echo "$1=true"; else echo "$1=false"; fi | tee -a "$GITHUB_OUTPUT"
           }
-          area archives '^(tests/toolchain/|tests/libclang/|config/|\.github/workflows/test-archives\.yml)'
+          area archives '^(tests/toolchain/|tests/libclang/|toolchain/config/|\.github/workflows/test-archives\.yml)'
           area cmake '^(packages/cmake/|tests/cmake/|tests/libclang/|\.github/workflows/test-cmake\.yml)'
-          area bazel '^(packages/bazel/|tests/bazel/|scripts/bazel\.ts|\.github/workflows/test-bazel\.yml)'
-          area sdk '^(tests/sdk/|config/|packages/cmake/|\.github/workflows/test-sdk\.yml)'
-          area cli '^(cli/|scripts/cli\.ts|tests/cli/|tests/sdk/|\.github/workflows/cli\.yml)'
+          area bazel '^(packages/bazel/|tests/bazel/|\.github/workflows/test-bazel\.yml)'
+          area sdk '^(tests/sdk/|toolchain/config/|packages/cmake/|\.github/workflows/test-sdk\.yml)'
+          area cli '^(cli/|tests/cli/|tests/sdk/|\.github/workflows/cli\.yml)'
           area examples '^(examples/|\.github/workflows/examples\.yml)'
 
   archives:

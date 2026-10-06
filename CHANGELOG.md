@@ -8,6 +8,14 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+- The repository's layout: what builds the toolchain is under
+  `toolchain/` (its scripts, the CMake caches, the config files'
+  templates, the PGO training, the Windows launcher, license texts), the
+  scripts of the Bazel module and the conda packages are beside them in
+  `packages/`, and the xclang command's build script is in `cli/`. What a
+  project takes from the repository has not moved: `packages/bazel` for
+  `git_override`, `packages/cmake` for FetchContent.
+
 ## [23.1.2.9](https://github.com/clice-io/xclang/releases/tag/23.1.2.9) — 2026-10-06
 
 The compiler and runtimes are 23.1.2.7's.

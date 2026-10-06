@@ -5,7 +5,7 @@ description: Add, update or drop a change to LLVM in xclang's patches/ (patches/
 
 # A patch to LLVM
 
-`scripts/common.ts` (`patches()`, `llvmSource()`) applies every
+`toolchain/common.ts` (`patches()`, `llvmSource()`) applies every
 `patches/NNNN-name/*.patch` in directory order right after unpacking
 `llvm-project-<LLVM_VERSION>.src.tar.xz`, with `patch -p1 -F0 --forward`:
 no fuzz, a patch applies where it was made or the build fails. The series

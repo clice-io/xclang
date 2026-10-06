@@ -3,7 +3,7 @@
 # into libc++.a, compiler-rt instead of libgcc, no hardening by default.
 set(CMAKE_BUILD_TYPE Release CACHE STRING "")
 # CMake's checks link for real: the builtins and the C runtime exist by
-# now, and scripts/runtimes.ts links them without any C++ library.
+# now, and toolchain/runtimes.ts links them without any C++ library.
 set(LLVM_INCLUDE_TESTS OFF CACHE BOOL "")
 set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR OFF CACHE BOOL "")
 # Position-independent, so shared libraries can carry them statically too

@@ -31,13 +31,13 @@ steps for cutting one are in [releasing](releasing.md).
 Linux and Windows hosts are built on Linux x64, the macOS ones on macOS
 arm64. Every host but those two is cross-compiled, with table generators
 built for the machine first: no program of another architecture runs
-during a build, Rosetta's x86_64 included (`scripts/toolchain.ts` checks
+during a build, Rosetta's x86_64 included (`toolchain/toolchain.ts` checks
 the commands of each cross build).
 
 ## The Bootstrap Chain
 
 The bootstrap clang is an earlier xclang release, pinned with its sha256 in
-`scripts/common.ts`. The first was built by LLVM's own release builds:
+`toolchain/common.ts`. The first was built by LLVM's own release builds:
 
 | release | built by |
 |---|---|
@@ -123,10 +123,10 @@ is in [contributing](contributing.md#where-things-are).
 
 ## The xclang Command
 
-`node scripts/cli.ts` builds the
+`node cli/cli.ts` builds the
 [xclang command](../reference/xclang-command.md) for the hosts of the
 machine it runs on, with a released xclang
-(23.1.2.5, pinned in `scripts/common.ts`) as the C compiler and linker:
+(23.1.2.5, pinned in `toolchain/common.ts`) as the C compiler and linker:
 both Linux and both Windows hosts from Linux x64, both macOS hosts from
 macOS. It checks what each binary loads at run time:
 
@@ -141,7 +141,7 @@ macOS. It checks what each binary loads at run time:
 
 cli.yml builds the binaries and tests each on a machine of its host
 ([testing](testing.md#the-xclang-command)). `release.yml` with `cli` builds the
-program, and `scripts/package.ts --cli` puts it into the toolchain
+program, and `toolchain/package.ts --cli` puts it into the toolchain
 archives.
 
 Each dependency is there for a reason:
@@ -185,8 +185,8 @@ them, the pipeline needs:
    are the shared `libc++/include/c++/v1`), `xclang/lib/clang/<major>/lib/<target>/`
    (compiler-rt), and
    `xclang/bin/<spelling>.cfg` for every spelling of the triple. The config
-   files come from `config/`, as `scripts/common.ts` writes them,
-   case-unique and without links.
+   files come from `toolchain/config/`, as `toolchain/common.ts` writes
+   them, case-unique and without links.
 2. The index, `xclang-targets-<version>.json`, with the sha256, size,
    unpacked size, tier and SDK of each archive.
 3. Both in the draft release with the toolchains, and in `SHA256SUMS`.

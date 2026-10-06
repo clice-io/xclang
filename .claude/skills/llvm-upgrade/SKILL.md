@@ -5,7 +5,7 @@ description: Move xclang to a new LLVM release (e.g. 23.1.2 → 23.1.3 or 24.1.0
 
 # Upgrading LLVM
 
-1. **Versions and digests** in scripts/common.ts: `LLVM_VERSION`, and the
+1. **Versions and digests** in toolchain/common.ts: `LLVM_VERSION`, and the
    sha256 of `llvm-project` and of LLVM's own release builds
    (`llvm-linux-x64`, `llvm-macos-arm64`, `llvm-linux-arm64`,
    `llvm-windows-x64`, `llvm-windows-arm64`, the benchmark's reference).
@@ -20,12 +20,12 @@ description: Move xclang to a new LLVM release (e.g. 23.1.2 → 23.1.3 or 24.1.0
    --include=*.bzl --include=*.cmake --include=*.yml .` and read each hit:
    - tests/libclang/libclang.ts expects `clang version <major>`;
    - tests/bench/bench.ts and bench.yml name the LLVM compilers they compare;
-   - cmake/caches/*.cmake and scripts/runtimes.ts / toolchain.ts options a
-     new LLVM renamed or removed (CMake warnings of unused variables in the
-     build logs);
-   - `OPTION_TABLES` in scripts/toolchain.ts: the generated `.inc` paths
+   - toolchain/cmake/caches/*.cmake and toolchain/runtimes.ts /
+     toolchain.ts options a new LLVM renamed or removed (CMake warnings of
+     unused variables in the build logs);
+   - `OPTION_TABLES` in toolchain/toolchain.ts: the generated `.inc` paths
      move between versions;
-   - pgo/remap.txt, if mangled names of the profile changed;
+   - toolchain/pgo/remap.txt, if mangled names of the profile changed;
    - `LIBRARIES` in packages/bazel/bazel/libclang.bzl, @libclang's names
      before any archive is fetched: a libclang archive with a library it
      lacks fails to load (test-bazel.yml of the run says which).
@@ -35,7 +35,7 @@ description: Move xclang to a new LLVM release (e.g. 23.1.2 → 23.1.3 or 24.1.0
    major version needs a newer compiler, the bootstrap may be LLVM's own
    release build again (`bootstrap-linux`/`-macos` pointing at
    `llvm-linux-x64`/`llvm-macos-arm64`, as 23.1.2.1 did; see
-   scripts/bootstrap.ts).
+   toolchain/bootstrap.ts).
 5. **CI** on `exp/<llvm version>`: the full release.yml run, revision 1. Fix
    on the branch, rerun failed stages with `reuse-run`. The training and
    the smoke tests are where a new version breaks most.

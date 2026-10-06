@@ -43,11 +43,11 @@ rest are called by them, by release.yml, or started by hand.
 | workflow | push, pull request (checks.yml), when these change | release.yml, with a candidate's archives | published.yml | weekly.yml | what |
 |---|---|---|---|---|---|
 | docs.yml | every push and pull request, by itself | | | | `tests/docs/docs.ts` and the types (`npm run check`); on `main`, then publishing to docs.clice.io |
-| test-archives.yml | `tests/toolchain`, `tests/libclang`, `config` | stage `test` | | | `tests/toolchain/smoke.ts` and `tests/libclang/libclang.ts` on a machine of each host; the programs the smoke test builds for other targets run on those (on-target.yml); with `repack-of`, `tests/release/repack.ts`: each host's archives against those of the release repacked, file by file, only the packaging's files differ |
+| test-archives.yml | `tests/toolchain`, `tests/libclang`, `toolchain/config` | stage `test` | | | `tests/toolchain/smoke.ts` and `tests/libclang/libclang.ts` on a machine of each host; the programs the smoke test builds for other targets run on those (on-target.yml); with `repack-of`, `tests/release/repack.ts`: each host's archives against those of the release repacked, file by file, only the packaging's files differ |
 | test-cmake.yml | `packages/cmake`, `tests/cmake`, `tests/libclang` | stage `cmake` | the tag fetched from GitHub | | `tests/cmake/cmake.ts`: the package by `PATH`, through the toolchain file, and from FetchContent |
-| test-bazel.yml | `packages/bazel`, `tests/bazel`, `scripts/bazel.ts` | stage `bazel`: `tests/bazel` only | ✓ | ✓ | `tests/bazel` with the module, `tests/bazel/bazel.ts`, and cross builds run on the target (`tests/bazel/cross.ts`) |
-| test-sdk.yml | `tests/sdk`, `config`, `packages/cmake` | stage `sdk`; needs `cli`, as the archives' `xclang` fetches the SDKs | | | the MSVC targets (`tests/sdk/msvc.ts`) and the macOS targets from Linux and Windows hosts (`tests/sdk/macos.ts`); their programs on Windows and Macs |
-| cli.yml | `cli`, `scripts/cli.ts`, `tests/cli`, `tests/sdk` | the build, for stage `package`; stage `cli` | | ✓ | the `xclang` command: rustfmt, clippy, unit tests, `tests/cli/cli.ts`, `tests/cli/cargo.ts` |
+| test-bazel.yml | `packages/bazel`, `tests/bazel` | stage `bazel`: `tests/bazel` only | ✓ | ✓ | `tests/bazel` with the module, `tests/bazel/bazel.ts`, and cross builds run on the target (`tests/bazel/cross.ts`) |
+| test-sdk.yml | `tests/sdk`, `toolchain/config`, `packages/cmake` | stage `sdk`; needs `cli`, as the archives' `xclang` fetches the SDKs | | | the MSVC targets (`tests/sdk/msvc.ts`) and the macOS targets from Linux and Windows hosts (`tests/sdk/macos.ts`); their programs on Windows and Macs |
+| cli.yml | `cli`, `tests/cli`, `tests/sdk` | the build, for stage `package`; stage `cli` | | ✓ | the `xclang` command: rustfmt, clippy, unit tests, `tests/cli/cli.ts`, `tests/cli/cargo.ts` |
 | examples.yml | `examples` | | once conda.clice.io has the release and `latest` names it | ✓ | the commands and `examples/` of the docs, as written; the programs for other targets on their runners |
 | conda.yml | | | build 0, published | | each package installed with pixi and used, on every host |
 | stage-package.yml | | stage `package` | | | each host's archives made again on another machine, in another directory, with other file times, umask 077 and three xz threads (the first has four): the same bytes |
@@ -167,8 +167,9 @@ Ninja 1.11, and with the newest of both:
    built for a target of another OS, which fetches no other host toolchain
    and only that target's libclang. A macOS target off macOS fails and
    says why.
-2. **The registry archive.** The module as `scripts/bazel.ts` packs it for
-   bazel.clice.io gives the same actions, from the disk cache.
+2. **The registry archive.** The module as `packages/bazel/bazel.ts`
+   packs it for bazel.clice.io gives the same actions, from the disk
+   cache.
 3. **`git_override`** of a commit, with `strip_prefix = "packages/bazel"`,
    builds the programs.
 4. **A new release rebuilds.** The copy at the previous release runs every
@@ -214,7 +215,7 @@ for another target.
 ## The xclang Command
 
 cli.yml builds the `xclang` command for every host, with a released xclang
-as the C compiler and linker (`scripts/cli.ts`). On a machine of each
+as the C compiler and linker (`cli/cli.ts`). On a machine of each
 host, in the latest release's toolchain (or a run's archives, with the
 command they carry), `tests/cli/cli.ts` then:
 
@@ -313,8 +314,9 @@ checks what the page says it prints:
   block outside these Development pages is a step of examples.yml, or
   says why CI does not run it (`<!-- not run: -->`). It also checks that
   every directory of `examples/` is built and shown, that every relative
-  link reaches its page and heading, and that the status of every
-  unshipped item is one of the [roadmap](../design/roadmap.md) words.
+  link reaches its page and heading, that every link to a file of the
+  repository reaches one, and that the status of every unshipped item is
+  one of the [roadmap](../design/roadmap.md) words.
 - examples.yml runs the commands of the docs and `examples/` on every
   host, against the published release. Make runs on Linux and macOS hosts.
   Windows hosts also build the CMake and Meson projects for

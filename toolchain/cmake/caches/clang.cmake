@@ -1,7 +1,7 @@
-# One host's toolchain and libclang, from one build. scripts/toolchain.ts
+# One host's toolchain and libclang, from one build. toolchain/toolchain.ts
 # adds the host triple, the profile and the cross-compiling settings; the
-# compiler is an xclang tree (cmake/toolchain.cmake), whose config file
-# links xclang's own libc++, statically.
+# compiler is an xclang tree (toolchain/cmake/toolchain.cmake), whose
+# config file links xclang's own libc++, statically.
 #
 # Two distributions come out of it:
 #   Toolchain    clang, lld and the binary tools    install-toolchain-distribution-stripped
@@ -19,7 +19,7 @@ set(LLVM_PARALLEL_LINK_JOBS 1 CACHE STRING "")
 set(LLVM_ENABLE_LIBCXX ON CACHE BOOL "")
 set(LLVM_STATIC_LINK_CXX_STDLIB ON CACHE BOOL "")
 
-# Static zlib and zstd (scripts/toolchain.ts builds them and names them):
+# Static zlib and zstd (toolchain/toolchain.ts builds them and names them):
 # compressed debug sections and profiles, in lld, clang and the tools.
 set(LLVM_ENABLE_ZLIB FORCE_ON CACHE STRING "")
 set(LLVM_ENABLE_ZSTD FORCE_ON CACHE STRING "")
@@ -42,9 +42,9 @@ set(LLVM_INCLUDE_BENCHMARKS OFF CACHE BOOL "")
 set(LLVM_INCLUDE_DOCS OFF CACHE BOOL "")
 
 # No CLANG_DEFAULT_CXX_STDLIB, _RTLIB, _UNWINDLIB or _LINKER: the config
-# files (config/*.cfg) choose xclang's runtimes and lld. Defaults built in
-# would reach libclang's driver as well, which clice runs to stand in for
-# other compilers: a g++ command then got libc++'s headers.
+# files (toolchain/config/*.cfg) choose xclang's runtimes and lld. Defaults
+# built in would reach libclang's driver as well, which clice runs to stand
+# in for other compilers: a g++ command then got libc++'s headers.
 set(CLANG_DEFAULT_OBJCOPY llvm-objcopy CACHE STRING "")
 set(CLANG_LINK_CLANG_DYLIB OFF CACHE BOOL "")
 set(CLANG_PLUGIN_SUPPORT OFF CACHE BOOL "")
@@ -62,7 +62,7 @@ set(LLVM_INSTALL_UTILS ON CACHE BOOL "")
 
 # One program, llvm, is clang, lld and every tool that can be built into
 # it; their names are links to it (on Windows, small programs that start
-# it: scripts/toolchain.ts). The tools share most of LLVM, which each one
+# it: toolchain/toolchain.ts). The tools share most of LLVM, which each one
 # would otherwise carry in full.
 set(LLVM_TOOL_LLVM_DRIVER_BUILD ON CACHE BOOL "")
 

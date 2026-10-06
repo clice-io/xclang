@@ -5,7 +5,7 @@ description: Cut an xclang release <llvm version>.<revision> — full rebuild or
 
 # Cutting a release
 
-A release is `<LLVM_VERSION>.<revision>` (scripts/common.ts has
+A release is `<LLVM_VERSION>.<revision>` (toolchain/common.ts has
 `LLVM_VERSION`; the revision is release.yml's `revision` input). Nothing
 published is ever replaced: a rebuild gets the next revision. Builds run on
 CI only, on GitHub-hosted runners. Ask the user before pushing to main and
@@ -20,27 +20,27 @@ tells which.
   `package` stage reads from the checkout, or in nothing the archives hold.
   The next revision then reuses the compiler, runtimes, libclang and
   profile of the release.yml run that built them, byte for byte (clang
-  and lld embed no revision; only scripts/package.ts and the xclang
+  and lld embed no revision; only toolchain/package.ts and the xclang
   command name it): about half an hour instead of three hours.
-  - config/*.cfg (common.writeConfigs, called by package.ts);
+  - toolchain/config/*.cfg (common.writeConfigs, called by package.ts);
   - packages/cmake/ (lib/cmake/xclang; xclang.cmake is used from the tag);
   - packages/bazel/ (the tag's module, published by published.yml; not in
     the archives);
-  - cli/ and scripts/cli.ts (the package stage builds the command anew);
-  - scripts/package.ts, scripts/licenses.ts, licenses/, LICENSE, and what
-    package.ts uses of scripts/common.ts (makeTree, shareHeaders,
-    writeConfigs, writeCMakePackage);
+  - cli/ (the package stage builds the command anew);
+  - toolchain/package.ts, toolchain/licenses.ts, toolchain/licenses/,
+    LICENSE, and what package.ts uses of toolchain/common.ts (makeTree,
+    shareHeaders, writeConfigs, writeCMakePackage);
   - docs/, examples/, tests/, the workflows' tests.
   A fix of the conda packages alone is no release at all: conda.yml by
   hand, with the same tag and the next `build`.
 - **Full rebuild**: anything built into the toolchain, runtimes or profile
   artifacts: patches/, the LLVM source and other pins of SOURCES
-  (mingw-w64, sysroots, zlib, zstd, the bootstrap), cmake/caches/,
-  cmake/toolchain.cmake, scripts/toolchain.ts, scripts/runtimes.ts,
-  scripts/sysroot.ts, windows/alias.c, TARGETS or MACOS_MIN in
-  scripts/common.ts, pgo/, the hosts. A runtimes change rebuilds the
-  toolchains too: clang links its host's libc++ statically. Ask the user
-  when a change seems to fall between the two.
+  (mingw-w64, sysroots, zlib, zstd, the bootstrap), toolchain/cmake/,
+  toolchain/toolchain.ts, toolchain/runtimes.ts, toolchain/sysroot.ts,
+  toolchain/launcher/, TARGETS or MACOS_MIN in toolchain/common.ts,
+  toolchain/pgo/, the hosts. A runtimes change rebuilds the toolchains
+  too: clang links its host's libc++ statically. Ask the user when a
+  change seems to fall between the two.
 
 checks.yml has tested every push of these changes already, against the
 latest release (config files and CMake package of the checkout included);
@@ -49,7 +49,7 @@ the release run tests them with the new archives.
 ## Steps
 
 1. **Bootstrap**, for a full rebuild. `SOURCES["bootstrap-linux"]` /
-   `["bootstrap-macos"]` in scripts/common.ts name the release whose Linux
+   `["bootstrap-macos"]` in toolchain/common.ts name the release whose Linux
    x64 and macOS arm64 toolchains build this one (usually the previous
    release). To move it: take the two archives' lines from that release's
    SHA256SUMS (`gh release download <ver> -R clice-io/xclang -p

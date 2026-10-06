@@ -28,7 +28,7 @@ line. xclang writes one file per target, and per spelling of it, into
 | Windows (MSVC) | `<arch>-pc-windows-msvc.cfg`, `<arch>-unknown-windows-msvc.cfg`, and for clang-cl `<spelling>-clang-cl.cfg` |
 
 Each says this
-([config/](https://github.com/clice-io/xclang/tree/main/config)):
+([toolchain/config/](https://github.com/clice-io/xclang/tree/main/toolchain/config)):
 
 | target | options |
 |---|---|

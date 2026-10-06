@@ -9,7 +9,7 @@ channels = ["conda-forge"]
 platforms = ["linux-64", "osx-arm64"]
 
 # Build tools only. The compiler is never a conda one: every build uses the
-# bootstrap clang (scripts/bootstrap.ts) or a toolchain built here.
+# bootstrap clang (toolchain/bootstrap.ts) or a toolchain built here.
 [dependencies]
 nodejs = ">=24"
 cmake = ">=3.31,<5"
@@ -24,9 +24,9 @@ sysroot_linux-64 = "2.17.*"
 sysroot_linux-aarch64 = "2.17.*"
 
 [tasks]
-bootstrap = "node scripts/bootstrap.ts"
-runtimes = "node scripts/runtimes.ts"
-toolchain = "node scripts/toolchain.ts"
-train = "node pgo/train.ts"
-package = "node scripts/package.ts"
+bootstrap = "node toolchain/bootstrap.ts"
+runtimes = "node toolchain/runtimes.ts"
+toolchain = "node toolchain/toolchain.ts"
+train = "node toolchain/pgo/train.ts"
+package = "node toolchain/package.ts"
 smoke = "node tests/toolchain/smoke.ts"

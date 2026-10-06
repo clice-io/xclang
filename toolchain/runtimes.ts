@@ -30,16 +30,16 @@ const { values } = parseArgs({ options: { target: { type: "string" } } });
 if (!values.target) common.fail("--target <triple> or --target darwin");
 
 const bootstrap = path.join(common.WORK, "bootstrap");
-if (!fs.existsSync(path.join(bootstrap, "bin", "clang"))) common.fail("run scripts/bootstrap.ts first");
+if (!fs.existsSync(path.join(bootstrap, "bin", "clang"))) common.fail("run toolchain/bootstrap.ts first");
 const src = await common.llvmSource();
-const caches = path.join(common.ROOT, "cmake", "caches");
+const caches = path.join(import.meta.dirname, "cmake", "caches");
 
 /// The builtins and the C++ runtimes are built without the config files,
 /// which link the very libraries being built; CMAKE_SYSROOT
-/// (cmake/toolchain.cmake) still names the sysroot. The builtins come first
-/// and nothing can be linked yet, so their checks only compile; the C++
-/// runtimes' checks link against the C runtime and the builtins. Then the
-/// headers move to where the config files look for them
+/// (toolchain/cmake/toolchain.cmake) still names the sysroot. The builtins
+/// come first and nothing can be linked yet, so their checks only compile;
+/// the C++ runtimes' checks link against the C runtime and the builtins.
+/// Then the headers move to where the config files look for them
 /// (common.shareHeaders), and the rest of compiler-rt comes last, built
 /// with the config files.
 const NO_CONFIG = ["C", "CXX", "ASM"].map((lang) => `-DCMAKE_${lang}_FLAGS=--no-default-config`);
@@ -51,7 +51,8 @@ function cmake(name: string, source: string, args: string[]): void {
   common.run("cmake", ["--build", build, "--target", "install"]);
 }
 
-/// Where the sanitizers and libFuzzer are built (cmake/caches/compiler-rt.cmake).
+/// Where the sanitizers and libFuzzer are built
+/// (toolchain/cmake/caches/compiler-rt.cmake).
 const SANITIZERS = ["linux", "darwin"];
 
 /// The sanitizer runtimes of Linux carry xclang's libc++abi as their C++ ABI.
@@ -111,8 +112,8 @@ function cxx(t: common.Target, stage: string): void {
   /// GCC's runtime libraries, which build scripts written for GCC name
   /// (-latomic, -lgcc_s, and on Windows -lssp, which clang's MinGW driver
   /// adds for -fstack-protector), are empty archives: what they hold comes
-  /// from compiler-rt (atomics too: cmake/caches/builtins.cmake), libunwind
-  /// and, for the stack protector, mingw-w64's libmingwex.
+  /// from compiler-rt (atomics too: toolchain/cmake/caches/builtins.cmake),
+  /// libunwind and, for the stack protector, mingw-w64's libmingwex.
   const stubs = { linux: GCC_STUBS, mingw: [...GCC_STUBS, "ssp", "ssp_nonshared"], darwin: [], msvc: [] }[t.os];
   for (const name of stubs) fs.writeFileSync(path.join(prefix, "lib", `lib${name}.a`), "!<arch>\n");
 }
@@ -194,10 +195,11 @@ function compilerRtDarwin(stage: string): void {
 }
 
 /// compiler-rt for the MSVC targets, with clang-cl and lld-link
-/// (cmake/toolchain.cmake) against the SDK, in the layout lld-link searches
-/// by itself, lib/clang/<ver>/lib/windows/clang_rt.<name>-<arch>.lib: the
-/// config files name the builtins in every object (config/msvc.cfg), so
-/// they are found also when lld-link links on its own. Without the config
+/// (toolchain/cmake/toolchain.cmake) against the SDK, in the layout
+/// lld-link searches by itself,
+/// lib/clang/<ver>/lib/windows/clang_rt.<name>-<arch>.lib: the config files
+/// name the builtins in every object (toolchain/config/msvc.cfg), so they
+/// are found also when lld-link links on its own. Without the config
 /// files, whose hybrid CRT would otherwise be in every object of these
 /// libraries too. The builtins (/Zl) name no C runtime; the rest is built
 /// as compiler-rt builds it for Windows: the profile runtime /MT, ASan's

@@ -42,7 +42,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          llvm=$(sed -n 's/^export const LLVM_VERSION = "\(.*\)";/\1/p' scripts/common.ts)
+          llvm=$(sed -n 's/^export const LLVM_VERSION = "\(.*\)";/\1/p' toolchain/common.ts)
           version="$llvm.${{ inputs.revision }}"
           if gh release view "$version" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             echo "::error::release $version exists; a rebuild gets the next revision"

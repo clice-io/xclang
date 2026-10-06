@@ -1,9 +1,9 @@
 name: conda
 
-# The conda packages of a release (scripts/conda.ts), installed with pixi
-# and used on a machine of every host, then, if asked, published to the
-# clice conda channel (https://conda.clice.io) through clice-io/conda's
-# action.
+# The conda packages of a release (packages/conda/conda.ts), installed
+# with pixi and used on a machine of every host, then, if asked, published
+# to the clice conda channel (https://conda.clice.io) through
+# clice-io/conda's action.
 #
 #   published.yml   build 0 of every release, published
 #   by hand         a packaging fix of a published release: the next build
@@ -72,7 +72,7 @@ jobs:
       - name: Package
         run: |
           extra=(); [[ "${{ matrix.host }}" == x86_64-unknown-linux-gnu ]] && extra=(--option-inc)
-          node scripts/conda.ts --dist dist --version "${{ inputs.tag }}" --build "${{ inputs.build }}" \
+          node packages/conda/conda.ts --dist dist --version "${{ inputs.tag }}" --build "${{ inputs.build }}" \
             --hosts "${{ matrix.host }}" "${extra[@]}" --rattler-build ./rattler-build --out channel > conda.log 2>&1 \
             || { tail -n 200 conda.log; exit 1; }
           grep ' MB  ' conda.log | tee -a "$GITHUB_STEP_SUMMARY"

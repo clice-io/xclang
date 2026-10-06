@@ -25,7 +25,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import * as common from "../../scripts/common.ts";
+import * as common from "../../toolchain/common.ts";
 
 const { values } = parseArgs({
   options: {

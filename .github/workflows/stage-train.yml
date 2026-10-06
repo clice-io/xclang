@@ -1,7 +1,8 @@
 name: stage-train
 
 # The training run on Linux x64: the instrumented clang and lld build the
-# corpus of pgo/train.ts, and their counters become the `profile` artifact.
+# corpus of toolchain/pgo/train.ts, and their counters become the
+# `profile` artifact.
 
 on:
   workflow_call:

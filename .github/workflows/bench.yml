@@ -99,7 +99,7 @@ jobs:
             fi
           done
           if [[ -n "${{ matrix.official }}" ]]; then
-            archive=$(node scripts/fetch.ts ${{ matrix.official }})
+            archive=$(node toolchain/fetch.ts ${{ matrix.official }})
             mkdir -p official
             if [[ "$RUNNER_OS" == Windows ]]; then
               7z x -so "$archive" | 7z x -si -ttar -y -oofficial-raw > /dev/null

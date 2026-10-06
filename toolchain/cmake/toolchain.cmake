@@ -15,7 +15,7 @@
 
 foreach(var XCLANG_ROOT XCLANG_TARGET XCLANG_TARGET_OS XCLANG_TARGET_ARCH)
     if(NOT ${var})
-        message(FATAL_ERROR "cmake/toolchain.cmake needs ${var}")
+        message(FATAL_ERROR "toolchain/cmake/toolchain.cmake needs ${var}")
     endif()
 endforeach()
 # try_compile projects see the toolchain file again, not the cache.
@@ -87,7 +87,7 @@ endif()
 if(XCLANG_TARGET_OS STREQUAL "darwin")
     # Apple builds switch architectures with CMAKE_OSX_ARCHITECTURES, not
     # with a cross-compiling system name. LLVM's x86_64 build on arm64 takes
-    # its table generators from LLVM_NATIVE_TOOL_DIR (scripts/toolchain.ts),
+    # its table generators from LLVM_NATIVE_TOOL_DIR (toolchain/toolchain.ts),
     # so no x86_64 program runs through Rosetta.
     if(XCLANG_TARGET_ARCH STREQUAL "aarch64")
         set(CMAKE_OSX_ARCHITECTURES arm64 CACHE STRING "")

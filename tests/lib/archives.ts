@@ -8,7 +8,7 @@
 ///       a published release's, downloaded from GitHub and checked against
 ///       its SHA256SUMS, with this checkout's config files and CMake package
 ///       in the toolchain: what a repack of the release would ship
-///       (scripts/package.ts writes the same), so that a change to them is
+///       (toolchain/package.ts writes the same), so that a change to them is
 ///       tested before any build
 ///
 /// <out> gets xclang/, libclang/ and libclang-asan/ (where the host has
@@ -22,7 +22,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import * as common from "../../scripts/common.ts";
+import * as common from "../../toolchain/common.ts";
 
 const { values } = parseArgs({
   options: { host: { type: "string" }, out: { type: "string" }, dist: { type: "string" }, release: { type: "string" } },

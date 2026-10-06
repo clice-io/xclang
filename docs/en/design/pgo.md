@@ -18,7 +18,7 @@ times as long as LLVM's.
 PGO optimizes a program for the work it was profiled on, so the training
 set decides what gets faster. xclang's instrumented clang, clang-scan-deps
 and lld do the work the toolchain is used for, by builds and by editors
-([pgo/train.ts](https://github.com/clice-io/xclang/blob/main/pgo/train.ts)):
+([toolchain/pgo/train.ts](https://github.com/clice-io/xclang/blob/main/toolchain/pgo/train.ts)):
 
 - C and C++ sources (sqlite, abseil) at `-O0 -g` and `-O2`, for x86_64 and
   aarch64 Linux.
@@ -84,7 +84,7 @@ and `uint64_t` is `unsigned long long` on macOS too. `int64_t` differs the
 same way, `l` against `x`. A function taking a `size_t` thus has another
 name on Windows than in the Linux profile, and gets no counts.
 
-[pgo/remap.txt](https://github.com/clice-io/xclang/blob/main/pgo/remap.txt)
+[toolchain/pgo/remap.txt](https://github.com/clice-io/xclang/blob/main/toolchain/pgo/remap.txt)
 tells clang that these manglings are the same (`-fprofile-remapping-file`).
 In the same experiments, it took macOS arm64 from 0.896 / 0.923 to
 0.794 / 0.845, and Windows x64 from 0.787 / 0.824 to 0.772 / 0.829.

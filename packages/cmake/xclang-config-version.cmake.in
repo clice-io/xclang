@@ -1,5 +1,5 @@
 # The release of this package, xclang <llvm version>.<revision>, written
-# into the toolchain archive (scripts/package.ts): it serves a request for
+# into the toolchain archive (toolchain/package.ts): it serves a request for
 # its LLVM major version, no newer than itself.
 set(PACKAGE_VERSION "@VERSION@")
 if(PACKAGE_FIND_VERSION VERSION_GREATER PACKAGE_VERSION OR NOT PACKAGE_FIND_VERSION_MAJOR EQUAL "@MAJOR@")

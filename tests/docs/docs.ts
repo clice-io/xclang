@@ -16,7 +16,8 @@
 ///   when it has an anchor, slugged as the docs site (VitePress) does, or
 ///   an `<a id="...">` of it (the roadmap's rows); so does every link into
 ///   docs/en from the README, the CHANGELOG and the other top-level pages,
-///   as a file or as a docs.clice.io/xclang URL;
+///   as a file or as a docs.clice.io/xclang URL; every link to a file of
+///   the repository, relative or on GitHub's main, reaches one;
 /// - what is not shipped is said one way: a table's `status` column holds
 ///   one of the roadmap's six words, and the phrasings that left a status
 ///   unclear ("is to be", "being considered", a bare "**Missing.**") are
@@ -198,13 +199,22 @@ for (const dir of fs.readdirSync(EXAMPLES, { withFileTypes: true })) {
   }
 }
 
+/// A link to a file of this repository on GitHub's main, which the docs
+/// on docs.clice.io follow: that file of the checkout.
+const REPO = /^https:\/\/github\.com\/clice-io\/xclang\/(?:blob|tree)\/main\/([^#?]+)/;
 let links = 0;
 for (const [page, { lines }] of parsed) {
   lines.forEach((line, i) => {
     for (const m of line.matchAll(/\]\(([^)\s]+)\)/g)) {
       const target = m[1];
-      if (/^[a-z]+:/.test(target) || target.startsWith("/")) continue;
       const where = `${path.relative(ROOT, page)}:${i + 1}`;
+      const repoFile = REPO.exec(target)?.[1];
+      if (repoFile) {
+        links++;
+        if (!fs.existsSync(path.join(ROOT, repoFile))) failures.push(`${where}: ${target}: no ${repoFile} in the repository`);
+        continue;
+      }
+      if (/^[a-z]+:/.test(target) || target.startsWith("/")) continue;
       const [file, anchor] = target.split("#");
       const resolved = file ? path.resolve(path.dirname(page), file) : page;
       const doc = parsed.get(resolved.endsWith(".md") ? resolved : `${resolved}.md`);
@@ -220,7 +230,8 @@ for (const [page, { lines }] of parsed) {
 
 /// Links into the docs from the repository's own pages, as files
 /// (docs/en/<group>/<page>.md#<id>) or as the published site
-/// (https://docs.clice.io/xclang/<group>/<page>#<id>).
+/// (https://docs.clice.io/xclang/<group>/<page>#<id>); their links to other
+/// files of the repository, relative or on GitHub's main, reach a file.
 const SITE = "https://docs.clice.io/xclang/";
 for (const name of ["README.md", "README.zh-CN.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "packages/README.md"]) {
   const file = path.join(ROOT, name);
@@ -229,9 +240,15 @@ for (const name of ["README.md", "README.zh-CN.md", "CHANGELOG.md", "CONTRIBUTIN
     for (const m of line.matchAll(/\]\(([^)\s]+)\)/g)) {
       let target = m[1];
       if (target.startsWith(SITE)) target = `docs/en/${target.slice(SITE.length)}`;
+      else if (REPO.test(target)) target = REPO.exec(target)![1]!;
       else if (/^[a-z]+:/.test(target)) continue;
       else target = path.relative(ROOT, path.resolve(path.dirname(file), target));
-      if (!target.startsWith("docs/en/")) continue;
+      if (!target.startsWith("docs/en/")) {
+        links++;
+        const there = target.split("#")[0]!;
+        if (!fs.existsSync(path.join(ROOT, there))) failures.push(`${name}:${i + 1}: ${m[1]}: no ${there} in the repository`);
+        continue;
+      }
       const [page, anchor] = target.split("#");
       if (page === "docs/en" || page === "docs/en/") continue;
       const doc = parsed.get(path.join(ROOT, page.endsWith(".md") ? page : `${page}.md`));

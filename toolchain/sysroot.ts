@@ -39,7 +39,7 @@ function glibc(t: common.Target, dest: string): void {
   const lib = path.join(dest, "usr", "lib64");
   fs.renameSync(path.join(lib, "libc.a"), path.join(lib, "libglibc.a"));
   fs.writeFileSync(path.join(lib, "libc.a"),
-    "/* xclang: libpthread.a ahead of glibc's archive, for -static (scripts/sysroot.ts) */\n" +
+    "/* xclang: libpthread.a ahead of glibc's archive, for -static (toolchain/sysroot.ts) */\n" +
     "GROUP ( /usr/lib64/libpthread.a /usr/lib64/libglibc.a )\n");
   console.log(`glibc sysroot of ${t.triple} in ${dest}`);
 }

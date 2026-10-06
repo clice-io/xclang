@@ -23,7 +23,7 @@ then carries the fix as a patch until a release has it.
   written by the workflow that uploads the assets. The Bazel module pins
   each archive by sha256; CMake's download checks it against `SHA256SUMS`.
 - LLVM's source and every other input of the build are pinned by sha256
-  in `scripts/common.ts`; the changes to LLVM are the patches in
+  in `toolchain/common.ts`; the changes to LLVM are the patches in
   `patches/`, each documented.
 - Vendor SDKs are never redistributed; the `xclang` command fetches them
   from the vendor, pinned by version and sha256.

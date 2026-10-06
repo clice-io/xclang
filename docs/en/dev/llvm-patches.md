@@ -9,7 +9,7 @@ this page is the same, for people. What each patch does is in
 
 ## The Rules a Patch Follows
 
-- **Applied without fuzz.** `scripts/common.ts` applies every
+- **Applied without fuzz.** `toolchain/common.ts` applies every
   `patches/NNNN-name/*.patch` in directory order right after unpacking the
   source, with `patch -p1 -F0 --forward`: a patch applies where it was made
   or the build fails, so a tag's build is exactly its series.
@@ -43,14 +43,14 @@ this page is the same, for people. What each patch does is in
 ## Upgrading LLVM
 
 1. `LLVM_VERSION` and the sha256 of every pinned source in
-   `scripts/common.ts`, from LLVM's release page.
+   `toolchain/common.ts`, from LLVM's release page.
 2. Each patch: dropped if upstream took it, otherwise regenerated against
    the new source (`-F0`), keeping its number, with its README's `Checked:`
    updated.
 3. Version-specific code: `grep -rn "23\b\|23\.1"` over the TypeScript,
    Starlark, CMake and workflow files, and read each hit (tests/libclang/libclang.ts,
    the benchmark's compilers, renamed CMake options, the option tables'
-   paths, pgo/remap.txt, the Bazel module's library list).
+   paths, toolchain/pgo/remap.txt, the Bazel module's library list).
 4. The bootstrap: the previous xclang release, unless a major version
    needs a newer compiler; then LLVM's own release build, as for 23.1.2.1.
 5. A full release.yml run on `exp/<llvm version>`; the training and the smoke

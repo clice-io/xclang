@@ -39,7 +39,7 @@ for (const part of parts) if (!fs.existsSync(part)) common.fail(`missing ${part}
 const bootstrap = path.join(common.WORK, "bootstrap");
 const stage = common.makeTree(path.join(common.WORK, "stage", `toolchain-${host.triple}-${mode}`), bootstrap, parts);
 const src = await common.llvmSource();
-const caches = path.join(common.ROOT, "cmake", "caches");
+const caches = path.join(import.meta.dirname, "cmake", "caches");
 if (common.machine() === "macos") {
   process.env.SDKROOT ??= spawnSync("xcrun", ["--show-sdk-path"], { encoding: "utf8" }).stdout.trim();
 }
@@ -142,7 +142,7 @@ const args = [
 if (cross) args.push(`-DLLVM_HOST_TRIPLE=${host.triple}`);
 /// LLVM takes LLVM_NATIVE_TOOL_DIR's table generators over its own also
 /// where CMake does not cross-compile: macOS's x86_64 build is one of
-/// CMAKE_OSX_ARCHITECTURES (cmake/toolchain.cmake).
+/// CMAKE_OSX_ARCHITECTURES (toolchain/cmake/toolchain.cmake).
 if (cross) args.push(`-DLLVM_NATIVE_TOOL_DIR=${nativeTools()}`);
 /// clice and its tests expect backslash-preferred paths on Windows.
 if (host.os === "mingw") args.push("-DLLVM_WINDOWS_PREFER_FORWARD_SLASH=OFF");
@@ -153,7 +153,7 @@ if (host.os === "darwin") args.push("-DCLANG_USE_XCSELECT=ON");
 /// merges string tails. (The macOS linker deduplicates on its own.)
 if (mode === "release" && host.os !== "darwin") args.push("-DCMAKE_EXE_LINKER_FLAGS=-Wl,--icf=safe -Wl,-O2");
 /// The ASan build compiles and links with libc++'s ASan build
-/// (scripts/runtimes.ts), as its users' ASan builds do. Every link has the
+/// (toolchain/runtimes.ts), as its users' ASan builds do. Every link has the
 /// ASan runtime the instrumented libc++.a needs, CMake's checks too, which
 /// run before LLVM_USE_SANITIZER instruments anything.
 if (mode === "asan") {
@@ -164,7 +164,7 @@ if (mode === "asan") {
 }
 if (profile) {
   const flags = [
-    `-fprofile-remapping-file=${path.join(common.ROOT, "pgo", "remap.txt")}`,
+    `-fprofile-remapping-file=${path.join(import.meta.dirname, "pgo", "remap.txt")}`,
     "-Wno-profile-instr-unprofiled",
     "-Wno-profile-instr-out-of-date",
     "-Wno-profile-instr-missing",
@@ -208,7 +208,7 @@ function install(target: string, dest: string): void {
 }
 
 /// On Windows every name of llvm.exe (a symlink in the install tree)
-/// becomes a copy of windows/alias.c, which starts it.
+/// becomes a copy of toolchain/launcher/alias.c, which starts it.
 function windowsAliases(dir: string): void {
   const bin = path.join(dir, "bin");
   const links = fs.readdirSync(bin).filter((f) => fs.lstatSync(path.join(bin, f)).isSymbolicLink());
@@ -217,7 +217,7 @@ function windowsAliases(dir: string): void {
   const exe = path.join(common.WORK, "build", `alias-${host.triple}`, "alias.exe");
   fs.mkdirSync(path.dirname(exe), { recursive: true });
   common.run(path.join(stage, "bin", "clang"), [
-    `--target=${host.triple}`, "-Os", "-municode", "-s", path.join(common.ROOT, "windows", "alias.c"), "-o", exe,
+    `--target=${host.triple}`, "-Os", "-municode", "-s", path.join(import.meta.dirname, "launcher", "alias.c"), "-o", exe,
   ]);
   for (const link of links) {
     fs.rmSync(path.join(bin, link));
@@ -245,10 +245,11 @@ const OPTION_TABLES: Record<string, [string, string]> = {
   "llvm-dlltool-Options.inc": ["DllOptionsTableGen", "lib/ToolDrivers/llvm-dlltool/Options.inc"],
 };
 
-/// libclang's archive has every target's MC layer (cmake/caches/clang.cmake),
-/// which its headers' lists of targets, assembly parsers and disassemblers
-/// name for InitializeAllTargetInfos and the like: a target LLVM adds fails
-/// the build here until that list has it.
+/// libclang's archive has every target's MC layer
+/// (toolchain/cmake/caches/clang.cmake), which its headers' lists of
+/// targets, assembly parsers and disassemblers name for
+/// InitializeAllTargetInfos and the like: a target LLVM adds fails the
+/// build here until that list has it.
 function checkTargets(dest: string): void {
   const lib = path.join(dest, "lib");
   const libraries = new Set(fs.readdirSync(lib).flatMap((f) => /^(?:lib)?(LLVM\w+)\.(?:a|lib)$/.exec(f)?.[1] ?? []));
@@ -290,7 +291,7 @@ if (mode !== "instrumented") {
     if (fs.existsSync(from)) common.copyTree(from, path.join(common.resourceDir(dest), "include", dir));
   }
   /// clang-tidy-config.h, which clang-tidy's build generates from how
-  /// cmake/caches/clang.cmake configures it (no static analyzer, no
+  /// toolchain/cmake/caches/clang.cmake configures it (no static analyzer, no
   /// query-based checks), and its installed headers include.
   fs.copyFileSync(path.join(build, "tools", "clang", "tools", "extra", "clang-tidy", "clang-tidy-config.h"),
     path.join(dest, "include", "clang-tidy", "clang-tidy-config.h"));

@@ -8,26 +8,29 @@ docs. Most of them are checked on CI, not on a laptop.
 ## Where Things Are
 
 ```
-cmake/caches/      what each LLVM build is: runtimes, the host toolchain,
-                   the instrumented one, the ASan libclang
-cmake/toolchain.cmake   building for a target with an xclang tree
-config/            the per-target clang config files
-scripts/           TypeScript, run by Node 24: bootstrap, runtimes (with
-                   the sysroots), toolchain, package, conda, bazel, cli
-pgo/               the training (train.ts, its corpus) and remap.txt
-windows/alias.c    the launcher behind every name of llvm.exe
+toolchain/         the build pipeline, TypeScript run by Node 24:
+                   bootstrap.ts, runtimes.ts (with sysroot.ts),
+                   toolchain.ts, package.ts, licenses.ts, fetch.ts;
+                   common.ts, what every script shares (versions,
+                   pinned sources, targets)
+  cmake/           caches/, what each LLVM build is: runtimes, the host
+                   toolchain, the instrumented one, the ASan libclang;
+                   toolchain.cmake, building for a target with an
+                   xclang tree
+  config/          the per-target clang config files
+  pgo/             the training (train.ts, its corpus) and remap.txt
+  launcher/        alias.c, the launcher behind every name of llvm.exe
+  licenses/        license texts the archives carry that no source
+                   ships (licenses.ts)
 cli/               the xclang command, in Rust; its SDK version table,
-                   sdk-versions.json
+                   sdk-versions.json; cli.ts builds it
 patches/           changes to LLVM, a directory and a README each
-licenses/          license texts the archives carry that no source
-                   ships (scripts/licenses.ts)
 packages/          what xclang's users build with (packages/README.md):
-  bazel/           the Bazel module; scripts/bazel.ts makes its registry
-                   archive
+  bazel/           the Bazel module; bazel.ts makes its registry archive
   cmake/           the CMake package (find_package, toolchain file,
                    FetchContent download)
-  conda/           the activation scripts of the conda packages;
-                   scripts/conda.ts makes the packages
+  conda/           the activation scripts of the conda packages; conda.ts
+                   makes the packages
 tests/             one directory per thing tested, its script beside its
                    fixtures:
   toolchain/       smoke.ts, a host's toolchain archive on its host
@@ -75,8 +78,8 @@ the way CI does (pixi.toml), on a machine that can take it.
 
 These are cheap locally:
 
-- `npm install && npm run check`: TypeScript type checks of `scripts/` and
-  `tests/`.
+- `npm install && npm run check`: TypeScript type checks of every
+  script: `toolchain/`, `tests/`, and those of `cli/` and `packages/`.
 - `node tests/docs/docs.ts`: the code blocks of the docs against `examples/`,
   the links, and the status words.
 - `cd cli && cargo test`: the unit tests of the xclang command.

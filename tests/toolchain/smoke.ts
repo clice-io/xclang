@@ -18,7 +18,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import * as licenses from "../../scripts/licenses.ts";
+import * as licenses from "../../toolchain/licenses.ts";
 import { programsDir, writePrograms, type Program } from "../lib/on-target.ts";
 
 const { values } = parseArgs({ options: { tree: { type: "string" }, out: { type: "string" } } });
@@ -82,7 +82,7 @@ run(tool("clang"), ["--version"]);
 /// llvm is clang, lld and most tools; elsewhere they are its names (on
 /// Windows, programs that start it). FileCheck stands alone.
 const programs = [tool("llvm"), tool("clang"), tool("ld.lld"), tool("llvm-ar"), tool("FileCheck")];
-/// xclang's own command, in the archives that carry it (scripts/cli.ts),
+/// xclang's own command, in the archives that carry it (cli/cli.ts),
 /// built for the release of the archive.
 if (fs.existsSync(tool("xclang"))) {
   programs.push(tool("xclang"));
@@ -128,7 +128,7 @@ for (const dir of ["include", ...triples.flatMap(([t]) => [`${t}/include`, `${t}
   if (fs.existsSync(path.join(tree, dir))) failures.push(`${dir}: a copy of the shared headers`);
 }
 
-/// The license notices of what the archive holds (scripts/licenses.ts).
+/// The license notices of what the archive holds (toolchain/licenses.ts).
 failures.push(...licenses.check(tree, ["xclang", "llvm-project", "zstd", "glibc", "linux", "nss", "mingw-w64",
   ...(fs.existsSync(tool("xclang")) ? ["rust", "rust-crates"] : [])]));
 

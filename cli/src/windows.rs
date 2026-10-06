@@ -254,7 +254,7 @@ pub fn write_configs(dir: &Path, archs: &[String], u: &Unpacked, what: &str) -> 
 }
 
 /// The files through which the toolchain's config files of the MSVC targets
-/// read the SDK in use, <sdk dir>/windows (scripts/common.ts, writeConfigs):
+/// read the SDK in use, <sdk dir>/windows (toolchain/common.ts, writeConfigs):
 /// bin/<triple>-sdk.cfg and bin/<triple>-clang-cl-sdk.cfg include its
 /// config files for the architectures it has, and say none for the others.
 /// The toolchain's own say none; without them (a toolchain before 23.1.2.9)
@@ -289,7 +289,8 @@ pub fn select_configs(bin: &Path, sdk_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// What the toolchain's file says with no SDK in use (config/msvc-no-sdk.cfg).
+/// What the toolchain's file says with no SDK in use
+/// (toolchain/config/msvc-no-sdk.cfg).
 fn no_sdk(triple: &str) -> String {
     format!(
         "# No SDK in use for {triple}. `xclang sdk fetch windows --accept-license`\n\

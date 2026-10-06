@@ -39,7 +39,7 @@ export const SOURCES = {
     url: `${XCLANG}/23.1.2.6/xclang-23.1.2.6-aarch64-apple-darwin.tar.xz`,
     sha256: "d9fec015c97f9b06c8e259864b891c4fc6b453bd666f9d30d425690a2d7be2e1",
   },
-  /// What builds xclang's own command (scripts/cli.ts): a released
+  /// What builds xclang's own command (cli/cli.ts): a released
   /// toolchain, the C compiler and linker of every host's binary.
   "cli-linux": {
     url: `${XCLANG}/23.1.2.5/xclang-23.1.2.5-x86_64-unknown-linux-gnu.tar.xz`,
@@ -59,7 +59,7 @@ export const SOURCES = {
     url: `${GH}/facebook/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz`,
     sha256: "eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3",
   },
-  /// The training corpus (pgo/train.ts).
+  /// The training corpus (toolchain/pgo/train.ts).
   "abseil": {
     url: `${GH}/abseil/abseil-cpp/archive/refs/tags/20250814.1.tar.gz`,
     sha256: "1692f77d1739bacf3f94337188b78583cf09bab7e420d2dc6c5605a4f86785a1",
@@ -388,10 +388,11 @@ export function libcxxTargetDir(tree: string, t: Target): string {
 /// drivers look for libc++ in the tree's include/c++/v1 by themselves (the
 /// macOS one before the SDK's), and would find it there without the
 /// config files too, with no __config_site. The config files name these
-/// (config/). They are moved there from where the runtimes' builds install
-/// them, <target>[/usr]/include/c++/v1 and a MinGW target's include; a
-/// header of a target that differs from the one already shared stays the
-/// target's own. A tree laid out so already is left as it is.
+/// (toolchain/config/). They are moved there from where the runtimes'
+/// builds install them, <target>[/usr]/include/c++/v1 and a MinGW
+/// target's include; a header of a target that differs from the one
+/// already shared stays the target's own. A tree laid out so already is
+/// left as it is.
 export function shareHeaders(tree: string): void {
   /// Move from's files into shared, or into own those that differ from
   /// shared's (null: leave them in from); then remove from's empty
@@ -427,9 +428,9 @@ export function shareHeaders(tree: string): void {
   }
 }
 
-/// Install the per-target clang config files (config/) into tree/bin.
-/// clang reads bin/<triple>.cfg for the target it compiles for, so every
-/// target directory of the tree works with a bare --target; clang-cl reads
+/// Install the per-target clang config files (toolchain/config/) into tree/bin.
+/// clang reads bin/<triple>.cfg for the target it compiles for, so every target
+/// directory of the tree works with a bare --target; clang-cl reads
 /// bin/<triple>-clang-cl.cfg. The macOS targets' files differ by the tree's
 /// host: Apple's SDK is Xcode's on macOS, the fetched one in the tree's
 /// sdk/macos elsewhere. So do the MSVC targets': on Windows, clang finds
@@ -440,7 +441,7 @@ export function writeConfigs(tree: string, host: Os): void {
   const bin = path.join(tree, "bin");
   fs.mkdirSync(bin, { recursive: true });
   const config = (name: string, t: Target) => fs
-    .readFileSync(path.join(ROOT, "config", name), "utf8")
+    .readFileSync(path.join(import.meta.dirname, "config", name), "utf8")
     .replaceAll("@TRIPLE@", t.triple)
     .replaceAll("@NORMALIZED@", normalized(t))
     .replaceAll("@ARCH@", t.arch)
@@ -490,7 +491,7 @@ export function writeCMakePackage(dest: string, version: string): void {
 /// CMake arguments that build for `t` with the toolchain tree at `tree`.
 export function cmakeToolchainArgs(tree: string, t: Target): string[] {
   return [
-    `-DCMAKE_TOOLCHAIN_FILE=${path.join(ROOT, "cmake", "toolchain.cmake")}`,
+    `-DCMAKE_TOOLCHAIN_FILE=${path.join(import.meta.dirname, "cmake", "toolchain.cmake")}`,
     `-DXCLANG_ROOT=${tree}`,
     `-DXCLANG_TARGET=${t.triple}`,
     `-DXCLANG_TARGET_OS=${t.os}`,

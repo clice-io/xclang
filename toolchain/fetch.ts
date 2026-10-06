@@ -1,6 +1,6 @@
-/// Download pinned sources (scripts/common.ts) and print their paths.
+/// Download pinned sources (toolchain/common.ts) and print their paths.
 ///
-///   node scripts/fetch.ts <name>...
+///   node toolchain/fetch.ts <name>...
 
 import * as common from "./common.ts";
 

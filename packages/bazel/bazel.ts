@@ -1,9 +1,9 @@
 /// The Bazel module of a release (packages/bazel), from its SHA256SUMS:
 ///
-///   node scripts/bazel.ts versions <SHA256SUMS>
+///   node packages/bazel/bazel.ts versions <SHA256SUMS>
 ///       packages/bazel/bazel/versions.bzl: the release's version and the
 ///       sha256 of each of its archives
-///   node scripts/bazel.ts archive <SHA256SUMS> <dir>
+///   node packages/bazel/bazel.ts archive <SHA256SUMS> <dir>
 ///       <dir>/xclang-bazel-<version>.tar.gz: packages/bazel at that
 ///       release, its source archive in the clice Bazel registry
 ///       (published.yml publishes it); prints its integrity
@@ -15,9 +15,9 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
-import * as common from "./common.ts";
+import * as common from "../../toolchain/common.ts";
 
-const MODULE = path.join(common.ROOT, "packages", "bazel");
+const MODULE = import.meta.dirname;
 const [command, sums, dir] = process.argv.slice(2);
 if (!sums || !["versions", "archive"].includes(command!) || (command === "archive" && !dir)) {
   common.fail("versions <SHA256SUMS> | archive <SHA256SUMS> <dir>");
@@ -32,7 +32,7 @@ const version = [...archives.keys()].map((f) => /^llvm-option-inc-(.+)\.tar\.xz$
 if (!version) common.fail(`no llvm-option-inc archive in ${sums}`);
 
 const versions = `"""The release the module stands for: its version, and the sha256 of each
-of its archives (scripts/bazel.ts, from the release's SHA256SUMS)."""
+of its archives (packages/bazel/bazel.ts, from the release's SHA256SUMS)."""
 
 VERSION = "${version}"
 
@@ -49,11 +49,12 @@ if (command === "versions") {
   const stage = path.join(common.WORK, "bazel-module");
   const root = path.join(stage, name);
   fs.rmSync(stage, { recursive: true, force: true });
-  /// packages/bazel without what a build in it leaves, and the license;
-  /// MODULE.bazel at the release's version, bazel/ with its digests.
+  /// packages/bazel without this script and what a build in it leaves,
+  /// and the license; MODULE.bazel at the release's version, bazel/ with
+  /// its digests.
   fs.cpSync(MODULE, root, {
     recursive: true,
-    filter: (src) => !/^(bazel-.*|MODULE\.bazel\.lock)$/.test(path.relative(MODULE, src)),
+    filter: (src) => !/^(bazel-.*|MODULE\.bazel\.lock|bazel\.ts)$/.test(path.relative(MODULE, src)),
   });
   fs.copyFileSync(path.join(common.ROOT, "LICENSE"), path.join(root, "LICENSE"));
   const module = fs.readFileSync(path.join(MODULE, "MODULE.bazel"), "utf8");

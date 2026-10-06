@@ -2,7 +2,7 @@
 /// xclang toolchain as the C compiler and linker of every target, and check
 /// that it loads nothing at run time but what its OS has:
 ///
-///   node scripts/cli.ts [--xclang <tree>] [--host <triple>,...] [--revision <n>]
+///   node cli/cli.ts [--xclang <tree>] [--host <triple>,...] [--revision <n>]
 ///
 /// The toolchain is a released one (SOURCES' cli-linux, cli-macos) unless
 /// --xclang names another; the hosts are those this machine builds
@@ -27,13 +27,13 @@
 /// flags reach the build scripts, which cargo links with the same linker.
 ///
 /// Next to each binary, licenses/ holds the license files of what it is
-/// made of, for the archives' share/licenses (scripts/licenses.ts): Rust's
+/// made of, for the archives' share/licenses (toolchain/licenses.ts): Rust's
 /// standard library and every crate the binary links.
 
 import fs from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import * as common from "./common.ts";
+import * as common from "../toolchain/common.ts";
 
 const { values } = parseArgs({
   options: {
@@ -42,7 +42,7 @@ const { values } = parseArgs({
     revision: { type: "string" },
   },
 });
-const cli = path.join(common.ROOT, "cli");
+const cli = import.meta.dirname;
 const hosts = (values.host?.split(",") ??
   common.TARGETS.filter((t) => common.buildMachine(t) === common.machine()).map((t) => t.triple)).map(common.target);
 
@@ -141,12 +141,12 @@ function licenseFiles(dir: string, depth = 0): string[] {
   });
 }
 
-/// The components of the binary for `target` in dest (components.json,
-/// and a directory of files each), as scripts/licenses.ts reads them: Rust's
-/// standard library, from the toolchain's share/doc/rust, and the crates
-/// xclang depends on for that target, transitively, as `cargo metadata`
-/// resolves them: normal dependencies only (build scripts and their
-/// dependencies are not in the binary; proc macros are counted).
+/// The components of the binary for `target` in dest (components.json, and a
+/// directory of files each), as toolchain/licenses.ts reads them: Rust's
+/// standard library, from the toolchain's share/doc/rust, and the crates xclang
+/// depends on for that target, transitively, as `cargo metadata` resolves them:
+/// normal dependencies only (build scripts and their dependencies are not in
+/// the binary; proc macros are counted).
 function licenses(target: string, dest: string): void {
   fs.rmSync(dest, { recursive: true, force: true });
   const components: { name: string; what: string; version: string; license: string; source: string[]; files: Record<string, string> }[] = [];

@@ -118,7 +118,7 @@ developer mode or administrator rights, so an archive with links fails to
 unpack for most users, and conda packages for Windows cannot carry them.
 Instead, every name of `llvm.exe` (`clang.exe`, `clang++.exe`, `ld.lld.exe`,
 ...) is a small program,
-[`windows/alias.c`](https://github.com/clice-io/xclang/blob/main/windows/alias.c).
+[`toolchain/launcher/alias.c`](https://github.com/clice-io/xclang/blob/main/toolchain/launcher/alias.c).
 It starts `llvm.exe <name> <arguments>`.
 
 - **The name goes in as an argument.** The multi-call `llvm` picks the tool

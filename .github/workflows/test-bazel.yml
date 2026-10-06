@@ -77,7 +77,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release download $RELEASE -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
-          node scripts/bazel.ts versions "$RUNNER_TEMP/SHA256SUMS"
+          node packages/bazel/bazel.ts versions "$RUNNER_TEMP/SHA256SUMS"
       - uses: ./.github/actions/archives
         if: inputs.dist-run
         with:
@@ -163,7 +163,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release download $RELEASE -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
-          node scripts/bazel.ts versions "$RUNNER_TEMP/SHA256SUMS"
+          node packages/bazel/bazel.ts versions "$RUNNER_TEMP/SHA256SUMS"
       - name: Build
         run: node tests/bazel/cross.ts build "${{ matrix.target }}" "$RUNNER_TEMP/out/${{ matrix.host }}/tests"
       # The latest kotatsu of the clice registry, its tests among the rest of

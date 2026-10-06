@@ -8,7 +8,7 @@
 ///    key holds an absolute path. So do they, built for a target of another
 ///    os (--platforms), which fetches no other host's toolchain and the
 ///    libclang of that target only; a macOS target off macOS fails with why.
-/// 2. The module as the registry has it: scripts/bazel.ts's archive of
+/// 2. The module as the registry has it: packages/bazel/bazel.ts's archive of
 ///    packages/bazel, in a registry of its own, in place of tests/bazel's
 ///    local_path_override: the same actions, from the disk cache.
 /// 3. The module as git_override of a commit has it: the checkout's HEAD,
@@ -47,7 +47,7 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import * as common from "../../scripts/common.ts";
+import * as common from "../../toolchain/common.ts";
 
 const { values } = parseArgs({
   options: {
@@ -219,8 +219,8 @@ const releaseSums = path.join(path.dirname(copy), "SHA256SUMS");
 fs.writeFileSync(releaseSums, [...versions.matchAll(/^    "(\S+)": "([0-9a-f]{64})",$/gm)].map((m) => `${m[2]}  ${m[1]}\n`).join(""));
 const work = path.join(copy, "work");
 const integrity = /^integrity (\S+)$/m.exec(common.capture(process.execPath,
-  [path.join(copy, "scripts", "bazel.ts"), "archive", releaseSums, registry], { env: { ...process.env, XCLANG_WORK: work } }))?.[1];
-if (!integrity) common.fail("no integrity from scripts/bazel.ts archive");
+  [path.join(copy, "packages", "bazel", "bazel.ts"), "archive", releaseSums, registry], { env: { ...process.env, XCLANG_WORK: work } }))?.[1];
+if (!integrity) common.fail("no integrity from packages/bazel/bazel.ts archive");
 fs.copyFileSync(path.join(work, "bazel-module", `xclang-bazel-${version}`, "MODULE.bazel"), path.join(entry, "MODULE.bazel"));
 fs.writeFileSync(path.join(registry, "bazel_registry.json"), `{"mirrors": []}\n`);
 fs.writeFileSync(path.join(registry, "modules", "xclang", "metadata.json"), JSON.stringify({ versions: [version], yanked_versions: {} }));
@@ -256,7 +256,7 @@ const sums = path.join(copy, "SHA256SUMS");
 const response = await fetch(`https://github.com/clice-io/xclang/releases/download/${values.previous}/SHA256SUMS`);
 if (!response.ok) common.fail(`no SHA256SUMS for ${values.previous}: ${response.status}`);
 fs.writeFileSync(sums, await response.text());
-common.run(process.execPath, [path.join(copy, "scripts", "bazel.ts"), "versions", sums]);
+common.run(process.execPath, [path.join(copy, "packages", "bazel", "bazel.ts"), "versions", sums]);
 /// Releases before 23.1.2.5 link macOS programs with the system's ld, which
 /// this module no longer points at their libLTO.dylib: libclang's ThinLTO
 /// bitcode does not link with them.

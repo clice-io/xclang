@@ -9,16 +9,16 @@
 ///                                and llvm-dlltool's option tables
 ///
 /// With --cli <dir>, the toolchain carries xclang's own command, bin/xclang,
-/// from <dir>/cli-<host> (scripts/cli.ts); without it, as until it ships,
+/// from <dir>/cli-<host> (cli/cli.ts); without it, as until it ships,
 /// it does not.
 ///
 /// Every archive has share/licenses: the license files of what it holds,
-/// a README.md and an SPDX document of them (scripts/licenses.ts).
+/// a README.md and an SPDX document of them (toolchain/licenses.ts).
 ///
 /// A Windows toolchain has no links at all: its aliases are small programs
-/// (windows/alias.c, put there by scripts/toolchain.ts), and the Linux
-/// sysroots have none (scripts/sysroot.ts). No two paths differ only in
-/// case.
+/// (toolchain/launcher/alias.c, put there by toolchain/toolchain.ts), and
+/// the Linux sysroots have none (toolchain/sysroot.ts). No two paths differ
+/// only in case.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -119,7 +119,7 @@ const clashes = files.filter((f) => seen.get(f.toLowerCase()) !== undefined || !
 if (clashes.length) common.fail(`paths alike but for case: ${clashes.map((f) => `${f} (${seen.get(f.toLowerCase())})`).join(", ")}`);
 archive(tree, `xclang-${version}-${host.triple}`);
 
-/// The option tables (scripts/toolchain.ts), the same from every host:
+/// The option tables (toolchain/toolchain.ts), the same from every host:
 /// Linux x64's are published, the source of a noarch package.
 if (host.triple === "x86_64-unknown-linux-gnu") {
   const tables = path.join(out, `libclang-${host.triple}`, "include", "llvm-options-td");

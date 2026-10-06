@@ -4,8 +4,8 @@ name: published
 # release as its users get it, on every channel.
 #
 #   1. test-bazel.yml with the release's archives, then the module of its
-#      tag (scripts/bazel.ts archive) published to the clice Bazel registry,
-#      https://bazel.clice.io, through clice-io/bazel's action;
+#      tag (packages/bazel/bazel.ts archive) published to the clice Bazel
+#      registry, https://bazel.clice.io, through clice-io/bazel's action;
 #   2. test-cmake.yml with its archives and its tag fetched from GitHub, as
 #      a user's FetchContent does;
 #   3. conda.yml: its packages, build 0, published to conda.clice.io;
@@ -89,7 +89,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
-          node scripts/bazel.ts archive "$RUNNER_TEMP/SHA256SUMS" dist
+          node packages/bazel/bazel.ts archive "$RUNNER_TEMP/SHA256SUMS" dist
       - uses: clice-io/bazel@main
         with:
           archives: dist/xclang-bazel-*.tar.gz

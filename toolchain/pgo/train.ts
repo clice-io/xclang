@@ -9,9 +9,10 @@
 ///   the rest of the file and code completion on;
 /// - C++20 modules: libc++'s std and std.compat, real ones (magic_enum,
 ///   Vulkan-Hpp's, the largest in common use) and a wrapped header-only
-///   library (nlohmann/json), a module of partitions (pgo/corpus/modules),
-///   and their importers; two-phase at -O2, one-phase with reduced BMIs at
-///   -O0 -g; P1689 dependency scanning, as CMake runs it;
+///   library (nlohmann/json), a module of partitions
+///   (toolchain/pgo/corpus/modules), and their importers; two-phase at
+///   -O2, one-phase with reduced BMIs at -O0 -g; P1689 dependency
+///   scanning, as CMake runs it;
 /// - code completion requests, the path an editor drives;
 /// - ELF, ThinLTO and COFF (mingw) links through lld.
 ///
@@ -20,7 +21,7 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import * as common from "../scripts/common.ts";
+import * as common from "../common.ts";
 
 const LINUX = ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"];
 const OPTS: Record<string, string[]> = { O0: ["-O0", "-g"], O2: ["-O2"] };
@@ -48,7 +49,7 @@ const sqlite = await source("sqlite", "sqlite3.c");
 const magicEnum = await source("magic_enum", "module/magic_enum.cppm");
 const json = await source("json", "include/nlohmann/json.hpp");
 const vulkan = await source("vulkan-headers", "include/vulkan/vulkan.cppm");
-const corpus = path.join(common.ROOT, "pgo", "corpus");
+const corpus = path.join(import.meta.dirname, "corpus");
 
 /// Every library source of abseil that builds on Linux: no tests,
 /// benchmarks, test helpers (gtest matchers) or Windows-only files.

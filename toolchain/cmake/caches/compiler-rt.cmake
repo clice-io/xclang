@@ -1,5 +1,5 @@
 # compiler-rt beyond the builtins: the profile runtime (-fprofile-*
-# instrumentation, and xclang's own training), and where scripts/runtimes.ts
+# instrumentation, and xclang's own training), and where toolchain/runtimes.ts
 # turns them on (Linux, macOS), AddressSanitizer, ThreadSanitizer,
 # UndefinedBehaviorSanitizer and libFuzzer on top of libc++.
 set(CMAKE_BUILD_TYPE Release CACHE STRING "")
