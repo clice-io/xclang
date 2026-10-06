@@ -143,7 +143,7 @@ The `*-windows-gnu` targets link libgcc and msvcrt instead.
 | `x86_64-pc-windows-gnullvm`, `aarch64-pc-windows-gnullvm` | `x86_64-w64-mingw32`, `aarch64-w64-mingw32` | any host | Supported |
 | `aarch64-apple-darwin`, `x86_64-apple-darwin` | the same | macOS hosts | Supported |
 | `aarch64-apple-darwin`, `x86_64-apple-darwin` | the same | [Linux and Windows hosts](../design/roadmap.md#macos-any-host) | Unreleased |
-| `x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc` | [MSVC targets](../design/roadmap.md#msvc) | any host | Planned |
+| `x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc` | [MSVC targets](../design/roadmap.md#msvc) | any host | Unreleased |
 
 ## Settings per Target
 
