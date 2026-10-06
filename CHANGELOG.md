@@ -8,6 +8,10 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+## [23.1.2.9](https://github.com/clice-io/xclang/releases/tag/23.1.2.9) — 2026-10-06
+
+The compiler and runtimes are 23.1.2.7's.
+
 - The newest release without naming it: `xclang = "*"` in a pixi
   workspace, the toolchain and libclang from `releases/latest` (whose
   `SHA256SUMS` names the version), and `GIT_TAG latest` for CMake's
