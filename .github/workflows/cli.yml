@@ -72,7 +72,7 @@ jobs:
       run:
         shell: bash
     env:
-      XCLANG: 23.1.2.5
+      XCLANG: 23.1.2.6
     steps:
       - uses: actions/checkout@v7
         with:

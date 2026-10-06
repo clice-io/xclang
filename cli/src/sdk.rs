@@ -195,8 +195,8 @@ impl Choice<'_> {
 /// The versions of the preset (--preset, or the default one), each replaced
 /// by the version an option names.
 fn choose<'a>(a: &Args, table: &'a Table, vendor: Vendor) -> Result<Choice<'a>> {
-    let named = a.value("preset");
-    let (key, preset) = table.preset(named.unwrap_or(vendor.default_preset()), vendor)?;
+    let named = a.value("preset").unwrap_or(vendor.default_preset());
+    let (key, preset) = table.preset(named, vendor)?;
     match vendor {
         Vendor::Macos => {
             if a.value("sdk-version").is_some()
@@ -209,12 +209,11 @@ fn choose<'a>(a: &Args, table: &'a Table, vendor: Vendor) -> Result<Choice<'a>> 
             }
             let versions = table.macos_versions();
             let given = a.value("version");
-            let mut want = Some(given.unwrap_or(&preset.sdk));
-            // The default preset's SDK is one xclang cannot use.
-            if given.is_none() && named.is_none() && table::macos_broken(&preset.sdk) {
-                want = None;
-            }
-            let version = pick(versions.keys(), want, table::macos_broken, "macOS SDK")?;
+            let version = pick(
+                versions.keys(),
+                Some(given.unwrap_or(&preset.sdk)),
+                "macOS SDK",
+            )?;
             let package = versions.get(&version).unwrap();
             Ok(Choice::Macos {
                 version,
@@ -231,11 +230,10 @@ fn choose<'a>(a: &Args, table: &'a Table, vendor: Vendor) -> Result<Choice<'a>> 
             let sdk = pick(
                 w.sdk.keys(),
                 Some(sdk_given.unwrap_or(&preset.sdk)),
-                |_| false,
                 "Windows SDK",
             )?;
             let msvc_want = msvc_given.or(preset.msvc.as_deref());
-            let msvc = pick(w.msvc.keys(), msvc_want, |_| false, "MSVC")?;
+            let msvc = pick(w.msvc.keys(), msvc_want, "MSVC")?;
             let archs: Vec<String> = a
                 .value("arch")
                 .unwrap_or("x86_64,aarch64")
@@ -414,12 +412,16 @@ fn fetch(a: &Args, table: &Table, vendor: Vendor) -> Result<()> {
     eprintln!("fetched {name} in {:.1} s", start.elapsed().as_secs_f64());
     use_sdk(&root, vendor.name(), &name)?;
     let d = dir.display();
-    // The toolchain's config files read <toolchain>/sdk/windows.
+    // The toolchain's config files read <toolchain>/sdk/windows, and off
+    // macOS <toolchain>/sdk/macos (on macOS, Xcode's SDK).
     let own = Toolchain::find(a.value("root"))
         .ok()
         .and_then(|t| links::canonical(&t.root.join("sdk")).ok())
         .is_some_and(|s| s == root);
     match vendor {
+        Vendor::Macos if own && !cfg!(target_os = "macos") => {
+            eprintln!("  clang --target=arm64-apple-macos ...")
+        }
         Vendor::Macos => eprintln!("  clang --target=arm64-apple-macos -isysroot \"{d}\" ..."),
         Vendor::Windows if own => eprintln!(
             "  clang --target=x86_64-pc-windows-msvc ...\n  clang-cl --target=x86_64-pc-windows-msvc ..."
@@ -532,29 +534,18 @@ fn list_vendor(table: &Table, vendor: Vendor) -> Result<()> {
     match vendor {
         Vendor::Macos => {
             let versions = table.macos_versions();
-            let default = pick(
-                versions.keys(),
-                Some(&preset.sdk),
-                table::macos_broken,
-                "macOS SDK",
-            )?;
+            let default = pick(versions.keys(), Some(&preset.sdk), "macOS SDK")?;
             let mut sorted: Vec<(&str, &&MacPackage)> = versions.iter().collect();
             sorted.sort_by(|a, b| table::version_cmp(a.0, b.0));
             println!("macOS SDKs:");
             for (v, p) in sorted {
-                let mark = if v == default {
-                    " (default)"
-                } else if table::macos_broken(v) {
-                    " (xclang cannot use it)"
-                } else {
-                    ""
-                };
+                let mark = if v == default { " (default)" } else { "" };
                 println!("  {v:8} {} {:>9}  {}{mark}", p.posted, mb(p.size), p.url);
             }
         }
         Vendor::Windows => {
             let w = &table.windows;
-            let sdk_default = pick(w.sdk.keys(), Some(&preset.sdk), |_| false, "Windows SDK")?;
+            let sdk_default = pick(w.sdk.keys(), Some(&preset.sdk), "Windows SDK")?;
             println!("Windows SDKs:");
             for (v, s) in w.sdk.iter() {
                 let archs: Vec<&str> = table::MS_ARCH
@@ -565,7 +556,7 @@ fn list_vendor(table: &Table, vendor: Vendor) -> Result<()> {
                 let mark = if v == sdk_default { " (default)" } else { "" };
                 println!("  {v:18} {:22} nuget.org{mark}", archs.join(" "));
             }
-            let msvc_default = pick(w.msvc.keys(), preset.msvc.as_deref(), |_| false, "MSVC")?;
+            let msvc_default = pick(w.msvc.keys(), preset.msvc.as_deref(), "MSVC")?;
             println!("MSVC:");
             for (v, m) in w.msvc.iter() {
                 let archs: Vec<&str> = table::MS_ARCH

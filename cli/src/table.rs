@@ -337,19 +337,11 @@ pub fn version_cmp(a: &str, b: &str) -> Ordering {
     version_key(a).cmp(&version_key(b))
 }
 
-/// What xclang cannot use, which the defaults pass over: the macOS 27 SDK's
-/// .tbd files list arm64e.x1, which ld64.lld 23.1.2 rejects (llvm#222721).
-pub fn macos_broken(version: &str) -> bool {
-    version_key(version) >= vec![27]
-}
-
 /// The version of `versions` that `want` names (whole or in part: 26,
-/// 10.0.26100, 14.44), the newest that matches; with no `want`, the newest
-/// that is not broken.
+/// 10.0.26100, 14.44), the newest that matches; with no `want`, the newest.
 pub fn pick<'a>(
     versions: impl Iterator<Item = &'a str>,
     want: Option<&str>,
-    broken: impl Fn(&str) -> bool,
     what: &str,
 ) -> Result<String> {
     let mut known: Vec<&str> = versions.collect();
@@ -365,7 +357,7 @@ pub fn pick<'a>(
             None => bail!("no {what} {want} in the table; it has: {}", known.join(" ")),
         };
     }
-    match known.iter().rev().find(|v| !broken(v)) {
+    match known.last() {
         Some(v) => Ok(v.to_string()),
         None => bail!("no {what} in the table"),
     }
@@ -396,14 +388,14 @@ mod tests {
             "10.0.26100.8249",
             "10.0.28000.2705",
         ];
-        let pick = |want| pick(v.iter().copied(), want, |_| false, "SDK").unwrap();
+        let pick = |want| pick(v.iter().copied(), want, "SDK").unwrap();
         assert_eq!(pick(None), "10.0.28000.2705");
         assert_eq!(pick(Some("10.0.26100")), "10.0.26100.8249");
         assert_eq!(pick(Some("10.0.26100.1")), "10.0.26100.1");
-        assert!(super::pick(v.iter().copied(), Some("10.0.2"), |_| false, "SDK").is_err());
+        assert!(super::pick(v.iter().copied(), Some("10.0.2"), "SDK").is_err());
         let m = ["15.5", "26.5", "27.0"];
-        let newest = super::pick(m.iter().copied(), None, macos_broken, "macOS SDK");
-        assert_eq!(newest.unwrap(), "26.5");
+        let newest = super::pick(m.iter().copied(), None, "macOS SDK");
+        assert_eq!(newest.unwrap(), "27.0");
     }
 
     #[test]

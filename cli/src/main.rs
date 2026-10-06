@@ -134,8 +134,10 @@ xclang: fetches what the toolchain does not carry.
       the vendor SDKs xclang knows (presets from GitHub's runner images,
       every version), and those fetched
   xclang sdk fetch macos --accept-license [--preset P] [--version V]
-      Apple's macOS SDK, from Apple:
-      clang --target=arm64-apple-macos -isysroot \"$(xclang sdk path macos)\"
+      Apple's macOS SDK, from Apple, which the toolchain's macOS targets
+      then use on Linux and Windows: clang++ --target=arm64-apple-macos
+      (on macOS they use Xcode's; this one with
+      -isysroot \"$(xclang sdk path macos)\")
   xclang sdk fetch windows --accept-license [--preset P] [--msvc-version V]
           [--sdk-version V] [--arch x86_64,aarch64,x86]
       the MSVC runtime and STL and the Windows SDK, from Microsoft, as a
