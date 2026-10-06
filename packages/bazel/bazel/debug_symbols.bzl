@@ -11,8 +11,14 @@ the DWARF's size, read by llvm-gsymutil), for every target, and for macOS
 ones tool.dSYM too. The GSYM is converted from the program's DWARF, which on
 macOS is in its dSYM: the generate_dsym_file feature (or
 --apple_generate_dsym) has the link make it (bazel/dsym), where the objects
-the debug map points into are. The program needs debug information:
--g or -gline-tables-only, and no stripping (--strip=never in fastbuild).
+the debug map points into are. The program needs debug information, -g
+(from -gline-tables-only's DWARF llvm-gsymutil of LLVM 23 loads no function:
+the GSYM would hold the symbol table's names only, no lines), and no
+stripping (--strip=never in fastbuild).
+
+    bazel run @xclang//bazel:llvm-gsymutil -- $PWD/bazel-bin/tool.gsym --address=0x...
+
+looks an address up in it with the toolchain's llvm-gsymutil.
 """
 
 load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain", "use_cc_toolchain")

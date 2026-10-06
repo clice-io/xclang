@@ -203,8 +203,11 @@ bazel build --strip=never //:tool_symbols //:tool.stripped
 ```
 
 - `bazel-bin/tool.gsym` is the GSYM. llvm-gsymutil runs on the host, also
-  for another target. Its warnings go to `tool.gsym.log`, in the output
-  group `gsym_log`.
+  for another target, with one thread, so the same program makes the same
+  file. Its warnings go to `tool.gsym.log`, in the output group
+  `gsym_log`. `bazel run @xclang//bazel:llvm-gsymutil -- <absolute path of
+  the .gsym> --address=0x<address>` reads it
+  ([unreleased](../design/roadmap.md#bazel-gsymutil)).
 - `bazel-bin/tool.dSYM`, for a macOS target, is in the output group
   `dsyms`. `--apple_generate_dsym` turns the feature on for the whole
   build.

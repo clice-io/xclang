@@ -1,3 +1,4 @@
+load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
 load("@rules_cc//cc/toolchains:args.bzl", "cc_args")
 load("@rules_cc//cc/toolchains:feature.bzl", "cc_feature")
 load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
@@ -58,6 +59,22 @@ cc_args(
     actions = ["@rules_cc//cc/toolchains/actions:strip"],
     args = ["--strip-all"],
 )
+
+# llvm-gsymutil of the machine's toolchain, to read the GSYM of
+# xclang_debug_symbols (bazel/debug_symbols.bzl) without the toolchain on
+# PATH: bazel run @xclang//bazel:llvm-gsymutil -- <absolute .gsym>
+# --address=0x... It is llvm, the toolchain's program of many names, by that
+# name: a link to it, or on Windows without links a copy.
+[
+    native_binary(
+        name = "llvm-gsymutil",
+        src = "@xclang_%s//:bin/llvm%s" % (host, exe),
+        out = "llvm-gsymutil" + exe,
+        visibility = ["//visibility:public"],
+    )
+    for host in ([HOST] if HOST else [])
+    for exe in [".exe" if TARGETS[host].os == "windows" else ""]
+]
 
 # import std and import std.compat: libc++'s modules of the target platform,
 # from the host's toolchain (bazel/toolchain.bzl). A target importing them

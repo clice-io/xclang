@@ -162,6 +162,7 @@ it in every toolchain archive.
 | <a id="libc-on-demand"></a>libc++, libc++abi and libunwind built from source on demand | Planned |
 | <a id="msan"></a>MemorySanitizer, through libc++ built on demand | Planned |
 | <a id="mingw-sanitizers"></a>Sanitizers for MinGW targets | Considered |
+| <a id="bazel-gsymutil"></a>`@xclang//bazel:llvm-gsymutil`, the toolchain's llvm-gsymutil for `bazel run` | Unreleased |
 | <a id="cargo-helper"></a>An `xclang cargo` helper that sets cargo's variables | Considered |
 | <a id="libgcc-s-script"></a>`libgcc_s.a` as a linker script naming libunwind, for Rust's Linux targets | Considered |
 | <a id="libcxx-msvc"></a>libc++ as the C++ library of MSVC targets | Planned |

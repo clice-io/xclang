@@ -40,6 +40,7 @@
 ///     --features=asan.
 
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -328,31 +329,39 @@ if (!windows) {
 
 /// 8. Debug symbols: tests/bazel/symbols' programs, not stripped, with
 /// xclang_debug_symbols' GSYM (and on macOS the dSYM of the link), read by
-/// the toolchain's llvm-gsymutil: main at its line of hello.cpp, and in the
-/// tool on libclang the code ThinLTO generated from libclang's Lexer.cpp.
-/// Also for the target of another os, by this host's llvm-gsymutil.
+/// the toolchain's llvm-gsymutil (@xclang//bazel:llvm-gsymutil, through
+/// bazel run): main at its line of hello.cpp, and in the tool on libclang
+/// the code ThinLTO generated from libclang's Lexer.cpp. Each the same file
+/// when made again. Also for the target of another os.
 {
   const workspace = path.join(common.ROOT, "tests", "bazel");
   const symbols = ["--strip=never", "//symbols:hello_symbols", "//symbols:hello_icf_symbols", "//symbols:lexer_symbols"];
   const other = bazel(workspace, ["build", `--platforms=@xclang//platforms:${cross}`, ...symbols]);
   check(other.executed > 0, `debug symbols: GSYM of the programs for ${cross}`);
   bazel(workspace, ["build", ...symbols]);
-  const external = path.join(run(workspace, ["info", "output_base"]).stdout.trim(), "external");
-  const toolchain = fs.readdirSync(external).find((name) => name.endsWith(`+xclang_${host}`));
-  const gsymutil = path.join(external, toolchain ?? "", "bin", `llvm-gsymutil${windows ? ".exe" : ""}`);
   const bin = path.join(workspace, "bazel-bin", "symbols");
+  const digest = (program: string) => createHash("sha256").update(fs.readFileSync(path.join(bin, `${program}.gsym`))).digest("hex");
+  const digests = ["hello", "hello_icf", "lexer"].map(digest);
   const programs = [
     ["hello", /hello\.cpp:9\b/, "main at hello.cpp:9"],
     ["hello_icf", /twin_a[\s\S]*twin_b|twin_b[\s\S]*twin_a/, "main and both functions identical code folding merged"],
     ["lexer", /clang[\\/]lib[\\/]Lex[\\/]Lexer\.cpp/, "main and libclang's Lexer.cpp"],
   ] as const;
   for (const [program, wanted, what] of programs) {
-    const dump = spawnSync(gsymutil, [path.join(bin, `${program}.gsym`)], { encoding: "utf8", maxBuffer: 1 << 30 });
+    const dump = run(workspace, ["run", "@xclang//bazel:llvm-gsymutil", "--", path.join(bin, `${program}.gsym`)]);
     const dsym = process.platform !== "darwin" ||
       fs.existsSync(path.join(bin, `${program}.dSYM`, "Contents", "Resources", "DWARF", program));
     check(dump.status === 0 && /"main"/.test(dump.stdout) && wanted.test(dump.stdout) && dsym,
       `debug symbols: ${program}.gsym${process.platform === "darwin" ? ` from ${program}.dSYM` : ""} has ${what}`);
   }
+  /// One thread (debug_symbols.bzl): the same GSYM again, made anew once
+  /// gone (from no cache but Bazel's own, which runs an action whose output
+  /// is missing).
+  for (const program of ["hello", "hello_icf", "lexer"]) fs.rmSync(path.join(bin, `${program}.gsym`), { force: true });
+  const remade = bazel(workspace, ["build", "--disk_cache=", ...symbols]);
+  const again = ["hello", "hello_icf", "lexer"].map(digest);
+  check(remade.executed >= 3 && again.every((d, i) => d === digests[i]),
+    `debug symbols: the same GSYM files made again (${remade.executed} actions run)`);
 }
 
 /// 9. Debug information wherever the build ran: //debug's programs built

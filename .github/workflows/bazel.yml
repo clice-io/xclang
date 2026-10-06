@@ -99,6 +99,11 @@ jobs:
           startup=(); [[ "$RUNNER_OS" == Windows ]] && startup=(--output_user_root=C:/b --windows_enable_symlinks)
           bazel "${startup[@]}" test //... $REPO_ENV --disk_cache="$RUNNER_TEMP/disk"
           bazel "${startup[@]}" test -c opt //... $REPO_ENV --disk_cache="$RUNNER_TEMP/disk"
+          # A GSYM, read by the toolchain's llvm-gsymutil through bazel run.
+          # (Git Bash would make //symbols a Windows path.)
+          gsym="$PWD/bazel-bin/symbols/hello.gsym"; [[ "$RUNNER_OS" == Windows ]] && gsym="$(cygpath -m "$gsym")"
+          MSYS_NO_PATHCONV=1 bazel "${startup[@]}" build --strip=never //symbols:hello_symbols $REPO_ENV --disk_cache="$RUNNER_TEMP/disk"
+          MSYS_NO_PATHCONV=1 bazel "${startup[@]}" run $REPO_ENV --disk_cache="$RUNNER_TEMP/disk" @xclang//bazel:llvm-gsymutil -- "$gsym" | grep '"main"'
       # gdb, for tests/bazel.ts's debugger checks.
       - name: gdb
         if: ${{ runner.os == 'Linux' && !inputs.dist-run }}
