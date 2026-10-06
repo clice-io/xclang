@@ -17,8 +17,10 @@
 #                   x86_64-w64-mingw32, aarch64-w64-mingw32,
 #                   aarch64-apple-darwin, x86_64-apple-darwin,
 #                   x86_64-pc-windows-msvc or aarch64-pc-windows-msvc; the
-#                   host's by default. macOS targets build on macOS only:
-#                   their SDK is Xcode's. MSVC targets build with the
+#                   host's by default. macOS targets build with Xcode's
+#                   SDK on macOS, and elsewhere with the one the toolchain's
+#                   xclang fetched (xclang sdk fetch macos), or the
+#                   CMAKE_OSX_SYSROOT given. MSVC targets build with the
 #                   Windows SDK the toolchain's xclang fetched (xclang sdk
 #                   fetch windows), with clang and clang++ (not clang-cl),
 #                   and the hybrid CRT: CMAKE_MSVC_RUNTIME_LIBRARY is
@@ -84,6 +86,9 @@ foreach(_xclang_tool AR RANLIB NM OBJCOPY OBJDUMP READELF STRIP ADDR2LINE DLLTOO
     set(CMAKE_${_xclang_tool} "${_xclang_bin}/llvm-${_xclang_name}${_xclang_exe}")
 endforeach()
 if(_xclang_target_os STREQUAL "darwin")
+    # Objective-C too, by the same drivers.
+    set(CMAKE_OBJC_COMPILER "${_xclang_bin}/clang${_xclang_exe}")
+    set(CMAKE_OBJCXX_COMPILER "${_xclang_bin}/clang++${_xclang_exe}")
     # Apple's libtool cannot read the bitcode of a newer LLVM.
     set(CMAKE_LIBTOOL "${_xclang_bin}/llvm-libtool-darwin${_xclang_exe}")
     set(CMAKE_LIPO "${_xclang_bin}/llvm-lipo${_xclang_exe}")
@@ -123,17 +128,44 @@ if(_xclang_target_os STREQUAL "msvc")
 endif()
 
 if(_xclang_target_os STREQUAL "darwin")
-    if(NOT CMAKE_HOST_APPLE)
-        message(FATAL_ERROR "xclang: ${XCLANG_TARGET} builds on macOS only, with Xcode's SDK")
+    if(_xclang_target_arch STREQUAL "aarch64")
+        set(_xclang_osx_arch arm64)
+    else()
+        set(_xclang_osx_arch x86_64)
     endif()
-    # Another architecture of macOS is not cross-compiling to CMake: Rosetta
-    # runs x86_64 programs, and clang picks the config file of -arch.
-    if(XCLANG_TARGET)
-        if(_xclang_target_arch STREQUAL "aarch64")
-            set(CMAKE_OSX_ARCHITECTURES arm64 CACHE STRING "")
-        else()
-            set(CMAKE_OSX_ARCHITECTURES x86_64 CACHE STRING "")
+    if(CMAKE_HOST_APPLE)
+        # Another architecture of macOS is not cross-compiling to CMake:
+        # Rosetta runs x86_64 programs, and clang picks the config file of
+        # -arch. The SDK is Xcode's, as CMake finds it.
+        if(XCLANG_TARGET)
+            set(CMAKE_OSX_ARCHITECTURES ${_xclang_osx_arch} CACHE STRING "")
         endif()
+    else()
+        # Apple's SDK, as CMake picks it on macOS, with the tree's in place
+        # of xcrun's: CMAKE_OSX_SYSROOT, else SDKROOT, else the one the
+        # config files of the macOS targets read, fetched into the tree.
+        # CMake passes it as -isysroot, after theirs.
+        if(NOT CMAKE_OSX_SYSROOT AND IS_DIRECTORY "$ENV{SDKROOT}")
+            file(TO_CMAKE_PATH "$ENV{SDKROOT}" CMAKE_OSX_SYSROOT)
+        elseif(NOT CMAKE_OSX_SYSROOT)
+            if(NOT EXISTS "${XCLANG_ROOT}/sdk/macos/SDKSettings.json")
+                message(FATAL_ERROR "xclang: ${XCLANG_TARGET} needs Apple's macOS SDK in ${XCLANG_ROOT}/sdk/macos: "
+                    "${_xclang_bin}/xclang sdk fetch macos --accept-license")
+            endif()
+            set(CMAKE_OSX_SYSROOT "${XCLANG_ROOT}/sdk/macos")
+        endif()
+        set(CMAKE_SYSTEM_NAME Darwin)
+        set(CMAKE_SYSTEM_PROCESSOR ${_xclang_osx_arch})
+        set(CMAKE_OSX_ARCHITECTURES ${_xclang_osx_arch} CACHE STRING "")
+        foreach(_xclang_lang C CXX ASM OBJC OBJCXX)
+            set(CMAKE_${_xclang_lang}_COMPILER_TARGET "${XCLANG_TARGET}")
+        endforeach()
+        # What the build links is looked for in the SDK, not on this machine.
+        set(CMAKE_FIND_ROOT_PATH "${CMAKE_OSX_SYSROOT}")
+        set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+        set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+        set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+        set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
     endif()
 elseif(_xclang_target_os STREQUAL "msvc" AND CMAKE_HOST_WIN32 AND _xclang_target_arch STREQUAL _xclang_host_arch)
     # Windows on Windows is no cross build, whatever its C library.
