@@ -164,7 +164,7 @@ it in every toolchain archive.
 | <a id="mingw-sanitizers"></a>Sanitizers for MinGW targets | Considered |
 | <a id="cargo-helper"></a>An `xclang cargo` helper that sets cargo's variables | Considered |
 | <a id="libgcc-s-script"></a>`libgcc_s.a` as a linker script naming libunwind, for Rust's Linux targets | Considered |
-| <a id="libcxx-msvc"></a>libc++ for MSVC targets, in place of Microsoft's STL | Considered |
+| <a id="libcxx-msvc"></a>libc++ as the C++ library of MSVC targets | Planned |
 | <a id="openmp"></a>An OpenMP runtime | Not planned |
 | <a id="tool-binaries"></a>clang-format, clang-tidy and clangd programs | Not planned |
 | <a id="shared-runtime"></a>A shared C++ runtime across shared libraries | Not planned |
@@ -194,10 +194,10 @@ Linux targets then link without `-l:libunwind.a`. A test with 23.1.2.5's
 arm64 sysroot linked Rust, and C++ programs and shared libraries that name
 `-lgcc_s`.
 
-**libc++ for MSVC targets** would give them the C++ library of every
-other target, its `import std` included. Microsoft's STL stays their
-default: C++ types passed between a program and libraries built with MSVC
-need the same library on both sides.
+**libc++ for MSVC targets** gives them the C++ library of every other
+target, its `import std` included, and becomes their default. Microsoft's
+STL stays a choice: C++ types passed between a program and libraries
+built with MSVC need the same library on both sides.
 
 The not-planned items follow from what xclang is. It is a compiler
 toolchain, and libclang has the libraries that tools on clang link. Its
