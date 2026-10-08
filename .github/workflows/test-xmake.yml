@@ -1,0 +1,56 @@
+name: test-xmake
+
+# Check the documented LLVM-toolchain integration against released tools.
+# Each host builds Linux/MinGW x64 and arm64; macOS also builds both Mac targets.
+# smoke.py checks object architectures, runtime dependencies and native output.
+on:
+  push:
+    paths:
+      - 'examples/quickstart/xmake.lua'
+      - 'examples/quickstart/hello.cpp'
+      - 'examples/quickstart/expected.txt'
+      - 'tests/xmake/**'
+      - '.github/workflows/test-xmake.yml'
+  pull_request:
+    paths:
+      - 'examples/quickstart/xmake.lua'
+      - 'examples/quickstart/hello.cpp'
+      - 'examples/quickstart/expected.txt'
+      - 'tests/xmake/**'
+      - '.github/workflows/test-xmake.yml'
+  workflow_dispatch:
+
+# Tools are downloaded from public releases; no write access is needed.
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            host: x86_64-unknown-linux-gnu
+            xmake: xmake-bundle-*.linux.x86_64
+          - os: windows-2025
+            host: x86_64-w64-mingw32
+            xmake: xmake-bundle-*.win64.exe
+          - os: macos-15
+            host: aarch64-apple-darwin
+            xmake: xmake-bundle-*.macos.arm64
+    env:
+      # Authenticated release downloads avoid the anonymous API rate limit.
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v3
+        with:
+          # mise exec installs and activates only the tools named below.
+          install: false
+      - name: Build and check the example
+        run: mise exec 'github:xmake-io/xmake[asset_pattern=${{ matrix.xmake }},bin=xmake]@latest' 'github:clice-io/xclang[asset_pattern=xclang-*-${{ matrix.host }}.tar.xz]@latest' 'python@3.13' -- python -X utf8 tests/xmake/smoke.py

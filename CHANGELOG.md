@@ -8,6 +8,10 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+- [Xmake integration](docs/en/integrations/xmake.md): a project example,
+  documented LLVM-toolchain configuration, and a smoke test for Linux
+  and Windows x64/arm64 with native execution and runtime dependency checks.
+
 - The repository's layout: what builds the toolchain is under
   `toolchain/` (its scripts, the CMake caches, the config files'
   templates, the PGO training, the Windows launcher, license texts), the

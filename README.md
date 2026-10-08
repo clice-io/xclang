@@ -149,6 +149,7 @@ At [docs.clice.io/xclang](https://docs.clice.io/xclang), from
   [FAQ](https://docs.clice.io/xclang/guide/faq)
 - Integrations: [CMake](https://docs.clice.io/xclang/integrations/cmake),
   [Bazel](https://docs.clice.io/xclang/integrations/bazel),
+  [Xmake](https://docs.clice.io/xclang/integrations/xmake),
   [Make and Meson](https://docs.clice.io/xclang/integrations/clang),
   [Cargo](https://docs.clice.io/xclang/integrations/cargo),
   [CI](https://docs.clice.io/xclang/integrations/ci)

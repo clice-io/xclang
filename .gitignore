@@ -30,3 +30,7 @@ node_modules/
 /examples/libclang/libclang/
 /examples/cargo/target/
 /examples/debug-symbols/tool-lines*
+
+# Xmake project metadata and asynchronous smoke-test logs.
+.xmake/
+/tests/xmake/logs/
