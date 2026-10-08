@@ -439,6 +439,10 @@ if (values.target === "msvc") {
 } else if (values.target === "darwin") {
   if (common.machine() !== "macos") common.fail("the macOS runtimes are built on macOS");
   process.env.SDKROOT ??= spawnSync("xcrun", ["--show-sdk-path"], { encoding: "utf8" }).stdout.trim();
+  /// Apple's ld, which links the sanitizers' dylibs, writes the times of
+  /// their objects into the debug map (and so into the UUID) unless this
+  /// says not to: a rebuild is then the same bytes.
+  process.env.ZERO_AR_DATE = "1";
   const targets = common.TARGETS.filter((t) => t.os === "darwin");
   for (const t of targets) {
     await buildSysroot(t, stage);

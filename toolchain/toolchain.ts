@@ -139,6 +139,10 @@ const args = [
   `-DLLVM_DEFAULT_TARGET_TRIPLE=${host.triple}`,
   ...compressionLibs.args,
 ];
+/// The revision clang --version and llvm/Support/VCSRevision.h name: LLVM's
+/// release, not the commit of xclang's checkout around the source, so that
+/// a rebuild of one revision is the same bytes.
+args.push("-DLLVM_FORCE_VC_REPOSITORY=https://github.com/llvm/llvm-project", `-DLLVM_FORCE_VC_REVISION=${common.LLVM_COMMIT}`);
 if (cross) args.push(`-DLLVM_HOST_TRIPLE=${host.triple}`);
 /// LLVM takes LLVM_NATIVE_TOOL_DIR's table generators over its own also
 /// where CMake does not cross-compile: macOS's x86_64 build is one of
@@ -223,7 +227,8 @@ function windowsAliases(dir: string): void {
   const exe = path.join(common.WORK, "build", `alias-${host.triple}`, "alias.exe");
   fs.mkdirSync(path.dirname(exe), { recursive: true });
   common.run(path.join(stage, "bin", "clang"), [
-    `--target=${host.triple}`, "-Os", "-municode", "-s", path.join(import.meta.dirname, "launcher", "alias.c"), "-o", exe,
+    `--target=${host.triple}`, "-Os", "-municode", "-s", "-Wl,--no-insert-timestamp",
+    path.join(import.meta.dirname, "launcher", "alias.c"), "-o", exe,
   ]);
   for (const link of links) {
     fs.rmSync(path.join(bin, link));

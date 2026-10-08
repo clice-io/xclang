@@ -150,7 +150,8 @@ async function mingw(t: common.Target, tree: string, dest: string): Promise<void
   const rc = `${path.join(bin, "llvm-windres")} --target=${t.triple} -I${path.join(dest, "include")}`;
   const env = {
     ...process.env,
-    CC: `${path.join(bin, "clang")} --target=${t.triple} --no-default-config --sysroot=${dest}`,
+    /// No compile time in the COFF objects (toolchain/cmake/toolchain.cmake).
+    CC: `${path.join(bin, "clang")} --target=${t.triple} --no-default-config --sysroot=${dest} -mno-incremental-linker-compatible`,
     AR: path.join(bin, "llvm-ar"),
     RANLIB: path.join(bin, "llvm-ranlib"),
     DLLTOOL: path.join(bin, "llvm-dlltool"),

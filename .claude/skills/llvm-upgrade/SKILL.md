@@ -5,10 +5,12 @@ description: Move xclang to a new LLVM release (e.g. 23.1.2 → 23.1.3 or 24.1.0
 
 # Upgrading LLVM
 
-1. **Versions and digests** in toolchain/common.ts: `LLVM_VERSION`, and the
-   sha256 of `llvm-project` and of LLVM's own release builds
-   (`llvm-linux-x64`, `llvm-macos-arm64`, `llvm-linux-arm64`,
-   `llvm-windows-x64`, `llvm-windows-arm64`, the benchmark's reference).
+1. **Versions and digests** in toolchain/common.ts: `LLVM_VERSION`,
+   `LLVM_COMMIT` (the commit of the `llvmorg-<version>` tag, which
+   `clang --version` names), and the sha256 of `llvm-project` and of
+   LLVM's own release builds (`llvm-linux-x64`, `llvm-macos-arm64`,
+   `llvm-linux-arm64`, `llvm-windows-x64`, `llvm-windows-arm64`, the
+   benchmark's reference).
    Take the digests from LLVM's release page or download and hash them on a
    runner; nothing is downloaded without a pinned digest.
 2. **Patches**: for each `patches/NNNN-*`, check whether upstream took it

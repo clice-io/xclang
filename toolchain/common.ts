@@ -14,6 +14,10 @@ export const ROOT = path.resolve(import.meta.dirname, "..");
 export const WORK = path.resolve(process.env.XCLANG_WORK ?? path.join(ROOT, "work"));
 
 export const LLVM_VERSION = "23.1.2";
+/// The commit of llvmorg-<LLVM_VERSION>: the revision clang --version names,
+/// as LLVM's own release builds do (toolchain/toolchain.ts). Without it, LLVM
+/// records the commit of whatever git checkout holds the source, xclang's.
+export const LLVM_COMMIT = "85ac560262434c9ccfc0c183ec22d4138ed647fb";
 export const LLVM_MAJOR = LLVM_VERSION.split(".")[0];
 export const MINGW_VERSION = "14.0.0";
 export const MUSL_VERSION = "1.2.6";
