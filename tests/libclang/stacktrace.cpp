@@ -1,5 +1,5 @@
 /// A tool on libclang that crashes on purpose, for the stack trace LLVM's
-/// handler prints (tests/libclang.ts), through frames with names (frame_a,
+/// handler prints (libclang.ts), through frames with names (frame_a,
 /// frame_b, frame_c) for llvm-symbolizer to show:
 ///
 ///   trap      a trap three frames down: the process's crash handler, as in

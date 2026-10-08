@@ -23,6 +23,7 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import * as licenses from "../../toolchain/licenses.ts";
 import { programsDir, writePrograms, type Program } from "../lib/on-target.ts";
+import { since } from "../lib/version.ts";
 
 const { values } = parseArgs({ options: { tree: { type: "string" }, out: { type: "string" } } });
 if (!values.tree) fail("--tree <xclang> [--out <dir>]");
@@ -148,9 +149,9 @@ run(tool("FileCheck"), [write("check.txt", "CHECK: hello\nCHECK-NEXT: world\n"),
 
 /// On Windows, clang's crash stack trace by the tree's llvm-symbolizer: every
 /// frame in a module, down to the thread's start (on arm64 the last one was
-/// a system DLL's signed return address, patches/0010). On macOS the last
-/// one, dyld's, is in none of the images LLVM lists.
-if (windows) {
+/// a system DLL's signed return address before patches/0010, in 23.1.2.10).
+/// On macOS the last one, dyld's, is in none of the images LLVM lists.
+if (windows && since("23.1.2.10")) {
   const args = ["-fno-crash-diagnostics", "-c", write("crash.c", "#pragma clang __debug crash\n"), "-o", path.join(work, "crash.o")];
   console.log(`+ ${tool("clang")} ${args.join(" ")}`);
   const result = spawnSync(tool("clang"), args, { encoding: "utf8", cwd: work });

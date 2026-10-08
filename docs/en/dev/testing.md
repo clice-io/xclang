@@ -104,7 +104,10 @@ How the stages fit together is in the [build pipeline](release-build.md).
 
 `tests/libclang/libclang.ts` builds and runs `tests/libclang`, a small tool on
 libclang. It finds libclang through `find_package(Clang)`, links the ThinLTO
-bitcode, and registers every target's MC layer.
+bitcode, and registers every target's MC layer. A second program crashes
+in a `qsort` comparator and in a signal handler that prints the stack:
+LLVM's stack trace reaches its frames past the C library's (on Windows on
+Arm, [patch 0010](../reference/patches.md)).
 
 ## Programs and What They Load
 

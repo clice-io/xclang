@@ -12,7 +12,7 @@ target_compile_options(consumer PRIVATE -fno-rtti)
 target_include_directories(consumer SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS} ${CLANG_INCLUDE_DIRS})
 target_link_libraries(consumer PRIVATE clangBasic clangLex LLVMSupport)
 
-# A crash's stack trace as a tool on libclang prints it (tests/libclang.ts),
+# A crash's stack trace as a tool on libclang prints it (libclang.ts),
 # with -g for llvm-symbolizer to name the tool's frames, and -O0: optimized,
 # a function that always traps is noreturn, and the return address of its
 # call names the function after the caller.

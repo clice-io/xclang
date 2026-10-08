@@ -46,7 +46,8 @@ tests/             one directory per thing tested, its script beside its
   bench/           bench.ts and report.ts, compile speed
   lib/             what the others share: a host's archives unpacked
                    (archives.ts), programs run on their target
-                   (on-target.ts)
+                   (on-target.ts), which release is under test
+                   (version.ts)
 examples/          the projects the docs show, built by examples.yml
 docs/en/           this site
 .github/workflows/ CI: release.yml and its stage-*.yml build a release;

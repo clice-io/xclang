@@ -12,6 +12,7 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import * as common from "../../toolchain/common.ts";
 import * as licenses from "../../toolchain/licenses.ts";
+import { since } from "../lib/version.ts";
 
 const { values } = parseArgs({ options: { tree: { type: "string" }, libclang: { type: "string" } } });
 if (!values.tree || !values.libclang) common.fail("--tree <xclang> --libclang <libclang>");
@@ -67,9 +68,10 @@ if (targets.status !== 0) common.fail("the target registry is not every target's
 /// reaches the tool's frames past the C library's: from qsort's comparator,
 /// and from a signal handler printing the stack itself, through the
 /// exception dispatcher. On arm64 Windows both stopped at the first frame
-/// of a system DLL (patches/0010).
+/// of a system DLL before patches/0010, in 23.1.2.10.
 const symbolizer = path.join(tree, "bin", `llvm-symbolizer${exe}`);
-for (const mode of ["qsort", "handler"]) {
+const walks = process.platform !== "win32" || process.arch !== "arm64" || since("23.1.2.10");
+for (const mode of walks ? ["qsort", "handler"] : []) {
   const crash = spawnSync(path.join(build, `stacktrace${exe}`), [mode],
     { encoding: "utf8", env: { ...process.env, LLVM_SYMBOLIZER_PATH: symbolizer } });
   const trace = crash.stderr ?? "";
