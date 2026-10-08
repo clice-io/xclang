@@ -4,7 +4,9 @@ name: test-archives
 # (tests/toolchain/smoke.ts, tests/libclang/libclang.ts); what the smoke
 # test builds for targets the machine cannot run, run on a machine of those
 # (on-target.yml). With repack-of, also each host's archives against those
-# of the release they repack (tests/release/repack.ts).
+# of the release they repack (tests/release/repack.ts), or, given a run id,
+# against that run's: a rebuild of the same revision, which must be the
+# same bytes but for the packaging.
 #
 #   release.yml     a run's archives (dist-run), before they are released
 #   checks.yml      a published release's (the latest), with this
@@ -23,7 +25,7 @@ on:
         type: string
         default: latest
       repack-of:
-        description: Release the run's archives repack, with dist-run
+        description: Release the run's archives repack, or a run whose archives they must equal, with dist-run
         type: string
         default: ""
       hosts:
@@ -40,7 +42,7 @@ on:
         type: string
         default: latest
       repack-of:
-        description: Release the run's archives repack, with dist-run
+        description: Release the run's archives repack, or a run whose archives they must equal, with dist-run
         type: string
         default: ""
 
@@ -124,6 +126,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir previous
+          if [[ "${{ inputs.repack-of }}" =~ ^[0-9]+$ ]]; then
+            gh run download "${{ inputs.repack-of }}" -R "$GITHUB_REPOSITORY" -n "dist-${{ matrix.host }}" -D previous
+            exit 0
+          fi
           for file in dist/*.tar.xz; do
             name=$(basename "$file" | sed -E "s/-[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+([-.])/-${{ inputs.repack-of }}\1/")
             gh release download "${{ inputs.repack-of }}" -R "$GITHUB_REPOSITORY" -p "$name" -D previous

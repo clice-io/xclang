@@ -33,7 +33,10 @@ run-name: "release: revision ${{ inputs.revision }}, ${{ inputs.stages }}"
 # release's: reuse-run and profile-run name that release's run, and the
 # stages are package, the tests and release. With repack-of, the test
 # stage also checks every host's archives against that release's: only
-# what the packaging writes differs (tests/release/repack.ts).
+# what the packaging writes differs (tests/release/repack.ts). repack-of
+# can also be a run id, of a run of the same revision: a full rebuild must
+# then give that run's archives again (with its profile, as training does
+# not give the same profile twice).
 #
 # With cli (the default), the package stage builds xclang's own command
 # (cli.yml) and puts it into every toolchain archive.
@@ -70,7 +73,7 @@ on:
         type: string
         default: "1"
       repack-of:
-        description: Release whose compiler and runtimes this run reuses; its archives must equal this run's but for the packaging
+        description: Release whose compiler and runtimes this run reuses, or a run of the same revision this one rebuilds; its archives must equal this run's but for the packaging
         type: string
         default: ""
       cli:
