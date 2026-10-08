@@ -194,7 +194,8 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, macos_sd
         cpu = t.cpu,
         cxx_builtin_include_directories = builtin_dirs,
         dbg_compile_flags = ["-g"],
-        extra_enabled_features = thinlto_cache + strip + (gc_sections if t.os == "linux" else []),
+        extra_enabled_features = thinlto_cache + strip + (gc_sections if t.os == "linux" else []) +
+                                 ([Label("//bazel:no_exported_symbols")] if t.os == "macos" else []),
         extra_known_features = (gc_sections if t.os == "windows" else []) +
                                ([Label("//bazel/dsym:generate_dsym_file")] if dsym_link else []),
         host_system_name = host,

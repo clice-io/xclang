@@ -59,6 +59,7 @@ and gets glibc on Linux unless it names `:musl`.
 | `generate_dsym_file` | off | macOS targets: the link makes `<name>.dSYM` (output group `dsyms`); `--apple_generate_dsym` turns it on for the build |
 | `supports_dynamic_linker` | off | Bazel's dynamic linking of libraries into tests and programs; off, they link statically |
 | `release_strip` | on | what `<name>.stripped` does: `--strip-unneeded` for ELF and COFF, `--strip-all` for Mach-O ([strip](../features/debugging.md#strip)) |
+| `no_exported_symbols` | macOS targets: on in `opt` | the program exports nothing (`-Wl,-no_exported_symbols`), so that its strip leaves no symbol to name a crash log's frames ([strip](../features/debugging.md#strip)); off for a program whose plugins bind to its symbols |
 
 A feature is turned on for a build with `--features=<name>`, off with
 `--features=-<name>`, and for one target with `features = ["<name>"]` or

@@ -39,6 +39,8 @@
 ///     program), for this host's target and another os's.
 /// 11. @libclang, its libraries and its resource directory, follow
 ///     --features=asan.
+/// 12. An optimized macOS program exports nothing (no_exported_symbols), on
+///     a macOS host.
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -502,6 +504,28 @@ if (!windows) {
     check(result.status !== 0 && /has no ASan libclang/.test(result.stderr ?? ""),
       "--features=asan: no ASan libclang for this host's target, and the build says so");
   }
+}
+
+/// 12. An optimized macOS program exports nothing: //cpp:hello with -c opt
+/// has no external symbol in its .stripped, and runs; with
+/// --features=-no_exported_symbols the weak definitions of libc++'s
+/// templates stay exported, which strip keeps for dyld.
+if (host.includes("apple")) {
+  const workspace = path.join(common.ROOT, "tests", "bazel");
+  const nm = path.join(toolchainDir(workspace), "bin", "llvm-nm");
+  const exported = (features: string[]) => {
+    bazel(workspace, ["build", "-c", "opt", ...features, "//cpp:hello", "//cpp:hello.stripped"]);
+    const program = path.join(workspace, run(workspace, ["cquery", "-c", "opt", ...features, "--output=files", "//cpp:hello"]).stdout.trim());
+    const stripped = path.join(path.dirname(program), "hello.stripped");
+    const symbols = (spawnSync(nm, ["-m", "--defined-only", stripped], { encoding: "utf8" }).stdout ?? "")
+      .split("\n").filter((l) => / external /.test(l) && !/non-external/.test(l));
+    const runs = /hello from xclang/.test(spawnSync(stripped, [], { encoding: "utf8" }).stdout ?? "");
+    return { count: symbols.length, runs };
+  };
+  const on = exported([]);
+  const off = exported(["--features=-no_exported_symbols"]);
+  check(on.count === 0 && on.runs && off.count > 0,
+    `no_exported_symbols: hello.stripped exports ${on.count} symbols${on.runs ? " and runs" : ", but does not run"}, ${off.count} without the feature`);
 }
 
 if (process.env.GITHUB_STEP_SUMMARY) {

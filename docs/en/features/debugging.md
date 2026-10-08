@@ -221,8 +221,16 @@ format:
 On macOS, `dladdr` names an address by the nearest preceding symbol. A
 stripped program that keeps the names of its global functions gives a
 crash log wrong names: a local function is reported as the global one
-before it. With `--strip-all`, the crash log has addresses only, and the
-dSYM or GSYM names them correctly. `--stripopt` adds options to the strip.
+before it. `--strip-all` removes them, but not the symbols dyld binds,
+and a C++ program exports its weak definitions (template instantiations,
+inline functions) for dyld to coalesce: clice's stripped program kept
+1844 of them. So an optimized macOS program is also linked with
+`-Wl,-no_exported_symbols` (the `no_exported_symbols` feature, on by
+default). It exports nothing, its `.stripped` keeps no symbol but its
+header's, and the crash log has addresses only, which the dSYM or GSYM
+name correctly. A program whose plugins bind to its symbols turns the
+feature off: `features = ["-no_exported_symbols"]` on its `cc_binary`.
+`--stripopt` adds options to the strip.
 
 ## Not Yet Supported
 

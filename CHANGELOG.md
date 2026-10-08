@@ -44,6 +44,12 @@ the [patches](docs/en/reference/patches.md) of its tag.
   and Windows. LLVM's `__crashreporter_info__` is gone with them: macOS
   crash reports of clang and lld no longer carry its "Application Specific
   Information".
+- Bazel: an optimized macOS program exports nothing
+  (`-Wl,-no_exported_symbols`, the `no_exported_symbols` feature, on by
+  default). A C++ program exported its weak definitions, which
+  `--strip-all` leaves for dyld, and a crash log named its frames after
+  them. A program whose plugins bind to its symbols turns the feature off
+  ([strip](docs/en/features/debugging.md#strip)).
 
 ## [23.1.2.9](https://github.com/clice-io/xclang/releases/tag/23.1.2.9) — 2026-10-06
 

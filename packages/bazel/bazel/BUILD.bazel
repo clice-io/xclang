@@ -60,6 +60,26 @@ cc_args(
     args = ["--strip-all"],
 )
 
+# An optimized macOS program exports nothing, as a feature on by default
+# (bazel/toolchain.bzl): a C++ program exports its weak definitions (template
+# instantiations, inline functions) for dyld to coalesce, strip keeps every
+# symbol dyld binds, and dladdr names a crash log's frames after the nearest
+# of them. A program whose plugins bind to its symbols turns it off:
+# --features=-no_exported_symbols (or features = ["-no_exported_symbols"]).
+cc_feature(
+    name = "no_exported_symbols",
+    args = [":no_exported_symbols_args"],
+    feature_name = "no_exported_symbols",
+    requires_any_of = ["@rules_cc//cc/toolchains/features:opt"],
+    visibility = ["//visibility:public"],
+)
+
+cc_args(
+    name = "no_exported_symbols_args",
+    actions = ["@rules_cc//cc/toolchains/actions:cpp_link_executable"],
+    args = ["-Wl,-no_exported_symbols"],
+)
+
 # llvm-gsymutil of the machine's toolchain, to read the GSYM of
 # xclang_debug_symbols (bazel/debug_symbols.bzl) without the toolchain on
 # PATH: bazel run @xclang//bazel:llvm-gsymutil -- <absolute .gsym>

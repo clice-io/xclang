@@ -207,6 +207,9 @@ and libclang; a Linux host runs the musl tests of its architecture
 10. **Strip** by object format, for the host target and another OS's.
 11. **`@libclang` follows `--features=asan`**: its libraries and resource
     directory switch together.
+12. **An optimized macOS program exports nothing**: its `.stripped` has
+    no external symbol and runs; without `no_exported_symbols`, the weak
+    definitions of libc++'s templates stay.
 
 examples.yml builds `examples/bazel` from bazel.clice.io on every host, and
 for another target.
