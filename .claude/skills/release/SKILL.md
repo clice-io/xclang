@@ -141,7 +141,8 @@ the release run tests them with the new archives.
    and examples/ as written against the release on every host, once
    conda.clice.io serves it. A job that failed is rerun from the run's
    page; published.yml by hand (`-f tag=<version> -f publish=true`) runs
-   all of it again.
+   all of it again, publishing only to the channels that do not have the
+   version yet.
 7. **bench.yml** (optional, for the notes or docs/en/design/pgo.md):
    `gh workflow run bench.yml -R clice-io/xclang --ref main -f
    pgo-run=<the release's release.yml run> -f shards='[1, 2, 3, 4, 5]'`,

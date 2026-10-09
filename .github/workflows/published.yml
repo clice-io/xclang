@@ -15,8 +15,8 @@ name: published
 #      serves it.
 #
 # By hand with a tag, it tests the release again; with publish, it also
-# publishes what has not been (a registry's own check refuses a version it
-# has).
+# publishes to each channel that does not have the version yet (a channel
+# refuses a version it has: conda's packages, made again, are other bytes).
 
 on:
   release:
@@ -47,8 +47,23 @@ jobs:
     outputs:
       tag: ${{ env.TAG }}
       publish: ${{ env.PUBLISH }}
+      bazel-has: ${{ steps.channels.outputs.bazel-has }}
+      conda-has: ${{ steps.channels.outputs.conda-has }}
     steps:
       - run: echo "$TAG, publish $PUBLISH"
+      # What a channel has already, which a re-run does not publish again:
+      # the module's version on bazel.clice.io, the packages of every subdir
+      # on conda.clice.io.
+      - id: channels
+        run: |
+          has() { local body; body=$(curl -sSfL --retry 3 --retry-all-errors -A "xclang/ci" "$1") && grep -qF "$2" <<< "$body"; }
+          bazel=false; has "https://bazel.clice.io/modules/xclang/metadata.json" "\"$TAG\"" && bazel=true
+          conda=true
+          for subdir in linux-64 linux-aarch64 win-64 win-arm64 osx-arm64 osx-64; do
+            has "https://conda.clice.io/$subdir/repodata.json" "\"xclang-$TAG-" || conda=false
+          done
+          echo "bazel-has=$bazel" | tee -a "$GITHUB_OUTPUT"
+          echo "conda-has=$conda" | tee -a "$GITHUB_OUTPUT"
 
   bazel:
     needs: release
@@ -69,12 +84,12 @@ jobs:
     with:
       tag: ${{ needs.release.outputs.tag }}
       build: "0"
-      publish: ${{ needs.release.outputs.publish == 'true' }}
+      publish: ${{ needs.release.outputs.publish == 'true' && needs.release.outputs.conda-has != 'true' }}
     secrets: inherit
 
   bazel-registry:
     needs: [release, bazel]
-    if: needs.release.outputs.publish == 'true'
+    if: needs.release.outputs.publish == 'true' && needs.release.outputs.bazel-has != 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -98,7 +113,7 @@ jobs:
   # Forward only: a release is never older than the one before it.
   latest:
     needs: [release, cmake, conda, bazel-registry]
-    if: needs.release.outputs.publish == 'true'
+    if: ${{ !cancelled() && needs.release.outputs.publish == 'true' && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
