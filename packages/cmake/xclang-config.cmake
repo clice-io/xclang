@@ -150,6 +150,7 @@ if(NOT COMMAND xclang_add_std)
             # copies include <malloc.h> before the module too, with the C
             # headers: for arm64, clang 23 otherwise takes the _alloca of
             # <malloc.h>, included in the purview, for a second declaration.
+            # file(READ) gives CRLF lines (MSVC 14.51's std.ixx) as LF.
             string(JSON _count LENGTH "${_json}" module-sources)
             math(EXPR _last "${_count} - 1")
             foreach(_i RANGE ${_last})
@@ -157,7 +158,12 @@ if(NOT COMMAND xclang_add_std)
                 get_filename_component(_stem "${_source}" NAME_WLE)
                 set(_copy "${CMAKE_CURRENT_BINARY_DIR}/${name}/${_stem}.cppm")
                 file(READ "${_dir}/${_source}" _text)
-                string(REPLACE "\n#include <intrin.h>\n" "\n#include <intrin.h>\n#include <malloc.h>\n" _text "${_text}")
+                string(REPLACE "\n#include <intrin.h>\n" "\n#include <intrin.h>\n#include <malloc.h>\n" _new "${_text}")
+                if(_stem STREQUAL "std" AND _new STREQUAL _text)
+                    message(FATAL_ERROR "xclang: ${_dir}/${_source} includes no <intrin.h>, after which the CMake "
+                        "package includes <malloc.h> for arm64: a toolset xclang does not know")
+                endif()
+                set(_text "${_new}")
                 set(_old "")
                 if(EXISTS "${_copy}")
                     file(READ "${_copy}" _old)

@@ -15,10 +15,22 @@ index 863ba10..d665429 100644
    /// Returns if the C++ standard library should be linked in.
    /// Note that e.g. -lm should still be linked even if this returns false.
 diff --git a/clang/lib/Driver/ToolChains/MSVC.cpp b/clang/lib/Driver/ToolChains/MSVC.cpp
-index 2aa69ec..c7ec626 100644
+index 2aa69ec..a5b4daf 100644
 --- a/clang/lib/Driver/ToolChains/MSVC.cpp
 +++ b/clang/lib/Driver/ToolChains/MSVC.cpp
-@@ -927,9 +927,55 @@ void MSVCToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
+@@ -118,6 +118,11 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
+     }
+   }
+ 
++  // The objects name the C++ library they were compiled with, Microsoft's
++  // STL and libc++ alike (#pragma comment(lib)): -stdlib= has nothing to add
++  // to the link.
++  Args.ClaimAllArgs(options::OPT_stdlib_EQ);
++
+   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles) &&
+       !C.getDriver().IsCLMode() && !C.getDriver().IsFlangMode()) {
+     CmdArgs.push_back("-defaultlib:libcmt");
+@@ -927,9 +932,55 @@ void MSVCToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
  #endif
  }
  
@@ -91,10 +103,10 @@ index 6878d6a..d436f8b 100644
                            llvm::opt::ArgStringList &CC1Args) const override;
 diff --git a/clang/test/Driver/msvc-libcxx.cpp b/clang/test/Driver/msvc-libcxx.cpp
 new file mode 100644
-index 0000000..b4777c2
+index 0000000..cb7601f
 --- /dev/null
 +++ b/clang/test/Driver/msvc-libcxx.cpp
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,61 @@
 +// The C++ standard library of MSVC targets: Microsoft's STL, from the
 +// system's headers, unless -stdlib=libc++; then libc++ installed with the
 +// compiler, include/<triple>/c++/v1 and include/c++/v1, before them.
@@ -147,3 +159,12 @@ index 0000000..b4777c2
 +// RUN:   | FileCheck --check-prefix=ISYSTEM-STL %s
 +// ISYSTEM-STL-NOT: argument unused during compilation
 +// ISYSTEM-STL-NOT: "/tmp/foo"
++
++// The objects name their C++ library; a link takes -stdlib= without a word.
++// RUN: touch %t/main.obj
++// RUN: %clang -### --target=x86_64-pc-windows-msvc -ccc-install-dir %/t/bin \
++// RUN:   -stdlib=platform %t/main.obj 2>&1 | FileCheck --check-prefix=LINK %s
++// RUN: %clang -### --target=x86_64-pc-windows-msvc -ccc-install-dir %/t/bin \
++// RUN:   -stdlib=libc++ %t/main.obj 2>&1 | FileCheck --check-prefix=LINK %s
++// LINK-NOT: argument unused during compilation
++// LINK: "-out:a.exe"

@@ -332,7 +332,9 @@ for (const a of ["x86_64", "aarch64"]) {
 
 /// 4. CMake: tests/cmake through the package's toolchain file, with libc++
 /// and with Microsoft's STL, whose std.ixx the package copies into the
-/// build (xclang_std/std.cppm).
+/// build (xclang_std/std.cppm), with <malloc.h> after <intrin.h> (for
+/// arm64's _alloca), also from MSVC 14.51's, whose lines end in CRLF. The
+/// link takes -stdlib=platform without a word (patches/0015).
 const toolchain = path.join(tree, "lib", "cmake", "xclang", "toolchain.cmake");
 for (const a of ["x86_64", "aarch64"]) {
   for (const stl of [false, true]) {
@@ -341,10 +343,16 @@ for (const a of ["x86_64", "aarch64"]) {
     const what = `tests/cmake for ${triple}${stl ? " with XCLANG_MSVC_STL" : ""}`;
     const configure = run("cmake", ["-G", "Ninja", "-S", path.join(common.ROOT, "tests", "cmake"), "-B", dir,
       "-DCMAKE_BUILD_TYPE=Release", `--toolchain=${toolchain}`, `-DXCLANG_TARGET=${triple}`, `-DXCLANG_MSVC_STL=${stl ? "ON" : "OFF"}`]);
-    const built = configure.status === 0 && run("cmake", ["--build", dir]).status === 0;
+    const build = configure.status === 0 ? run("cmake", ["--build", dir]) : undefined;
+    const built = build?.status === 0;
     check(built, what);
     if (!built) continue;
-    check(fs.existsSync(path.join(dir, "xclang_std", "std.cppm")) === (stl || !libcxx), `${what}: xclang::std from ${stl || !libcxx ? "the STL" : "libc++"}`);
+    const copy = path.join(dir, "xclang_std", "std.cppm");
+    check(fs.existsSync(copy) === (stl || !libcxx), `${what}: xclang::std from ${stl || !libcxx ? "the STL" : "libc++"}`);
+    if (fs.existsSync(copy)) {
+      check(/\n#include <intrin\.h>\r?\n#include <malloc\.h>\r?\n/.test(fs.readFileSync(copy, "utf8")), `${what}: its std.cppm includes <malloc.h>`);
+    }
+    if (libcxx) check(!/argument unused during compilation: '-stdlib=/.test(build!.out), `${what}: -stdlib= used everywhere`);
     if (native && a === "x86_64") check(run("ctest", ["--test-dir", dir, "--output-on-failure"]).status === 0, `${what}: its tests`);
   }
 }
