@@ -1,7 +1,7 @@
 name: stage-runtimes
 
 # The runtimes of every target, built once with the bootstrap compiler:
-# one artifact runtimes-<triple> per Linux and MinGW target, one
+# one artifact runtimes-<triple> per Linux (glibc, musl) and MinGW target, one
 # runtimes-darwin for both macOS targets, one runtimes-msvc for both MSVC
 # targets (their compiler-rt). Units not in `build` are copied from the run
 # `reuse-run`, so every run carries the full set.
@@ -31,6 +31,10 @@ jobs:
           - name: x86_64-w64-mingw32
             os: ubuntu-24.04
           - name: aarch64-w64-mingw32
+            os: ubuntu-24.04
+          - name: x86_64-unknown-linux-musl
+            os: ubuntu-24.04
+          - name: aarch64-unknown-linux-musl
             os: ubuntu-24.04
           - name: darwin
             os: macos-15

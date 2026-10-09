@@ -62,6 +62,19 @@ const LINUX_SANITIZERS = [
   "-DCOMPILER_RT_USE_BUILTINS_LIBRARY=ON",
 ];
 
+/// What compiler-rt has for musl's static programs: UBSan, its standalone
+/// runtime (which comes with any sanitizer) and its minimal one. The other
+/// sanitizers find the functions they intercept with dlsym, which a static
+/// program has not: ASan's, TSan's and LSan's runtimes do not link without
+/// a dynamic section (_DYNAMIC), and libFuzzer stops at its first
+/// sigaction, whose real one UBSan's interceptor does not find.
+const MUSL_SANITIZERS = [
+  "-DCOMPILER_RT_BUILD_SANITIZERS=ON",
+  "-DCOMPILER_RT_SANITIZERS_TO_BUILD=ubsan_minimal",
+  "-DCOMPILER_RT_BUILD_LIBFUZZER=OFF",
+  ...LINUX_SANITIZERS,
+];
+
 /// compiler-rt names its directory after the compiler's target, so that
 /// is the spelling clang's driver looks for: the normalized one.
 function compilerRtTarget(stage: string, t: common.Target): string[] {
@@ -73,7 +86,7 @@ function builtins(t: common.Target, stage: string): void {
     ...compilerRtTarget(stage, t),
     "-C", path.join(caches, "builtins.cmake"),
     `-DCOMPILER_RT_INSTALL_PATH=${common.resourceDir(stage)}`,
-    `-DCOMPILER_RT_BUILD_CRT=${t.os === "linux" ? "ON" : "OFF"}`,
+    `-DCOMPILER_RT_BUILD_CRT=${common.linuxSysroot(t) ? "ON" : "OFF"}`,
     ...NO_CONFIG,
   ]);
 }
@@ -82,7 +95,7 @@ function builtins(t: common.Target, stage: string): void {
 /// clang's Linux driver looks; mingw and macOS use the top of the target
 /// directory, as the mingw driver and the config files expect.
 function cxxPrefix(t: common.Target, stage: string): string {
-  return t.os === "linux" ? path.join(stage, t.triple, "usr") : path.join(stage, t.triple);
+  return common.linuxSysroot(t) ? path.join(stage, t.triple, "usr") : path.join(stage, t.triple);
 }
 
 function cxxArgs(t: common.Target, stage: string, prefix: string): string[] {
@@ -97,11 +110,14 @@ function cxxArgs(t: common.Target, stage: string, prefix: string): string[] {
     /// to; libc++abi then refers to it weakly and uses it where the C
     /// library has it.
     ...(t.os === "linux" ? ["-DLIBCXXABI_HAS_CXA_THREAD_ATEXIT_IMPL=OFF"] : []),
+    /// libc++ for musl, whose locale functions differ from glibc's.
+    ...(t.os === "musl" ? ["-DLIBCXX_HAS_MUSL_LIBC=ON"] : []),
     `-DLLVM_DEFAULT_TARGET_TRIPLE=${common.normalized(t)}`,
     `-DCMAKE_INSTALL_PREFIX=${prefix}`,
     /// The checks' programs link the C runtime and compiler-rt, and no C++
-    /// library or unwinder: those are what is being built.
-    `-DCMAKE_EXE_LINKER_FLAGS=${darwin ? "-nostdlib++" : "--rtlib=compiler-rt --unwindlib=none -nostdlib++"}`,
+    /// library or unwinder: those are what is being built. musl's link
+    /// statically, as its programs do.
+    `-DCMAKE_EXE_LINKER_FLAGS=${darwin ? "-nostdlib++" : `--rtlib=compiler-rt --unwindlib=none -nostdlib++${t.os === "musl" ? " -static" : ""}`}`,
     ...NO_CONFIG,
   ];
 }
@@ -114,7 +130,7 @@ function cxx(t: common.Target, stage: string): void {
   /// adds for -fstack-protector), are empty archives: what they hold comes
   /// from compiler-rt (atomics too: toolchain/cmake/caches/builtins.cmake),
   /// libunwind and, for the stack protector, mingw-w64's libmingwex.
-  const stubs = { linux: GCC_STUBS, mingw: [...GCC_STUBS, "ssp", "ssp_nonshared"], darwin: [], msvc: [] }[t.os];
+  const stubs = { linux: GCC_STUBS, musl: GCC_STUBS, mingw: [...GCC_STUBS, "ssp", "ssp_nonshared"], darwin: [], msvc: [] }[t.os];
   for (const name of stubs) fs.writeFileSync(path.join(prefix, "lib", `lib${name}.a`), "!<arch>\n");
 }
 
@@ -164,7 +180,16 @@ function profile(t: common.Target, stage: string): void {
     `-DCOMPILER_RT_BUILD_SANITIZERS=${SANITIZERS.includes(t.os) ? "ON" : "OFF"}`,
     `-DCOMPILER_RT_BUILD_LIBFUZZER=${SANITIZERS.includes(t.os) ? "ON" : "OFF"}`,
     ...(t.os === "linux" ? LINUX_SANITIZERS : []),
+    ...(t.os === "musl" ? MUSL_SANITIZERS : []),
   ]);
+  /// What a static program cannot use: the shared runtimes, and LSan's,
+  /// which comes with any sanitizer.
+  if (t.os === "musl") {
+    const dir = path.join(common.resourceDir(stage), "lib", common.normalized(t));
+    for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".so") || f.startsWith("libclang_rt.lsan."))) {
+      fs.rmSync(path.join(dir, file));
+    }
+  }
 }
 
 /// compiler-rt for macOS is one build of universal (arm64 + x86_64)
@@ -248,10 +273,15 @@ function check(t: common.Target, stage: string): void {
   ].join("\n"));
   const exe = path.join(dir, `hello${t.os === "mingw" || t.os === "msvc" ? ".exe" : ""}`);
   common.run(path.join(stage, "bin", "clang++"), [`--target=${t.triple}`, "-O2", source, "-o", exe]);
-  const native = common.machineTarget();
-  if (t.os === native.os && t.arch === native.arch) common.run(exe, []);
+  if (common.runsHere(t)) common.run(exe, []);
   const tool = t.os === "darwin" ? ["llvm-otool", "-L"] : ["llvm-readobj", "--needed-libs"];
   common.run(path.join(stage, "bin", tool[0]), [tool[1], exe]);
+  /// musl's static programs with UBSan, its standalone runtime.
+  if (t.os === "musl") {
+    const ubsanExe = path.join(dir, "hello-ubsan");
+    common.run(path.join(stage, "bin", "clang++"), [`--target=${t.triple}`, "-O1", "-fsanitize=undefined", source, "-o", ubsanExe]);
+    if (common.runsHere(t)) common.run(ubsanExe, []);
+  }
   /// The same with ASan and libc++'s ASan build (cxxAsan), run natively.
   if (!SANITIZERS.includes(t.os)) return;
   const asan = path.join(cxxPrefix(t, stage), "lib", "asan");
@@ -260,7 +290,7 @@ function check(t: common.Target, stage: string): void {
     `--target=${t.triple}`, "-O1", "-fsanitize=address", "-isystem", path.join(asan, "include"),
     "-nostdlib++", path.join(asan, "libc++.a"), source, "-o", asanExe,
   ]);
-  if (t.os === native.os && t.arch === native.arch) common.run(asanExe, []);
+  if (common.runsHere(t)) common.run(asanExe, []);
 }
 
 /// compiler-rt's headers, which its builds install into the resource

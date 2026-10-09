@@ -16,6 +16,10 @@ export const WORK = path.resolve(process.env.XCLANG_WORK ?? path.join(ROOT, "wor
 export const LLVM_VERSION = "23.1.2";
 export const LLVM_MAJOR = LLVM_VERSION.split(".")[0];
 export const MINGW_VERSION = "14.0.0";
+export const MUSL_VERSION = "1.2.6";
+/// The kernel whose UAPI headers the musl targets carry: the newest
+/// long-term release.
+export const LINUX_VERSION = "6.18";
 export const MACOS_MIN = "13.0";
 
 const GH = "https://github.com";
@@ -114,10 +118,20 @@ export const SOURCES = {
     url: `${GH}/mingw-w64/mingw-w64/archive/refs/tags/v${MINGW_VERSION}.tar.gz`,
     sha256: "d71cc644cd5a37c337f2719f3e0c79d89e8d8d5fb9e2952a62d3fa23623dc137",
   },
+  /// The musl targets' C library, with the patches of toolchain/musl, and
+  /// the kernel whose UAPI headers go next to it (toolchain/sysroot.ts).
+  "musl": {
+    url: `https://musl.libc.org/releases/musl-${MUSL_VERSION}.tar.gz`,
+    sha256: "d585fd3b613c66151fc3249e8ed44f77020cb5e6c1e635a616d3f9f82460512a",
+  },
+  "linux": {
+    url: `https://cdn.kernel.org/pub/linux/kernel/v${LINUX_VERSION.split(".")[0]}.x/linux-${LINUX_VERSION}.tar.xz`,
+    sha256: "9106a4605da9e31ff17659d958782b815f9591ab308d03b0ee21aad6c7dced4b",
+  },
 } as const;
 export type Source = keyof typeof SOURCES;
 
-export type Os = "linux" | "mingw" | "darwin" | "msvc";
+export type Os = "linux" | "musl" | "mingw" | "darwin" | "msvc";
 export type Arch = "x86_64" | "aarch64";
 export type Machine = "linux" | "macos";
 
@@ -128,6 +142,8 @@ export interface Target {
   arch: Arch;
 }
 
+/// The targets every toolchain tree carries, each with its directory: the
+/// sysroot and the runtimes.
 export const TARGETS: readonly Target[] = [
   { triple: "x86_64-unknown-linux-gnu", os: "linux", arch: "x86_64" },
   { triple: "aarch64-unknown-linux-gnu", os: "linux", arch: "aarch64" },
@@ -135,13 +151,19 @@ export const TARGETS: readonly Target[] = [
   { triple: "aarch64-w64-mingw32", os: "mingw", arch: "aarch64" },
   { triple: "aarch64-apple-darwin", os: "darwin", arch: "aarch64" },
   { triple: "x86_64-apple-darwin", os: "darwin", arch: "x86_64" },
+  { triple: "x86_64-unknown-linux-musl", os: "musl", arch: "x86_64" },
+  { triple: "aarch64-unknown-linux-musl", os: "musl", arch: "aarch64" },
 ];
+
+/// The machines a toolchain runs on, each with an archive that carries every
+/// target: the targets but musl's.
+export const HOSTS: readonly Target[] = TARGETS.filter((t) => t.os !== "musl");
 
 /// The MSVC ABI's targets, against Microsoft's CRT, STL and Windows SDK,
 /// which the user fetches (`xclang sdk fetch windows`) into the tree's
 /// sdk/windows: no directory of their own in the tree, only compiler-rt
 /// (lib/clang/<ver>/lib/windows) and the config files. Neither a host nor
-/// one of the six targets every tree is built and tested with.
+/// one of the targets every tree is built and tested with.
 export const MSVC_TARGETS: readonly Target[] = [
   { triple: "x86_64-pc-windows-msvc", os: "msvc", arch: "x86_64" },
   { triple: "aarch64-pc-windows-msvc", os: "msvc", arch: "aarch64" },
@@ -151,6 +173,19 @@ export function target(triple: string): Target {
   const t = [...TARGETS, ...MSVC_TARGETS].find((t) => t.triple === triple);
   if (!t) fail(`unknown target ${triple}; one of: ${TARGETS.map((t) => t.triple).join(", ")}`);
   return t;
+}
+
+/// Whether the target's directory is a Linux sysroot, laid out as clang's
+/// Linux driver reads it (usr/include, usr/lib): glibc's and musl's.
+export function linuxSysroot(t: Target): boolean {
+  return t.os === "linux" || t.os === "musl";
+}
+
+/// Whether this machine runs the target's programs: its own, and the
+/// static programs of musl on Linux of the same architecture.
+export function runsHere(t: Target): boolean {
+  const native = machineTarget();
+  return t.arch === native.arch && (t.os === native.os || (t.os === "musl" && native.os === "linux"));
 }
 
 /// The kind of CI machine that builds for a target.
@@ -175,7 +210,7 @@ export function cfgNames(t: Target): string[] {
     return archs.flatMap((a) => [`${a}-apple-darwin`, `${a}-apple-macos`, `${a}-apple-macosx`]);
   }
   /// pc: the vendor of GCC's triple on some distributions (Gentoo).
-  return [t.triple, `${t.arch}-pc-linux-gnu`];
+  return [t.triple, `${t.arch}-pc-linux-${t.os === "musl" ? "musl" : "gnu"}`];
 }
 
 export function machine(): Machine {
@@ -418,7 +453,7 @@ export function shareHeaders(tree: string): void {
     prune(from);
   };
   for (const t of TARGETS) {
-    const include = path.join(tree, t.triple, t.os === "linux" ? "usr" : "", "include");
+    const include = path.join(tree, t.triple, linuxSysroot(t) ? "usr" : "", "include");
     move(path.join(include, "c++", "v1"), path.join(tree, ...SHARED_HEADERS[0]!.split("/")), libcxxTargetDir(tree, t),
       (file) => file === "__config_site");
     const cxx = path.join(include, "c++");

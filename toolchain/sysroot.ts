@@ -2,10 +2,14 @@
 ///
 /// - Linux: glibc 2.17 headers and startup files, from conda-forge's
 ///   sysroot packages (pixi.toml installs them).
+/// - Linux, musl: musl's headers, startup files and libc.a, built with the
+///   clang of <tree> with the patches of toolchain/musl, and the kernel's
+///   UAPI headers.
 /// - Windows: mingw-w64 headers, CRT and winpthreads, built with the clang
 ///   of <tree>.
 /// - macOS: nothing; the SDK comes from Xcode.
 
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import * as common from "./common.ts";
@@ -174,9 +178,77 @@ async function mingw(t: common.Target, tree: string, dest: string): Promise<void
   console.log(`mingw-w64 sysroot of ${t.triple} in ${dest}`);
 }
 
+/// musl's source with the patches of toolchain/musl applied (those of
+/// musl's security advisories against the release), unpacked once.
+async function muslSource(): Promise<string> {
+  const src = path.join(common.WORK, "src", `musl-${common.MUSL_VERSION}`);
+  const dir = path.join(import.meta.dirname, "musl");
+  const patches = fs.readdirSync(dir).filter((f) => f.endsWith(".patch")).sort();
+  const series = patches
+    .map((p) => `${p} ${createHash("sha256").update(fs.readFileSync(path.join(dir, p))).digest("hex")}\n`).join("");
+  const stamp = path.join(src, ".xclang-patches");
+  if (!fs.existsSync(stamp) || fs.readFileSync(stamp, "utf8") !== series) {
+    fs.rmSync(src, { recursive: true, force: true });
+    common.extract(await common.fetchSource("musl"), src);
+    for (const p of patches) common.run("patch", ["-p1", "-F0", "--forward", "--silent", "-i", path.join(dir, p)], { cwd: src });
+    fs.writeFileSync(stamp, series);
+  }
+  return src;
+}
+
+/// The kernel's UAPI headers for the target's architecture into include:
+/// `make headers` of the pinned release, the .h files that
+/// `make headers_install` would copy.
+async function linuxHeaders(t: common.Target, include: string): Promise<void> {
+  const src = path.join(common.WORK, "src", `linux-${common.LINUX_VERSION}`);
+  if (!fs.existsSync(path.join(src, "Makefile"))) common.extract(await common.fetchSource("linux"), src);
+  const build = path.join(common.WORK, "build", `linux-headers-${t.arch}`);
+  fs.rmSync(build, { recursive: true, force: true });
+  fs.mkdirSync(build, { recursive: true });
+  /// (Its host programs, unifdef among them, are built with this machine's cc.)
+  common.run("make", ["-C", src, `O=${build}`, `ARCH=${t.arch === "x86_64" ? "x86" : "arm64"}`, "-s", "headers"]);
+  const out = path.join(build, "usr", "include");
+  for (const file of (fs.readdirSync(out, { recursive: true }) as string[]).filter((f) => f.endsWith(".h"))) {
+    fs.mkdirSync(path.dirname(path.join(include, file)), { recursive: true });
+    fs.copyFileSync(path.join(out, file), path.join(include, file));
+  }
+}
+
+/// musl and the kernel's UAPI headers in dest/usr, as clang's Linux driver
+/// looks for them: the headers in usr/include, libc.a, the startup files
+/// and the empty libm.a, libpthread.a, ... in usr/lib. Static only, no
+/// libc.so: every program links musl into itself (toolchain/config/musl.cfg).
+/// The objects are position-independent (clang's default is PIE, and musl's
+/// libc.a then takes the objects of libc.so), for -static-pie too, and have
+/// unwind tables, which musl leaves out by default: a C++ exception passes
+/// through qsort and bsearch, and a stack trace through musl's functions.
+async function musl(t: common.Target, tree: string, dest: string): Promise<void> {
+  const src = await muslSource();
+  fs.rmSync(dest, { recursive: true, force: true });
+  await linuxHeaders(t, path.join(dest, "usr", "include"));
+  const bin = path.join(tree, "bin");
+  const build = path.join(common.WORK, "build", `musl-${t.triple}`);
+  fs.rmSync(build, { recursive: true, force: true });
+  fs.mkdirSync(build, { recursive: true });
+  common.run(path.join(src, "configure"), [
+    `--target=${t.triple}`, "--prefix=/usr", "--disable-shared", "--disable-wrapper",
+    `CC=${path.join(bin, "clang")} --target=${t.triple} --no-default-config`,
+    `AR=${path.join(bin, "llvm-ar")}`,
+    `RANLIB=${path.join(bin, "llvm-ranlib")}`,
+    "CFLAGS=-funwind-tables -fasynchronous-unwind-tables",
+  ], { cwd: build });
+  common.run("make", [`-j${common.jobs()}`], { cwd: build });
+  common.run("make", ["install-libs", "install-headers", `DESTDIR=${dest}`], { cwd: build });
+  withoutCaseClashes(dest);
+  const links = (fs.readdirSync(dest, { recursive: true }) as string[]).filter((f) => fs.lstatSync(path.join(dest, f)).isSymbolicLink());
+  if (links.length) common.fail(`links in the musl sysroot: ${links.join(", ")}`);
+  console.log(`musl sysroot of ${t.triple} in ${dest}`);
+}
+
 export async function buildSysroot(t: common.Target, tree: string): Promise<void> {
   const dest = path.join(tree, t.triple);
   if (t.os === "linux") glibc(t, dest);
+  else if (t.os === "musl") await musl(t, tree, dest);
   else if (t.os === "mingw") await mingw(t, tree, dest);
   else fs.mkdirSync(dest, { recursive: true });
 }

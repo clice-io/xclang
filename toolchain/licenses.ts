@@ -171,7 +171,7 @@ export function linuxSysroots(): Component[] {
   return [
     {
       name: "glibc",
-      what: "glibc 2.17: the headers, startup files and libraries of the Linux targets",
+      what: "glibc 2.17: the headers, startup files and libraries of the Linux targets (glibc's)",
       version: "2.17-317.el7",
       license: "LGPL-2.1-or-later",
       source: [
@@ -183,14 +183,15 @@ export function linuxSysroots(): Component[] {
     },
     {
       name: "linux",
-      what: "the Linux kernel's UAPI headers in the Linux targets' usr/include",
-      version: "3.10.0-1160.el7 (x86_64), 4.18.0-193.28.1.el7 (aarch64)",
+      what: "the Linux kernel's UAPI headers in the Linux targets' usr/include, glibc's and musl's",
+      version: `3.10.0-1160.el7 (x86_64, glibc), 4.18.0-193.28.1.el7 (aarch64, glibc), ${common.LINUX_VERSION} (musl)`,
       license: "GPL-2.0-only WITH Linux-syscall-note",
       source: [
         "https://vault.centos.org/7.9.2009/os/Source/SPackages/kernel-3.10.0-1160.el7.src.rpm",
         "https://cdn.kernel.org/pub/linux/kernel/v3.x/linux-3.10.tar.xz",
         "https://cdn.kernel.org/pub/linux/kernel/v4.x/linux-4.18.tar.xz, as CentOS 7 AltArch's kernel 4.18.0-193.28.1.el7",
         ...condaPackages(/^kernel-headers_linux-(64|aarch64)-.*\.json$/),
+        `${common.SOURCES.linux.url}, make headers (toolchain/sysroot.ts)`,
       ],
       files: vendored("linux"),
     },
@@ -203,6 +204,21 @@ export function linuxSysroots(): Component[] {
       files: vendored("nss"),
     },
   ];
+}
+
+/// musl, the C library of the musl targets. Most of it is MIT; its
+/// COPYRIGHT names the parts under other terms: TRE's regex (BSD-2-Clause),
+/// FreeSec's DES crypt (BSD-3-Clause), Moshier's long double math (ISC),
+/// Sun's math (SunPro).
+export async function musl(): Promise<Component> {
+  return {
+    name: "musl",
+    what: "musl: the headers, startup files and libc.a of the musl targets",
+    version: common.MUSL_VERSION,
+    license: "MIT AND BSD-2-Clause AND BSD-3-Clause AND ISC AND SunPro",
+    source: [common.SOURCES.musl.url, "with the patches of musl's security advisories: toolchain/musl of the tag"],
+    files: await filesOf("musl", ["COPYRIGHT"]),
+  };
 }
 
 /// The xclang command's components as cli/cli.ts recorded them in

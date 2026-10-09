@@ -4,7 +4,7 @@
 # only names the programs and tells CMake what it is building for.
 #
 #   -DXCLANG_ROOT=<tree> -DXCLANG_TARGET=<triple>
-#   -DXCLANG_TARGET_OS=linux|mingw|darwin|msvc -DXCLANG_TARGET_ARCH=x86_64|aarch64
+#   -DXCLANG_TARGET_OS=linux|musl|mingw|darwin|msvc -DXCLANG_TARGET_ARCH=x86_64|aarch64
 #   -DXCLANG_MACOS_MIN=<version>
 #   -DXCLANG_WINSYSROOT=<dir>, for msvc: the MSVC and Windows SDK
 #     (xclang sdk fetch windows), the /winsysroot of lld-link, which reads
@@ -118,7 +118,7 @@ if(XCLANG_TARGET_OS STREQUAL "mingw")
     set(CMAKE_RC_FLAGS "--target=${XCLANG_TARGET}")
 endif()
 
-if(XCLANG_TARGET_OS MATCHES "^(linux|mingw)$")
+if(XCLANG_TARGET_OS MATCHES "^(linux|musl|mingw)$")
     # The sysroot the config file names. Libraries, headers and packages
     # are looked for in it only, even natively: the pixi environment on
     # this machine is not part of what is being built.

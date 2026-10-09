@@ -44,7 +44,7 @@ const { values } = parseArgs({
 });
 const cli = import.meta.dirname;
 const hosts = (values.host?.split(",") ??
-  common.TARGETS.filter((t) => common.buildMachine(t) === common.machine()).map((t) => t.triple)).map(common.target);
+  common.HOSTS.filter((t) => common.buildMachine(t) === common.machine()).map((t) => t.triple)).map(common.target);
 
 function rustTarget(t: common.Target): string {
   return t.os === "mingw" ? `${t.arch}-pc-windows-gnullvm` : t.triple;

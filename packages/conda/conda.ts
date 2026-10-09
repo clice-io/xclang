@@ -69,7 +69,7 @@ interface Package {
 }
 const packages: Package[] = [];
 
-const hosts = values.hosts ? values.hosts.split(",").map((h) => common.target(h)) : common.TARGETS;
+const hosts = values.hosts ? values.hosts.split(",").map((h) => common.target(h)) : common.HOSTS;
 for (const host of hosts) {
   const archive = path.join(dist, `xclang-${version}-${host.triple}.tar.xz`);
   if (!fs.existsSync(archive)) common.fail(`missing ${archive}`);

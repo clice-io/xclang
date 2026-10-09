@@ -50,9 +50,9 @@ const libclangLicenses = async () => [
 ];
 
 const runtimes = fs.readdirSync(out).filter((d) => d.startsWith("runtimes-")).map((d) => path.join(out, d));
-/// One per Linux and MinGW target, one for both macOS targets, one for both
-/// MSVC targets.
-if (runtimes.length !== 6) common.fail(`expected the runtimes of all targets in ${out}, found ${runtimes.length}`);
+/// One per Linux (glibc and musl) and MinGW target, one for both macOS
+/// targets, one for both MSVC targets.
+if (runtimes.length !== 8) common.fail(`expected the runtimes of all targets in ${out}, found ${runtimes.length}`);
 
 /// The archives are reproducible: the same files make the same bytes,
 /// whatever the machine, the files' times and permissions, the umask, the
@@ -104,6 +104,7 @@ licenses.write(tree, `xclang-${version}-${host.triple}`, version, [
     "libc++abi, libunwind and compiler-rt of every target"),
   ...await licenses.compression(host),
   ...licenses.linuxSysroots(),
+  await licenses.musl(),
   await licenses.mingwW64("the Windows targets' headers, CRT and winpthreads, which Windows hosts' programs link too"),
   ...cliLicenses,
 ], date);

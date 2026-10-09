@@ -48,7 +48,7 @@ on:
       runtimes:
         description: JSON list of the runtimes units to build; the others come from reuse-run
         type: string
-        default: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "darwin", "msvc"]'
+        default: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl", "darwin", "msvc"]'
       hosts:
         description: JSON list of the hosts to build a toolchain for
         type: string
