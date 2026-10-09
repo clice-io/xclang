@@ -260,22 +260,38 @@ export async function fetchSource(name: Source): Promise<string> {
   const dest = path.join(WORK, "downloads", url.slice(url.lastIndexOf("/") + 1));
   if (fs.existsSync(dest) && (await sha256Of(dest)) === sha256) return dest;
   fs.mkdirSync(path.dirname(dest), { recursive: true });
-  console.error(`downloading ${url}`);
-  const response = await fetch(url);
-  if (!response.ok || !response.body) fail(`${url}: HTTP ${response.status}`);
   const partial = `${dest}.part`;
-  const hash = createHash("sha256");
-  await pipeline(
-    Readable.fromWeb(response.body as WebReadableStream),
-    new Transform({
-      transform(chunk, _encoding, done) {
-        hash.update(chunk);
-        done(null, chunk);
-      },
-    }),
-    fs.createWriteStream(partial),
-  );
-  const actual = hash.digest("hex");
+  let actual = "";
+  /// A source's server (musl.libc.org, say) does not always answer a CI
+  /// runner at the first try: three tries, a network error or an HTTP 5xx
+  /// starting the download again.
+  for (let attempt = 1; ; attempt++) {
+    console.error(`downloading ${url}${attempt > 1 ? ` (try ${attempt})` : ""}`);
+    try {
+      const hash = createHash("sha256");
+      const response = await fetch(url);
+      if (!response.ok || !response.body) {
+        if (response.status < 500 || attempt === 3) fail(`${url}: HTTP ${response.status}`);
+        throw new Error(`HTTP ${response.status}`);
+      }
+      await pipeline(
+        Readable.fromWeb(response.body as WebReadableStream),
+        new Transform({
+          transform(chunk, _encoding, done) {
+            hash.update(chunk);
+            done(null, chunk);
+          },
+        }),
+        fs.createWriteStream(partial),
+      );
+      actual = hash.digest("hex");
+      break;
+    } catch (error) {
+      if (attempt === 3) throw error;
+      console.error(`${url}: ${error instanceof Error ? error.message : error}`);
+      await new Promise((resolve) => setTimeout(resolve, 15_000 * attempt));
+    }
+  }
   if (actual !== sha256) {
     fs.rmSync(partial);
     fail(`${url}: sha256 ${actual}, expected ${sha256}`);
