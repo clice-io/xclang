@@ -211,6 +211,10 @@ and libclang; a Linux host runs the musl tests of its architecture
 12. **An optimized macOS program exports nothing**: its `.stripped` has
     no external symbol and runs; without `no_exported_symbols`, the weak
     definition of its template stays.
+13. **Module interfaces embed their sources**: the modules build at
+    `-c opt -g` in the sandbox and their tests pass; without
+    `modules_embed_all_files`, an importer cannot open the source of the
+    module it imports.
 
 test-bazel.yml's cross jobs build `tests/bazel` on every host for every
 other target, and run its tests on a runner of that target. Its sdk jobs do

@@ -43,6 +43,8 @@
 ///     --features=asan.
 /// 12. An optimized macOS program exports nothing (no_exported_symbols), on
 ///     a macOS host.
+/// 13. Module interfaces embed their sources: importers build at -c opt -g
+///     in the sandbox (modules_embed_all_files), on Linux and macOS.
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -536,6 +538,21 @@ if (host.includes("apple")) {
   const off = exported(["--features=-no_exported_symbols"]);
   check(on.count === 0 && on.runs && off.count > 0,
     `no_exported_symbols: exports.stripped exports ${on.count} symbols${on.runs ? " and runs" : ", but does not run"}, ${off.count} without the feature`);
+}
+
+/// 13. Module interfaces embed their sources: //modules:all at -c opt -g,
+/// where an importer reads the source of the module it imports (math.cppm
+/// its partition math-ops.cppm), builds in the sandbox, which gives it the
+/// module file only, and its tests pass; without modules_embed_all_files
+/// it cannot open the source. Linux and macOS, where Bazel sandboxes.
+if (!windows) {
+  const workspace = path.join(common.ROOT, "tests", "bazel");
+  const off = run(workspace, ["build", "-c", "opt", "--copt=-g", "--features=-modules_embed_all_files", "//modules:all"]);
+  const on = run(workspace, ["test", "-c", "opt", "--copt=-g", "//modules:all"]);
+  process.stderr.write(on.stderr);
+  const unopened = off.status !== 0 && /cannot open file/.test(off.stderr);
+  check(on.status === 0 && unopened, `modules_embed_all_files: //modules:all at -c opt -g ${on.status === 0 ? "builds in the sandbox and passes" : "fails"}` +
+    `${unopened ? ", and without it cannot open a module's source" : ", and builds without it too"}`);
 }
 
 if (process.env.GITHUB_STEP_SUMMARY) {

@@ -226,7 +226,8 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
         cxx_flags = ["-std=c++17"] if msvc else [],
         dbg_compile_flags = ["-g"],
         extra_enabled_features = thinlto_cache + strip + (gc_sections if t.os == "linux" else []) +
-                                 ([Label("//bazel:no_exported_symbols")] if t.os == "macos" else []),
+                                 ([Label("//bazel:no_exported_symbols")] if t.os == "macos" else []) +
+                                 [Label("//bazel:modules_embed_all_files")],
         extra_known_features = (gc_sections if t.os == "windows" else []) +
                                ([Label("//bazel/dsym:generate_dsym_file")] if dsym_link else []),
         host_system_name = host,

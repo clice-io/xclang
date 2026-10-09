@@ -94,6 +94,12 @@ the [patches](docs/en/reference/patches.md) of its tag.
   `--strip-all` leaves for dyld, and a crash log named its frames after
   them. A program whose plugins bind to its symbols turns the feature off
   ([strip](docs/en/features/debugging.md#strip)).
+- Bazel: a C++20 module interface's file embeds its sources
+  (`-Xclang -fmodules-embed-all-files`, the `modules_embed_all_files`
+  feature, on by default). An importer compiled with `-g` reads them, and
+  in the sandbox it had the module file but not the source: at `-c opt -g`
+  a primary interface importing its partition stopped at "cannot open
+  file".
 
 ## [23.1.2.9](https://github.com/clice-io/xclang/releases/tag/23.1.2.9) — 2026-10-06
 

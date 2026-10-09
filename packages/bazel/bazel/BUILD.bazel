@@ -98,6 +98,23 @@ cc_args(
     args = ["-Wl,-no_exported_symbols"],
 )
 
+# A module interface's file embeds its sources, as a feature on by default
+# (bazel/toolchain.bzl): an importer reads them with -g (the partition a
+# primary interface imports, say), and in the sandbox it has the module
+# file but not the source ("cannot open file 'x.cppm'").
+cc_feature(
+    name = "modules_embed_all_files",
+    args = [":modules_embed_all_files_args"],
+    feature_name = "modules_embed_all_files",
+    visibility = ["//visibility:public"],
+)
+
+cc_args(
+    name = "modules_embed_all_files_args",
+    actions = ["@rules_cc//cc/toolchains/actions:cpp20_module_compile"],
+    args = ["-Xclang", "-fmodules-embed-all-files"],
+)
+
 # llvm-gsymutil of the machine's toolchain, to read the GSYM of
 # xclang_debug_symbols (bazel/debug_symbols.bzl) without the toolchain on
 # PATH: bazel run @xclang//bazel:llvm-gsymutil -- <absolute .gsym>

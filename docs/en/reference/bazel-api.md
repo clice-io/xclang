@@ -65,6 +65,7 @@ Windows unless it names one of those.
 | `generate_dsym_file` | off | macOS targets: the link makes `<name>.dSYM` (output group `dsyms`); `--apple_generate_dsym` turns it on for the build |
 | `supports_dynamic_linker` | off | Bazel's dynamic linking of libraries into tests and programs; off, they link statically |
 | `release_strip` | on | what `<name>.stripped` does: `--strip-unneeded` for ELF and COFF, `--strip-all` for Mach-O ([strip](../features/debugging.md#strip)) |
+| `modules_embed_all_files` | on | a C++20 module interface's file embeds its sources (`-Xclang -fmodules-embed-all-files`): an importer that reads them (with `-g`) has them in the sandbox |
 | `no_exported_symbols` | macOS targets: on in `opt` | the program exports nothing (`-Wl,-no_exported_symbols`), so that its strip leaves no symbol to name a crash log's frames ([strip](../features/debugging.md#strip)); off for a program whose plugins bind to its symbols |
 | `generate_pdb_file` | MSVC targets: on in `dbg` | the link writes `<name>.pdb` (output group `pdb_file`), with paths relative to the execution root |
 | `dynamic_link_msvcrt` | off | MSVC targets: the VC runtime's DLLs (`/MD`) in place of the hybrid CRT |
