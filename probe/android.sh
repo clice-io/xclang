@@ -99,7 +99,7 @@ int main() {
   return n == 4000 ? 0 : 1;
 }
 EOF
-flags=(--target="$T" --no-default-config --sysroot="$SR" -rtlib=compiler-rt -fuse-ld=lld -O2)
+flags=(--target="$T" --no-default-config --sysroot="$SR" -rtlib=compiler-rt -fuse-ld=lld -O2 -L"$P/lib")
 "$X/bin/clang" "${flags[@]}" hello.c -o "$OUT/c-$T"
 "$X/bin/clang++" "${flags[@]}" -std=c++23 -nostdinc++ -isystem "$P/include/c++/v1" \
   -nostdlib++ hello.cpp "$P/lib/libc++.a" "$P/lib/libunwind.a" -o "$OUT/cxx-xclang-$T"

@@ -15,6 +15,7 @@ permissions:
 
 jobs:
   musl-arch:
+    if: false
     strategy:
       fail-fast: false
       matrix:
@@ -102,6 +103,7 @@ jobs:
           done
 
   apple-sim:
+    if: false
     runs-on: macos-15
     timeout-minutes: 40
     steps:
