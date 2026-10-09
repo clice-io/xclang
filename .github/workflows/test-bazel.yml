@@ -3,7 +3,8 @@ name: test-bazel
 # The Bazel module (packages/bazel) on a machine of every host:
 # tests/bazel's tests, for the host and the musl targets, then
 # tests/bazel/bazel.ts's checks of the actions' keys and of the module as
-# the registry and git_override have it; and every host's toolchain for
+# the registry and git_override have it, and the runtimes built from source
+# (tests/bazel/runtimes.ts); and every host's toolchain for
 # every other host's target it builds for, tests/bazel's tests (and, from
 # Linux x64 to Windows x64, kotatsu's) cross-compiled there and run on a
 # machine of the target (tests/bazel/cross.ts, on-target.yml).
@@ -139,6 +140,34 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: node tests/bazel/bazel.ts --disk-cache "$RUNNER_TEMP/disk"
+      # The runtimes built from source (tests/bazel/runtimes.ts), with a
+      # toolchain that has their sources: a run's archives, or the release's
+      # with this checkout's (the archives action). Those of other targets,
+      # from Linux x64 and arm64 macOS, run on a machine of the target.
+      - uses: ./.github/actions/archives
+        if: ${{ !inputs.dist-run }}
+        with:
+          host: ${{ matrix.host }}
+          release: ${{ inputs.release }}
+      - name: Runtimes from source
+        env:
+          PROGRAMS: ${{ (matrix.host == 'x86_64-unknown-linux-gnu' || matrix.host == 'aarch64-apple-darwin') && format('{0}/programs', runner.temp) || '' }}
+        run: node tests/bazel/runtimes.ts --tree "$XCLANG_TREE" --disk-cache "$RUNNER_TEMP/disk" ${PROGRAMS:+--programs "$PROGRAMS"}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: programs-bazel-runtimes-${{ matrix.host }}
+          path: ${{ runner.temp }}/programs
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The runtimes from source of other targets, run there.
+  runtimes-run:
+    needs: module
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/on-target.yml
+    with:
+      targets: '["aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "x86_64-apple-darwin"]'
+      pattern: programs-bazel-runtimes-*
 
   # Built here, run on a machine of the target by on-target.yml; the
   # macOS targets from other hosts than macOS are sdk's. Not for a run's

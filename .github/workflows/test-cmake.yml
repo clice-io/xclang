@@ -3,7 +3,10 @@ name: test-cmake
 # The CMake package (packages/cmake) on a machine of every host, with the
 # oldest CMake and Ninja it supports and the newest: tests/cmake/cmake.ts
 # builds tests/cmake by PATH, for every other target through the toolchain
-# file, and from nothing installed, xclang.cmake downloading the toolchain.
+# file, and from nothing installed, xclang.cmake downloading the toolchain;
+# and tests/cmake/runtimes with the runtimes built from source, once per
+# variant, those of other targets (from Linux x64 and arm64 macOS, with the
+# newest CMake) run on a machine of the target by on-target.yml.
 #
 #   release.yml     a run's archives (dist-run), before they are released
 #   checks.yml      the latest release's archives, with this checkout's
@@ -86,6 +89,23 @@ jobs:
       - name: Test
         env:
           GIT_REF: ${{ inputs.git-ref }}
+          PROGRAMS: ${{ matrix.cmake == 'latest' && format('{0}/programs', runner.temp) || '' }}
         run: |
           node tests/cmake/cmake.ts --tree "$XCLANG_TREE" --libclang "$XCLANG_LIBCLANG" \
-            --sums "$XCLANG_DIST/SHA256SUMS" --url "$XCLANG_URL" ${GIT_REF:+--git "$GIT_REF"}
+            --sums "$XCLANG_DIST/SHA256SUMS" --url "$XCLANG_URL" ${GIT_REF:+--git "$GIT_REF"} ${PROGRAMS:+--programs "$PROGRAMS"}
+      - uses: actions/upload-artifact@v7
+        if: matrix.cmake == 'latest'
+        with:
+          name: programs-cmake-${{ matrix.host }}
+          path: ${{ runner.temp }}/programs
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The runtimes from source of other targets, run there.
+  run:
+    needs: consumer
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/on-target.yml
+    with:
+      targets: '["aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "x86_64-apple-darwin"]'
+      pattern: programs-cmake-*
