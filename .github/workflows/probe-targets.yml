@@ -92,7 +92,8 @@ jobs:
             uname -a
             sysctl hw.model hw.ncpu kern.vm_guest hw.hv_vendor || true
             freebsd-version
-      - run: echo "::notice::FreeBSD ${{ matrix.arch }} VM on ${{ matrix.os }}: $(( $(date +%s) - start )) s"
+      - run: |
+          echo "::notice::FreeBSD ${{ matrix.arch }} VM on ${{ matrix.os }}: $(( $(date +%s) - start )) s"
 
   musl-arch:
     strategy:
