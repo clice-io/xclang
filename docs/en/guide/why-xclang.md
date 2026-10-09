@@ -14,7 +14,7 @@ C++ builds.
 |---|---|---|
 | [Reproducible](#reproducible) | one pinned toolchain; Bazel builds that are the same bytes in any checkout | [the Bazel module](../design/bazel-module.md) |
 | [Portable programs](#portable-programs) | a program runs on any machine of its target, as one file | [hermeticity](../design/hermeticity.md) |
-| [Cross-compiling is a flag](#cross-compiling-is-a-flag) | one compiler version for six targets, no sysroots to install | [cross-compiling](cross-compiling.md) |
+| [Cross-compiling is a flag](#cross-compiling-is-a-flag) | one compiler version for eight targets, no sysroots to install | [cross-compiling](cross-compiling.md) |
 | [Correct build caches](#correct-build-caches) | a cache never serves objects of another compiler | [the Bazel module](../design/bazel-module.md#every-toolchain-file-is-an-input) |
 | [C++20 modules](#c-20-modules) | `import std` in CMake 3.28 or later without experimental switches, and in Bazel | [C++20 modules](../features/modules.md) |
 | [Fast](#fast) | clang and lld built with PGO and ThinLTO, on every host | [PGO](../design/pgo.md) |

@@ -9,7 +9,7 @@ the documentation of each project, linked. Corrections are welcome as
 
 | | what it is | targets out of the box | sysroots and SDKs | C++ runtime in programs | Linux programs run on | build systems | compiler built with PGO |
 |---|---|---|---|---|---|---|---|
-| **xclang** | clang, lld and six targets' runtimes, prebuilt | Linux x64/arm64, Windows x64/arm64 (MinGW, MSVC), macOS x64/arm64 | bundled; Apple's and Microsoft's SDKs fetched by the user from the vendor, or Xcode's | libc++, static; for MSVC targets, Microsoft's STL, static | glibc 2.17+ | CMake package, Bazel module, conda | yes, PGO + ThinLTO, every host |
+| **xclang** | clang, lld and eight targets' runtimes, prebuilt | Linux x64/arm64 (glibc, musl), Windows x64/arm64 (MinGW, MSVC), macOS x64/arm64 | bundled; Apple's and Microsoft's SDKs fetched by the user from the vendor, or Xcode's | libc++, static; for MSVC targets, Microsoft's STL by choice | glibc 2.17+, or none (musl, static) | CMake package, Bazel module, conda | yes, PGO + ThinLTO, every host |
 | **zig cc** 0.17 | Zig's driver around its clang | dozens: glibc, musl, MinGW, macOS, BSDs, WASI | libc sources and stubs bundled, built on first use | libc++, static | any glibc version chosen per target; 2.31 by default | `zig build`; `CC="zig cc"` | not stated |
 | **cargo-zigbuild** | zig cc as cargo's linker | Linux, macOS, as its README lists | through zig; macOS SDK from the user | through zig | glibc version chosen per target | cargo | as zig |
 | **cross-rs** | cargo in Docker images with GCC cross toolchains | most of Rust's Linux, Windows and other targets | per-target images; Apple and MSVC images built by the user | libstdc++ | 2.31; 2.17 in `:centos` images | cargo | no; GCC |
@@ -34,15 +34,15 @@ work. It differs from xclang in how it gets there:
   builds what a target needs the first time, then caches it
   ([overview](https://ziglang.org/learn/overview/)). That is how it fits
   dozens of targets in a 55 MB download. xclang ships the runtimes of its
-  six targets prebuilt: no first-build delay, and the same bytes for
+  eight targets prebuilt: no first-build delay, and the same bytes for
   everyone. Fetching other targets as prebuilt archives is
   [planned](../design/roadmap.md#target-archives).
-- **It has more targets today**: musl, any glibc version per target
+- **It has more targets today**: any glibc version per target
   (`x86_64-linux-gnu.2.17`), the BSDs and WASI. It also builds for macOS
   from any host, with Apple's libc headers and a `libSystem` stub
   ([0.17.0 release notes](https://ziglang.org/download/0.17.0/release-notes.html)).
-  In xclang, the musl targets are in every archive from 23.1.2.10 on
-  ([musl targets](../reference/targets.md#musl-targets)), and a newer
+  xclang has musl in every archive since 23.1.2.10
+  ([musl targets](../reference/targets.md#musl-targets)); a newer
   glibc and the BSDs are [considered](../design/roadmap.md#glibc-newer).
   xclang builds for macOS from any host too, with Apple's own SDK, which
   the user fetches
@@ -121,8 +121,8 @@ ThinLTO on Linux and macOS (`clang/cmake/caches/Release.cmake`), and with
 PGO but no LTO on Windows. They carry no sysroot for another target, so a
 cross build needs one from elsewhere. An archive is 0.9 to 2 GB.
 
-xclang 23.1.2.1 was built by them. xclang's archives are 86 to 94 MB,
-carry six targets, and run on glibc 2.17. On compile speed they are close
+xclang 23.1.2.1 was built by them. xclang's archives are 89 to 97 MB,
+carry eight targets, and run on glibc 2.17. On compile speed they are close
 on Linux and macOS ([PGO](../design/pgo.md#what-it-buys) has the numbers).
 
 ## Distribution Clang and GCC Cross Toolchains

@@ -3,8 +3,8 @@
 [中文](README.zh-CN.md) · [Documentation](https://docs.clice.io/xclang)
 
 Cross-compiling with clang the way rustup, cross-rs and cargo-zigbuild let
-Rust do it: one compiler for every target. Today every toolchain carries six
-common targets, prebuilt, and cross-compiling to them is a `--target` flag.
+Rust do it: one compiler for every target. Today every toolchain carries eight
+targets, prebuilt, and cross-compiling to them is a `--target` flag.
 Its `xclang` command fetches the vendor SDKs that cannot be redistributed,
 Microsoft's and Apple's, for the MSVC targets and for macOS targets on
 Linux and Windows hosts. Where it is going: more targets, fetched when a
@@ -18,7 +18,7 @@ builds: [why xclang](https://docs.clice.io/xclang/guide/why-xclang) makes
 that case angle by angle.
 
 One directory holds the compiler, the linker, the binary tools and, for
-the six targets, the sysroot and the runtimes:
+the eight targets, the sysroot and the runtimes:
 
 ```sh
 xclang/bin/clang++ --target=aarch64-w64-mingw32 main.cpp -o main.exe
@@ -34,7 +34,7 @@ compiler-rt built for that exact target.
 Every host toolchain (Linux, Windows and macOS, x64 and arm64) carries the
 six common targets: Linux x64 and arm64 with glibc 2.17, Windows x64 and
 arm64 with MinGW-w64 (UCRT), and macOS arm64 and x64, with Xcode's SDK on
-macOS hosts. From 23.1.2.10 on, also the **musl targets**, Linux x64 and
+macOS hosts. Since 23.1.2.10, also the **musl targets**, Linux x64 and
 arm64: static programs that take nothing from the system they run on
 ([musl targets](https://docs.clice.io/xclang/reference/targets#musl-targets)).
 
@@ -75,8 +75,8 @@ that run wherever they are copied:
   directories laid out the way clang's drivers expect.
 - **Fast.** clang and lld are built with PGO and ThinLTO, and linked
   statically against xclang's own libc++ on every host.
-- **Small.** clang, lld and most tools are one program, `llvm`, 86 to
-  94 MB an archive.
+- **Small.** clang, lld and most tools are one program, `llvm`, 89 to
+  97 MB an archive.
 - **For tools on clang** too: each release has the libclang it was built
   from and the option tables.
 

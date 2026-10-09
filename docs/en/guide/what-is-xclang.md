@@ -3,7 +3,7 @@
 xclang is a clang toolchain for cross-compiling, the way rustup, cross-rs
 and cargo-zigbuild let Rust do it: one compiler for every target. One
 directory holds the compiler, the linker and the binary tools. It also
-holds, for six targets, the *sysroot* (the C library's headers and
+holds, for eight targets, the *sysroot* (the C library's headers and
 libraries) and the runtimes. Cross-compiling is a `--target` flag and
 nothing else:
 

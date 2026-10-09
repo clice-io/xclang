@@ -18,7 +18,7 @@ hero:
 
 features:
   - title: Cross-Compiling
-    details: A --target flag is all it takes. The sysroots, libc++ and lld for all six targets come with the toolchain.
+    details: A --target flag is all it takes. The sysroots, libc++ and lld for all eight targets come with the toolchain.
     link: ./guide/cross-compiling
   - title: Self-Contained Programs
     details: "A program loads only what its OS has: glibc 2.17 or later, the Windows DLLs, or libSystem. Everything else is linked in."

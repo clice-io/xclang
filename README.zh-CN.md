@@ -4,11 +4,11 @@
 
 > 文档目前只有英文版，中文版[计划中](https://docs.clice.io/xclang/design/roadmap#zh-docs)。
 
-像 rustup、cross-rs 和 cargo-zigbuild 让 Rust 交叉编译那样，用 clang 交叉编译：一个编译器面向所有目标平台。现在每个工具链都预编译好了六个常用目标平台，交叉编译到它们只需要一个 `--target`。它的 `xclang` 命令下载不能再分发的厂商 SDK（微软的和 Apple 的），供 MSVC 目标平台、以及在 Linux 和 Windows 主机上构建 macOS 程序使用。xclang 的方向是：更多目标平台，在构建需要时再下载；运行库也能按需从源码构建。这些都还没有进入任何 release，每一项的状态见[路线图](https://docs.clice.io/xclang/design/roadmap)。
+像 rustup、cross-rs 和 cargo-zigbuild 让 Rust 交叉编译那样，用 clang 交叉编译：一个编译器面向所有目标平台。现在每个工具链都预编译好了八个目标平台，交叉编译到它们只需要一个 `--target`。它的 `xclang` 命令下载不能再分发的厂商 SDK（微软的和 Apple 的），供 MSVC 目标平台、以及在 Linux 和 Windows 主机上构建 macOS 程序使用。xclang 的方向是：更多目标平台，在构建需要时再下载；运行库也能按需从源码构建。这些都还没有进入任何 release，每一项的状态见[路线图](https://docs.clice.io/xclang/design/roadmap)。
 
 它的目标是接近当下密封（hermetic）的现代 C++ 构建的最佳实践：[Why xclang?](https://docs.clice.io/xclang/guide/why-xclang) 从各个角度论证这一点。
 
-一个目录里装着编译器、链接器、二进制工具，以及这六个目标平台的 sysroot 和运行库：
+一个目录里装着编译器、链接器、二进制工具，以及这八个目标平台的 sysroot 和运行库：
 
 ```sh
 xclang/bin/clang++ --target=aarch64-w64-mingw32 main.cpp -o main.exe
@@ -37,7 +37,7 @@ xclang/bin/clang++ --target=aarch64-w64-mingw32 main.cpp -o main.exe
 - **密封（hermetic）。** 程序运行时只依赖其操作系统每个安装都有、且任何人都不能再分发的系统库：Linux 上是 glibc（2.17 及以上），macOS 上是 libSystem 和程序用到的系统框架，Windows 上是操作系统的 DLL，包括 UCRT（Windows 10 及以上）。其余的一切，包括 libc++、libc++abi、libunwind 和 builtins，都静态链接。构建时来自工具链之外的输入只有厂商 SDK：macOS 主机上本机 Xcode 的 SDK，以及用户用 `xclang` 命令下载的 SDK。sanitizer 运行库是例外（[hermeticity](https://docs.clice.io/xclang/design/hermeticity)）。
 - **每个部分都能单独使用。** sysroot 和运行库都是普通目录，按 clang 驱动期望的方式排布。
 - **快。** clang 和 lld 用 PGO 和 ThinLTO 构建，并且在每个主机平台上都静态链接 xclang 自己的 libc++。
-- **小。** clang、lld 和大部分工具是同一个程序 `llvm`，每个包 86 到 94 MB。
+- **小。** clang、lld 和大部分工具是同一个程序 `llvm`，每个包 89 到 97 MB。
 - **也给基于 clang 的工具用**：每个 release 都带着构建它所用的 libclang 和选项表。
 
 它不是用来构建 conda-forge 包的编译器：conda-forge 的 `clang`/`gcc` 动态链接打包好的运行库，并接入 `run_exports`；xclang 有意两样都不做。
