@@ -259,7 +259,6 @@ sent upstream as llvm/llvm-project#226794.
 
 | | status |
 |---|---|
-| [MSVC targets in the Bazel module](roadmap.md#msvc-bazel) | Unreleased |
 | [Windows x86 (MSVC)](roadmap.md#windows-x86-msvc) | In research |
 | [Windows 7 and XP](roadmap.md#windows-7) | In research |
 | [Windows x86 (MinGW)](roadmap.md#windows-x86-mingw) | Considered |

@@ -122,7 +122,6 @@ FetchContent or the Bazel registry.
 
 | | status |
 |---|---|
-| [musl targets](../design/roadmap.md#musl), for fully static Linux programs, from 23.1.2.10 on | Unreleased |
 | [More Linux architectures, WebAssembly, Android, BSDs, bare metal](../design/roadmap.md#targets) | Considered |
 | [MemorySanitizer, through libc++ built on demand](../design/roadmap.md#msan) | Planned |
 | [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |

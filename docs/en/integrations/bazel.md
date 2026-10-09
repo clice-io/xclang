@@ -407,8 +407,6 @@ Another target's libclang comes from the release.
 
 | | status |
 |---|---|
-| [MSVC-ABI targets in the module](../design/roadmap.md#msvc-bazel) | Unreleased |
-| [macOS targets from Linux or Windows in the module](../design/roadmap.md#macos-any-host-bazel) | Unreleased |
 | [Fetched targets](../design/roadmap.md#fetched-targets-in-build-systems) in the module | Planned |
 | [Sanitizer features for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
 

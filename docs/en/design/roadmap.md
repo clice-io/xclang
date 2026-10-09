@@ -20,7 +20,8 @@ date. What each release changed is in the
 xclang's vision is what rustup, cross-rs and cargo-zigbuild do for Rust,
 for clang: one compiler for every target.
 
-- The common targets come with the toolchain, as the six of today do.
+- The common targets come with the toolchain, as the six and the musl
+  targets do today.
 - Every other target is an archive of its own, fetched when a build needs
   it: its sysroot, its prebuilt runtimes and its config file.
 - Vendor SDKs that no one may redistribute (Apple's, Microsoft's) are
@@ -29,10 +30,11 @@ for clang: one compiler for every target.
 - Runtimes can also be built from source on demand, for options the
   prebuilt ones lack.
 
-Today, the first and the third are in a release: the six targets, and
-since 23.1.2.7 Microsoft's and Apple's SDKs, which the user fetches with
-the [`xclang` command](#xclang-command). The rest is planned, in research
-or considered, item by item, in the tables below.
+Today, the first and the third are in a release: the six targets, the
+musl targets since 23.1.2.10, and since 23.1.2.7 Microsoft's and Apple's
+SDKs, which the user fetches with the [`xclang` command](#xclang-command).
+The rest is planned, in research or considered, item by item, in the
+tables below.
 
 Every target keeps the [hermeticity](hermeticity.md) rule. A program
 depends at run time only on the libraries of its OS that cannot be
@@ -55,7 +57,7 @@ license.
 | <a id="macos"></a>macOS arm64, x64, from macOS hosts | Apple's SDK | Xcode | 1 | Supported |
 | <a id="msvc"></a>Windows x64, arm64 (MSVC), with their sanitizers | Microsoft's CRT, Windows SDK; libc++ or Microsoft's STL | the user (SDK) | 1 | Supported |
 | <a id="macos-any-host"></a>macOS arm64, x64, from Linux and Windows hosts | Apple's SDK | the user (SDK) | 1 | Supported |
-| <a id="musl"></a>Linux x64, arm64 (musl), in every archive | musl 1.2.6, static | the toolchain | 1 | Unreleased |
+| <a id="musl"></a>Linux x64, arm64 (musl), in every archive | musl 1.2.6, static | the toolchain | 1 | Supported |
 | <a id="windows-x86-msvc"></a>Windows x86 (MSVC) | Microsoft's CRT and STL, Windows SDK | the user (SDK) | 1 | In research |
 | <a id="windows-7"></a>Windows 7 and XP (MSVC) | Microsoft's CRT, static, with YY-Thunks | the user (SDK) | 3 | In research |
 | <a id="windows-x86-mingw"></a>Windows x86 (MinGW) | mingw-w64, UCRT | xclang | 1 | Considered |
@@ -89,7 +91,7 @@ What sets these targets apart:
   the user fetches them with the [`xclang` command](#xclang-command),
   which every toolchain archive carries
   ([Windows](windows.md#msvc-targets)). CMake builds them, and so does the
-  Bazel module, unreleased ([below](#msvc-bazel)).
+  Bazel module since 23.1.2.10 ([below](#msvc-bazel)).
 - **macOS from any host.** Since 23.1.2.7. Apple's macOS SDK is in the
   Command Line Tools package on Apple's update servers, and needs no
   Apple ID to download. The user fetches it with the
@@ -98,10 +100,10 @@ What sets these targets apart:
   stays the one in use. The programs are those of a macOS host: xclang's
   libc++ linked in, ld64.lld, dSYMs, the sanitizers
   ([macOS](macos.md#the-sdk-on-linux-and-windows-hosts)). CMake builds
-  them, and so does the Bazel module, unreleased
+  them, and so does the Bazel module since 23.1.2.10
   ([below](#macos-any-host-bazel)).
 - **musl.** Static programs that take nothing from the system they run on,
-  in every archive from 23.1.2.10 on, as the six are: musl built by xclang,
+  in every archive since 23.1.2.10, as the six are: musl built by xclang,
   libc++ and every runtime linked in, UBSan the only sanitizer, as the
   others need dynamic linking
   ([targets](../reference/targets.md#musl-targets)). CMake, Bazel and cargo
@@ -133,9 +135,9 @@ What sets these targets apart:
 |---|---|
 | <a id="xclang-command"></a>The `xclang` command: `xclang sdk fetch` for the vendor SDKs | Supported |
 | <a id="target-archives"></a>Target archives and a release index, for `xclang target add` | Planned |
-| <a id="fetched-targets-in-build-systems"></a>Fetched targets and vendor SDKs in the CMake package and the Bazel module | Planned |
-| <a id="msvc-bazel"></a>The MSVC targets in the Bazel module, with the Windows SDK fetched by a repository rule | Unreleased |
-| <a id="macos-any-host-bazel"></a>macOS targets from Linux and Windows hosts in the Bazel module, with the macOS SDK fetched by a repository rule | Unreleased |
+| <a id="fetched-targets-in-build-systems"></a>Fetched targets in the CMake package and the Bazel module | Planned |
+| <a id="msvc-bazel"></a>The MSVC targets in the Bazel module, with the Windows SDK fetched by a repository rule | Supported |
+| <a id="macos-any-host-bazel"></a>macOS targets from Linux and Windows hosts in the Bazel module, with the macOS SDK fetched by a repository rule | Supported |
 
 `xclang` is a program in Rust (`cli/`), built for every host with xclang as
 its C compiler and linker. Every toolchain archive carries it, as
@@ -152,17 +154,18 @@ its C compiler and linker. Every toolchain archive carries it, as
 - Each release gets an index of its target archives, as rustup's channel
   manifests are: archive, sha256, size, tier and the SDK it needs.
 - The CMake package and the Bazel module take fetched targets as they
-  come. Today their toolchains build for the six targets of the host's
-  archive, and the CMake package also for the MSVC targets, and for macOS
-  from Linux and Windows hosts, with the fetched SDKs.
-- The plan for the MSVC targets in the Bazel module: a repository rule
-  fetches the Windows SDK once the user accepts its license in
+  come. Today their toolchains build for the targets of the host's
+  archive, and also for the MSVC targets, and for macOS from Linux and
+  Windows hosts, with the vendor SDKs.
+- **The MSVC targets in the Bazel module**, since 23.1.2.10: a repository
+  rule fetches the Windows SDK once the root module accepts its license in
   `MODULE.bazel`, and the targets build with the GNU-style clang of the
-  other toolchains.
-- The plan for macOS from Linux and Windows hosts in the Bazel module: the
-  same repository rule fetches the macOS SDK, which stands in for the one
-  a macOS host's rule finds with `xcrun`, and the macOS toolchains are
-  registered on every host.
+  other toolchains
+  ([Bazel](../integrations/bazel.md#build-for-msvc-and-for-macos-anywhere)).
+- **macOS from Linux and Windows hosts in the Bazel module**, since
+  23.1.2.10: the same repository rule fetches the macOS SDK, which stands
+  in for the one a macOS host's rule finds with `xcrun`, and the macOS
+  toolchains are registered on every host.
 
 ## Runtimes and Tools
 
@@ -175,7 +178,7 @@ its C compiler and linker. Every toolchain archive carries it, as
 | <a id="bazel-gsymutil"></a>`@xclang//bazel:llvm-gsymutil`, the toolchain's llvm-gsymutil for `bazel run` | Supported |
 | <a id="cargo-helper"></a>An `xclang cargo` helper that sets cargo's variables | Considered |
 | <a id="libgcc-s-script"></a>`libgcc_s.a` as a linker script naming libunwind, for Rust's Linux targets | Considered |
-| <a id="libcxx-msvc"></a>libc++ as the C++ library of MSVC targets | Unreleased |
+| <a id="libcxx-msvc"></a>libc++ as the C++ library of MSVC targets | Supported |
 | <a id="openmp"></a>An OpenMP runtime | Not planned |
 | <a id="tool-binaries"></a>clang-format, clang-tidy and clangd programs | Not planned |
 | <a id="shared-runtime"></a>A shared C++ runtime across shared libraries | Not planned |
@@ -212,11 +215,11 @@ into one. A variant of the musl targets with musl's `libc.so`, as Alpine
 links, would have them, and its programs would need musl on the machine
 ([sanitizers](../features/sanitizers.md#musl-targets)).
 
-**libc++ for MSVC targets** gives them the C++ library of every other
-target, its `import std` included, as their default. Microsoft's STL stays
-a choice, `-stdlib=platform`: C++ types passed between a program and
-libraries built with MSVC need the same library on both sides
-([Windows](windows.md#libc-and-the-stl)).
+**libc++ for MSVC targets**, since 23.1.2.10, gives them the C++ library
+of every other target, its `import std` included, as their default.
+Microsoft's STL stays a choice, `-stdlib=platform`: C++ types passed
+between a program and libraries built with MSVC need the same library on
+both sides ([Windows](windows.md#libc-and-the-stl)).
 
 The not-planned items follow from what xclang is. It is a compiler
 toolchain, and libclang has the libraries that tools on clang link. Its
@@ -244,7 +247,7 @@ The training is widened between releases, not while one is pending
 | <a id="gsym-determinism"></a>The same GSYM file on every run (`xclang_debug_symbols` passing `--num-threads=1`) | Supported |
 | <a id="immutable-releases"></a>Immutable GitHub releases | Planned |
 | <a id="reproducible-archives"></a>Reproducible release archives | Supported |
-| <a id="reproducible-builds"></a>Reproducible toolchain builds: a rebuild of a revision on its profile is the same bytes (the Windows hosts' `llvm.exe` once the bootstrap has patch 0017) | Unreleased |
+| <a id="reproducible-builds"></a>Reproducible toolchain builds: a rebuild of a revision on its profile is the same bytes (the Windows hosts' `llvm.exe` once the bootstrap has patch 0017) | Supported |
 | <a id="license-notices"></a>Third-party license notices in the archives | Supported |
 | <a id="slsa"></a>SLSA provenance attestations | Considered |
 

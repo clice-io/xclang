@@ -42,8 +42,8 @@ work. It differs from xclang in how it gets there:
   from any host, with Apple's libc headers and a `libSystem` stub
   ([0.17.0 release notes](https://ziglang.org/download/0.17.0/release-notes.html)).
   In xclang, the musl targets are in every archive from 23.1.2.10 on
-  ([unreleased](../design/roadmap.md#musl)), and a newer glibc and the
-  BSDs are [considered](../design/roadmap.md#glibc-newer).
+  ([musl targets](../reference/targets.md#musl-targets)), and a newer
+  glibc and the BSDs are [considered](../design/roadmap.md#glibc-newer).
   xclang builds for macOS from any host too, with Apple's own SDK, which
   the user fetches
   ([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)).
@@ -175,7 +175,6 @@ libclang.
 
 | | status | who has it |
 |---|---|---|
-| [musl targets](../design/roadmap.md#musl), from 23.1.2.10 on | Unreleased | zig cc |
 | [Android](../design/roadmap.md#android), [WebAssembly](../design/roadmap.md#wasm), [the BSDs](../design/roadmap.md#freebsd), [bare metal](../design/roadmap.md#bare-metal) | Considered | the NDK, wasi-sdk, zig cc |
 | [iOS and Apple's other devices](../design/roadmap.md#ios) | In research | Xcode |
 | [Windows 7 and XP](../design/roadmap.md#windows-7) | In research | llvm-mingw's msvcrt variant |

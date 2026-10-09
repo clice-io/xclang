@@ -140,7 +140,7 @@ The `*-windows-gnu` targets link libgcc and msvcrt instead.
 | Rust target | xclang target | from | status |
 |---|---|---|---|
 | `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu` | the same | any host | Supported |
-| `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl` | the same, [static](#static-programs-with-musl) | any host | Unreleased |
+| `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl` | the same, [static](#static-programs-with-musl) | any host | Supported |
 | `x86_64-pc-windows-gnullvm`, `aarch64-pc-windows-gnullvm` | `x86_64-w64-mingw32`, `aarch64-w64-mingw32` | any host | Supported |
 | `aarch64-apple-darwin`, `x86_64-apple-darwin` | the same | macOS hosts | Supported |
 | `aarch64-apple-darwin`, `x86_64-apple-darwin` | the same | [Linux and Windows hosts](#macos-from-linux-and-windows) | Supported |

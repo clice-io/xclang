@@ -270,7 +270,7 @@ Build for the glibc target of the same architecture to use them; a
 dynamically linked musl variant that has them is
 [considered](../design/roadmap.md#musl-sanitizers).
 
-<!-- not run: the musl targets are in 23.1.2.10 and later; tests/toolchain/smoke.ts builds the same and runs it on Linux -->
+<!-- not run: tests/toolchain/smoke.ts builds the same and runs it on Linux -->
 ```sh
 clang++ --target=x86_64-unknown-linux-musl -fsanitize=undefined -O1 ubsan.cpp -o ubsan
 ```

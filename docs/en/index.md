@@ -23,6 +23,9 @@ features:
   - title: Self-Contained Programs
     details: "A program loads only what its OS has: glibc 2.17 or later, the Windows DLLs, or libSystem. Everything else is linked in."
     link: ./design/hermeticity
+  - title: musl Targets
+    details: Fully static Linux programs for x64 and arm64, which need nothing from the system they run on, in every archive.
+    link: ./reference/targets#musl-targets
   - title: Fast Compiles
     details: clang and lld are built with PGO and ThinLTO on every host, Windows included.
     link: ./design/pgo#what-it-buys
@@ -59,15 +62,6 @@ needs it. None of the items below is in a release. The
 
 Targets beyond the six, each an archive that `xclang target add` fetches
 ([roadmap](./design/roadmap.md#target-archives)).
-
-<!-- END CAPABILITY -->
-
-<!-- BEGIN CAPABILITY: unreleased -->
-
-**musl targets**
-
-Fully static Linux programs, for x64 and arm64, in every archive from
-23.1.2.10 on ([musl targets](./reference/targets.md#musl-targets)).
 
 <!-- END CAPABILITY -->
 

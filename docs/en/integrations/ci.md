@@ -179,8 +179,8 @@ target:
 macOS targets build on Linux and Windows runners too, with the SDK the
 `xclang` command fetches
 ([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)), and
-in Bazel with the module's tag, unreleased
-([roadmap](../design/roadmap.md#macos-any-host-bazel)). x86_64 macOS
+in Bazel with the SDK the module fetches
+([Bazel](bazel.md#build-for-msvc-and-for-macos-anywhere)). x86_64 macOS
 programs also run on arm64 runners through Rosetta, and x86_64 Windows
 programs on `windows-11-arm`.
 
