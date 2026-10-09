@@ -107,6 +107,11 @@ the [patches](docs/en/reference/patches.md) of its tag.
   link. **0013** added, the `pc` spellings of the Linux and MinGW targets
   (`--target=x86_64-pc-linux-gnu`, GCC's, and `x86_64-pc-windows-gnu`),
   which read config files of their own, find compiler-rt and link.
+- Patches: **0014** added, COFF objects for MinGW targets have no compile
+  time in their header again: since LLVM 23 clang wrote it for every
+  target, so the same source gave another object on every compile
+  (llvm/llvm-project#222099, upstream's fix). MSVC targets keep it, as
+  `link.exe /INCREMENTAL` wants; `/Brepro` drops it there.
 
 ## [23.1.2.9](https://github.com/clice-io/xclang/releases/tag/23.1.2.9) — 2026-10-06
 

@@ -66,9 +66,10 @@ set(CMAKE_STRIP "${_bin}/llvm-strip${_exe}")
 set(CMAKE_ADDR2LINE "${_bin}/llvm-addr2line${_exe}")
 set(CMAKE_DLLTOOL "${_bin}/llvm-dlltool${_exe}")
 # Nothing built for Windows records when it was built, so that a rebuild is
-# the same bytes: COFF objects, into which LLVM 23's clang writes the time
-# for windows-gnu targets too (as for MSVC ones, /Brepro aside), and PE
-# images, which lld stamps unless told not to. Not for llvm-rc's resources.
+# the same bytes: COFF objects, into which the bootstrap's clang writes the
+# time for windows-gnu targets too (until patches/0014 is in it; MSVC
+# targets have it by default), and PE images, which lld stamps unless told
+# not to. Not for llvm-rc's resources.
 if(XCLANG_TARGET_OS STREQUAL "mingw")
     add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX,ASM>:-mno-incremental-linker-compatible>")
     add_link_options("-Wl,--no-insert-timestamp")

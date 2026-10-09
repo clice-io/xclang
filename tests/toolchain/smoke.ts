@@ -223,6 +223,19 @@ if (since("23.1.2.10")) {
   }
 }
 
+/// A COFF object's header has no compile time for MinGW targets, as GNU
+/// tools write it, and has it for MSVC ones, as link.exe /INCREMENTAL wants
+/// (patches/0014, from 23.1.2.10).
+if (since("23.1.2.10")) {
+  const bare = write("stamp.c", "int stamp(void) { return 0; }\n");
+  for (const [target, zero] of [["x86_64-w64-mingw32", true], ["x86_64-pc-windows-msvc", false]] as const) {
+    const object = path.join(work, `stamp-${target}.o`);
+    if (run(tool("clang"), [`--target=${target}`, "-c", bare, "-o", object]) === undefined) continue;
+    const stamp = fs.readFileSync(object).readUInt32LE(4);
+    if ((stamp === 0) !== zero) failures.push(`${target}: the COFF object's TimeDateStamp is ${stamp}`);
+  }
+}
+
 /// Atomics too wide to be lock-free, from compiler-rt; -latomic as GCC's
 /// toolchains want it.
 const atomics = write("atomics.cpp", `#include <atomic>
