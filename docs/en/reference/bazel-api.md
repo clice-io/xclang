@@ -10,9 +10,10 @@ release.
 
 The module registers, for every host, one C++ toolchain per target:
 `@xclang//bazel/toolchains:<host>` for the host itself, and
-`<host>-to-<target>` for the others. Each is the host archive configured
-for the target, and only the archive of the machine Bazel runs on is
-downloaded. The macOS targets have a toolchain on macOS hosts only;
+`<host>-to-<target>` for the others, and
+`@xclang//bazel/toolchains/musl:<host>-to-<target>` for the musl targets.
+Each is the host archive configured for the target, and only the archive
+of the machine Bazel runs on is downloaded. The macOS targets have a toolchain on macOS hosts only;
 elsewhere, their toolchain fails the build and says why.
 
 Every toolchain:
@@ -38,11 +39,14 @@ Every toolchain:
 | `aarch64-w64-mingw32` | `aarch64-w64-windows-gnu` | Windows arm64, MinGW-w64 (UCRT) |
 | `aarch64-apple-darwin` | `arm64-apple-darwin` | macOS arm64, from macOS hosts |
 | `x86_64-apple-darwin` | | macOS x64, from macOS hosts |
+| `x86_64-unknown-linux-musl` | `x86_64-linux-musl` | Linux x64, musl, static; from 23.1.2.10 on |
+| `aarch64-unknown-linux-musl` | `aarch64-linux-musl` | Linux arm64, musl, static; from 23.1.2.10 on |
 
 Each has `@platforms//os`, `@platforms//cpu` and a C library,
-`@xclang//platforms/libc:glibc`, `:mingw` or `:macosx`. The toolchains ask
-a platform for os and cpu only, so a platform of one's own with those
-works too.
+`@xclang//platforms/libc:glibc`, `:musl`, `:mingw` or `:macosx`. The
+toolchains ask a platform for os and cpu only, but those of musl, which ask
+for `:musl` too; so a platform of one's own with an os and a cpu works,
+and gets glibc on Linux unless it names `:musl`.
 
 ## Features
 

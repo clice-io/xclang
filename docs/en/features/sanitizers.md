@@ -4,7 +4,8 @@ For the Linux and macOS targets, compiler-rt carries AddressSanitizer
 (ASan), ThreadSanitizer (TSan), LeakSanitizer, UBSan and libFuzzer. Those
 targets also carry an ASan build of libc++, the *ASan libc++*, which ASan
 programs link. The MSVC targets carry UBSan, and for x64 ASan and
-libFuzzer ([below](#msvc-targets)).
+libFuzzer ([below](#msvc-targets)); the musl targets UBSan
+([below](#musl-targets)).
 
 ## Usage
 
@@ -240,11 +241,33 @@ clang++ --target=x86_64-pc-windows-msvc -fsanitize=address -g -O1 asan.cpp -o as
 clang --target=aarch64-pc-windows-msvc -fsanitize=undefined -O1 ubsan.c -o ubsan.exe
 ```
 
+## musl Targets
+
+The [musl targets](../reference/targets.md#musl-targets), from 23.1.2.10
+on, link statically, and of the sanitizers only UBSan works in a static
+program: its standalone runtime (`-fsanitize=undefined`, `--features=ubsan`
+in Bazel) and its minimal one (`-fsanitize-minimal-runtime`), or none with
+`-fsanitize-trap=undefined`.
+
+ASan, TSan and LSan intercept functions of the C library and find the real
+ones through `dlsym`, which a static program has not. Their runtimes do not
+link into one (`undefined hidden symbol: _DYNAMIC`), so they are not built
+for musl, and neither is libFuzzer, which stops at its first `sigaction`.
+Build for the glibc target of the same architecture to use them; a
+dynamically linked musl variant that has them is
+[considered](../design/roadmap.md#musl-sanitizers).
+
+<!-- not run: the musl targets are in 23.1.2.10 and later; tests/toolchain/smoke.ts builds the same and runs it on Linux -->
+```sh
+clang++ --target=x86_64-unknown-linux-musl -fsanitize=undefined -O1 ubsan.cpp -o ubsan
+```
+
 ## Not Yet Supported
 
 | | status |
 |---|---|
 | [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
+| [ASan, TSan, LSan and libFuzzer for musl targets](../design/roadmap.md#musl-sanitizers) | Considered |
 | [MemorySanitizer](../design/roadmap.md#msan) | Planned |
 
 MemorySanitizer needs every library instrumented, libc++ too, and

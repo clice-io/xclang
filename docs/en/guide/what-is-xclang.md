@@ -74,7 +74,7 @@ other toolchains serve these:
 
 | | status | today, use |
 |---|---|---|
-| [musl targets](../design/roadmap.md#musl) | Planned | zig cc, or a musl cross toolchain |
+| [musl targets](../design/roadmap.md#musl), in every archive from 23.1.2.10 on | Unreleased | zig cc, or a musl cross toolchain |
 | [Android, WebAssembly, bare metal, more Linux architectures](../design/roadmap.md#targets) | Considered | the NDK, wasi-sdk, zig cc, or a GCC cross toolchain |
 | [iOS and Apple's other devices](../design/roadmap.md#ios) | In research | Xcode |
 | [MemorySanitizer](../design/roadmap.md#msan) | Planned | |

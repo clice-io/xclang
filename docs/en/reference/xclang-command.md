@@ -114,11 +114,11 @@ illustrative:
   "schema": 1,
   "version": "23.1.2.7",
   "targets": {
-    "x86_64-unknown-linux-musl": {
-      "description": "Linux x64, musl 1.2.5",
-      "tier": 1,
+    "riscv64-unknown-linux-gnu": {
+      "description": "Linux riscv64, glibc 2.31",
+      "tier": 2,
       "sdk": null,
-      "archive": "xclang-target-23.1.2.7-x86_64-unknown-linux-musl.tar.xz",
+      "archive": "xclang-target-23.1.2.7-riscv64-unknown-linux-gnu.tar.xz",
       "sha256": "…",
       "size": 12345678,
       "unpacked": 98765432
@@ -140,7 +140,8 @@ illustrative:
 - What a target added is recorded in `lib/xclang/targets/<target>.json`.
   `target remove` deletes those files, and the directories they leave
   empty.
-- The six built-in targets are listed as built in, and cannot be removed.
+- The targets every toolchain carries are listed as built in, and cannot
+  be removed.
 
 ## Network
 

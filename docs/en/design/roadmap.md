@@ -55,7 +55,7 @@ license.
 | <a id="macos"></a>macOS arm64, x64, from macOS hosts | Apple's SDK | Xcode | 1 | Supported |
 | <a id="msvc"></a>Windows x64, arm64 (MSVC), with their sanitizers | Microsoft's CRT and STL, Windows SDK | the user (SDK) | 1 | Supported |
 | <a id="macos-any-host"></a>macOS arm64, x64, from Linux and Windows hosts | Apple's SDK | the user (SDK) | 1 | Supported |
-| <a id="musl"></a>Linux x64, arm64 (musl) | musl | xclang | 1 | Planned |
+| <a id="musl"></a>Linux x64, arm64 (musl), in every archive | musl 1.2.6, static | the toolchain | 1 | Unreleased |
 | <a id="windows-x86-msvc"></a>Windows x86 (MSVC) | Microsoft's CRT and STL, Windows SDK | the user (SDK) | 1 | In research |
 | <a id="windows-7"></a>Windows 7 and XP (MSVC) | Microsoft's CRT, static, with YY-Thunks | the user (SDK) | 3 | In research |
 | <a id="windows-x86-mingw"></a>Windows x86 (MinGW) | mingw-w64, UCRT | xclang | 1 | Considered |
@@ -98,7 +98,12 @@ What sets these targets apart:
   libc++ linked in, ld64.lld, dSYMs, the sanitizers
   ([macOS](macos.md#the-sdk-on-linux-and-windows-hosts)). CMake builds
   them; the Bazel module does not yet ([below](#macos-any-host-bazel)).
-- **musl.** Static programs that take nothing from the system they run on.
+- **musl.** Static programs that take nothing from the system they run on,
+  in every archive from 23.1.2.10 on, as the six are: musl built by xclang,
+  libc++ and every runtime linked in, UBSan the only sanitizer, as the
+  others need dynamic linking
+  ([targets](../reference/targets.md#musl-targets)). CMake, Bazel and cargo
+  build them.
 - **A newer glibc.** The same targets for programs that need what glibc
   2.17 lacks, such as `-static-pie` and newer functions, with the same
   runtimes.
@@ -164,6 +169,7 @@ its C compiler and linker. Every toolchain archive carries it, as
 | <a id="libc-on-demand"></a>libc++, libc++abi and libunwind built from source on demand | Planned |
 | <a id="msan"></a>MemorySanitizer, through libc++ built on demand | Planned |
 | <a id="mingw-sanitizers"></a>Sanitizers for MinGW targets | Considered |
+| <a id="musl-sanitizers"></a>ASan, TSan, LSan and libFuzzer for musl targets, with a dynamically linked musl (Alpine's way) | Considered |
 | <a id="bazel-gsymutil"></a>`@xclang//bazel:llvm-gsymutil`, the toolchain's llvm-gsymutil for `bazel run` | Supported |
 | <a id="cargo-helper"></a>An `xclang cargo` helper that sets cargo's variables | Considered |
 | <a id="libgcc-s-script"></a>`libgcc_s.a` as a linker script naming libunwind, for Rust's Linux targets | Considered |
@@ -196,6 +202,13 @@ linker script, `INPUT(-lunwind)`, instead of an empty archive: Rust's
 Linux targets then link without `-l:libunwind.a`. A test with 23.1.2.5's
 arm64 sysroot linked Rust, and C++ programs and shared libraries that name
 `-lgcc_s`.
+
+**Sanitizers for musl targets** beyond UBSan need dynamic linking: ASan,
+TSan and LSan find the C library's functions they intercept through
+`dlsym`, which a static program has not, and their runtimes do not link
+into one. A variant of the musl targets with musl's `libc.so`, as Alpine
+links, would have them, and its programs would need musl on the machine
+([sanitizers](../features/sanitizers.md#musl-targets)).
 
 **libc++ for MSVC targets** gives them the C++ library of every other
 target, its `import std` included, and becomes their default. Microsoft's
@@ -281,5 +294,3 @@ Questions inside the items above, not items of their own:
   (`--config=`), or with a spelling of the target.
 - **Where fetched targets go**: into the toolchain directory only, or also
   into a directory of the user's.
-- **musl and the sanitizers**: none, or a dynamically linked variant
-  (Alpine's way) that has them.

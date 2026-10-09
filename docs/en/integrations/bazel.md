@@ -99,7 +99,13 @@ archive configured for the target, so no other archive is downloaded.
 `@xclang//bazel:std` and `@libclang` follow the target platform. What the
 build runs itself (`cfg = "exec"`) is built for the host. A platform of your
 own works too: the toolchains ask only for its os and cpu, and without a C
-library constraint, Linux gets glibc and Windows MinGW.
+library constraint, Linux gets glibc and Windows MinGW;
+`@xclang//platforms/libc:musl` gets musl.
+
+- **musl targets build static programs**, from 23.1.2.10 on, from every
+  host: `--platforms=@xclang//platforms:x86_64-unknown-linux-musl`.
+  `bazel test` runs their tests on a Linux host of their architecture.
+  There is no libclang for them, and no shared library.
 
 - **macOS targets build on macOS hosts only.** From Linux or Windows, a
   build for them fails at once and says why.

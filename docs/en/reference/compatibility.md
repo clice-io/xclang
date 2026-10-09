@@ -16,6 +16,7 @@ with.
 | target | runs on |
 |---|---|
 | Linux x64, arm64 | glibc 2.17 or later: CentOS 7, Debian 8, Ubuntu 14.04 and every later distribution with glibc |
+| Linux x64, arm64 (musl), from 23.1.2.10 on | any distribution, with glibc or without: the programs are static |
 | Windows x64, arm64 | Windows 10 or later, where UCRT is part of the OS |
 | macOS arm64, x64 | macOS 13.0 or later; a `-mmacos-version-min` on the command line comes after the config file's 13.0 and replaces it |
 
@@ -53,9 +54,27 @@ always.
 ## Known Limitations
 
 - **Linux, from glibc 2.17**: no `-static-pie`, as glibc 2.17 has no
-  `rcrt1.o`. `-pg` needs `-no-pie`, as its `gcrt1.o` is not
+  `rcrt1.o` (the musl targets have it). `-pg` needs `-no-pie`, as its `gcrt1.o` is not
   position-independent. No `quadmath.h`: `libquadmath` is GCC's own, and
   `__float128` arithmetic works.
+- **musl targets**: static programs only. There is no `libc.so`, so no
+  shared library and no `dlopen` of one, and of the sanitizers only UBSan
+  ([sanitizers](../features/sanitizers.md#musl-targets)). Where musl
+  differs from glibc, measured on GitHub's Linux x64 runners (4 cores):
+  - **`malloc` under threads**: musl's allocator takes a lock that its
+    threads contend for. 4 million `malloc` and `free` of 16 to 528 bytes
+    took 0.21 s in one thread (glibc: 0.07 s); four threads doing as many
+    each, at once, took 4.8 s (glibc: 0.12 s). A program that allocates
+    from many threads wants an allocator of its own linked in.
+  - **Locales**: musl has no locale data. It accepts any locale name and
+    formats as the C locale: `printf("%'.1f")` of 1234567.5 prints
+    `1234567.5` in `en_US.UTF-8`, where glibc prints `1,234,567.5`;
+    libc++'s `std::locale` likewise.
+  - **Name lookup**: musl reads `/etc/hosts` and `/etc/resolv.conf` and asks
+    DNS itself. It has no NSS, so what `nsswitch.conf` adds through
+    modules (mDNS `.local` names, LDAP or SSSD users and groups) does not
+    reach it. `getaddrinfo` of a public name and `getpwuid` of a local user
+    work as with glibc.
 - **One libc++ per shared object**: a standard exception thrown by one
   shared library is caught by type in another only on Windows; on Linux and
   macOS only as `catch (...)`. See

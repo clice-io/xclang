@@ -34,7 +34,9 @@ compiler-rt built for that exact target.
 Every host toolchain (Linux, Windows and macOS, x64 and arm64) carries the
 six common targets: Linux x64 and arm64 with glibc 2.17, Windows x64 and
 arm64 with MinGW-w64 (UCRT), and macOS arm64 and x64, with Xcode's SDK on
-macOS hosts.
+macOS hosts. From 23.1.2.10 on, also the **musl targets**, Linux x64 and
+arm64: static programs that take nothing from the system they run on
+([musl targets](https://docs.clice.io/xclang/reference/targets#musl-targets)).
 
 With the SDKs the user fetches with the toolchain's `xclang` command
 (`xclang sdk fetch`), from 23.1.2.7 on:
@@ -47,9 +49,8 @@ With the SDKs the user fetches with the toolchain's `xclang` command
 
 Not supported yet, each with its status in the roadmap:
 
-- **musl targets** (Linux x64, arm64):
-  [planned](https://docs.clice.io/xclang/design/roadmap#musl). Other Linux
-  architectures, WebAssembly, Android, FreeBSD and bare metal:
+- **Other Linux architectures**, musl's too, WebAssembly, Android,
+  FreeBSD and bare metal:
   [considered](https://docs.clice.io/xclang/design/roadmap#targets).
 - **Target archives** for `xclang target add`, to fetch targets beyond
   these: [planned](https://docs.clice.io/xclang/design/roadmap#target-archives).

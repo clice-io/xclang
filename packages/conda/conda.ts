@@ -54,9 +54,9 @@ const SUBDIRS: Record<string, string> = {
 };
 /// The main licenses of the toolchain archive, whose share/licenses has
 /// every component's (toolchain/licenses.ts): LLVM, libc++ and compiler-rt;
-/// glibc 2.17, the kernel's UAPI headers and NSS's freebl (Linux targets);
-/// mingw-w64 and winpthreads (Windows targets); zlib and zstd; the xclang
-/// command's crates.
+/// glibc 2.17, musl, the kernel's UAPI headers and NSS's freebl (Linux
+/// targets); mingw-w64 and winpthreads (Windows targets); zlib and zstd;
+/// the xclang command's crates.
 const LICENSE = "Apache-2.0 WITH LLVM-exception AND LGPL-2.1-or-later AND GPL-2.0-only WITH Linux-syscall-note AND " +
   "MPL-2.0 AND ZPL-2.1 AND MIT AND Zlib AND BSD-3-Clause";
 
@@ -88,7 +88,7 @@ for (const host of hosts) {
     stage,
     subdir: SUBDIRS[host.triple],
     license: LICENSE,
-    summary: "A self-contained clang toolchain for six targets: clang, lld and the LLVM tools, PGO and ThinLTO optimized",
+    summary: "A self-contained clang toolchain for eight targets: clang, lld and the LLVM tools, PGO and ThinLTO optimized",
   });
 }
 

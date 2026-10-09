@@ -18,7 +18,7 @@ xclang/bin/clang++ --target=aarch64-w64-mingw32 main.cpp -o main.exe
 
 ## 目标平台
 
-每个主机平台（Linux、Windows、macOS 的 x64 和 arm64）的工具链都带着六个常用目标平台：使用 glibc 2.17 的 Linux x64 和 arm64，使用 MinGW-w64（UCRT）的 Windows x64 和 arm64，以及 macOS arm64 和 x64，在 macOS 主机上用 Xcode 的 SDK。
+每个主机平台（Linux、Windows、macOS 的 x64 和 arm64）的工具链都带着六个常用目标平台：使用 glibc 2.17 的 Linux x64 和 arm64，使用 MinGW-w64（UCRT）的 Windows x64 和 arm64，以及 macOS arm64 和 x64，在 macOS 主机上用 Xcode 的 SDK。从 23.1.2.10 起还带着 **musl 目标平台**，Linux x64 和 arm64：静态链接的程序，运行时不从系统里拿任何东西（[musl targets](https://docs.clice.io/xclang/reference/targets#musl-targets)）。
 
 用户用工具链自带的 `xclang` 命令（`xclang sdk fetch`）下载 SDK 后，从 23.1.2.7 起还支持：
 
@@ -27,7 +27,7 @@ xclang/bin/clang++ --target=aarch64-w64-mingw32 main.cpp -o main.exe
 
 还不支持的，各自在路线图里的状态：
 
-- **musl 目标平台**（Linux x64、arm64）：[计划中](https://docs.clice.io/xclang/design/roadmap#musl)。其它 Linux 架构、WebAssembly、Android、FreeBSD 和裸机：[考虑中](https://docs.clice.io/xclang/design/roadmap#targets)。
+- **其它 Linux 架构**（也包括 musl 的）、WebAssembly、Android、FreeBSD 和裸机：[考虑中](https://docs.clice.io/xclang/design/roadmap#targets)。
 - **目标平台包**，供 `xclang target add` 下载上述之外的目标平台：[计划中](https://docs.clice.io/xclang/design/roadmap#target-archives)。
 
 ## 适合谁

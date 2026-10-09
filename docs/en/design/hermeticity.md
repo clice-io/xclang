@@ -10,8 +10,8 @@ xclang holds every target to one rule:
 ## Summary
 
 A program built by xclang is one file that runs on any machine of its
-target: glibc 2.17 or later on Linux, Windows 10 or later, macOS 13 or
-later. libc++ and the other runtimes are inside it. The price is size, and
+target: glibc 2.17 or later on Linux, any Linux for the musl targets,
+Windows 10 or later, macOS 13 or later. libc++ and the other runtimes are inside it. The price is size, and
 one copy of libc++ in every shared library. The vendor SDKs are Xcode's,
 for the macOS targets on macOS hosts, which xclang does not pin, and the
 ones the user fetches from the vendors with the `xclang` command, pinned
@@ -23,6 +23,7 @@ macOS targets on Linux and Windows hosts.
 | target | at run time, from the system | linked statically |
 |---|---|---|
 | Linux (glibc) | glibc 2.17 or later: `libc`, `libm`, `libpthread`, `libdl`, `librt`, the dynamic loader | libc++, libc++abi, libunwind, the builtins |
+| Linux (musl), from 23.1.2.10 on | nothing: the kernel's system calls only | musl, libc++, libc++abi, libunwind, the builtins |
 | macOS | libSystem (the C library and the unwinder), the system frameworks the program links | libc++, libc++abi, the builtins |
 | Windows (MinGW) | the OS DLLs (`kernel32`, ...) and UCRT (`api-ms-win-crt-*`), part of Windows 10 and later | libc++, libc++abi, libunwind, the builtins, winpthreads, the mingw-w64 runtime |
 | Windows (MSVC) | the OS DLLs and UCRT (`ucrtbase.dll`), as for MinGW | Microsoft's VC runtime and STL (the "hybrid CRT"), the builtins |
@@ -169,13 +170,29 @@ unchanged. One limit: an empty `libgcc_s.a` gives Rust's standard library,
 which links with `-nodefaultlibs`, no unwinder. Rust builds name libunwind
 themselves ([Rust and Cargo](../integrations/cargo.md)).
 
+## Static Programs with musl
+
+glibc is a library no one ships with a program, so a Linux program of the
+glibc targets loads it. musl can be linked in, and the musl targets
+(`x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`) do: a program
+has no program interpreter and no dynamic section, and takes nothing from
+the system it runs on, glibc's version included
+([musl targets](../reference/targets.md#musl-targets)). The rule holds
+with nothing in the left column. The price:
+
+- **Size**: musl's code in every program, little next to libc++'s. A C++
+  hello world with iostream is 1.17 MB, 51 KB more than for the glibc
+  target (stripped, 826 KB and 27 KB more), measured on Linux x64.
+- **No shared libraries**: no `dlopen` of a library, no `-shared` library
+  for a musl system, and only UBSan of the sanitizers
+  ([sanitizers](../features/sanitizers.md#musl-targets)).
+- **musl's behavior where it differs from glibc**: `malloc` under threads,
+  locales, name lookup ([compatibility](../reference/compatibility.md#known-limitations)).
+
 ## Not Yet Supported
 
-| | status |
-|---|---|
-| [musl targets](roadmap.md#musl), for fully static Linux programs | Planned |
-
-Planned targets keep the same rule.
+Every target keeps the same rule, also those not yet supported
+([roadmap](roadmap.md#targets)).
 
 ## Known Limitations
 

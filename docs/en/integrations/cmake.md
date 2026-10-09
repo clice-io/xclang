@@ -84,6 +84,10 @@ cmake --build build-aarch64-w64-mingw32
   fetched SDK on [Linux and Windows hosts](#build-for-macos-from-linux-or-windows).
   On a macOS host, the other macOS architecture is
   `CMAKE_OSX_ARCHITECTURES` to CMake, not cross-compiling.
+- The musl targets, `x86_64-unknown-linux-musl` and
+  `aarch64-unknown-linux-musl` from 23.1.2.10 on, build static programs on
+  every host. On a Linux host of their architecture, which runs those, they
+  are no cross build: `try_run` and the tests run there.
 - CMake looks for the libraries, headers and packages of another target
   in its sysroot only. Name a dependency built for the target with
   `<Package>_DIR`, or add its prefix to `CMAKE_FIND_ROOT_PATH`. A library

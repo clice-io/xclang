@@ -8,6 +8,9 @@ steps for cutting one are in [releasing](releasing.md).
 
 1. **Runtimes.** A bootstrap clang builds the sysroot, libc++, libc++abi,
    libunwind and compiler-rt of every target, and the ASan libc++. The
+   musl targets' sysroot is built from source too: musl's release with the
+   patches of `toolchain/musl`, and the UAPI headers of a kernel.org
+   release. The
    compiler-rt of the MSVC targets is built with clang-cl against a
    Windows SDK fetched in the job by `xclang`; only the libraries leave it.
 2. **Instrumented compiler.** The bootstrap clang builds a clang and lld
@@ -177,7 +180,7 @@ Target archives for `xclang target add` are
 [planned](../design/roadmap.md#target-archives). Before a release can carry
 them, the pipeline needs:
 
-1. A stage that packs each target outside the six into
+1. A stage that packs each target that toolchains do not carry into
    `xclang-target-<version>-<target>.tar.xz`, laid out as
    [the xclang command](../reference/xclang-command.md#targets) expects:
    `xclang/<target>/` (sysroot, libc++, libunwind, its licenses),

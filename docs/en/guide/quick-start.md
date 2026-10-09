@@ -182,7 +182,7 @@ pixi run cmake -G Ninja -S ../cmake -B build-aarch64-w64-mingw32 \
 pixi run cmake --build build-aarch64-w64-mingw32
 ```
 
-`XCLANG_TARGET` takes any of the six targets and the MSVC targets. The
+`XCLANG_TARGET` takes any target of the toolchain, the MSVC ones too. The
 MSVC targets, and the macOS ones on Linux and Windows hosts, need the SDK
 that the `xclang` command fetches
 ([CMake](../integrations/cmake.md#build-for-another-target)). Copy

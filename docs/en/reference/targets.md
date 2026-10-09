@@ -31,30 +31,63 @@ GitHub-hosted runner.
 | `x86_64-apple-darwin` | `x86_64-apple-macos`, `x86_64-apple-macosx` | the SDK's libSystem | macOS 13.0 or later | macOS hosts; Linux and Windows hosts with the SDK `xclang` fetches |
 | `x86_64-pc-windows-msvc` | `x86_64-unknown-windows-msvc` | Microsoft's CRT and STL, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches |
 | `aarch64-pc-windows-msvc` | `aarch64-unknown-windows-msvc` | Microsoft's CRT and STL, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches |
+| `x86_64-unknown-linux-musl` | `x86_64-pc-linux-musl`, `x86_64-linux-musl` | musl 1.2.6, linked statically | any Linux x64 | every host, from 23.1.2.10 on |
+| `aarch64-unknown-linux-musl` | `aarch64-pc-linux-musl`, `aarch64-linux-musl` | musl 1.2.6, linked statically | any Linux arm64 | every host, from 23.1.2.10 on |
 
-All six are tier 1. The macOS targets need Apple's SDK, which comes from
+All of them are tier 1. The macOS targets need Apple's SDK, which comes from
 Xcode on macOS hosts ([macOS](../design/macos.md#the-sdk-is-xcode-s)). On
 Linux and Windows hosts they build with the SDK the user fetches from
 Apple ([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)),
 and CI runs those programs on arm64 and x64 Macs. The MSVC targets are
 tier 1 too: CI
 runs their programs on Windows x64 and arm64 runners
-([MSVC targets](../integrations/clang.md#msvc-targets)).
+([MSVC targets](../integrations/clang.md#msvc-targets)). So are the musl
+targets, which every archive carries from 23.1.2.10 on: their programs are
+static, need no glibc, and run on the Linux x64 and arm64 runners
+([musl](#musl-targets)).
 
 ## What Each Target Has
 
-| | Linux | Windows (MinGW) | macOS | Windows (MSVC) |
-|---|---|---|---|---|
-| C++ library | libc++, libc++abi, static | libc++, libc++abi, static | libc++, libc++abi, static (not the system's `libc++.dylib`) | Microsoft's STL, static |
-| unwinder | libunwind, static | libunwind, static | the system's (libSystem) | the VC runtime's, static |
-| compiler-rt builtins, profile | Supported | Supported | Supported | Supported |
-| ASan, TSan, LSan, UBSan, libFuzzer | Supported | Considered | Supported | Supported: UBSan; ASan and libFuzzer for x64 |
-| ASan libc++ | Supported | Considered | Supported | none: the STL |
-| linker | ld.lld | ld.lld (MinGW driver) | ld64.lld; `-fuse-ld=ld` for Apple's, without LTO | lld-link |
+| | Linux | Linux (musl) | Windows (MinGW) | macOS | Windows (MSVC) |
+|---|---|---|---|---|---|
+| C library | glibc 2.17, the system's | musl, static | UCRT, the system's | libSystem, the system's | UCRT, the system's |
+| C++ library | libc++, libc++abi, static | libc++, libc++abi, static | libc++, libc++abi, static | libc++, libc++abi, static (not the system's `libc++.dylib`) | Microsoft's STL, static |
+| unwinder | libunwind, static | libunwind, static | libunwind, static | the system's (libSystem) | the VC runtime's, static |
+| compiler-rt builtins, profile | Supported | Supported | Supported | Supported | Supported |
+| ASan, TSan, LSan, UBSan, libFuzzer | Supported | UBSan only | Considered | Supported | Supported: UBSan; ASan and libFuzzer for x64 |
+| ASan libc++ | Supported | none | Considered | Supported | none: the STL |
+| linker | ld.lld | ld.lld | ld.lld (MinGW driver) | ld64.lld; `-fuse-ld=ld` for Apple's, without LTO | lld-link |
 
 Sanitizers for the MinGW targets are
 [considered](../design/roadmap.md#mingw-sanitizers); those of the MSVC
-targets are in [sanitizers](../features/sanitizers.md#msvc-targets).
+targets are in [sanitizers](../features/sanitizers.md#msvc-targets), those
+of musl in [sanitizers](../features/sanitizers.md#musl-targets).
+
+## musl Targets
+
+`x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl`, from 23.1.2.10
+on, link musl and every runtime into the program, as Rust's targets of the
+same names do. The program has no program interpreter and no dynamic
+section: it takes nothing from the system it runs on, glibc included, and
+runs on any Linux distribution of its architecture.
+
+- **musl 1.2.6**, with the patches of musl's security advisories against
+  it, built by xclang, and the UAPI headers of Linux 6.18, the newest
+  long-term kernel ([layout](layout.md#sysroots)).
+- **Static by default**: the config file passes `-static`, so a program is
+  an `EXEC` file. `-static-pie` makes it position-independent, for address
+  space layout randomization of the program itself; that cost 5% more size and
+  2 to 5% more time to start a hello world in C and C++, measured on Linux
+  x64. A `-static-pie` in the config file would have made `-no-pie` an
+  error, which CMake and rustc pass.
+- **No shared libraries**: there is no `libc.so`, so no dynamic linking
+  against musl, no `dlopen` of a library, and no `-shared` library for a
+  musl system such as Alpine.
+- **UBSan only**, of the sanitizers
+  ([sanitizers](../features/sanitizers.md#musl-targets)).
+
+How musl behaves apart from glibc (locales, DNS, `malloc`) is in
+[compatibility](compatibility.md#known-limitations).
 
 ## Tiers
 
@@ -68,8 +101,8 @@ is tested, and so how much a release promises about it.
   simulators.
 - **Tier 3**: programs are compiled and linked for it, not run.
 
-For today's six, that means programs built on every host run on a runner of
-their target, with no emulator
+For the targets of every archive, that means programs built on every host
+run on a runner of their target, with no emulator
 ([testing](../dev/testing.md#cross-compiling)).
 
 ## Not Yet Supported

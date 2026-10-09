@@ -39,14 +39,17 @@ SDK's.
 
 ## Sysroots
 
-| | Linux | Windows (MinGW) | macOS |
-|---|---|---|---|
-| C library | glibc 2.17's headers in `usr/include`, its startup files and libraries in `lib64`, `usr/lib64` | mingw-w64 (UCRT) and winpthreads: the libraries in `lib`, the headers in the shared `mingw-w64/include` | none: Apple's SDK, Xcode's, or on Linux and Windows hosts `sdk/macos` ([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)) |
-| libc++, libc++abi, libunwind | `usr/lib`; the headers in the shared `libc++/include/c++/v1` | `lib`; the same | `lib` (no libunwind: the system's, in libSystem); the same |
-| libc++ module sources | `usr/share/libc++/v1` | `share/libc++/v1` | `share/libc++/v1` |
-| libc++ module manifest | `usr/lib/libc++.modules.json` | `lib/libc++.modules.json` | `lib/libc++.modules.json` |
-| ASan libc++ | `usr/lib/asan` | none | `lib/asan` |
-| GCC library names | empty `libatomic.a`, `libgcc.a`, `libgcc_eh.a`, `libgcc_s.a` | the same, and `libssp.a`, `libssp_nonshared.a` | none |
+| | Linux | Linux (musl) | Windows (MinGW) | macOS |
+|---|---|---|---|---|
+| C library | glibc 2.17's headers in `usr/include`, its startup files and libraries in `lib64`, `usr/lib64` | musl 1.2.6's headers in `usr/include`, its startup files and `libc.a` in `usr/lib`, and its empty `libm.a`, `libpthread.a`, ... | mingw-w64 (UCRT) and winpthreads: the libraries in `lib`, the headers in the shared `mingw-w64/include` | none: Apple's SDK, Xcode's, or on Linux and Windows hosts `sdk/macos` ([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)) |
+| kernel headers | Linux 3.10's (x64), 4.18's (arm64), in `usr/include` | Linux 6.18's, in `usr/include` | | |
+| libc++, libc++abi, libunwind | `usr/lib`; the headers in the shared `libc++/include/c++/v1` | `usr/lib`; the same | `lib`; the same | `lib` (no libunwind: the system's, in libSystem); the same |
+| libc++ module sources | `usr/share/libc++/v1` | `usr/share/libc++/v1` | `share/libc++/v1` | `share/libc++/v1` |
+| libc++ module manifest | `usr/lib/libc++.modules.json` | `usr/lib/libc++.modules.json` | `lib/libc++.modules.json` | `lib/libc++.modules.json` |
+| ASan libc++ | `usr/lib/asan` | none | none | `lib/asan` |
+| GCC library names | empty `libatomic.a`, `libgcc.a`, `libgcc_eh.a`, `libgcc_s.a` | the same | the same, and `libssp.a`, `libssp_nonshared.a` | none |
+
+The musl targets' directories are in every archive from 23.1.2.10 on.
 
 `clang++ --target=<target> -print-library-module-manifest-path` prints the
 path of the manifest.
@@ -92,14 +95,16 @@ The toolchain's components:
 | `llvm-project` | clang, lld, the LLVM tools, libc++, libc++abi, libunwind, compiler-rt; the files keep their paths in LLVM's source | Apache-2.0 WITH LLVM-exception, and the third-party parts' |
 | `zlib`, `zstd` | linked into the programs (macOS hosts: zstd only) | Zlib; BSD-3-Clause OR GPL-2.0-only |
 | `glibc` | the Linux targets' C library, 2.17 | LGPL-2.1-or-later |
-| `linux` | the Linux targets' kernel UAPI headers | GPL-2.0-only WITH Linux-syscall-note |
+| `musl` | the musl targets' C library, 1.2.6, from 23.1.2.10 on | MIT, and the parts its `COPYRIGHT` names: BSD-2-Clause, BSD-3-Clause, ISC, SunPro |
+| `linux` | the Linux targets' kernel UAPI headers, glibc's and musl's | GPL-2.0-only WITH Linux-syscall-note |
 | `nss` | the Linux targets' `libfreebl3.so`, which glibc's `libcrypt` loads | MPL-2.0 |
 | `mingw-w64` | the Windows targets' headers, CRT and winpthreads, which the Windows hosts' programs link too | ZPL-2.1, and the runtime's other parts |
 | `rust`, `rust-crates/<crate>-<version>` | Rust's standard library and the crates `bin/xclang` links | each its own |
 
-glibc, the kernel headers and NSS are those of CentOS 7, as conda-forge's
-sysroot packages repackage them: the README names those packages, CentOS's
-source RPMs and the upstream releases. The libclang archives carry `xclang`,
+glibc, the glibc targets' kernel headers and NSS are those of CentOS 7, as
+conda-forge's sysroot packages repackage them: the README names those
+packages, CentOS's source RPMs and the upstream releases. musl and the
+musl targets' kernel headers are built from musl's release and kernel.org's. The libclang archives carry `xclang`,
 `llvm-project`, `zlib` and `zstd` (and `mingw-w64` on Windows hosts), the
 option tables `xclang` and `llvm-project`.
 

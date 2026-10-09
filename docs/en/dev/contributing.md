@@ -1,7 +1,7 @@
 # Contributing
 
 xclang is a small repository that drives a large build: LLVM, built six
-times with PGO and ThinLTO, plus the runtimes of six targets. Most
+times with PGO and ThinLTO, plus the runtimes of every target. Most
 contributions are to the scripts, the build integrations, the tests or the
 docs. Most of them are checked on CI, not on a laptop.
 
@@ -22,6 +22,8 @@ toolchain/         the build pipeline, TypeScript run by Node 24:
   launcher/        alias.c, the launcher behind every name of llvm.exe
   licenses/        license texts the archives carry that no source
                    ships (licenses.ts)
+  musl/            the patches of musl's security advisories, applied to
+                   its release (sysroot.ts)
 cli/               the xclang command, in Rust; its SDK version table,
                    sdk-versions.json; cli.ts builds it
 patches/           changes to LLVM, a directory and a README each

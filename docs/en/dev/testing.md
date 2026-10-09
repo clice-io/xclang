@@ -96,6 +96,11 @@ How the stages fit together is in the [build pipeline](release-build.md).
   ([why an ASan libc++](../features/sanitizers.md#why-an-asan-libc)).
 - dSYM and GSYM debug symbols made by the toolchain's `dsymutil` and
   `llvm-gsymutil`, for every target.
+- The musl targets, in the archives that carry them: their programs have
+  no program interpreter and no dynamic section (`llvm-readelf`), and use
+  `std::filesystem`, `std::format`, threads, an exception thrown through
+  musl's `qsort`, `import std` and UBSan. Linux hosts run those of their
+  architecture; on-target.yml runs the others on the Linux runners.
 
 `tests/libclang/libclang.ts` builds and runs `tests/libclang`, a small tool on
 libclang. It finds libclang through `find_package(Clang)`, links the ThinLTO
@@ -108,13 +113,15 @@ every target on every host, and lists what each loads with
 `llvm-readobj --needed-libs`. Linux programs load `libc.so.6`, `libm.so.6`,
 `libdl.so.2`, `libpthread.so.0` and the dynamic loader. Windows programs
 load `KERNEL32.dll` and UCRT. macOS programs load `libSystem.B.dylib`.
-The job fails if any program loads a C++ runtime. That is the
+musl programs, built on the Linux hosts, load nothing: no program
+interpreter, no dynamic section. The job fails if any program loads a C++
+runtime. That is the
 [hermeticity](../design/hermeticity.md) rule, checked.
 
 ## Cross-Compiling
 
 - `tests/toolchain/smoke.ts` and `tests/cmake/cmake.ts` build for every target on every
-  host.
+  host. A Linux host runs the musl programs of its architecture itself.
 - Every workflow that builds for another target runs the programs on a
   runner of that target, with nothing installed there (on-target.yml,
   `tests/lib/on-target.ts`). The smoke test does it for every release
@@ -147,7 +154,9 @@ Ninja 1.11, and with the newest of both:
 1. `find_package(xclang)` found by `PATH`, with
    `CMAKE_CXX_COMPILER=clang++`.
 2. Every other target the host builds for, through the toolchain file and
-   `XCLANG_TARGET`. The programs run where the machine can run them.
+   `XCLANG_TARGET`. The programs run where the machine can run them: a
+   Linux host's musl target is no cross build there, and its tests check
+   that `hello_cpp` has no program interpreter and no dynamic section.
 3. Nothing installed: FetchContent of the tag, whose `xclang.cmake`
    downloads `SHA256SUMS` and the host toolchain.
 4. `tests/libclang` with the ThinLTO cache. A second link takes every
@@ -159,7 +168,10 @@ Ninja 1.11, and with the newest of both:
 
 ## Bazel Module
 
-`tests/bazel` builds and tests with the module on every host.
+`tests/bazel` builds and tests with the module on every host, and builds
+its tests for both musl targets, but those of shared libraries, debuggers
+and libclang; a Linux host runs the musl tests of its architecture
+(`bazel test`). Both run in release.yml too.
 `tests/bazel/bazel.ts` then checks, with the same disk cache:
 
 1. **No absolute paths.** A copy of the checkout elsewhere, with another

@@ -23,6 +23,7 @@ line. xclang writes one file per target, and per spelling of it, into
 | target | config files |
 |---|---|
 | Linux | `<arch>-unknown-linux-gnu.cfg`, `<arch>-pc-linux-gnu.cfg` |
+| Linux (musl) | `<arch>-unknown-linux-musl.cfg`, `<arch>-pc-linux-musl.cfg` |
 | Windows (MinGW) | `<arch>-w64-windows-gnu.cfg`, `<arch>-pc-windows-gnu.cfg` |
 | macOS | `<arch>-apple-darwin.cfg`, `<arch>-apple-macos.cfg`, `<arch>-apple-macosx.cfg` (`arm64` and `aarch64` for arm64) |
 | Windows (MSVC) | `<arch>-pc-windows-msvc.cfg`, `<arch>-unknown-windows-msvc.cfg`, and for clang-cl `<spelling>-clang-cl.cfg` |
@@ -33,6 +34,7 @@ Each says this
 | target | options |
 |---|---|
 | Linux | `--sysroot` of the target, `-rtlib=compiler-rt -unwindlib=libunwind -stdlib=libc++`, `-static-libstdc++ -static-libgcc`, `-fuse-ld=lld` |
+| Linux (musl) | the same, and `-static`: musl is linked in too ([musl targets](../reference/targets.md#musl-targets)) |
 | Windows (MinGW) | `--sysroot` of the target, `-rtlib=compiler-rt -unwindlib=libunwind -stdlib=libc++`, `-fuse-ld=lld`; the sysroot has static libraries only |
 | macOS | xclang's libc++ headers (`-stdlib++-isystem`) and `libc++.a` ahead of the SDK's `libc++.tbd` (`-L`), `-mmacos-version-min=13.0`, `-fuse-ld=lld` |
 | Windows (MSVC) | `@<target>-sdk.cfg`, which includes the file of the SDK in use that names it, from `sdk/windows`; on Linux and macOS hosts `sdk/windows` as the sysroot; `-fuse-ld=lld`; the builtins and the hybrid CRT named in every object ([MSVC targets](windows.md#msvc-targets)) |

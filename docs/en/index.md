@@ -62,12 +62,12 @@ Targets beyond the six, each an archive that `xclang target add` fetches
 
 <!-- END CAPABILITY -->
 
-<!-- BEGIN CAPABILITY: planned -->
+<!-- BEGIN CAPABILITY: unreleased -->
 
 **musl targets**
 
-Fully static Linux programs, for x64 and arm64
-([roadmap](./design/roadmap.md#musl)).
+Fully static Linux programs, for x64 and arm64, in every archive from
+23.1.2.10 on ([musl targets](./reference/targets.md#musl-targets)).
 
 <!-- END CAPABILITY -->
 

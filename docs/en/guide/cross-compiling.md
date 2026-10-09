@@ -13,12 +13,14 @@ there, build for Windows on Arm:
 pixi run clang++ -O2 --target=aarch64-w64-mingw32 hello.cpp -o hello-windows-arm64.exe
 ```
 
-The same command builds for any of the six targets:
+The same command builds for any target of the toolchain:
 
 | target | runs on | builds on |
 |---|---|---|
 | `x86_64-unknown-linux-gnu` | Linux x64, glibc 2.17 or later | every host |
 | `aarch64-unknown-linux-gnu` | Linux arm64, glibc 2.17 or later | every host |
+| `x86_64-unknown-linux-musl` | Linux x64, any distribution: static | every host, from 23.1.2.10 on |
+| `aarch64-unknown-linux-musl` | Linux arm64, any distribution: static | every host, from 23.1.2.10 on |
 | `x86_64-w64-mingw32` | Windows x64, 10 or later | every host |
 | `aarch64-w64-mingw32` | Windows arm64, 10 or later | every host |
 | `aarch64-apple-darwin` | macOS arm64, 13 or later | every host |
@@ -30,6 +32,24 @@ Windows hosts, with the SDK the user fetches from Apple
 ([below](#macos-from-linux-or-windows)). clang's other spellings of the
 targets, such as `x86_64-pc-linux-gnu` or `arm64-apple-macos`, work too
 ([targets](../reference/targets.md#targets)).
+
+### Static Programs with musl
+
+From 23.1.2.10 on, the musl targets link musl and every runtime into the
+program. It has no program interpreter and no dynamic section, takes
+nothing from the system, and runs on any Linux of its architecture:
+
+<!-- excerpt: .github/workflows/examples.yml -->
+```sh
+pixi run clang++ -O2 --target=x86_64-unknown-linux-musl hello.cpp -o hello-static-x64
+pixi run clang++ -O2 --target=aarch64-unknown-linux-musl hello.cpp -o hello-static-arm64
+pixi run llvm-readelf --program-headers hello-static-x64
+```
+
+The program headers have no `INTERP`. `-static-pie` makes the program
+position-independent, for address space layout randomization. There are
+no shared libraries for musl, and of the sanitizers only UBSan
+([musl targets](../reference/targets.md#musl-targets)).
 
 ### macOS from Linux or Windows
 
@@ -76,8 +96,8 @@ It prints, among the headers, `Format: COFF-ARM64` and `Arch: aarch64`.
 
 Copy the program to a machine of its target and run it there; nothing has
 to be installed. A Linux program runs on any distribution with glibc 2.17
-or later, and a Windows program on Windows 10 or later. Some hosts also
-run other targets:
+or later, a musl program on any distribution, and a Windows program on
+Windows 10 or later. Some hosts also run other targets:
 
 - arm64 macOS runs x86_64 macOS programs, through Rosetta.
 - Windows on Arm runs x86_64 Windows programs, through emulation.
@@ -127,15 +147,15 @@ also has a tier, which says how it is tested
 
 ## Not Yet Supported
 
-The toolchain has the six targets above and the MSVC targets, and no
-others. xclang's vision is what rustup and cross-rs do for Rust. Every
-other target is an archive of its own, fetched when a build needs it. None
-of it is in a release:
+The toolchain has the targets above and the MSVC targets, and no others.
+xclang's vision is what rustup and cross-rs do for Rust. Every other
+target is an archive of its own, fetched when a build needs it. None of it
+is in a release:
 
 | | status |
 |---|---|
 | [Target archives for `xclang target add`](../design/roadmap.md#target-archives) | Planned |
-| [musl targets](../design/roadmap.md#musl) | Planned |
+| [musl for riscv64 and armv7](../design/roadmap.md#musl-architectures) | Considered |
 | [WebAssembly](../design/roadmap.md#wasm), [more Linux architectures](../design/roadmap.md#linux-architectures), [Android](../design/roadmap.md#android) | Considered |
 
 The [roadmap](../design/roadmap.md#targets) lists every target, with its

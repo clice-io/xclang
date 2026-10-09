@@ -140,6 +140,7 @@ The `*-windows-gnu` targets link libgcc and msvcrt instead.
 | Rust target | xclang target | from | status |
 |---|---|---|---|
 | `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu` | the same | any host | Supported |
+| `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl` | the same, [static](#static-programs-with-musl) | any host | Unreleased |
 | `x86_64-pc-windows-gnullvm`, `aarch64-pc-windows-gnullvm` | `x86_64-w64-mingw32`, `aarch64-w64-mingw32` | any host | Supported |
 | `aarch64-apple-darwin`, `x86_64-apple-darwin` | the same | macOS hosts | Supported |
 | `aarch64-apple-darwin`, `x86_64-apple-darwin` | the same | [Linux and Windows hosts](#macos-from-linux-and-windows) | Supported |
@@ -171,6 +172,27 @@ The names follow the target: `CC_<target>` in lower case with `_`, and
 - **Windows** needs `-Clink-arg=--target=<arch>-w64-mingw32`, as above.
 - **macOS**, on a macOS host, needs `-Clink-arg=--target=<target>` and
   `MACOSX_DEPLOYMENT_TARGET=13.0`. The SDK is Xcode's.
+
+## Static Programs with musl
+
+From 23.1.2.10 on, Rust's musl targets link against xclang's musl, with
+`-Clink-self-contained=no`: rustc otherwise links the musl and the startup
+files it ships, and the crates' C code is compiled against other headers
+than the C library it links. For `x86_64-unknown-linux-musl`:
+
+<!-- excerpt: .github/workflows/examples.yml -->
+```sh
+rustup target add x86_64-unknown-linux-musl
+export CC_x86_64_unknown_linux_musl=clang CXX_x86_64_unknown_linux_musl=clang++ AR_x86_64_unknown_linux_musl=llvm-ar
+export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=clang
+export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-Clink-arg=--target=x86_64-unknown-linux-musl -Clink-self-contained=no"
+cargo build --release --target x86_64-unknown-linux-musl
+```
+
+The program has no program interpreter and loads nothing. rustc links it
+with `-static-pie` for x64 and `-static` for arm64, its defaults for these
+targets, and names `-lunwind` itself: the musl targets need no
+`-l:libunwind.a`.
 
 ## Build for the Machine You Are On
 
@@ -249,6 +271,5 @@ VC runtime name, which are not shipped.
 | | status |
 |---|---|
 | [An `xclang cargo` helper](../design/roadmap.md#cargo-helper) that sets the settings above | Considered |
-| [musl targets](../design/roadmap.md#musl) | Planned |
 | [Rust targets for other Linux architectures](../design/roadmap.md#linux-architectures) | Considered |
 | [`libgcc_s.a` as a linker script](../design/roadmap.md#libgcc-s-script), so Linux targets need no `-l:libunwind.a` | Considered |
