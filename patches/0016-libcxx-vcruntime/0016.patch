@@ -1,15 +1,61 @@
-diff --git a/libcxx/modules/std/new.inc b/libcxx/modules/std/new.inc
-index e653b7c..6152075 100644
---- a/libcxx/modules/std/new.inc
-+++ b/libcxx/modules/std/new.inc
-@@ -21,7 +21,7 @@ export namespace std {
-   using std::nothrow;
-   using std::nothrow_t;
+diff --git a/libcxx/include/__new/new_handler.h b/libcxx/include/__new/new_handler.h
+index fc6aabe..dfcb4a7 100644
+--- a/libcxx/include/__new/new_handler.h
++++ b/libcxx/include/__new/new_handler.h
+@@ -17,6 +17,11 @@
  
--  using std::get_new_handler;
-+  using std::get_new_handler _LIBCPP_USING_IF_EXISTS;
-   using std::new_handler;
-   using std::set_new_handler;
+ #if defined(_LIBCPP_ABI_VCRUNTIME)
+ #  include <new.h>
++_LIBCPP_BEGIN_UNVERSIONED_NAMESPACE_STD
++// vcruntime declares new_handler and set_new_handler; get_new_handler is
++// Microsoft's STL's own.
++_LIBCPP_EXPORTED_FROM_ABI new_handler get_new_handler() _NOEXCEPT;
++_LIBCPP_END_UNVERSIONED_NAMESPACE_STD
+ #else
+ _LIBCPP_BEGIN_UNVERSIONED_NAMESPACE_STD
+ _LIBCPP_BEGIN_EXPLICIT_ABI_ANNOTATIONS
+diff --git a/libcxx/src/new_handler.cpp b/libcxx/src/new_handler.cpp
+index 49c21d8..06bf0fd 100644
+--- a/libcxx/src/new_handler.cpp
++++ b/libcxx/src/new_handler.cpp
+@@ -11,9 +11,7 @@
+ #include "include/atomic_support.h"
+ 
+ #if defined(_LIBCPP_ABI_MICROSOFT)
+-#  if !defined(_LIBCPP_ABI_VCRUNTIME)
+-#    define _LIBPCPP_DEFINE_NEW_HANDLER
+-#  endif
++#  define _LIBPCPP_DEFINE_NEW_HANDLER
+ #elif defined(LIBCXX_BUILDING_LIBCXXABI)
+ // nothing to do, we use the one from libc++abi
+ #elif defined(LIBCXXRT)
+@@ -30,7 +28,27 @@ namespace std { // purposefully not versioned
+ 
+ static constinit std::new_handler __new_handler = nullptr;
+ 
++#  if defined(_LIBCPP_ABI_VCRUNTIME)
++// vcruntime declares std::set_new_handler, but only Microsoft's STL defines
++// it, in its own library. vcruntime's operator new calls the handler of
++// UCRT's _set_new_handler when malloc fails, and tries again if it returns
++// nonzero.
++static int __cdecl __new_handler_interface(size_t) {
++  new_handler handler = __libcpp_atomic_load(&__new_handler);
++  if (!handler)
++    return 0;
++  handler();
++  return 1;
++}
++
++new_handler set_new_handler(new_handler handler) noexcept {
++  new_handler old = __libcpp_atomic_exchange(&__new_handler, handler);
++  _set_new_handler(handler ? __new_handler_interface : nullptr);
++  return old;
++}
++#  else
+ new_handler set_new_handler(new_handler handler) noexcept { return __libcpp_atomic_exchange(&__new_handler, handler); }
++#  endif
+ 
+ new_handler get_new_handler() noexcept { return __libcpp_atomic_load(&__new_handler); }
  
 diff --git a/libcxx/src/new_helpers.cpp b/libcxx/src/new_helpers.cpp
 index 2119d82..d8217ef 100644

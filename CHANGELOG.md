@@ -26,7 +26,7 @@ the [patches](docs/en/reference/patches.md) of its tag.
   installed with the compiler, or the directories of `-stdlib++-isystem`)
   and `-stdlib=platform` (Microsoft's STL). **0016** added: libc++ on
   vcruntime no longer defines `std::nothrow`, which the C runtime does,
-  and its std module builds. **0011** added: a config file's `/clang:`
+  and has `std::set_new_handler` and `std::get_new_handler`. **0011** added: a config file's `/clang:`
   options are not reported unused by clang-cl
   ([patches](docs/en/reference/patches.md)).
 - The MSVC targets' config files define `_STATIC_INLINE_UCRT_FUNCTIONS=0`,
