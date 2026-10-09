@@ -1,6 +1,22 @@
 --- a/cc/private/toolchain/unix_cc_toolchain_config.bzl
 +++ b/cc/private/toolchain/unix_cc_toolchain_config.bzl
-@@ -277,6 +277,34 @@
+@@ -45,7 +45,14 @@
+ 
+ def _target_os_version(ctx):
+     xcode_config = ctx.attr._xcode_config[apple_common.XcodeVersionConfig]
+-    return xcode_config.minimum_os_for_platform_type(apple_common.platform_type.macos)
++    version = xcode_config.minimum_os_for_platform_type(apple_common.platform_type.macos)
++
++    # Not below the oldest macOS the toolchain's libc++ runs on (off macOS,
++    # Bazel's default is 11.0).
++    floor = ctx.attr.macos_minimum_os
++    if floor and [int(n) for n in str(version).split(".")] < [int(n) for n in floor.split(".")]:
++        return floor
++    return version
+ 
+ def layering_check_features(compiler, extra_flags_per_feature, is_macos):
+     if compiler != "clang":
+@@ -277,6 +284,34 @@
          implies = ["archiver_flags", "linker_param_file"],
      ))
  
@@ -35,7 +51,7 @@
      llvm_cov = ctx.attr.tool_paths.get("llvm-cov")
      if llvm_cov:
          llvm_cov_action = action_config(
-@@ -677,7 +705,9 @@
+@@ -677,7 +712,9 @@
          provides = ["profile"],
      )
  
@@ -46,7 +62,7 @@
  
      user_compile_flags_feature = feature(
          name = "user_compile_flags",
-@@ -1177,6 +1207,9 @@
+@@ -1177,6 +1214,9 @@
                  ],
              ),
          ],
@@ -56,7 +72,7 @@
      )
  
      strip_debug_symbols_feature = feature(
-@@ -1756,10 +1789,10 @@
+@@ -1756,10 +1796,10 @@
          specific_compile_flags = [
              "-fsanitize=address",
              "-fno-common",
@@ -69,7 +85,7 @@
      )
  
      lsan_feature = _sanitizer_feature(
-@@ -1770,7 +1803,7 @@
+@@ -1770,7 +1810,7 @@
          ],
          specific_link_flags = [
              "-fsanitize=leak",
@@ -78,7 +94,7 @@
      )
  
      tsan_feature = _sanitizer_feature(
-@@ -1780,7 +1813,7 @@
+@@ -1780,7 +1820,7 @@
          ],
          specific_link_flags = [
              "-fsanitize=thread",
@@ -87,7 +103,7 @@
      )
  
      ubsan_feature = _sanitizer_feature(
-@@ -1790,7 +1823,7 @@
+@@ -1790,7 +1830,7 @@
          ],
          specific_link_flags = [
              "-fsanitize=undefined",
@@ -96,7 +112,7 @@
      )
  
      # If you have Xcode + the CLT installed the version defaults can be
-@@ -2056,6 +2089,10 @@
+@@ -2056,6 +2096,10 @@
              default_link_flags_feature,
              user_link_flags_feature,
              default_link_libs_feature,
@@ -107,7 +123,7 @@
              includes_feature,
              include_paths_feature,
              external_include_paths_feature,
-@@ -2152,6 +2189,13 @@
+@@ -2152,6 +2196,15 @@
          "opt_compile_flags": attr.string_list(),
          "opt_link_flags": attr.string_list(),
          "supports_start_end_lib": attr.bool(),
@@ -118,6 +134,8 @@
 +        "asan_link_flags": attr.string_list(),
 +        # The program of link actions, if not tool_paths' gcc.
 +        "link_tool": attr.string(),
++        # The oldest deployment target of macOS targets.
++        "macos_minimum_os": attr.string(),
          "target_libc": attr.string(mandatory = True),
          "target_system_name": attr.string(mandatory = True),
          "tool_paths": attr.string_dict(),

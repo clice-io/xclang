@@ -15,25 +15,40 @@ The toolchain and libclang are of one release, as libclang's ThinLTO bitcode
 needs the lld of the same LLVM. Environment variables (--repo_env) point at
 directories unpacked by hand instead: XCLANG_ROOT for the toolchain,
 XCLANG_LIBCLANG_ROOT and XCLANG_LIBCLANG_ASAN_ROOT for the host's libclang.
+
+The root module's tags fetch the vendor SDKs, accepting their license
+(bazel/sdk.bzl):
+
+    xclang.windows_sdk(accept_license = True)   the MSVC targets
+    xclang.macos_sdk(accept_license = True)     the macOS targets off macOS
 """
 
-load(":hosts.bzl", "HOSTS", "TARGETS")
-load(":repositories.bzl", "xclang_libclang", "xclang_libclang_aliases", "xclang_macos_sdk", "xclang_option_inc", "xclang_toolchain", "xclang_unix_config")
+load(":hosts.bzl", "HOSTS")
+load(":repositories.bzl", "xclang_libclang", "xclang_libclang_aliases", "xclang_option_inc", "xclang_toolchain", "xclang_unix_config", "xclang_xcode_sdk")
+load(":sdk.bzl", "macos_sdk", "vendor_sdks", "windows_sdk")
 load(":versions.bzl", "SHA256", "VERSION")
 load(":thinlto_cache.bzl", "xclang_thinlto_cache")
 
 def _xclang_impl(mctx):
     xclang_unix_config(name = "xclang_unix_config")
-    xclang_macos_sdk(name = "xclang_macos_sdk")
+    xclang_xcode_sdk(name = "xclang_xcode_sdk")
     xclang_thinlto_cache(name = "xclang_thinlto_cache")
+    vendor_sdks(mctx)
     for host in HOSTS:
         xclang_toolchain(name = "xclang_" + host, host = host, version = VERSION, sha256 = SHA256)
-    for target in TARGETS:
-        xclang_libclang(name = "libclang_" + target, target = target, version = VERSION, sha256 = SHA256)
-        xclang_libclang(name = "libclang_asan_" + target, asan = True, target = target, version = VERSION, sha256 = SHA256)
+
+        # libclang's targets are the hosts.
+        xclang_libclang(name = "libclang_" + host, target = host, version = VERSION, sha256 = SHA256)
+        xclang_libclang(name = "libclang_asan_" + host, asan = True, target = host, version = VERSION, sha256 = SHA256)
     xclang_libclang_aliases(name = "libclang", prefix = "libclang_", asan_prefix = "libclang_asan_")
     xclang_libclang_aliases(name = "libclang_asan", prefix = "libclang_asan_")
     xclang_option_inc(name = "llvm_option_inc", version = VERSION, sha256 = SHA256)
     return mctx.extension_metadata(reproducible = True)
 
-xclang = module_extension(implementation = _xclang_impl)
+xclang = module_extension(
+    implementation = _xclang_impl,
+    tag_classes = {
+        "macos_sdk": macos_sdk,
+        "windows_sdk": windows_sdk,
+    },
+)

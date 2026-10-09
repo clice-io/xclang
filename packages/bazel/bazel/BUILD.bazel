@@ -1,4 +1,5 @@
 load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc/toolchains:args.bzl", "cc_args")
 load("@rules_cc//cc/toolchains:feature.bzl", "cc_feature")
 load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
@@ -26,6 +27,23 @@ cc_args(
     name = "gc_sections_args",
     actions = ["@rules_cc//cc/toolchains/actions:link_actions"],
     args = ["-Wl,--gc-sections"],
+)
+
+# The same for the MSVC targets, lld-link's /opt:ref, which their links
+# otherwise turn off (bazel/toolchain.bzl): lld-link does it by default
+# without /debug, ICF too.
+cc_feature(
+    name = "gc_sections_msvc",
+    args = [":gc_sections_msvc_args"],
+    feature_name = "gc_sections",
+    requires_any_of = ["@rules_cc//cc/toolchains/features:opt"],
+    visibility = ["//visibility:public"],
+)
+
+cc_args(
+    name = "gc_sections_msvc_args",
+    actions = ["@rules_cc//cc/toolchains/actions:link_actions"],
+    args = ["-Wl,/opt:ref"],
 )
 
 # A release's strip (cc_binary's <name>.stripped; --stripopt adds to it), by
@@ -108,7 +126,9 @@ alias(
     visibility = ["//visibility:public"],
 )
 
-# The target platforms of xclang's toolchains, by triple.
+# The target platforms of xclang's toolchains, by triple: an MSVC target's
+# is a specialization of the MinGW target's of its cpu, which select()
+# prefers.
 [
     config_setting(
         name = target,
@@ -116,6 +136,23 @@ alias(
     )
     for target in TARGETS
 ]
+
+# What has no build for the target platform (@libclang for the MSVC
+# targets): its dependents are incompatible, skipped by //... .
+cc_library(
+    name = "none",
+    target_compatible_with = ["@platforms//:incompatible"],
+    visibility = ["//visibility:public"],
+)
+
+# Microsoft's STL in place of libc++ for the MSVC targets, a feature of the
+# whole build (--features=msvc_stl), which @xclang//bazel:std follows
+# (bazel/toolchain.bzl): a module's importers take the options it was built
+# with.
+config_setting(
+    name = "msvc_stl",
+    values = {"features": "msvc_stl"},
+)
 
 # The same with --features=asan, which @libclang follows (bazel/libclang.bzl).
 [

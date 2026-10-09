@@ -7,14 +7,17 @@ own tools:
     xclang_debug_symbols(name = "tool_symbols", binary = ":tool")
 
 gives tool.gsym, GSYM (functions, inlining and lines by address, a tenth of
-the DWARF's size, read by llvm-gsymutil), for every target, and for macOS
-ones tool.dSYM too. The GSYM is converted from the program's DWARF, which on
-macOS is in its dSYM: the generate_dsym_file feature (or
---apple_generate_dsym) has the link make it (bazel/dsym), where the objects
-the debug map points into are. The program needs debug information, -g
-(from -gline-tables-only's DWARF llvm-gsymutil of LLVM 23 loads no function:
-the GSYM would hold the symbol table's names only, no lines), and no
-stripping (--strip=never in fastbuild).
+the DWARF's size, read by llvm-gsymutil), for every target but the MSVC
+ones, and for macOS ones tool.dSYM too. The GSYM is converted from the
+program's DWARF, which on macOS is in its dSYM: the generate_dsym_file
+feature (or --apple_generate_dsym) has the link make it (bazel/dsym), where
+the objects the debug map points into are. The program needs debug
+information, -g (from -gline-tables-only's DWARF llvm-gsymutil of LLVM 23
+loads no function: the GSYM would hold the symbol table's names only, no
+lines), and no stripping (--strip=never in fastbuild). An MSVC target's
+debug information is CodeView, in the PDB of its link (the
+generate_pdb_file feature, on with -c dbg), which llvm-gsymutil does not
+read: for those, the rule gives tool.pdb.
 
     bazel run @xclang//bazel:llvm-gsymutil -- $PWD/bazel-bin/tool.gsym --address=0x...
 
@@ -43,10 +46,18 @@ _HINT = "llvm-gsymutil found nothing to convert? The program needs debug informa
 def _xclang_debug_symbols_impl(ctx):
     cc_toolchain = find_cc_toolchain(ctx)
     binary = ctx.attr.binary[DefaultInfo].files_to_run.executable
+    groups = ctx.attr.binary[OutputGroupInfo] if OutputGroupInfo in ctx.attr.binary else None
+    if ctx.target_platform_has_constraint(ctx.attr._msvc[platform_common.ConstraintValueInfo]):
+        pdbs = getattr(groups, "pdb_file", depset()).to_list() if groups else []
+        if not pdbs:
+            fail("%s has no PDB: give it features = [\"generate_pdb_file\"], or build with -c dbg" % ctx.attr.binary.label)
+        return [
+            DefaultInfo(files = depset(pdbs)),
+            OutputGroupInfo(pdb = depset(pdbs)),
+        ]
     dsym = None
     dwarf = binary
     if ctx.target_platform_has_constraint(ctx.attr._macos[platform_common.ConstraintValueInfo]):
-        groups = ctx.attr.binary[OutputGroupInfo] if OutputGroupInfo in ctx.attr.binary else None
         dsyms = getattr(groups, "dsyms", depset()).to_list() if groups else []
         if not dsyms:
             fail("%s has no dSYM: give it features = [\"generate_dsym_file\"], or build with --apple_generate_dsym" % ctx.attr.binary.label)
@@ -101,14 +112,15 @@ xclang_debug_symbols = rule(
     attrs = {
         "binary": attr.label(
             mandatory = True,
-            doc = "The cc_binary; on macOS, with the generate_dsym_file feature.",
+            doc = "The cc_binary; on macOS, with the generate_dsym_file feature; for an MSVC target, with generate_pdb_file.",
         ),
         "gsymutil_args": attr.string_list(
             doc = "More options of llvm-gsymutil --convert, after the default --num-threads=1, e.g. --merged-functions for a program linked with ICF.",
         ),
         "_macos": attr.label(default = "@platforms//os:macos"),
+        "_msvc": attr.label(default = Label("//platforms/libc:msvc")),
     },
     toolchains = use_cc_toolchain(),
     fragments = ["cpp"],
-    doc = "<binary>.gsym, and for a macOS target <binary>.dSYM, of a cc_binary.",
+    doc = "<binary>.gsym, and for a macOS target <binary>.dSYM, of a cc_binary; for an MSVC target, <binary>.pdb.",
 )

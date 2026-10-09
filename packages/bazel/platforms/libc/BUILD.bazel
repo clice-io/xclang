@@ -1,8 +1,8 @@
-# The C library a target links, as rules_cc's target_libc names it: for
-# select(), and so that another C library of an os and cpu (musl, MSVC's) can
-# have toolchains of its own. Those of musl ask a platform for it
-# (bazel/toolchains/musl), the others only for os and cpu, so a platform
-# without this constraint gets glibc on Linux and MinGW on Windows.
+# The C library a target links, as rules_cc's target_libc names it (but
+# MSVC's): for select(), and so that another C library of an os and cpu can
+# have toolchains of its own. Those of musl and MSVC's ask a platform for it
+# (bazel/toolchains/musl, msvc), the others only for os and cpu, so a
+# platform without this constraint gets glibc on Linux and MinGW on Windows.
 constraint_setting(
     name = "libc",
     visibility = ["//visibility:public"],
@@ -32,6 +32,14 @@ constraint_value(
 # libSystem (macOS).
 constraint_value(
     name = "macosx",
+    constraint_setting = ":libc",
+    visibility = ["//visibility:public"],
+)
+
+# Microsoft's CRT on UCRT, the MSVC targets' (Windows), whose toolchains ask
+# for it; rules_cc's target_libc is msvcrt.
+constraint_value(
+    name = "msvc",
     constraint_setting = ":libc",
     visibility = ["//visibility:public"],
 )

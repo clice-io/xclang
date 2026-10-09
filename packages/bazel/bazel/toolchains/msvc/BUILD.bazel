@@ -1,0 +1,27 @@
+load("@xclang_sdks//:sdks.bzl", "SDKS")
+load("//bazel:hosts.bzl", "HOSTS", "TARGETS", "builds", "constraints")
+load("//bazel:unsupported.bzl", "xclang_unsupported_toolchain")
+
+# The toolchains of every host for the MSVC targets (../BUILD.bazel), which
+# ask for the C library too (@xclang//platforms/libc:msvc). Registered
+# before the others, which a platform of the MSVC targets matches as well.
+[
+    toolchain(
+        name = "%s-to-%s" % (host, target),
+        exec_compatible_with = constraints(host),
+        target_compatible_with = constraints(target),
+        toolchain = "@xclang_%s//:cc_%s" % (host, target) if builds(host, target, SDKS) else ":no-windows-sdk",
+        toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+    )
+    for host in HOSTS
+    for target in TARGETS
+    if TARGETS[target].libc == "msvc"
+]
+
+# Without Microsoft's SDK, a build for them fails with why.
+xclang_unsupported_toolchain(
+    name = "no-windows-sdk",
+    message = ("xclang builds for the MSVC targets with Microsoft's CRT, STL and Windows SDK, which the root module " +
+               "fetches with xclang.windows_sdk(accept_license = True) in its MODULE.bazel " +
+               "(https://docs.clice.io/xclang/integrations/bazel#vendor-sdks)"),
+)

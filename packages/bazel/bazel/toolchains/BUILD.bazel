@@ -1,3 +1,4 @@
+load("@xclang_sdks//:sdks.bzl", "SDKS")
 load("//bazel:hosts.bzl", "HOSTS", "OTHER_LIBCS", "TARGETS", "builds", "constraints")
 load("//bazel:unsupported.bzl", "xclang_unsupported_toolchain")
 
@@ -5,13 +6,14 @@ load("//bazel:unsupported.bzl", "xclang_unsupported_toolchain")
 # host itself, <host>-to-<target> for another target (--platforms,
 # //platforms). Each is the toolchain of the host's archive configured for
 # the target, and only the one of the machine is fetched
-# (bazel/repositories.bzl). Those of musl are in musl/, registered first.
+# (bazel/repositories.bzl). Those of musl and of the MSVC targets are in
+# musl/ and msvc/, registered first.
 [
     toolchain(
         name = host if host == target else "%s-to-%s" % (host, target),
         exec_compatible_with = constraints(host),
         target_compatible_with = constraints(target),
-        toolchain = "@xclang_%s//:cc_%s" % (host, target) if builds(host, target) else ":no-macos-sdk-on-" + host,
+        toolchain = "@xclang_%s//:cc_%s" % (host, target) if builds(host, target, SDKS) else ":no-macos-sdk",
         toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
     )
     for host in HOSTS
@@ -19,14 +21,11 @@ load("//bazel:unsupported.bzl", "xclang_unsupported_toolchain")
     if TARGETS[target].libc not in OTHER_LIBCS
 ]
 
-# The macOS targets from another host: a build for them fails with why,
-# rather than with a compiler's error or no toolchain at all.
-[
-    xclang_unsupported_toolchain(
-        name = "no-macos-sdk-on-" + host,
-        message = ("xclang builds for macOS on macOS hosts only, where Xcode's macOS SDK is, " +
-                   "and not on %s (https://docs.clice.io/xclang/integrations/bazel#cross-compiling)") % host,
-    )
-    for host in HOSTS
-    if TARGETS[host].os != "macos"
-]
+# The macOS targets from another host without Apple's SDK: a build for them
+# fails with why, rather than with a compiler's error or no toolchain at all.
+xclang_unsupported_toolchain(
+    name = "no-macos-sdk",
+    message = ("xclang builds for macOS off macOS hosts with Apple's SDK, which the root module fetches " +
+               "with xclang.macos_sdk(accept_license = True) in its MODULE.bazel " +
+               "(https://docs.clice.io/xclang/integrations/bazel#vendor-sdks)"),
+)

@@ -4,7 +4,7 @@ absolute directory (bazel/toolchain.bzl picks the target's linker's)."""
 
 def _thinlto_cache_impl(rctx):
     path = (rctx.getenv("XCLANG_THINLTO_CACHE") or "").replace("\\", "/").rstrip("/")
-    flags = {"mach_o": [], "lld": []}
+    flags = {"mach_o": [], "lld": [], "coff": []}
     if path:
         if not (path.startswith("/") or path[1:3] == ":/"):
             fail("XCLANG_THINLTO_CACHE is not an absolute path: " + path)
@@ -23,13 +23,15 @@ def _thinlto_cache_impl(rctx):
             "mach_o": ["-Wl,-cache_path_lto," + path],
             # lld for ELF and for COFF (MinGW).
             "lld": ["-Wl,--thinlto-cache-dir=" + path],
+            # lld-link (MSVC).
+            "coff": ["-Wl,/lldltocache:" + path],
         }
     build = """\
 load("@rules_cc//cc/toolchains:args.bzl", "cc_args")
 load("@rules_cc//cc/toolchains:feature.bzl", "cc_feature")
 
-# The thinlto_cache feature for Mach-O targets and for the others
-# (bazel/thinlto_cache.bzl); no flags without XCLANG_THINLTO_CACHE.
+# The thinlto_cache feature for Mach-O targets, for the MSVC targets and for
+# the others (bazel/thinlto_cache.bzl); no flags without XCLANG_THINLTO_CACHE.
 """
     for name, args in flags.items():
         build += """

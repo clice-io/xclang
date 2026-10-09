@@ -4,7 +4,7 @@ and clang's CMake packages give it, so that a consumer names the libraries it
 uses and nothing else. @libclang is an alias of each, to the libclang of the
 target platform."""
 
-load(":hosts.bzl", "TARGETS")
+load(":hosts.bzl", "HOSTS", "TARGETS")
 
 # The libraries of every target's archive, named before any is fetched: the
 # aliases of @libclang. An archive with another fails to load, for this list
@@ -374,11 +374,17 @@ libclang_alias_targets({prefix}, {asan_prefix})
 def libclang_alias_targets(prefix, asan_prefix = ""):
     """The aliases of libclang_aliases' BUILD file. Libraries, headers and
     resource directory switch together, the ASan build's (bazel/BUILD.bazel's
-    <triple>-asan, the more specific setting) or not."""
+    <triple>-asan, the more specific setting) or not. The MSVC targets have
+    none: what depends on it is incompatible with them."""
     for name in LIBRARIES + _OTHERS:
-        actual = {Label("//bazel:" + target): "@%s%s//:%s" % (prefix, target, name) for target in TARGETS}
+        actual = {Label("//bazel:" + target): "@%s%s//:%s" % (prefix, target, name) for target in HOSTS}
         if asan_prefix:
-            actual |= {Label("//bazel:%s-asan" % target): "@%s%s//:%s" % (asan_prefix, target, name) for target in TARGETS}
+            actual |= {Label("//bazel:%s-asan" % target): "@%s%s//:%s" % (asan_prefix, target, name) for target in HOSTS}
+        for target in TARGETS:
+            if target not in HOSTS:
+                actual[Label("//bazel:" + target)] = Label("//bazel:none")
+                if asan_prefix:
+                    actual[Label("//bazel:%s-asan" % target)] = Label("//bazel:none")
         native.alias(
             name = name,
             actual = select(actual, no_match_error = "xclang has no libclang for the target platform"),

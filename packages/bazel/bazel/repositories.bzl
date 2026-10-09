@@ -1,9 +1,10 @@
 """The repositories of the xclang module (bazel/extensions.bzl): a host's
 toolchain, a target's libclang and the option tables from the release
 archives, rules_cc's unix toolchain config with xclang's changes, and the
-macOS SDK."""
+path of Xcode's macOS SDK (the vendor SDKs a project fetches are
+bazel/sdk.bzl's)."""
 
-load(":hosts.bzl", "TARGETS", "host_triple")
+load(":hosts.bzl", "TARGETS", "host_triple", "sdk_repository")
 load(":libclang.bzl", "libclang_aliases", "libclang_build")
 
 _URL = "https://github.com/clice-io/xclang/releases/download/{version}/{name}"
@@ -49,7 +50,9 @@ _SCAN_DEPS_BAT = """\
 # in the same action, where they are; ThinLTO's are kept for it beside the
 # dSYM, as clang keeps them when it compiles and links in one command, and
 # the functions identical code folding merged keep their entries in the
-# debug map (--keep-icf-stabs), so the dSYM has their names too.
+# debug map (--keep-icf-stabs), so the dSYM has their names too. dsymutil's
+# classic DWARF linker: the parallel one, LLVM 23's default, writes DWARF
+# 5's line tables (for macOS 15 and later) that atos crashes on.
 _DSYM_LINK_SH = """\
 #!/bin/sh
 dir=$(dirname "$0")
@@ -57,11 +60,59 @@ dir=$(dirname "$0")
 lto="$XCLANG_DSYM.lto"
 rm -rf "$lto" && mkdir -p "$lto" &&
     "$dir/bin/clang" "$@" "-Wl,-object_path_lto,$lto" -Wl,--keep-icf-stabs &&
-    "$dir/bin/dsymutil" "$XCLANG_DSYM_BINARY" -o "$XCLANG_DSYM"
+    "$dir/bin/dsymutil" --linker classic "$XCLANG_DSYM_BINARY" -o "$XCLANG_DSYM"
 status=$?
 rm -rf "$lto"
 exit $status
 """
+
+# The same on a Windows host, for cmd: the paths of XCLANG_DSYM and
+# XCLANG_DSYM_BINARY have forward slashes, which its own commands take for
+# options.
+_DSYM_LINK_BAT = """\
+@echo off\r
+setlocal\r
+if not "%XCLANG_DSYM%"=="" goto dsym\r
+"%~dp0bin\\clang.exe" %*\r
+exit /b\r
+:dsym\r
+set "lto=%XCLANG_DSYM:/=\\%.lto"\r
+if exist "%lto%" rmdir /s /q "%lto%"\r
+mkdir "%lto%" || exit /b\r
+"%~dp0bin\\clang.exe" %* "-Wl,-object_path_lto,%lto%" -Wl,--keep-icf-stabs\r
+if errorlevel 1 goto end\r
+"%~dp0bin\\dsymutil.exe" --linker classic "%XCLANG_DSYM_BINARY%" -o "%XCLANG_DSYM%"\r
+:end\r
+set status=%errorlevel%\r
+rmdir /s /q "%lto%"\r
+exit /b %status%\r
+"""
+
+def _bazel_cfg(rctx, name, root, sdk, seen = []):
+    """bin/<name> with its paths made relative to the execution root
+    (<CFGDIR>/.. is the toolchain's root), and the files it includes
+    inlined, but the SDK in use's: the config file of the vendor SDK's
+    repository (bazel/sdk.bzl) in its place, sdk, relative to cfg/ as
+    clang takes it. (The config files' sdk/ is the toolchain's, which
+    xclang sdk fetches into.)"""
+    if name in seen:
+        fail("bin/%s includes itself" % name)
+    lines = []
+    for line in rctx.read("bin/" + name).split("\n"):
+        include = line.strip().removeprefix("@") if line.strip().startswith("@") else None
+        if "<CFGDIR>/../sdk/" in line or (include and ("sdk/" in include or include.endswith("-sdk.cfg"))):
+            if not sdk:
+                fail("bin/%s names an SDK, for a target without one: %s" % (name, line))
+            if "@" + sdk not in lines:
+                lines.append("@" + sdk)
+        elif include:
+            lines.append(_bazel_cfg(rctx, include, root, sdk, seen + [name]))
+        else:
+            lines.append(line.replace("<CFGDIR>/..", root))
+    text = "\n".join(lines)
+    if "<CFGDIR>" in text:
+        fail("bin/%s has paths other than <CFGDIR>/.." % name)
+    return text
 
 def _toolchain_impl(rctx):
     host = rctx.attr.host
@@ -78,27 +129,27 @@ def _toolchain_impl(rctx):
     # Each target's config file with the paths relative to the execution root,
     # where the toolchain's actions run: clang makes a config file's
     # directory absolute, which would put the sandbox's path into the
-    # dependency files.
+    # dependency files. The vendor SDK is its repository's (bazel/sdk.bzl),
+    # whose config file names it. A target of a later release (musl's, from
+    # 23.1.2.10 on; the MSVC targets', from 23.1.2.7) has no toolchain here
+    # (bazel/toolchain.bzl); the MSVC targets' have no directory before
+    # 23.1.2.10, only config files.
     root = "external/" + rctx.name
     for target, t in TARGETS.items():
-        # A target of a later release (musl's, from 23.1.2.10 on) has no
-        # toolchain here (bazel/toolchain.bzl).
-        if not rctx.path(target).exists:
+        if not rctx.path("bin/%s.cfg" % t.cfg).exists:
             continue
-        text = rctx.read("bin/%s.cfg" % t.cfg).replace("<CFGDIR>/..", root)
-        if "<CFGDIR>" in text:
-            fail("bin/%s.cfg has paths other than <CFGDIR>/.." % t.cfg)
-        rctx.file("cfg/%s.cfg" % target, "# bin/%s.cfg for Bazel (bazel/repositories.bzl).\n%s-resource-dir=%s/lib/clang/%s\n" % (
+        sdk = sdk_repository(host, target)
+        rctx.file("cfg/%s.cfg" % target, "# bin/%s.cfg for Bazel (bazel/repositories.bzl).\n%s\n-resource-dir=%s/lib/clang/%s\n" % (
             t.cfg,
-            text,
+            _bazel_cfg(rctx, t.cfg + ".cfg", root, "../../%s/sdk.cfg" % Label("@%s//:sdk.cfg" % sdk).repo_name if sdk else None),
             root,
             clang_version,
         ))
-    if TARGETS[host].os == "macos":
-        rctx.file("dsym_link.sh", _DSYM_LINK_SH, executable = True)
     if TARGETS[host].os == "windows":
+        rctx.file("dsym_link.bat", _DSYM_LINK_BAT)
         rctx.file("scan_deps.bat", _SCAN_DEPS_BAT)
     else:
+        rctx.file("dsym_link.sh", _DSYM_LINK_SH, executable = True)
         rctx.file("scan_deps.sh", _SCAN_DEPS_SH, executable = True)
     macos = TARGETS[host].os == "macos"
     rctx.file("BUILD.bazel", """\
@@ -112,12 +163,12 @@ xclang_host_toolchains(
     absolute_root = {absolute_root},
     clang_version = {clang_version},
     host = {host},
-    macos_sdk = {sdk},
+    xcode_sdk = {sdk},
     root = {root},
 )
 """.format(
         toolchain_bzl = json.encode(str(Label("//bazel:toolchain.bzl"))),
-        sdk_load = 'load("@xclang_macos_sdk//:sdk.bzl", "SDK")\n' if macos else "",
+        sdk_load = 'load("@xclang_xcode_sdk//:sdk.bzl", "SDK")\n' if macos else "",
         absolute_root = json.encode(str(rctx.path(".")).replace("\\", "/")),
         clang_version = json.encode(clang_version),
         host = json.encode(host),
@@ -214,11 +265,13 @@ xclang_unix_config = repository_rule(
         "_patches": attr.label_list(default = [
             Label("//bazel:rules_cc-mingw.patch"),
             Label("//bazel:rules_cc-xclang.patch"),
+            Label("//bazel:rules_cc-msvc.patch"),
         ]),
     },
     doc = """rules_cc's unix toolchain config, from the rules_cc of the build, with
 xclang's patches: Windows names for MinGW's executables and DLLs
-(rules_cc-mingw.patch), and xclang's defaults (rules_cc-xclang.patch): static
+(rules_cc-mingw.patch), the MSVC targets' flags for lld-link, their PDB and
+their C runtimes (rules_cc-msvc.patch), and xclang's defaults (rules_cc-xclang.patch): static
 linking unless a target asks for the supports_dynamic_linker feature, other
 repositories' headers as system headers (external_include_paths), the
 sanitizer features' link flags (sanitizer_link_flags), a program of the
@@ -228,7 +281,7 @@ public files, so a copy works from here; no consumer needs an override of
 rules_cc.""",
 )
 
-def _macos_sdk_impl(rctx):
+def _xcode_sdk_impl(rctx):
     sdk = ""
     if rctx.os.name.lower().startswith("mac"):
         # xcrun follows these.
@@ -241,8 +294,8 @@ def _macos_sdk_impl(rctx):
     rctx.file("BUILD.bazel", "")
     rctx.file("sdk.bzl", "SDK = %s\n" % json.encode(sdk))
 
-xclang_macos_sdk = repository_rule(
-    implementation = _macos_sdk_impl,
+xclang_xcode_sdk = repository_rule(
+    implementation = _xcode_sdk_impl,
     configure = True,
-    doc = "The path of Xcode's macOS SDK, the one part of the toolchain not in the archive.",
+    doc = "The path of Xcode's macOS SDK, which a macOS host's toolchain builds the macOS targets against.",
 )

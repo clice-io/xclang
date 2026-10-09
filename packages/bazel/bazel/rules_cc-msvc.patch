@@ -1,0 +1,220 @@
+--- a/cc/private/toolchain/unix_cc_toolchain_config.bzl
++++ b/cc/private/toolchain/unix_cc_toolchain_config.bzl
+@@ -260,8 +260,76 @@
+         ],
+     )
+ 
++def _crt(runtime, features, not_features = []):
++    """-fms-runtime-lib=<runtime> in compiles and links, with features and not not_features."""
++    return flag_set(
++        actions = all_compile_actions + all_link_actions,
++        flag_groups = [flag_group(flags = ["-fms-runtime-lib=" + runtime])],
++        with_features = [with_feature_set(features = features, not_features = not_features)],
++    )
++
++def _msvc_features():
++    """The MSVC targets' own features: the PDB of a link
++    (generate_pdb_file, which cc_binary declares <name>.pdb for), the VC
++    runtime as DLLs (dynamic_link_msvcrt, /MD) and the debug CRT
++    (debug_msvcrt, /MTd or /MDd) in place of the hybrid CRT the config
++    files have (the VC runtime linked in, UCRT's DLL), and Microsoft's STL
++    in place of libc++ (msvc_stl)."""
++    return [
++        feature(
++            name = "msvc_stl",
++            flag_sets = [
++                flag_set(
++                    actions = all_cpp_compile_actions + all_link_actions,
++                    flag_groups = [flag_group(flags = ["-stdlib=platform"])],
++                ),
++            ],
++        ),
++        feature(
++            name = "generate_pdb_file",
++            flag_sets = [
++                flag_set(
++                    actions = all_link_actions,
++                    flag_groups = [flag_group(flags = [
++                        "-Wl,/debug",
++                        # The PDB by its name only in the program, and the
++                        # sources by their paths from the execution root:
++                        # the same files wherever the build ran.
++                        "-Wl,/pdbaltpath:%%_PDB%%",
++                        "-Wl,/pdbsourcepath:.",
++                    ])],
++                ),
++            ],
++        ),
++        feature(
++            name = "dynamic_link_msvcrt",
++            flag_sets = [
++                _crt("dll", ["dynamic_link_msvcrt"], ["debug_msvcrt"]),
++            ],
++        ),
++        feature(
++            name = "debug_msvcrt",
++            flag_sets = [
++                _crt("dll_dbg", ["dynamic_link_msvcrt"]),
++                _crt("static_dbg", [], ["dynamic_link_msvcrt"]),
++                # Without UCRT's import library, which the config files'
++                # hybrid CRT names in every object: the debug CRT is
++                # ucrtbased.dll's. Only an option of the link comes before
++                # the objects' own.
++                flag_set(
++                    actions = all_link_actions,
++                    flag_groups = [flag_group(flags = ["-Wl,/nodefaultlib:ucrt.lib"])],
++                ),
++            ],
++        ),
++    ]
++
+ def _impl(ctx):
+     is_linux = ctx.attr.target_libc != "macosx"
++
++    # MSVC's CRT (target_libc msvcrt) with clang's GNU driver and lld-link:
++    # the flags of the ELF linker in their spellings for lld-link, or none.
++    is_msvc = ctx.attr.target_libc == "msvcrt"
+     target_macos_and_use_libtool = not is_linux and ctx.attr._use_libtool_on_macos[BuildSettingInfo].value
+     profile_correction_flags = get_profile_correction_flags(ctx)
+ 
+@@ -425,9 +493,10 @@
+     )
+     action_configs.append(cpp20_module_codegen)
+ 
++    # Off for the MSVC targets, for which -fPIC is an error.
+     supports_pic_feature = feature(
+         name = "supports_pic",
+-        enabled = True,
++        enabled = not is_msvc,
+     )
+     prefer_pic_for_opt_binaries_feature = feature(
+         name = "prefer_pic_for_opt_binaries",
+@@ -567,7 +636,9 @@
+ 
+     fastbuild_feature = feature(name = "fastbuild")
+ 
+-    dbg_feature = feature(name = "dbg")
++    # MSVC targets: the PDB of the link, with -c dbg as Bazel's MSVC
++    # toolchains have it.
++    dbg_feature = feature(name = "dbg", implies = ["generate_pdb_file"] if is_msvc else [])
+ 
+     opt_feature = feature(name = "opt")
+ 
+@@ -1024,6 +1095,12 @@
+             ],
+         )
+ 
++    if is_msvc:
++        # No rpath and no soname: Windows finds DLLs beside the program and
++        # on PATH, by the name the import library has.
++        runtime_library_search_directories_feature = feature(name = "runtime_library_search_directories")
++        set_install_name_feature = feature(name = "set_soname")
++
+     fission_support_feature = feature(
+         name = "fission_support",
+         flag_sets = [
+@@ -1221,7 +1298,9 @@
+ 
+     strip_debug_symbols_feature = feature(
+         name = "strip_debug_symbols",
+-        flag_sets = [
++        # MSVC targets: the debug information is in the PDB, which a link
++        # without /debug (generate_pdb_file) does not write.
++        flag_sets = [] if is_msvc else [
+             flag_set(
+                 actions = all_link_actions + lto_index_actions,
+                 flag_groups = [
+@@ -1327,6 +1406,53 @@
+         ),
+     ]
+ 
++    if is_msvc:
++        # lld-link's spellings: /wholearchive:<library>; a library named
++        # by -l is <name>.lib.
++        libraries_to_link_common_flag_groups = [
++            flag_group(
++                flags = ["%{libraries_to_link.object_files}"],
++                iterate_over = "libraries_to_link.object_files",
++                expand_if_equal = variable_with_value(
++                    name = "libraries_to_link.type",
++                    value = "object_file_group",
++                ),
++            ),
++        ] + [
++            flag_group(
++                flags = ["%{libraries_to_link.name}"],
++                expand_if_equal = variable_with_value(
++                    name = "libraries_to_link.type",
++                    value = type,
++                ),
++            )
++            for type in ["object_file", "interface_library"]
++        ] + [
++            flag_group(
++                flags = ["%{libraries_to_link.name}"],
++                expand_if_false = "libraries_to_link.is_whole_archive",
++                expand_if_equal = variable_with_value(
++                    name = "libraries_to_link.type",
++                    value = "static_library",
++                ),
++            ),
++            flag_group(
++                flags = ["-Wl,/wholearchive:%{libraries_to_link.name}"],
++                expand_if_true = "libraries_to_link.is_whole_archive",
++                expand_if_equal = variable_with_value(
++                    name = "libraries_to_link.type",
++                    value = "static_library",
++                ),
++            ),
++            flag_group(
++                flags = ["-l%{libraries_to_link.name}"],
++                expand_if_equal = variable_with_value(
++                    name = "libraries_to_link.type",
++                    value = "dynamic_library",
++                ),
++            ),
++        ]
++
+     libraries_to_link_feature = feature(
+         name = "libraries_to_link",
+         flag_sets = [
+@@ -1646,7 +1772,7 @@
+                 flag_groups = [
+                     flag_group(
+                         flags = [
+-                            "-Wl,-Map=%{output_execpath}.map" if is_linux else "-Wl,-map,%{output_execpath}.map",
++                            "-Wl,/map:%{output_execpath}.map" if is_msvc else "-Wl,-Map=%{output_execpath}.map" if is_linux else "-Wl,-map,%{output_execpath}.map",
+                         ],
+                         expand_if_available = "output_execpath",
+                     ),
+@@ -1779,7 +1905,7 @@
+             flag_set(
+                 actions = all_link_actions,
+                 flag_groups = [flag_group(
+-                    flags = ["-Wl,-fatal-warnings"] if is_linux else ["-Wl,-fatal_warnings"],
++                    flags = ["-Wl,/wx"] if is_msvc else ["-Wl,-fatal-warnings"] if is_linux else ["-Wl,-fatal_warnings"],
+                 )],
+             ),
+         ],
+@@ -1972,8 +2098,9 @@
+                 extension = _cpp_module_extension(ctx.attr.compiler),
+             ),
+         ]
+-        if ctx.attr.target_libc == "mingw":
+-            # A GCC-style compiler driver targeting Windows (MinGW): the
++        if ctx.attr.target_libc in ("mingw", "msvcrt"):
++            # A GCC-style compiler driver targeting Windows (MinGW, and MSVC's
++            # CRT with clang's GNU driver): the
+             # executables and DLLs it links need their Windows names; static
+             # libraries keep the GNU lib<name>.a naming MinGW uses as well.
+             artifact_name_patterns.extend([
+@@ -2127,6 +2254,9 @@
+     if symbol_check:
+         features.append(symbol_check)
+ 
++    if is_msvc:
++        features.extend(_msvc_features())
++
+     extra_rules_based_features = depset(ctx.attr.extra_enabled_features + ctx.attr.extra_known_features)
+     features.extend([convert_feature(extra_feature[FeatureInfo], enabled = extra_feature in ctx.attr.extra_enabled_features) for extra_feature in extra_rules_based_features.to_list()])
+ 

@@ -2,8 +2,9 @@ load("//bazel:hosts.bzl", "OTHER_LIBCS", "SPELLINGS", "TARGETS", "constraints")
 
 # A platform per target, named by its triple, for --platforms: its os and cpu,
 # all the toolchains ask of a platform, and its C library (libc/BUILD.bazel),
-# which those of musl ask for too (constraints). The macOS targets build on
-# macOS hosts only.
+# which those of musl and of the MSVC targets ask for too (constraints). The
+# macOS targets build off macOS hosts, and the MSVC targets anywhere, with
+# the vendor's SDK.
 [
     platform(
         name = triple,
