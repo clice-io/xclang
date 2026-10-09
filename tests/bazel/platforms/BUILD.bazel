@@ -1,0 +1,9 @@
+# A platform of one's own with an os and cpu only, which the module's
+# toolchains take as MinGW's (tests/bazel/bazel.ts).
+platform(
+    name = "windows_x86_64",
+    constraint_values = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+)

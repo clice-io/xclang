@@ -7,7 +7,9 @@
 ///    builds tests/bazel's programs from the disk cache alone: no action's
 ///    key holds an absolute path. So do they, built for a target of another
 ///    os (--platforms), which fetches no other host's toolchain and the
-///    libclang of that target only; a macOS target off macOS fails with why.
+///    libclang of that target only. A Windows platform of os and cpu alone
+///    gets MinGW; without the vendor's SDK, an MSVC target, and a macOS
+///    target off macOS, fail with why.
 /// 2. The module as the registry has it: packages/bazel/bazel.ts's archive of
 ///    packages/bazel, in a registry of its own, in place of tests/bazel's
 ///    local_path_override: the same actions, from the disk cache.
@@ -168,9 +170,17 @@ check(fetched.every((r) => r === `xclang_${host}` || [host, cross].includes(r.re
   `fetched for ${host} and ${cross}: ${fetched.join(", ")}`);
 if (process.platform !== "darwin") {
   const macos = run(tests, ["build", "--platforms=@xclang//platforms:aarch64-apple-darwin", "//c:c_test"]);
-  check(macos.status !== 0 && macos.stderr.includes("xclang builds for macOS on macOS hosts only"),
-    "a macOS target off macOS: the build fails with why");
+  check(macos.status !== 0 && macos.stderr.includes("xclang.macos_sdk(accept_license = True)"),
+    "a macOS target off macOS without Apple's SDK: the build fails with why");
 }
+const msvc = run(tests, ["build", "--platforms=@xclang//platforms:x86_64-pc-windows-msvc", "//c:c_test"]);
+check(msvc.status !== 0 && msvc.stderr.includes("xclang.windows_sdk(accept_license = True)"),
+  "an MSVC target without Microsoft's SDK: the build fails with why");
+/// The MSVC targets' toolchains ask for their C library: a Windows platform
+/// of os and cpu alone gets MinGW's.
+const plain = run(tests, ["aquery", "--platforms=//platforms:windows_x86_64", 'mnemonic("CppCompile", //c:c_test)']);
+check(plain.status === 0 && plain.stdout.includes("--target=x86_64-w64-mingw32"),
+  "a Windows platform of os and cpu alone: MinGW's toolchain");
 
 /// tests/bazel elsewhere on the module at the release's version, from where
 /// `override` (in place of local_path_override) says; built, then gone.

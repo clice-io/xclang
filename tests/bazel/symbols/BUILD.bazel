@@ -28,7 +28,10 @@ cc_binary(
         "-ffunction-sections",
     ],
     features = ["generate_dsym_file"],
-    linkopts = ["-Wl,--icf=all"],
+    linkopts = select({
+        "@xclang//platforms/libc:msvc": ["-Wl,/opt:icf"],
+        "//conditions:default": ["-Wl,--icf=all"],
+    }),
 )
 
 xclang_debug_symbols(

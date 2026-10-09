@@ -7,6 +7,12 @@ name: test-bazel
 # every other host's target it builds for, tests/bazel's tests (and, from
 # Linux x64 to Windows x64, kotatsu's) cross-compiled there and run on a
 # machine of the target (tests/bazel/cross.ts, on-target.yml).
+# The targets of the vendor SDKs the same way, the module accepting the
+# vendors' licenses for the build (cross.ts --accept-license): the MSVC
+# targets from Linux x64, macOS arm64 and Windows x64, the macOS targets
+# from Linux and Windows, with the release's toolchain and this checkout's
+# xclang command (cli.yml), which fetches the SDKs. Only programs leave
+# their jobs, never anything of an SDK, and no cache is uploaded.
 #
 #   release.yml     with a run's archives (dist-run), unpacked and named by
 #                   XCLANG_ROOT and the like, before they are released: the
@@ -132,9 +138,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: node tests/bazel/bazel.ts --disk-cache "$RUNNER_TEMP/disk"
 
-  # Built here, run on a machine of the target by on-target.yml: macOS
-  # targets build on macOS hosts only. Not for a run's archives, whose
-  # libclang is the host's only.
+  # Built here, run on a machine of the target by on-target.yml; the
+  # macOS targets from other hosts than macOS are sdk's. Not for a run's
+  # archives, whose libclang is the host's only.
   cross:
     if: ${{ !inputs.dist-run }}
     name: cross (${{ matrix.host }} to ${{ matrix.target }})
@@ -201,13 +207,90 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # This checkout's xclang command, for the toolchains of sdk: the
+  # module lists a vendor SDK's packages with it (xclang sdk packages).
+  cli:
+    if: ${{ !inputs.dist-run }}
+    uses: ./.github/workflows/cli.yml
+    with:
+      build-only: true
+      artifact: bazel-cli
+
+  # The targets of the vendor SDKs, built here with the release's toolchain
+  # and this checkout's command and config files, run on a machine of the
+  # target by on-target.yml.
+  sdk:
+    needs: cli
+    if: ${{ !cancelled() && !inputs.dist-run && needs.cli.result == 'success' }}
+    name: sdk (${{ matrix.host }} to ${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { host: x86_64-unknown-linux-gnu, target: x86_64-pc-windows-msvc }
+          - { host: x86_64-unknown-linux-gnu, target: aarch64-pc-windows-msvc }
+          - { host: aarch64-apple-darwin, target: x86_64-pc-windows-msvc }
+          - { host: aarch64-apple-darwin, target: aarch64-pc-windows-msvc }
+          - { host: x86_64-w64-mingw32, target: x86_64-pc-windows-msvc }
+          - { host: x86_64-w64-mingw32, target: aarch64-pc-windows-msvc }
+          - { host: x86_64-unknown-linux-gnu, target: aarch64-apple-darwin }
+          - { host: x86_64-unknown-linux-gnu, target: x86_64-apple-darwin }
+          - { host: aarch64-unknown-linux-gnu, target: aarch64-apple-darwin }
+          - { host: aarch64-unknown-linux-gnu, target: x86_64-apple-darwin }
+          - { host: x86_64-w64-mingw32, target: aarch64-apple-darwin }
+          - { host: x86_64-w64-mingw32, target: x86_64-apple-darwin }
+          - { host: aarch64-w64-mingw32, target: aarch64-apple-darwin }
+          - { host: aarch64-w64-mingw32, target: x86_64-apple-darwin }
+    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm","aarch64-apple-darwin":"macos-15","x86_64-apple-darwin":"macos-15-intel"}')[matrix.host] }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm install -g @bazel/bazelisk
+      - name: Release digests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download $RELEASE -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
+          node packages/bazel/bazel.ts versions "$RUNNER_TEMP/SHA256SUMS"
+      - uses: ./.github/actions/archives
+        with:
+          host: ${{ matrix.host }}
+          release: ${{ inputs.release }}
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: bazel-cli-*
+          path: built
+          merge-multiple: true
+      - name: The command built
+        run: |
+          cp built/cli-${{ matrix.host }}/xclang* "$XCLANG_TREE/bin/"
+          chmod +x "$XCLANG_TREE"/bin/xclang*
+      - name: Build
+        run: |
+          node tests/bazel/cross.ts build "${{ matrix.target }}" "$RUNNER_TEMP/out/${{ matrix.host }}/sdk" --accept-license \
+            -- "--repo_env=XCLANG_ROOT=$XCLANG_TREE"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: programs-bazel-${{ matrix.host }}-to-${{ matrix.target }}
+          path: ${{ runner.temp }}/out
+          if-no-files-found: error
+          retention-days: 7
+
   # What every other host built for this target, run there: <host>/tests,
-  # <host>/kotatsu, short paths for Windows.
+  # <host>/sdk, <host>/kotatsu, short paths for Windows.
   run:
-    needs: cross
+    needs: [cross, sdk]
     if: ${{ !cancelled() && !inputs.dist-run }}
     uses: ./.github/workflows/on-target.yml
     with:
-      targets: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin"]'
+      targets: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]'
       pattern: programs-bazel-*-to-{0}
       dir: .

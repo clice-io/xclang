@@ -34,6 +34,10 @@ on:
         description: Run whose archives' command to test, without building it
         type: string
         default: ""
+      artifact:
+        description: The build's artifacts, <artifact>-linux and <artifact>-macos, named apart from another call's in the same run
+        type: string
+        default: cli-build
 
 permissions:
   contents: read
@@ -69,7 +73,7 @@ jobs:
           cargo test --features maintainer
       - uses: actions/upload-artifact@v7
         with:
-          name: cli-build-${{ matrix.machine }}
+          name: ${{ inputs.artifact || 'cli-build' }}-${{ matrix.machine }}
           path: work/out/cli-*
           if-no-files-found: error
 
@@ -98,7 +102,7 @@ jobs:
       - uses: actions/download-artifact@v8
         if: ${{ !inputs.dist-run }}
         with:
-          pattern: cli-build-*
+          pattern: ${{ inputs.artifact || 'cli-build' }}-*
           path: built
           merge-multiple: true
       - name: The command built
