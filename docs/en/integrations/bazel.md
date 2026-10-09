@@ -228,6 +228,13 @@ sanitizers. The MSVC targets have `ubsan`, and x64 also has `asan`. ASan's
 runtime there is a DLL, which a program finds beside itself or on `PATH`
 ([MSVC targets](../features/sanitizers.md#msvc-targets)).
 
+With `--@xclang//runtimes:source`, libc++, libc++abi and libunwind are
+built from the toolchain's sources, instrumented by the build's sanitizer
+features, and `msan` works too, for the Linux targets
+([runtimes from source](../features/runtimes-from-source.md#bazel)); the
+same flag takes libc++'s hardening and ABI options. It is in no release
+yet.
+
 ## Debug in gdb, lldb and VS Code
 
 Every path in the debug information is relative to the execution root

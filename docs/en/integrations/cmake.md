@@ -257,6 +257,16 @@ importer's ([matching options](../features/modules.md#behavior)). So:
 Before putting ccache in front of the compiler, read
 [build caches and modules](../features/modules.md#build-caches-and-modules).
 
+## Build the C++ Runtimes from Source
+
+With the toolchain file, `-DXCLANG_RUNTIMES=source` builds libc++,
+libc++abi and libunwind from the toolchain's sources at the first
+configure, with options the prebuilt ones lack: MemorySanitizer
+(`-DXCLANG_SANITIZER=memory`), libc++'s hardening modes, ABI options, no
+exceptions. The whole build, `xclang::std` included, is then against
+them. It is in no release yet
+([runtimes from source](../features/runtimes-from-source.md#cmake)).
+
 ## Ship Debug Symbols
 
 `xclang_debug_symbols(<program>)` makes the debug symbols of a program

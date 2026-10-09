@@ -44,8 +44,8 @@ rest are called by them, by release.yml, or started by hand.
 |---|---|---|---|---|---|
 | docs.yml | every push and pull request, by itself | | | | `tests/docs/docs.ts` and the types (`npm run check`); on `main`, then publishing to docs.clice.io |
 | test-archives.yml | `tests/toolchain`, `tests/libclang`, `toolchain/config` | stage `test` | | | `tests/toolchain/smoke.ts` and `tests/libclang/libclang.ts` on a machine of each host; the programs the smoke test builds for other targets run on those (on-target.yml); with `repack-of`, `tests/release/repack.ts`: each host's archives against those of the release repacked (or of an earlier run of the same revision, which a full rebuild must give again), file by file, only the packaging's files differ |
-| test-cmake.yml | `packages/cmake`, `tests/cmake`, `tests/libclang` | stage `cmake` | the tag fetched from GitHub | | `tests/cmake/cmake.ts`: the package by `PATH`, through the toolchain file, and from FetchContent |
-| test-bazel.yml | `packages/bazel`, `tests/bazel` | stage `bazel`: `tests/bazel` only | ✓ | ✓ | `tests/bazel` with the module, `tests/bazel/bazel.ts`, and cross builds run on the target (`tests/bazel/cross.ts`) |
+| test-cmake.yml | `packages/cmake`, `tests/cmake`, `tests/libclang`, `toolchain/runtimes-src.ts`, `toolchain/cmake/caches` | stage `cmake` | the tag fetched from GitHub | | `tests/cmake/cmake.ts`: the package by `PATH`, through the toolchain file, from FetchContent, and with the runtimes from source; their programs for other targets run there (on-target.yml) |
+| test-bazel.yml | `packages/bazel`, `tests/bazel`, `toolchain/runtimes-src.ts` | stage `bazel`: `tests/bazel` and the runtimes from source | ✓ | ✓ | `tests/bazel` with the module, `tests/bazel/bazel.ts`, the runtimes from source (`tests/bazel/runtimes.ts`), and cross builds run on the target (`tests/bazel/cross.ts`) |
 | test-sdk.yml | `tests/sdk`, `toolchain/config`, `packages/cmake` | stage `sdk`; needs `cli`, as the archives' `xclang` fetches the SDKs | | | the MSVC targets (`tests/sdk/msvc.ts`) and the macOS targets from Linux and Windows hosts (`tests/sdk/macos.ts`); their programs on Windows and Macs |
 | cli.yml | `xclang`, `tests/cli`, `tests/sdk` | the build, for stage `package`; stage `cli` | | ✓ | the `xclang` command: rustfmt, clippy, unit tests, `tests/cli/cli.ts`, `tests/cli/cargo.ts` |
 | examples.yml | `examples` | | once conda.clice.io has the release and `latest` names it | ✓ | the commands and `examples/` of the docs, as written; the programs for other targets on their runners |
@@ -164,6 +164,19 @@ Ninja 1.11, and with the newest of both:
    downloads `SHA256SUMS` and the host toolchain.
 4. `tests/libclang` with the ThinLTO cache. A second link takes every
    module's code from the cache, and the program is the same.
+5. **The runtimes from source**, with a toolchain that has their sources
+   (the archives action adds this checkout's to a release before them):
+   `tests/cmake/runtimes` once per variant, through the toolchain file.
+   With no options they are the prebuilt runtimes again: the same
+   `__config_site` and module sources, and for Linux and MinGW the same
+   code. A hardening mode traps on a read past a vector's end; an ABI
+   namespace and ABI macros of its own, without exceptions and RTTI, name
+   the code of `import std` in the program; on Linux x64, MemorySanitizer
+   reports a use of uninitialized memory inside libc++ and nothing of what
+   libc++ itself writes, and libc++ of ThinLTO is bitcode. From Linux x64
+   (to Linux arm64 and both MinGW targets) and arm64 macOS (to x86_64
+   macOS), with the newest CMake, the hardening variant's programs run on a
+   machine of the target (on-target.yml).
 
 `tests/cmake` covers a C++ module of partitions, `xclang::std` with
 `std.compat`, `xclang_add_std` with `-fno-exceptions`, and
@@ -215,6 +228,17 @@ and libclang; a Linux host runs the musl tests of its architecture
     `-c opt -g` in the sandbox and their tests pass; without
     `modules_embed_all_files`, an importer cannot open the source of the
     module it imports.
+
+`tests/bazel/runtimes.ts`, after them, builds `tests/bazel/runtimes` with the
+runtimes from source (`--@xclang//runtimes:source`), with a toolchain that
+has their sources, once per variant: with no options, the prebuilt
+`__config_site` again; a hardening mode that traps; an ABI namespace and
+ABI macros without exceptions and RTTI, which the code of `import std` is
+named with; on Linux x64, `--features=msan` reporting inside libc++ and not
+on what it writes, and `--features=thin_lto`. From Linux x64 and arm64
+macOS, the hardening variant for other targets runs on their machines.
+`packages/bazel/runtimes.ts check` (by hand) says whether
+`runtimes_sources.bzl` is still what LLVM's CMake build compiles.
 
 test-bazel.yml's cross jobs build `tests/bazel` on every host for every
 other target, and run its tests on a runner of that target. Its sdk jobs do

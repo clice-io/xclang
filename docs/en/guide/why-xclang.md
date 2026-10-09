@@ -123,7 +123,7 @@ FetchContent or the Bazel registry.
 | | status |
 |---|---|
 | [More Linux architectures, WebAssembly, Android, BSDs, bare metal](../design/roadmap.md#targets) | Considered |
-| [MemorySanitizer, through libc++ built on demand](../design/roadmap.md#msan) | Planned |
+| [MemorySanitizer, through libc++ built on demand](../design/roadmap.md#msan) | Unreleased |
 | [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
 | [Relative debug paths in CMake builds](../design/roadmap.md#cmake-relative-paths) | Planned |
 | [Immutable releases](../design/roadmap.md#immutable-releases) | Planned |

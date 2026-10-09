@@ -24,6 +24,9 @@ xclang/
   libc++/include/<target>/c++/v1/
                            each target's own __config_site, <target> as
                            clang spells it (x86_64-w64-windows-gnu)
+  libc++/src/              the runtimes' sources, the same for every target,
+                           in llvm-project's layout, patched (below); in the
+                           releases after 23.1.2.10
   mingw-w64/include/       mingw-w64's headers, the same for both Windows
                            targets
   share/licenses/          the license notices of everything in the archive
@@ -80,6 +83,17 @@ in `<toolchain>/include/c++/v1` by themselves, the macOS one before the
 SDK's, so `--no-default-config` would find xclang's headers without a
 `__config_site` there instead of the system's. Before 23.1.2.7 each target
 directory had its own copies, 155 MB of the 800 MB unpacked.
+
+## The Runtimes' Sources
+
+`libc++/src` holds what the runtimes of every target are built from, once:
+llvm-project's `runtimes/`, `cmake/`, `llvm/cmake/`, `libcxx/`,
+`libcxxabi/`, `libunwind/` and `compiler-rt/`, without tests and
+documentation, and the headers of LLVM's libc that libc++ includes, with
+xclang's patches of them applied. The CMake package and the Bazel module
+build the runtimes from them ([runtimes from source](../features/runtimes-from-source.md)),
+LLVM's `runtimes/` as from a checkout. They are 35 MB unpacked, in the
+releases after 23.1.2.10.
 
 ## Licenses
 

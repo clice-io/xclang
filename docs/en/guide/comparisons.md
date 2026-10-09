@@ -180,7 +180,7 @@ libclang.
 | [Android](../design/roadmap.md#android), [WebAssembly](../design/roadmap.md#wasm), [the BSDs](../design/roadmap.md#freebsd), [bare metal](../design/roadmap.md#bare-metal) | Considered | the NDK, wasi-sdk, zig cc |
 | [iOS and Apple's other devices](../design/roadmap.md#ios) | In research | Xcode |
 | [Windows 7 and XP](../design/roadmap.md#windows-7) | In research | llvm-mingw's msvcrt variant |
-| [Runtimes built from source with other options: MemorySanitizer, libc++ hardening, an ABI of one's own](../design/roadmap.md#libc-on-demand) | Planned | zig cc builds its runtimes on first use |
+| [Runtimes built from source with other options: MemorySanitizer, libc++ hardening, an ABI of one's own](../design/roadmap.md#libc-on-demand) | Unreleased | zig cc builds its runtimes on first use |
 
 ## Known Limitations
 

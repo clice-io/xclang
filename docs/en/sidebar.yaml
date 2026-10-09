@@ -32,6 +32,8 @@ features:
     - file: modules
       label: Modules
     - sanitizers
+    - file: runtimes-from-source
+      label: Runtimes from Source
     - file: debugging
       label: Debugging
     - file: libclang

@@ -15,6 +15,8 @@ Ninja Multi-Config generator, with Ninja 1.11 or later.
 | `xclang-config.cmake` | `find_package(xclang)`: `xclang::std`, `xclang_add_std()`, `xclang_debug_symbols()`, `XCLANG_ROOT`, the ThinLTO cache |
 | `xclang-config-version.cmake` | the release, for `find_package(xclang 23.1)` (toolchain archives only) |
 | `toolchain.cmake` | the toolchain directory as the toolchain of a build, for the host or `XCLANG_TARGET` |
+| `runtimes.cmake` | included by `toolchain.cmake`: the runtimes built from source, and the build's sanitizers (from the release after 23.1.2.10) |
+| `runtimes-cxx.cmake`, `runtimes-compiler-rt.cmake` | the CMake caches of xclang's own builds of libc++ and compiler-rt, which `runtimes.cmake` builds with |
 | `xclang.cmake` | in `packages/cmake/` only: included before `project()` from a FetchContent checkout, it downloads the toolchain |
 
 ## `find_package(xclang)`
@@ -33,7 +35,9 @@ must be xclang's `clang++`. It finds the package through `PATH`
 | `XCLANG_THINLTO_CACHE` | cache variable | an absolute directory for the ThinLTO cache of the linker; its first value comes from the environment variable of the same name ([the ThinLTO cache](../features/thinlto-cache.md#usage)) |
 
 `xclang::std` asks its importers for C++23, or for the `CMAKE_CXX_STANDARD`
-it was built with if that is 20 or later.
+it was built with if that is 20 or later. With `XCLANG_RUNTIMES=source`, it
+is built from the variant's modules and headers; that option needs the
+toolchain file, and `find_package(xclang)` fails without it.
 
 ## `toolchain.cmake`
 
@@ -46,6 +50,7 @@ cmake -G Ninja -B build --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake [-D
 | `XCLANG_TARGET` | `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`, `x86_64-w64-mingw32`, `aarch64-w64-mingw32`, `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-pc-windows-msvc` or `aarch64-pc-windows-msvc`; the host's by default. The MSVC targets, and the macOS targets on Linux and Windows hosts, build with the SDK that the toolchain's `xclang` fetched. The musl targets, from 23.1.2.10 on, are no cross build on a Linux host of their architecture, which runs their static programs (`try_run`, tests) |
 | `XCLANG_ROOT` | the toolchain directory, when the file is used from outside one |
 | `XCLANG_MSVC_STL` | `ON`: an MSVC target's C++ library is Microsoft's STL, not libc++ (`-stdlib=platform` in `CMAKE_CXX_FLAGS`), and `xclang::std` the STL's; ignored for other targets |
+| `XCLANG_RUNTIMES`, `XCLANG_SANITIZER`, ... | the runtimes built from source and the build's sanitizers ([below](#runtimes-from-source)) |
 
 It sets the C, C++ and ASM compilers, and the binary tools, to those of the
 toolchain directory: `llvm-ar`, `llvm-ranlib`, `llvm-nm`, `llvm-objcopy`,
@@ -80,6 +85,38 @@ stops if that has no SDK. It sets `CMAKE_SYSTEM_NAME` to `Darwin`,
 `CMAKE_SYSTEM_PROCESSOR` and `CMAKE_OSX_ARCHITECTURES` to `arm64` or
 `x86_64`, `CMAKE_<LANG>_COMPILER_TARGET` (C, C++, ASM, Objective-C), and
 the SDK as `CMAKE_FIND_ROOT_PATH`, with the modes above.
+
+### Runtimes from Source
+
+In no release yet ([Unreleased](../design/roadmap.md#libc-on-demand)).
+`runtimes.cmake`, which the toolchain file includes, reads these
+variables ([runtimes from source](../features/runtimes-from-source.md)):
+
+| variable | |
+|---|---|
+| `XCLANG_RUNTIMES` | `prebuilt`, the default: the toolchain's runtimes. `source`: libc++ (with libc++abi), libc++experimental and libunwind built from the toolchain's `libc++/src` for the target, with the options below, at the first configure that asks for the variant; every compile and link of the build is against them in place of the prebuilt ones, `try_compile`'s too. Not for the MSVC targets |
+| `XCLANG_SANITIZER` | a list of `address`, `memory`, `thread`, `undefined`, `leak`: `-fsanitize=` on every compile and link of the build, and runtimes that suit it. With the prebuilt runtimes, `address` adds the ASan libc++ where the target has one, and `memory` stops the configure; with `source`, the runtimes are built with the sanitizers (`LLVM_USE_SANITIZER`), and `memory` builds compiler-rt's MemorySanitizer runtime too, linked into executables |
+| `XCLANG_LIBCXX_HARDENING` | `none`, `fast`, `extensive` or `debug`: libc++'s hardening mode (`LIBCXX_HARDENING_MODE`), of the library and the default of its headers |
+| `XCLANG_LIBCXX_ABI_VERSION` | `1` or `2` (`LIBCXX_ABI_VERSION`) |
+| `XCLANG_LIBCXX_ABI_NAMESPACE` | libc++'s inline namespace, `__<name>` (`LIBCXX_ABI_NAMESPACE`) |
+| `XCLANG_LIBCXX_ABI_DEFINES` | a list of libc++'s ABI macros, such as `_LIBCPP_ABI_BOUNDED_ITERATORS` (`LIBCXX_ABI_DEFINES`) |
+| `XCLANG_RUNTIMES_EXCEPTIONS` | `OFF`: libc++ and libc++abi without exceptions |
+| `XCLANG_RUNTIMES_RTTI` | `OFF`: libc++ without RTTI; needs `XCLANG_RUNTIMES_EXCEPTIONS=OFF` |
+| `XCLANG_RUNTIMES_FLAGS` | more compile options of libc++ and libc++abi, such as `-flto=thin` |
+| `XCLANG_RUNTIMES_CMAKE_ARGS` | more arguments of the runtimes' CMake build, LLVM's `runtimes/`, `-D<variable>=<value>` each |
+| `XCLANG_RUNTIMES_DIR` | where the variants are built, `<target>-<digest>` each; `${CMAKE_BINARY_DIR}/xclang-runtimes` by default |
+
+The options but `XCLANG_RUNTIMES` and `XCLANG_SANITIZER` need
+`XCLANG_RUNTIMES=source`. A variant's directory holds its CMake builds
+(`runtimes`, and with MemorySanitizer `compiler-rt`), their logs, and
+`install`: `include/c++/v1`, the headers, `__config_site` among them, which
+come before the config file's with `-nostdinc++`; `lib`, the libraries,
+linked with `-nostdlib++` and, but for macOS and with sanitizers,
+`--unwindlib=none`; `lib/libc++.modules.json` and `share/libc++/v1`, the
+modules of `xclang::std`. Its name is a digest of the options, the target
+and the toolchain, so a variant is built once per build directory, and
+another set of options builds another beside it. The build needs Python
+3, as LLVM's does.
 
 ## `xclang.cmake`
 

@@ -171,8 +171,10 @@ its C compiler and linker. Every toolchain archive carries it, as
 
 | item | status |
 |---|---|
-| <a id="libc-on-demand"></a>libc++, libc++abi and libunwind built from source on demand | Planned |
-| <a id="msan"></a>MemorySanitizer, through libc++ built on demand | Planned |
+| <a id="libc-on-demand"></a>libc++, libc++abi and libunwind built from source on demand | Unreleased |
+| <a id="msan"></a>MemorySanitizer, through libc++ built on demand | Unreleased |
+| <a id="runtimes-msvc"></a>Runtimes from source for the MSVC targets | Planned |
+| <a id="runtimes-bazel-lto"></a>LTO of the runtimes from source with the program, in Bazel | Considered |
 | <a id="mingw-sanitizers"></a>Sanitizers for MinGW targets | Considered |
 | <a id="musl-sanitizers"></a>ASan, TSan, LSan and libFuzzer for musl targets, with a dynamically linked musl (Alpine's way) | Considered |
 | <a id="bazel-gsymutil"></a>`@xclang//bazel:llvm-gsymutil`, the toolchain's llvm-gsymutil for `bazel run` | Supported |
@@ -187,16 +189,29 @@ its C compiler and linker. Every toolchain archive carries it, as
 
 **libc++ built on demand** means libc++, libc++abi and libunwind built from
 source inside a CMake or Bazel build, from LLVM's runtime sources of the
-release, with its [patches](../reference/patches.md). It covers what the
-prebuilt runtimes cannot be:
+release, with its [patches](../reference/patches.md), which every toolchain
+carries in `libc++/src`
+([runtimes from source](../features/runtimes-from-source.md)). On `main`,
+the CMake package's toolchain file (`XCLANG_RUNTIMES=source`) and the Bazel
+module (`--@xclang//runtimes:source`) build them for every target but the
+MSVC ones. They cover what the prebuilt runtimes cannot be:
 
-- **MemorySanitizer**, which needs every library instrumented, libc++ too.
-  ThreadSanitizer also reports better through an instrumented libc++.
+- **MemorySanitizer**, which needs every library instrumented, libc++ too,
+  and compiler-rt's runtime of it, built with them. ThreadSanitizer and
+  AddressSanitizer also report through an instrumented libc++.
 - **Hardening and ABI options**: a hardening mode checked inside the
   library, libc++'s ABI version 2, bounded iterators, an ABI namespace of
   one's own, and builds without exceptions or RTTI.
-- **LTO and PGO** of libc++ together with the program.
-- **Targets without prebuilt runtimes**: tier 3 ones and Apple's devices.
+- **LTO** of libc++ together with the program, in CMake builds. Bazel runs
+  ThinLTO's backends only for the objects of the libraries it knows, which
+  the runtimes, linked by the toolchain, are not: making them such
+  libraries is considered.
+- **Targets without prebuilt runtimes**: tier 3 ones and Apple's devices,
+  once they are targets.
+
+The MSVC targets' libc++ builds on Microsoft's C++ ABI library with
+clang-cl, against the fetched SDK; building it from source there is
+planned.
 
 The prebuilt runtimes stay the default.
 

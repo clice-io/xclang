@@ -18,6 +18,20 @@ the [patches](docs/en/reference/patches.md) of its tag.
   user's cargo config and `RUSTFLAGS` in effect. A target's missing
   standard library is added with rustup, a missing vendor SDK named
   ([Rust and Cargo](docs/en/integrations/cargo.md)).
+- **The C++ runtimes built from source**, for what the prebuilt ones are
+  not: MemorySanitizer, libc++'s hardening modes, its ABI version 2,
+  bounded iterators or an inline namespace of one's own, no exceptions or
+  RTTI, LTO with the program. Every toolchain carries the runtimes' sources
+  once, patched, in `libc++/src` (35 MB unpacked, 2.3 MB of each
+  archive). The CMake toolchain file builds them at the first configure
+  with `-DXCLANG_RUNTIMES=source` and the `XCLANG_LIBCXX_*` and
+  `XCLANG_RUNTIMES_*` options, as xclang's own build does, and builds the
+  whole project against them, `xclang::std` included; `XCLANG_SANITIZER`
+  gives a build its sanitizers and runtimes that suit them, the prebuilt
+  ASan libc++ too. The Bazel module compiles them as cached actions with
+  `--@xclang//runtimes:source` and the flags beside it, instrumented by the
+  sanitizer features, `--features=msan` among them. Not yet for the MSVC
+  targets ([runtimes from source](docs/en/features/runtimes-from-source.md)).
 
 ## [23.1.2.10](https://github.com/clice-io/xclang/releases/tag/23.1.2.10) — 2026-10-09
 
