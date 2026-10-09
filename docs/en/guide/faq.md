@@ -58,7 +58,8 @@ cross-compiling. A MinGW link adds `.exe` to an output name without one.
 Name libunwind: `-Clink-arg=-l:libunwind.a`. The standard library of Rust
 links with `-nodefaultlibs` and asks for `-lgcc_s`, which is an empty
 archive in xclang's sysroots
-([Rust and Cargo](../integrations/cargo.md#settings-per-target)).
+([Rust and Cargo](../integrations/cargo.md#without-xclang-cargo)).
+`xclang cargo` links libunwind in its place by itself.
 
 ### I want the system's headers and libstdc++, not xclang's
 

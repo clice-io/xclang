@@ -130,7 +130,7 @@ FetchContent or the Bazel registry.
 | [SLSA provenance](../design/roadmap.md#slsa) | Considered |
 | [BOLT](../design/roadmap.md#bolt) | In research |
 | [A wider PGO training](../design/roadmap.md#pgo-training) | Planned |
-| [An `xclang cargo` helper](../design/roadmap.md#cargo-helper) | Considered |
+| [`xclang cargo`](../design/roadmap.md#cargo-helper), cargo set up for xclang's targets | Unreleased |
 
 ## Known Limitations
 

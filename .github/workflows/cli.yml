@@ -7,10 +7,11 @@ name: cli
 # test jobs then check it in a toolchain, on a machine of each host
 # (tests/cli/cli.ts): both vendor SDKs fetched, C, C++ and Objective-C
 # programs cross-compiled against them, target add and remove against a
-# test index; from Linux, xclang/ itself cross-built with cargo for macOS and
-# the MSVC ABI against the SDKs (tests/cli/cargo.ts). The programs run on
-# macOS and Windows (on-target.yml). Only programs leave a job, never an
-# SDK.
+# test index; from Linux x64, Windows x64 and macOS arm64, `xclang cargo`
+# for every target of it, with no cargo config: examples/cargo, a crate of
+# C, C++, CMake and bindgen, and from Linux xclang/ itself
+# (tests/cli/cargo.ts). The programs run on a machine of their target
+# (on-target.yml). Only programs leave a job, never an SDK.
 #
 #   release.yml     the build, for the archives (build-only); after them,
 #                   the tests of the command the archives carry (dist-run)
@@ -112,9 +113,10 @@ jobs:
           chmod +x "$XCLANG_TREE"/bin/xclang*
       - name: Test
         run: node tests/cli/cli.ts --tree "$XCLANG_TREE" --out "$RUNNER_TEMP/programs"
-      # cargo with xclang for the SDKs' targets, from Linux (docs/en/integrations/cargo.md).
-      - name: cargo for macOS and MSVC targets
-        if: ${{ matrix.host == 'x86_64-unknown-linux-gnu' }}
+      # xclang cargo for every target (docs/en/integrations/cargo.md); the
+      # runners have CMake, Ninja and a libclang for bindgen.
+      - name: xclang cargo
+        if: ${{ contains(fromJSON('["x86_64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-apple-darwin"]'), matrix.host) }}
         run: node tests/cli/cargo.ts --tree "$XCLANG_TREE" --out "$RUNNER_TEMP/programs"
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
@@ -128,5 +130,5 @@ jobs:
     if: ${{ !cancelled() && !inputs.build-only }}
     uses: ./.github/workflows/on-target.yml
     with:
-      targets: '["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]'
+      targets: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]'
       pattern: programs-cli-*

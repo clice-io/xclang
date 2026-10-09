@@ -47,7 +47,7 @@ rest are called by them, by release.yml, or started by hand.
 | test-cmake.yml | `packages/cmake`, `tests/cmake`, `tests/libclang` | stage `cmake` | the tag fetched from GitHub | | `tests/cmake/cmake.ts`: the package by `PATH`, through the toolchain file, and from FetchContent |
 | test-bazel.yml | `packages/bazel`, `tests/bazel` | stage `bazel`: `tests/bazel` only | ✓ | ✓ | `tests/bazel` with the module, `tests/bazel/bazel.ts`, and cross builds run on the target (`tests/bazel/cross.ts`) |
 | test-sdk.yml | `tests/sdk`, `toolchain/config`, `packages/cmake` | stage `sdk`; needs `cli`, as the archives' `xclang` fetches the SDKs | | | the MSVC targets (`tests/sdk/msvc.ts`) and the macOS targets from Linux and Windows hosts (`tests/sdk/macos.ts`); their programs on Windows and Macs |
-| cli.yml | `cli`, `tests/cli`, `tests/sdk` | the build, for stage `package`; stage `cli` | | ✓ | the `xclang` command: rustfmt, clippy, unit tests, `tests/cli/cli.ts`, `tests/cli/cargo.ts` |
+| cli.yml | `xclang`, `tests/cli`, `tests/sdk` | the build, for stage `package`; stage `cli` | | ✓ | the `xclang` command: rustfmt, clippy, unit tests, `tests/cli/cli.ts`, `tests/cli/cargo.ts` |
 | examples.yml | `examples` | | once conda.clice.io has the release and `latest` names it | ✓ | the commands and `examples/` of the docs, as written; the programs for other targets on their runners |
 | conda.yml | | | build 0, published | | each package installed with pixi and used, on every host |
 | stage-package.yml | | stage `package` | | | each host's archives made again on another machine, in another directory, with other file times, umask 077 and three xz threads (the first has four): the same bytes |
@@ -263,8 +263,20 @@ command they carry), `tests/cli/cli.ts` then:
   them on macOS and Windows runners;
 - adds and removes targets against a test index.
 
-From Linux, `tests/cli/cargo.ts` builds `cli/` with cargo for macOS and the MSVC
-ABI against the fetched SDKs ([Rust and Cargo](../integrations/cargo.md)).
+From Linux x64, Windows x64 and macOS arm64, `tests/cli/cargo.ts` runs
+`xclang cargo` for every target of it, with no cargo config
+([Rust and Cargo](../integrations/cargo.md)), against the fetched SDKs (on
+macOS, Xcode's for the macOS targets):
+
+- builds `examples/cargo`, and `tests/cli/crate`: C, C++ (exceptions,
+  `std::format`), a CMake project through the `cmake` crate and bindgen's
+  bindings, whose layout of a struct must be C's for the target, with
+  `RUSTFLAGS` of its own; from Linux also `xclang/` itself;
+- checks what each program loads, and runs them all on a machine of their
+  target; the host's target, and on Linux musl's, with `cargo run` and
+  `cargo test` too;
+- checks the errors: a `*-windows-gnu` target, a target xclang lacks, and
+  on Linux and Windows a macOS target without the SDK.
 
 ## MSVC Targets
 

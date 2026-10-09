@@ -81,11 +81,13 @@ for (const vendor of vendors) {
 }
 
 interface Crate { name: string; dir: string; program: string; env?: NodeJS.ProcessEnv; output?: string; args?: string[]; expect?: string }
+/// A crate's expected.txt, without the carriage returns of a Windows checkout.
+const expected = (dir: string) => fs.readFileSync(path.join(dir, "expected.txt"), "utf8").replaceAll("\r", "");
 const crates: Crate[] = [
-  { name: "example", dir: path.join(repo, "examples", "cargo"), program: "hello", output: fs.readFileSync(path.join(repo, "examples", "cargo", "expected.txt"), "utf8") },
+  { name: "example", dir: path.join(repo, "examples", "cargo"), program: "hello", output: expected(path.join(repo, "examples", "cargo")) },
   {
     name: "probe", dir: path.join(repo, "tests", "cli", "crate"), program: "probe",
-    env: { RUSTFLAGS: "--cfg xclang_probe" }, output: fs.readFileSync(path.join(repo, "tests", "cli", "crate", "expected.txt"), "utf8"),
+    env: { RUSTFLAGS: "--cfg xclang_probe" }, output: expected(path.join(repo, "tests", "cli", "crate")),
   },
 ];
 /// The command itself, without its LTO: as many C files, in less time.

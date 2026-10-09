@@ -77,9 +77,11 @@ runs tests under QEMU. Its default images have glibc 2.31, or 2.17 in the
 reasons".
 
 xclang works with cargo as zig does for cargo-zigbuild, with stock clang
-and xclang's runtimes. Today that is a documented recipe
-([Rust and Cargo](../integrations/cargo.md)); a helper like
-cargo-zigbuild is [considered](../design/roadmap.md#cargo-helper). Unlike
+and xclang's runtimes: `xclang cargo` sets cargo up for each target and
+links through `xclang` itself, as cargo-zigbuild does through its own
+program ([Rust and Cargo](../integrations/cargo.md),
+[Unreleased](../design/roadmap.md#cargo-helper)); with a release, it is a
+documented recipe. Unlike
 cross-rs, xclang needs no container, and runs natively on Windows and
 macOS hosts. It also runs no tests under emulation.
 

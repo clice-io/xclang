@@ -6,7 +6,9 @@ Every toolchain archive carries it, as `bin/xclang` (`xclang.exe` on
 Windows), since 23.1.2.7. Why SDKs are fetched and not shipped is in
 [vendor SDKs](../design/vendor-sdks.md). No release publishes target
 archives yet, so `xclang target add` has nothing to add; target archives
-are [planned](../design/roadmap.md#target-archives).
+are [planned](../design/roadmap.md#target-archives). `xclang cargo` runs
+cargo with the toolchain as the C compiler and linker of its targets
+([Unreleased](../design/roadmap.md#cargo-helper)).
 
 ```text
 xclang sdk list [macos|windows]
@@ -19,6 +21,7 @@ xclang sdk remove <name>
 xclang target list
 xclang target add <target>...
 xclang target remove <target>...
+xclang cargo <cargo's arguments>
 xclang --version
 ```
 
@@ -146,6 +149,18 @@ illustrative:
 - The targets every toolchain carries are listed as built in, and cannot
   be removed.
 
+## cargo
+
+`xclang cargo build --target <Rust target>`, and cargo's other commands,
+run cargo with the variables of the targets it builds for set: those of
+`--target`, of `build.target`, or the host's. The linker of each target is
+`xclang` itself, under the name `<Rust target>-linker` in xclang's cache
+directory, which runs clang (lld-link for the MSVC targets) with what the
+target needs. A target's missing standard library is added with
+`rustup target add`; a missing vendor SDK is named, with its
+`xclang sdk fetch`. What it sets, target by target, is in
+[Rust and Cargo](../integrations/cargo.md#what-xclang-cargo-sets).
+
 ## Network
 
 Every request says `User-Agent: xclang/<version>`, and nothing else about
@@ -162,6 +177,7 @@ Mozilla's roots.
 | `XCLANG_SDK_DIR` | another directory for SDKs, as `--sdk-dir` |
 | `XCLANG_JOBS` | how many threads unpack; one per CPU by default |
 | `XCLANG_TARGET_INDEX` | another target index, as `--index` |
+| `XCLANG_CACHE_DIR` | where `xclang cargo` keeps its linkers and CMake toolchain files; by default `xclang` in the user's cache directory |
 | `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`, `NO_PROXY` | honoured |
 | `SSL_CERT_FILE` | a CA file, read on Linux |
 

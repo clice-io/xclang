@@ -40,7 +40,8 @@ tests/             one directory per thing tested, its script beside its
   cmake/           cmake.ts and a project on the CMake package
   bazel/           bazel.ts and cross.ts, and a workspace on the module
   sdk/             msvc.ts and macos.ts, the targets of the vendor SDKs
-  cli/             cli.ts and cargo.ts, the xclang command
+  cli/             cli.ts and cargo.ts, the xclang command; crate/, a
+                   crate of C, C++, CMake and bindgen for xclang cargo
   release/         repack.ts, a repack against the release it repacks
   docs/            docs.ts, the docs against examples/ and examples.yml
   bench/           bench.ts and report.ts, compile speed

@@ -683,8 +683,9 @@ jobs:
           path: ${{ runner.temp }}/programs
           if-no-files-found: error
 
-  # docs/en/integrations/cargo.md: Rust programs for Windows, for Linux
-  # arm64 and for musl, linked by xclang from Linux and macOS.
+  # docs/en/integrations/cargo.md: Rust programs for Windows and for musl
+  # with xclang cargo, and for Linux arm64 with cargo set up by hand, linked
+  # by xclang from Linux, macOS and Windows.
   cargo:
     name: cargo (${{ matrix.host }})
     strategy:
@@ -693,6 +694,7 @@ jobs:
         include:
           - { host: x86_64-unknown-linux-gnu, os: ubuntu-24.04 }
           - { host: aarch64-apple-darwin, os: macos-15 }
+          - { host: x86_64-w64-mingw32, os: windows-2025 }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     defaults:
@@ -707,13 +709,22 @@ jobs:
         with:
           pixi-version: v0.71.1
           run-install: false
+      - name: Install
+        run: pixi install
+      # xclang cargo is in no release yet: until one carries it, this
+      # checkout's command takes the release's place.
+      - name: xclang cargo
+        run: |
+          bin=$PWD/.pixi/envs/default/opt/xclang/bin
+          "$bin/xclang" cargo --version && exit 0
+          (cd ../../xclang && CARGO_PROFILE_RELEASE_LTO=false cargo build --release --locked)
+          cp ../../xclang/target/release/xclang$([[ "$RUNNER_OS" == Windows ]] && echo .exe) "$bin/"
       - name: Windows
         run: |
-          pixi install
           export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
           rustup toolchain install
-          cargo build --release --target x86_64-pc-windows-gnullvm
-          cargo build --release --target aarch64-pc-windows-gnullvm
+          xclang cargo build --release --target x86_64-pc-windows-gnullvm
+          xclang cargo build --release --target aarch64-pc-windows-gnullvm
           llvm-readobj --needed-libs target/x86_64-pc-windows-gnullvm/release/hello.exe
           git diff --exit-code Cargo.lock
           for arch in x86_64 aarch64; do
@@ -723,7 +734,19 @@ jobs:
               echo "::error::hello.exe for $arch loads a runtime DLL"; exit 1
             fi
           done
-      - name: Linux arm64
+          if [[ "$RUNNER_OS" == Windows ]]; then target/x86_64-pc-windows-gnullvm/release/hello.exe | tr -d '\r' | diff expected.txt -; fi
+      # Rust's musl targets against xclang's musl, which releases before
+      # 23.1.2.10 lack: static programs, run on Linux.
+      - name: Linux, musl
+        run: |
+          export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
+          [[ -d .pixi/envs/default/opt/xclang/x86_64-unknown-linux-musl ]] || { echo "::notice::no musl targets"; exit 0; }
+          xclang cargo build --release --target x86_64-unknown-linux-musl
+          llvm-readelf --program-headers --dynamic target/x86_64-unknown-linux-musl/release/hello | tee headers.txt
+          if grep -E 'INTERP|NEEDED' headers.txt; then echo "::error::hello for musl loads a library"; exit 1; fi
+          if [[ "$RUNNER_OS" == Linux ]]; then target/x86_64-unknown-linux-musl/release/hello | diff expected.txt -; fi
+      - name: Linux arm64, without xclang cargo
+        if: runner.os != 'Windows'
         run: |
           export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
           rustup target add aarch64-unknown-linux-gnu
@@ -732,23 +755,11 @@ jobs:
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-Clink-arg=--target=aarch64-unknown-linux-gnu -Clink-arg=-l:libunwind.a"
           cargo build --release --target aarch64-unknown-linux-gnu
           llvm-readobj --needed-libs target/aarch64-unknown-linux-gnu/release/hello
-      # Rust's musl targets against xclang's musl, which releases before
-      # 23.1.2.10 lack: static programs, run on Linux.
-      - name: Linux, musl
-        run: |
-          export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
-          [[ -d .pixi/envs/default/opt/xclang/x86_64-unknown-linux-musl ]] || { echo "::notice::no musl targets"; exit 0; }
-          rustup target add x86_64-unknown-linux-musl
-          export CC_x86_64_unknown_linux_musl=clang CXX_x86_64_unknown_linux_musl=clang++ AR_x86_64_unknown_linux_musl=llvm-ar
-          export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=clang
-          export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-Clink-arg=--target=x86_64-unknown-linux-musl -Clink-self-contained=no"
-          cargo build --release --target x86_64-unknown-linux-musl
-          llvm-readelf --program-headers --dynamic target/x86_64-unknown-linux-musl/release/hello | tee headers.txt
-          if grep -E 'INTERP|NEEDED' headers.txt; then echo "::error::hello for musl loads a library"; exit 1; fi
-          if [[ "$RUNNER_OS" == Linux ]]; then target/x86_64-unknown-linux-musl/release/hello | diff expected.txt -; fi
       - name: Programs to run on their targets
+        if: ${{ !cancelled() }}
         run: |
           stage() {  # <target> <program>
+            [[ -f "$2" ]] || return 0
             local dir=$RUNNER_TEMP/programs/$1/cargo-${{ matrix.host }}
             mkdir -p "$dir" && cp "$2" expected.txt "$dir/"
           }
@@ -843,29 +854,24 @@ jobs:
           cmake -G Ninja -B build-macos --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake \
               -DXCLANG_TARGET=aarch64-apple-darwin
           cmake --build build-macos
+      # xclang cargo is in no release yet: until one carries it, this
+      # checkout's command takes the release's place.
+      - name: xclang cargo
+        run: |
+          xclang cargo --version && exit 0
+          (cd ../../xclang && CARGO_PROFILE_RELEASE_LTO=false cargo build --release --locked)
+          cp ../../xclang/target/release/xclang$([[ "$RUNNER_OS" == Windows ]] && echo .exe) "$XCLANG/bin/"
       - name: cargo, macOS and MSVC targets
-        if: runner.os == 'Linux'
         working-directory: examples/cargo
         run: |
           rustup toolchain install
-          rustup target add aarch64-apple-darwin
-          export SDKROOT=$(xclang sdk path macos) MACOSX_DEPLOYMENT_TARGET=13.0
-          export CC_aarch64_apple_darwin=clang AR_aarch64_apple_darwin=llvm-ar
-          export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER=clang
-          export CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS=-Clink-arg=--target=aarch64-apple-darwin
-          cargo build --release --target aarch64-apple-darwin
-          rustup target add x86_64-pc-windows-msvc
-          W=$(xclang sdk path windows)
-          export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=lld-link
-          export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS="-Ctarget-feature=+crt-static -Clink-arg=/winsysroot:$W \
-            -Clink-arg=/nodefaultlib:libucrt.lib -Clink-arg=/defaultlib:ucrt.lib -Clink-arg=/ignore:4099"
-          export CC_x86_64_pc_windows_msvc=clang CFLAGS_x86_64_pc_windows_msvc="-Xmicrosoft-windows-sys-root $W"
-          export CXX_x86_64_pc_windows_msvc=clang++ CXXFLAGS_x86_64_pc_windows_msvc="-Xmicrosoft-windows-sys-root $W"
-          export AR_x86_64_pc_windows_msvc=llvm-lib
-          cargo build --release --target x86_64-pc-windows-msvc
+          xclang cargo build --release --target aarch64-apple-darwin
+          xclang cargo build --release --target x86_64-pc-windows-msvc
           git diff --exit-code Cargo.lock
           llvm-otool -L target/aarch64-apple-darwin/release/hello
-          llvm-readobj --needed-libs target/x86_64-pc-windows-msvc/release/hello.exe
+          llvm-readobj --needed-libs target/x86_64-pc-windows-msvc/release/hello.exe | tee needed.txt
+          grep -i 'api-ms-win-crt' needed.txt
+          if grep -iE 'vcruntime|msvcp' needed.txt; then echo "::error::hello.exe loads the VC runtime's DLLs"; exit 1; fi
       - name: Programs to run on their targets
         if: ${{ !cancelled() }}
         working-directory: examples

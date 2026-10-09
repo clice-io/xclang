@@ -8,6 +8,17 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+- **`xclang cargo`**: cargo for xclang's targets with no cargo config, as
+  cargo-zigbuild does it with zig. `xclang cargo build --target <Rust
+  target>`, and `run`, `test` and cargo's other commands, set up each
+  target's linker (`xclang` itself, which runs clang or lld-link with what
+  the target needs: libunwind on Linux, xclang's musl, the hybrid CRT for
+  MSVC), the C and C++ compilers of the `cc` crate, a CMake toolchain file
+  for the `cmake` crate and header directories for bindgen, and leave a
+  user's cargo config and `RUSTFLAGS` in effect. A target's missing
+  standard library is added with rustup, a missing vendor SDK named
+  ([Rust and Cargo](docs/en/integrations/cargo.md)).
+
 ## [23.1.2.10](https://github.com/clice-io/xclang/releases/tag/23.1.2.10) — 2026-10-09
 
 Built by 23.1.2.6.

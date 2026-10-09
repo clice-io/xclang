@@ -176,7 +176,7 @@ its C compiler and linker. Every toolchain archive carries it, as
 | <a id="mingw-sanitizers"></a>Sanitizers for MinGW targets | Considered |
 | <a id="musl-sanitizers"></a>ASan, TSan, LSan and libFuzzer for musl targets, with a dynamically linked musl (Alpine's way) | Considered |
 | <a id="bazel-gsymutil"></a>`@xclang//bazel:llvm-gsymutil`, the toolchain's llvm-gsymutil for `bazel run` | Supported |
-| <a id="cargo-helper"></a>An `xclang cargo` helper that sets cargo's variables | Considered |
+| <a id="cargo-helper"></a>`xclang cargo`, cargo with the variables of xclang's targets set | Unreleased |
 | <a id="libgcc-s-script"></a>`libgcc_s.a` as a linker script naming libunwind, for Rust's Linux targets | Considered |
 | <a id="libcxx-msvc"></a>libc++ as the C++ library of MSVC targets | Supported |
 | <a id="openmp"></a>An OpenMP runtime | Not planned |
@@ -200,11 +200,13 @@ prebuilt runtimes cannot be:
 
 The prebuilt runtimes stay the default.
 
-Rust and cargo work with xclang today as a recipe of environment variables
-([Rust and Cargo](../integrations/cargo.md)). A helper that sets them, as
-cargo-zigbuild's wrapper does, is considered. So is making `libgcc_s.a` a
-linker script, `INPUT(-lunwind)`, instead of an empty archive: Rust's
-Linux targets then link without `-l:libunwind.a`. A test with 23.1.2.5's
+Rust and cargo work with xclang in every release as a recipe of
+environment variables ([Rust and Cargo](../integrations/cargo.md)).
+`xclang cargo`, on `main`, sets them and runs cargo, as cargo-zigbuild
+does: the linker is `xclang` itself, which hands clang or lld-link what
+each target needs. Making `libgcc_s.a` a linker script,
+`INPUT(-lunwind)`, instead of an empty archive is considered: Rust's Linux
+targets then link without `-l:libunwind.a`, by hand too. A test with 23.1.2.5's
 arm64 sysroot linked Rust, and C++ programs and shared libraries that name
 `-lgcc_s`.
 
