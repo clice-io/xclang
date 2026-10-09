@@ -83,6 +83,8 @@ for (const vendor of vendors) {
 interface Crate { name: string; dir: string; program: string; env?: NodeJS.ProcessEnv; output?: string; args?: string[]; expect?: string }
 /// A crate's expected.txt, without the carriage returns of a Windows checkout.
 const expected = (dir: string) => fs.readFileSync(path.join(dir, "expected.txt"), "utf8").replaceAll("\r", "");
+/// A program's output as on-target.ts compares it: without its last newlines.
+const text = (output: string) => output.replace(/\n+$/, "");
 const crates: Crate[] = [
   { name: "example", dir: path.join(repo, "examples", "cargo"), program: "hello", output: expected(path.join(repo, "examples", "cargo")) },
   {
@@ -113,7 +115,7 @@ for (const [rust, triple] of targets) {
     fs.copyFileSync(file, path.join(dest, `${c.name}-${name}`));
     programs.push({
       file: `${c.name}-${name}`, name: `${c.name} (${rust})`, args: c.args,
-      ...(c.output ? { output: c.output } : { expect: c.expect }),
+      ...(c.output ? { output: text(c.output) } : { expect: c.expect }),
     });
     summary.push(`| ${rust} | ${c.name} | ${seconds} s | ${(fs.statSync(file).size / 1048576).toFixed(1)} MB | ${libs.join(", ")} |`);
   }

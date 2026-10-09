@@ -716,7 +716,7 @@ jobs:
       - name: xclang cargo
         run: |
           bin=$PWD/.pixi/envs/default/opt/xclang/bin
-          "$bin/xclang" cargo --version && exit 0
+          "$bin/xclang" cargo version && exit 0
           (cd ../../xclang && CARGO_PROFILE_RELEASE_LTO=false cargo build --release --locked)
           cp ../../xclang/target/release/xclang$([[ "$RUNNER_OS" == Windows ]] && echo .exe) "$bin/"
       - name: Windows
@@ -858,7 +858,7 @@ jobs:
       # checkout's command takes the release's place.
       - name: xclang cargo
         run: |
-          xclang cargo --version && exit 0
+          xclang cargo version && exit 0
           (cd ../../xclang && CARGO_PROFILE_RELEASE_LTO=false cargo build --release --locked)
           cp ../../xclang/target/release/xclang$([[ "$RUNNER_OS" == Windows ]] && echo .exe) "$XCLANG/bin/"
       - name: cargo, macOS and MSVC targets
