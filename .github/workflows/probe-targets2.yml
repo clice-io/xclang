@@ -93,6 +93,14 @@ jobs:
       - run: |
           chmod +x out/*
           ls -l out
+          lscpu | grep -i "model name"
+          docker run --rm --platform linux/arm/v7 arm32v7/busybox:stable-musl uname -m || echo "::warning::no AArch32 on this host"
+          docker pull -q termux/termux-docker:arm
+          docker image inspect termux/termux-docker:arm --format '{{.Architecture}} {{.Variant}} {{.Os}}'
+          for f in out/*armv7a*; do
+            docker run --rm --privileged -v "$PWD/out:/w:ro" termux/termux-docker:arm /w/$(basename $f) \
+              && echo "::notice::$(basename $f) runs in termux-docker:arm (privileged)" || echo "::warning::$(basename $f) fails in termux-docker:arm (privileged)"
+          done
           for tag in aarch64 arm; do
             docker run --rm termux/termux-docker:$tag /system/bin/sh -c 'grep -E "ro.build.version.(sdk|release)=" /system/build.prop' || true
             case $tag in aarch64) glob='*aarch64*' ;; arm) glob='*armv7a*' ;; esac
