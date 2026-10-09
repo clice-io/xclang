@@ -506,26 +506,26 @@ if (!windows) {
   }
 }
 
-/// 12. An optimized macOS program exports nothing: //cpp:hello with -c opt
-/// has no external symbol in its .stripped, and runs; with
-/// --features=-no_exported_symbols the weak definitions of libc++'s
-/// templates stay exported, which strip keeps for dyld.
+/// 12. An optimized macOS program exports nothing: //cpp:exports, whose
+/// template instantiation is a weak definition, keeps no external symbol in
+/// its .stripped with -c opt, and runs; with
+/// --features=-no_exported_symbols it exports the weak definition, which
+/// strip keeps for dyld. (The header's symbol aside.)
 if (host.includes("apple")) {
   const workspace = path.join(common.ROOT, "tests", "bazel");
   const nm = path.join(toolchainDir(workspace), "bin", "llvm-nm");
   const exported = (features: string[]) => {
-    bazel(workspace, ["build", "-c", "opt", ...features, "//cpp:hello", "//cpp:hello.stripped"]);
-    const program = path.join(workspace, run(workspace, ["cquery", "-c", "opt", ...features, "--output=files", "//cpp:hello"]).stdout.trim());
-    const stripped = path.join(path.dirname(program), "hello.stripped");
+    bazel(workspace, ["build", "-c", "opt", ...features, "//cpp:exports", "//cpp:exports.stripped"]);
+    const program = path.join(workspace, run(workspace, ["cquery", "-c", "opt", ...features, "--output=files", "//cpp:exports"]).stdout.trim());
+    const stripped = path.join(path.dirname(program), "exports.stripped");
     const symbols = (spawnSync(nm, ["-m", "--defined-only", stripped], { encoding: "utf8" }).stdout ?? "")
-      .split("\n").filter((l) => / external /.test(l) && !/non-external/.test(l));
-    const runs = /hello from xclang/.test(spawnSync(stripped, [], { encoding: "utf8" }).stdout ?? "");
-    return { count: symbols.length, runs };
+      .split("\n").filter((l) => / external /.test(l) && !/non-external/.test(l) && !/ __mh_execute_header$/.test(l));
+    return { count: symbols.length, runs: spawnSync(stripped, []).status === 0 };
   };
   const on = exported([]);
   const off = exported(["--features=-no_exported_symbols"]);
   check(on.count === 0 && on.runs && off.count > 0,
-    `no_exported_symbols: hello.stripped exports ${on.count} symbols${on.runs ? " and runs" : ", but does not run"}, ${off.count} without the feature`);
+    `no_exported_symbols: exports.stripped exports ${on.count} symbols${on.runs ? " and runs" : ", but does not run"}, ${off.count} without the feature`);
 }
 
 if (process.env.GITHUB_STEP_SUMMARY) {

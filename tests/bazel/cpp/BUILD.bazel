@@ -28,3 +28,10 @@ cc_test(
     args = ["$(rootpath :hello)"],
     data = [":hello"],
 )
+
+# A program with a weak definition of its own, which an optimized macOS
+# program exports unless no_exported_symbols (tests/bazel/bazel.ts).
+cc_binary(
+    name = "exports",
+    srcs = ["exports.cpp"],
+)

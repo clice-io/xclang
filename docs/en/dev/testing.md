@@ -209,7 +209,7 @@ and libclang; a Linux host runs the musl tests of its architecture
     directory switch together.
 12. **An optimized macOS program exports nothing**: its `.stripped` has
     no external symbol and runs; without `no_exported_symbols`, the weak
-    definitions of libc++'s templates stay.
+    definition of its template stays.
 
 examples.yml builds `examples/bazel` from bazel.clice.io on every host, and
 for another target.
