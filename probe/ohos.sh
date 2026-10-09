@@ -45,7 +45,7 @@ common=(
 )
 RES=$("$X/bin/clang" -print-resource-dir)
 cmake "${common[@]}" -S "$L/compiler-rt/lib/builtins" -B b-builtins \
-  -C "$REPO/toolchain/cmake/caches/builtins.cmake" -DCOMPILER_RT_INSTALL_PATH="$RES" -DCOMPILER_RT_BUILD_CRT=OFF
+  -C "$REPO/toolchain/cmake/caches/builtins.cmake" -DCOMPILER_RT_INSTALL_PATH="$RES" -DCOMPILER_RT_BUILD_CRT=ON
 ninja -C b-builtins install
 find "$RES/lib" -path '*ohos*' -type f
 # The OHOS driver looks in lib/<multiarch> (aarch64-linux-ohos) only.
