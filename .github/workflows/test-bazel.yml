@@ -16,7 +16,9 @@ name: test-bazel
 #
 #   release.yml     with a run's archives (dist-run), unpacked and named by
 #                   XCLANG_ROOT and the like, before they are released: the
-#                   module's tests only
+#                   module's tests, and the vendor SDKs' targets with the
+#                   archives' own command (not with libclang, whose
+#                   other targets' archives are not there yet)
 #   checks.yml,     with a published release's archives (the latest by
 #   weekly.yml,     default), versions.bzl made from its SHA256SUMS
 #   published.yml,
@@ -208,7 +210,8 @@ jobs:
           retention-days: 7
 
   # This checkout's xclang command, for the toolchains of sdk: the
-  # module lists a vendor SDK's packages with it (xclang sdk packages).
+  # module lists a vendor SDK's packages with it (xclang sdk packages). A
+  # run's archives carry their own.
   cli:
     if: ${{ !inputs.dist-run }}
     uses: ./.github/workflows/cli.yml
@@ -217,11 +220,11 @@ jobs:
       artifact: bazel-cli
 
   # The targets of the vendor SDKs, built here with the release's toolchain
-  # and this checkout's command and config files, run on a machine of the
-  # target by on-target.yml.
+  # and this checkout's command and config files, or a run's archives, run
+  # on a machine of the target by on-target.yml.
   sdk:
     needs: cli
-    if: ${{ !cancelled() && !inputs.dist-run && needs.cli.result == 'success' }}
+    if: ${{ !cancelled() && (inputs.dist-run || needs.cli.result == 'success') }}
     name: sdk (${{ matrix.host }} to ${{ matrix.target }})
     strategy:
       fail-fast: false
@@ -255,6 +258,7 @@ jobs:
           node-version: 24
       - run: npm install -g @bazel/bazelisk
       - name: Release digests
+        if: ${{ !inputs.dist-run }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -263,20 +267,28 @@ jobs:
       - uses: ./.github/actions/archives
         with:
           host: ${{ matrix.host }}
+          dist-run: ${{ inputs.dist-run }}
           release: ${{ inputs.release }}
       - uses: actions/download-artifact@v8
+        if: ${{ !inputs.dist-run }}
         with:
           pattern: bazel-cli-*
           path: built
           merge-multiple: true
       - name: The command built
+        if: ${{ !inputs.dist-run }}
         run: |
           cp built/cli-${{ matrix.host }}/xclang* "$XCLANG_TREE/bin/"
           chmod +x "$XCLANG_TREE"/bin/xclang*
+      # A run's archives: without libclang, the macOS targets' of the
+      # release before. (Git Bash would make //c/... a Windows path.)
       - name: Build
+        env:
+          MSYS_NO_PATHCONV: 1
+          TARGETS: ${{ inputs.dist-run && '//c/... //cpp/... //debug/... //modules/... //options/... //shared/...' || '' }}
         run: |
           node tests/bazel/cross.ts build "${{ matrix.target }}" "$RUNNER_TEMP/out/${{ matrix.host }}/sdk" --accept-license \
-            -- "--repo_env=XCLANG_ROOT=$XCLANG_TREE"
+            -- "--repo_env=XCLANG_ROOT=$XCLANG_TREE" $TARGETS
       - uses: actions/upload-artifact@v7
         with:
           name: programs-bazel-${{ matrix.host }}-to-${{ matrix.target }}
@@ -285,12 +297,13 @@ jobs:
           retention-days: 7
 
   # What every other host built for this target, run there: <host>/tests,
-  # <host>/sdk, <host>/kotatsu, short paths for Windows.
+  # <host>/sdk, <host>/kotatsu, short paths for Windows; for a run's
+  # archives, sdk's only.
   run:
     needs: [cross, sdk]
-    if: ${{ !cancelled() && !inputs.dist-run }}
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/on-target.yml
     with:
-      targets: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]'
+      targets: ${{ inputs.dist-run && '["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]' || '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]' }}
       pattern: programs-bazel-*-to-{0}
       dir: .

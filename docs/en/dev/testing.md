@@ -218,7 +218,8 @@ the same for the targets of the vendor SDKs, the module accepting their
 licenses for the build: the MSVC targets from Linux x64, macOS arm64 and
 Windows x64, the macOS targets from Linux and Windows, with the latest
 release's toolchain and this checkout's `xclang` command, which fetches
-the SDKs. A `-c dbg` program's PDB names its sources relative to the
+the SDKs; in a release's run, with its archives before they are
+published, `@libclang` aside. A `-c dbg` program's PDB names its sources relative to the
 execution root, and no path of the output base (checked where it was
 built: Microsoft's PDBs take part in it); a macOS one's dSYM, made in the
 link on Linux and Windows too, gives its UUIDs and main's line on the Mac.
