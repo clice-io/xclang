@@ -1,0 +1,28 @@
+name: probe-aarch32
+
+# Research probe for the target survey (exp/target-probes only): how often
+# a GitHub-hosted arm64 Linux runner runs AArch32 (armv7) programs.
+
+on:
+  push:
+    branches: ["exp/target-probes"]
+    paths: [".github/workflows/probe-aarch32.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  aarch32:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04-arm, ubuntu-26.04-arm, ubuntu-22.04-arm]
+        n: [1, 2, 3, 4, 5, 6, 7, 8]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - run: |
+          model=$(lscpu | sed -n 's/^Model name: *//p' | head -1)
+          part=$(grep -m1 "CPU part" /proc/cpuinfo | awk '{print $4}')
+          kern=$(uname -r)
+          if docker run --rm --platform linux/arm/v7 arm32v7/busybox:stable-musl uname -m > m.txt 2>&1; then r="yes ($(cat m.txt))"; else r="no ($(tail -1 m.txt))"; fi
+          echo "::notice::${{ matrix.os }} #${{ matrix.n }}: $model $part $kern, AArch32: $r"
