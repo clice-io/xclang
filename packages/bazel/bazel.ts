@@ -49,12 +49,12 @@ if (command === "versions") {
   const stage = path.join(common.WORK, "bazel-module");
   const root = path.join(stage, name);
   fs.rmSync(stage, { recursive: true, force: true });
-  /// packages/bazel without this script and what a build in it leaves,
-  /// and the license; MODULE.bazel at the release's version, bazel/ with
-  /// its digests.
+  /// packages/bazel without its scripts (this one, runtimes.ts) and what a
+  /// build in it leaves, and the license; MODULE.bazel at the release's
+  /// version, bazel/ with its digests.
   fs.cpSync(MODULE, root, {
     recursive: true,
-    filter: (src) => !/^(bazel-.*|MODULE\.bazel\.lock|bazel\.ts)$/.test(path.relative(MODULE, src)),
+    filter: (src) => !/^(bazel-.*|MODULE\.bazel\.lock|bazel\.ts|runtimes\.ts)$/.test(path.relative(MODULE, src)),
   });
   fs.copyFileSync(path.join(common.ROOT, "LICENSE"), path.join(root, "LICENSE"));
   const module = fs.readFileSync(path.join(MODULE, "MODULE.bazel"), "utf8");

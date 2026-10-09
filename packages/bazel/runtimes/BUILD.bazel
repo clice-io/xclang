@@ -1,0 +1,131 @@
+load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag", "string_list_flag")
+
+# The C++ runtimes built from source (bazel/runtimes.bzl): libc++ with
+# libc++abi, and libunwind, from the toolchain's libc++/src, compiled for
+# the target platform with the build's features (--features=msan, asan,
+# tsan, ubsan, thin_lto), linked in place of the prebuilt ones. Flags of the
+# whole build:
+#
+#   --@xclang//runtimes:source              on
+#   --@xclang//runtimes:hardening=fast      libc++'s hardening mode: none,
+#                                           fast, extensive or debug
+#   --@xclang//runtimes:abi_version=2       libc++'s ABI version, 1 or 2
+#   --@xclang//runtimes:abi_namespace=__x   libc++'s inline namespace
+#   --@xclang//runtimes:abi_defines=_LIBCPP_ABI_BOUNDED_ITERATORS,...
+#                                           libc++'s ABI macros
+#   --@xclang//runtimes:exceptions=false    libc++ and libc++abi without exceptions
+#   --@xclang//runtimes:rtti=false          and without RTTI
+
+package(default_visibility = ["//visibility:public"])
+
+bool_flag(
+    name = "source",
+    build_setting_default = False,
+)
+
+string_flag(
+    name = "hardening",
+    build_setting_default = "none",
+    values = [
+        "none",
+        "fast",
+        "extensive",
+        "debug",
+    ],
+)
+
+string_flag(
+    name = "abi_version",
+    build_setting_default = "1",
+    values = [
+        "1",
+        "2",
+    ],
+)
+
+string_flag(
+    name = "abi_namespace",
+    build_setting_default = "",
+)
+
+string_list_flag(
+    name = "abi_defines",
+    build_setting_default = [],
+)
+
+bool_flag(
+    name = "exceptions",
+    build_setting_default = True,
+)
+
+bool_flag(
+    name = "rtti",
+    build_setting_default = True,
+)
+
+# Set by the transition to the configuration the runtimes are built in
+# (bazel/runtimes.bzl): their toolchain is the same, without them.
+bool_flag(
+    name = "building",
+    build_setting_default = False,
+)
+
+# The runtimes from source, whose configuration builds them too.
+config_setting(
+    name = "source_any",
+    flag_values = {":source": "True"},
+)
+
+# The build against them: their headers and libraries in the toolchain.
+config_setting(
+    name = "source_build",
+    flag_values = {
+        ":source": "True",
+        ":building": "False",
+    },
+)
+
+# The variants of LLVM's build that bazel/runtimes_sources.bzl holds.
+config_setting(
+    name = "mode_default",
+    flag_values = {
+        ":exceptions": "True",
+        ":rtti": "True",
+    },
+)
+
+config_setting(
+    name = "mode_noexcept",
+    flag_values = {
+        ":exceptions": "False",
+        ":rtti": "True",
+    },
+)
+
+config_setting(
+    name = "mode_nortti",
+    flag_values = {
+        ":exceptions": "False",
+        ":rtti": "False",
+    },
+)
+
+# The sanitizer features of the whole build, as --features gives them.
+config_setting(
+    name = "asan",
+    values = {"features": "asan"},
+)
+
+config_setting(
+    name = "msan",
+    values = {"features": "msan"},
+)
+
+selects.config_setting_group(
+    name = "msan_build",
+    match_all = [
+        ":source_build",
+        ":msan",
+    ],
+)

@@ -140,11 +140,18 @@ def _toolchain_impl(rctx):
         if not rctx.path("bin/%s.cfg" % t.cfg).exists or not rctx.path("lib/clang/%s/lib/%s" % (clang_version, t.runtime)).exists:
             continue
         sdk = sdk_repository(host, target)
-        rctx.file("cfg/%s.cfg" % target, "# bin/%s.cfg for Bazel (bazel/repositories.bzl).\n%s\n-resource-dir=%s/lib/clang/%s\n" % (
-            t.cfg,
+        text = "%s\n-resource-dir=%s/lib/clang/%s\n" % (
             _bazel_cfg(rctx, t.cfg + ".cfg", root, "../../%s/sdk.cfg" % Label("@%s//:sdk.cfg" % sdk).repo_name if sdk else None),
             root,
             clang_version,
+        )
+        rctx.file("cfg/%s.cfg" % target, "# bin/%s.cfg for Bazel (bazel/repositories.bzl).\n%s" % (t.cfg, text))
+
+        # The same without the C++ library's headers, for the runtimes built
+        # from source (bazel/runtimes.bzl), whose own take their place.
+        rctx.file("cfg/%s-runtimes.cfg" % target, "# bin/%s.cfg for Bazel, without libc++'s headers (bazel/repositories.bzl).\n%s" % (
+            t.cfg,
+            "\n".join([line for line in text.split("\n") if not line.startswith("-stdlib++-isystem")]),
         ))
     if TARGETS[host].os == "windows":
         rctx.file("dsym_link.bat", _DSYM_LINK_BAT)
@@ -276,8 +283,9 @@ their C runtimes (rules_cc-msvc.patch), and xclang's defaults (rules_cc-xclang.p
 linking unless a target asks for the supports_dynamic_linker feature, other
 repositories' headers as system headers (external_include_paths), the
 sanitizer features' link flags (sanitizer_link_flags), a program of the
-links' own (link_tool), and on macOS the libraries' defines in C++20 module
-compiles and scans (preprocessor_defines). Its loads are rules_cc's
+links' own (link_tool), on macOS the libraries' defines in C++20 module
+compiles and scans (preprocessor_defines), the runtimes built from source
+(runtime_*, bazel/runtimes.bzl), and MemorySanitizer (msan). Its loads are rules_cc's
 public files, so a copy works from here; no consumer needs an override of
 rules_cc.""",
 )

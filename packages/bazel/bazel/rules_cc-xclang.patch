@@ -16,7 +16,40 @@
  
  def layering_check_features(compiler, extra_flags_per_feature, is_macos):
      if compiler != "clang":
-@@ -277,6 +284,34 @@
+@@ -265,6 +272,32 @@
+     ]
+     action_configs = []
+ 
++    # The C++ runtimes built from source (xclang's runtime_* attributes): the
++    # variant's __config_site before the other headers of the C++ library,
++    # and its libraries in place of the toolchain's; MemorySanitizer's
++    # runtime, which the toolchain has not, built with them.
++    compile_flags = list(ctx.attr.compile_flags)
++    link_flags = list(ctx.attr.link_flags)
++    cxx_builtin_include_directories = list(ctx.attr.cxx_builtin_include_directories)
++    if ctx.file.runtime_include:
++        for directory in [ctx.file.runtime_include.dirname] + ctx.attr.runtime_include_dirs:
++            compile_flags += ["-stdlib++-isystem", directory]
++        cxx_builtin_include_directories.append("%workspace%/" + ctx.file.runtime_include.dirname)
++    if ctx.files.runtime_libraries:
++        link_flags += ctx.attr.runtime_link_flags + [f.path for f in ctx.files.runtime_libraries]
++    msan_runtime_flags = []
++    if ctx.files.msan_runtime:
++        msan_runtime_flags = ["-fno-sanitize-link-runtime", "-Wl,--whole-archive"] + [f.path for f in ctx.files.msan_runtime] + [
++            "-Wl,--no-whole-archive",
++            "-Wl,--export-dynamic",
++            "-Wl,--no-as-needed",
++            "-lpthread",
++            "-lrt",
++            "-lm",
++            "-ldl",
++            "-lresolv",
++        ]
++
+     action_configs.append(action_config(
+         action_name = ACTION_NAMES.cpp_link_static_library,
+         tools = [
+@@ -277,6 +310,34 @@
          implies = ["archiver_flags", "linker_param_file"],
      ))
  
@@ -51,7 +84,31 @@
      llvm_cov = ctx.attr.tool_paths.get("llvm-cov")
      if llvm_cov:
          llvm_cov_action = action_config(
-@@ -677,7 +712,9 @@
+@@ -436,9 +497,9 @@
+                 actions = all_compile_actions,
+                 flag_groups = ([
+                     flag_group(
+-                        flags = ctx.attr.compile_flags,
++                        flags = compile_flags,
+                     ),
+-                ] if ctx.attr.compile_flags else []),
++                ] if compile_flags else []),
+             ),
+             flag_set(
+                 actions = all_compile_actions,
+@@ -502,9 +563,9 @@
+                 actions = all_link_actions + lto_index_actions,
+                 flag_groups = ([
+                     flag_group(
+-                        flags = ctx.attr.link_flags,
++                        flags = link_flags,
+                     ),
+-                ] if ctx.attr.link_flags else []),
++                ] if link_flags else []),
+             ),
+             flag_set(
+                 actions = all_link_actions + lto_index_actions,
+@@ -677,7 +738,9 @@
          provides = ["profile"],
      )
  
@@ -62,7 +119,7 @@
  
      user_compile_flags_feature = feature(
          name = "user_compile_flags",
-@@ -1177,6 +1214,9 @@
+@@ -1177,6 +1240,9 @@
                  ],
              ),
          ],
@@ -72,7 +129,7 @@
      )
  
      strip_debug_symbols_feature = feature(
-@@ -1756,10 +1796,10 @@
+@@ -1756,10 +1822,10 @@
          specific_compile_flags = [
              "-fsanitize=address",
              "-fno-common",
@@ -85,7 +142,7 @@
      )
  
      lsan_feature = _sanitizer_feature(
-@@ -1770,7 +1810,7 @@
+@@ -1770,7 +1836,7 @@
          ],
          specific_link_flags = [
              "-fsanitize=leak",
@@ -94,7 +151,7 @@
      )
  
      tsan_feature = _sanitizer_feature(
-@@ -1780,7 +1820,7 @@
+@@ -1780,7 +1846,7 @@
          ],
          specific_link_flags = [
              "-fsanitize=thread",
@@ -103,16 +160,53 @@
      )
  
      ubsan_feature = _sanitizer_feature(
-@@ -1790,7 +1830,7 @@
+@@ -1790,7 +1856,28 @@
          ],
          specific_link_flags = [
              "-fsanitize=undefined",
 -        ],
 +        ] + ctx.attr.sanitizer_link_flags,
++    )
++
++    # MemorySanitizer: its runtime linked into executables by the flags the
++    # driver would link it with, when the runtimes are built from source.
++    msan_feature = feature(
++        name = "msan",
++        flag_sets = [
++            flag_set(
++                actions = all_compile_actions,
++                flag_groups = [flag_group(flags = ["-fno-omit-frame-pointer", "-fno-sanitize-recover=all", "-fsanitize=memory"])],
++            ),
++            flag_set(
++                actions = all_link_actions,
++                flag_groups = [flag_group(flags = ["-fsanitize=memory"])],
++            ),
++        ] + ([
++            flag_set(
++                actions = [ACTION_NAMES.cpp_link_executable, ACTION_NAMES.lto_index_for_executable],
++                flag_groups = [flag_group(flags = msan_runtime_flags)],
++            ),
++        ] if msan_runtime_flags else []),
      )
  
      # If you have Xcode + the CLT installed the version defaults can be
-@@ -2056,6 +2096,10 @@
+@@ -1989,6 +2076,7 @@
+             lsan_feature,
+             tsan_feature,
+             ubsan_feature,
++            msan_feature,
+             gcc_quoting_for_param_files_feature,
+             static_link_cpp_runtimes_feature,
+         ] + (
+@@ -2044,6 +2132,7 @@
+             lsan_feature,
+             tsan_feature,
+             ubsan_feature,
++            msan_feature,
+             gcc_quoting_for_param_files_feature,
+             static_link_cpp_runtimes_feature,
+         ] + (
+@@ -2056,6 +2145,10 @@
              default_link_flags_feature,
              user_link_flags_feature,
              default_link_libs_feature,
@@ -123,7 +217,16 @@
              includes_feature,
              include_paths_feature,
              external_include_paths_feature,
-@@ -2152,6 +2196,15 @@
+@@ -2096,7 +2189,7 @@
+         features = features,
+         action_configs = action_configs,
+         artifact_name_patterns = artifact_name_patterns,
+-        cxx_builtin_include_directories = ctx.attr.cxx_builtin_include_directories,
++        cxx_builtin_include_directories = cxx_builtin_include_directories,
+         toolchain_identifier = ctx.attr.toolchain_identifier,
+         host_system_name = ctx.attr.host_system_name,
+         target_system_name = ctx.attr.target_system_name,
+@@ -2152,6 +2245,24 @@
          "opt_compile_flags": attr.string_list(),
          "opt_link_flags": attr.string_list(),
          "supports_start_end_lib": attr.bool(),
@@ -132,6 +235,15 @@
 +        # The asan feature's own: the ASan build of libc++.
 +        "asan_compile_flags": attr.string_list(),
 +        "asan_link_flags": attr.string_list(),
++        # The C++ runtimes built from source: the variant's __config_site,
++        # whose directory comes before runtime_include_dirs in the C++
++        # library's include path, and its libraries, linked with
++        # runtime_link_flags; MemorySanitizer's runtime.
++        "runtime_include": attr.label(allow_single_file = True),
++        "runtime_include_dirs": attr.string_list(),
++        "runtime_libraries": attr.label_list(allow_files = True),
++        "runtime_link_flags": attr.string_list(),
++        "msan_runtime": attr.label_list(allow_files = True),
 +        # The program of link actions, if not tool_paths' gcc.
 +        "link_tool": attr.string(),
 +        # The oldest deployment target of macOS targets.

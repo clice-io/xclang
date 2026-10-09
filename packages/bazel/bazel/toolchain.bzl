@@ -16,13 +16,15 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc/toolchains:cc_toolchain.bzl", "cc_toolchain")
 load("@xclang_unix_config//cc/private/toolchain:unix_cc_toolchain_config.bzl", "cc_toolchain_config")
 load(":hosts.bzl", "MACOS_MIN", "TARGETS", "sdk_repository")
+load(":runtimes.bzl", "xclang_runtimes")
 load(":unsupported.bzl", "xclang_unsupported_toolchain")
 
 def xclang_host_toolchains(host, clang_version, root, absolute_root, xcode_sdk = None):
     """The BUILD file of a host's repository: cc_<target>, the cc_toolchain for
-    each target (bazel/toolchains registers those it builds for), and
+    each target (bazel/toolchains registers those it builds for),
     std_<target>, the std modules of each target's C++ library
-    (@xclang//bazel:std); cc and std are the host's own.
+    (@xclang//bazel:std), and the runtimes built from source
+    (bazel/runtimes.bzl); cc and std are the host's own.
 
     Args:
         host: the triple of the toolchain archive in this package.
@@ -31,6 +33,7 @@ def xclang_host_toolchains(host, clang_version, root, absolute_root, xcode_sdk =
         absolute_root: the package's path on disk, for what must be absolute.
         xcode_sdk: the SDK of a macOS host, from xcrun.
     """
+    xclang_runtimes(root = root)
     for target in TARGETS:
         if not native.glob(["cfg/%s.cfg" % target], allow_empty = True):
             # A target of a later release than this one (bazel/repositories.bzl).
@@ -87,6 +90,34 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
     resource = "lib/clang/" + clang_version
     config = "cfg/%s.cfg" % target
 
+    # The C++ runtimes built from source (bazel/runtimes.bzl), for the targets
+    # but the MSVC ones: with them, the config file without the C++ library's
+    # headers (bazel/repositories.bzl), in the configuration that builds them
+    # too; the variant's __config_site and the other headers of libc++ in
+    # their place, and their libraries in place of the prebuilt ones.
+    runtimes = not msvc
+    source_any = Label("//runtimes:source_any")
+    source_build = Label("//runtimes:source_build")
+    config_flag = ["--config=%s/%s" % (root, config)]
+    runtime_compiler_files = []
+    runtime_linker_files = []
+    if runtimes:
+        config_flag = select({
+            source_any: ["--config=%s/cfg/%s-runtimes.cfg" % (root, target)],
+            "//conditions:default": config_flag,
+        })
+        runtime_compiler_files = ["cfg/%s-runtimes.cfg" % target] + select({
+            source_build: [":runtime_include"],
+            "//conditions:default": [],
+        })
+        runtime_linker_files = ["cfg/%s-runtimes.cfg" % target] + select({
+            source_build: [":runtime_libraries"],
+            "//conditions:default": [],
+        }) + select({
+            Label("//runtimes:msan_build"): [":runtime_msan_files"],
+            "//conditions:default": [],
+        })
+
     # The headers targets share (toolchain/common.ts, shareHeaders): libc++'s,
     # after the target's own __config_site, and the MinGW targets'
     # mingw-w64. Releases before 23.1.2.7 have them in the target's directory.
@@ -110,7 +141,7 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
                native.glob([target + "/" + p for p in t.headers] + shared_headers, allow_empty = True) +
                # libc++'s ASan build: none in releases before 23.1.2.5.
                (native.glob([target + "/" + t.asan_libcxx + "/include/**"], allow_empty = True) if t.asan_libcxx else []) +
-               sdk_compiler_files,
+               sdk_compiler_files + runtime_compiler_files,
     )
     native.filegroup(
         name = name + "_linker_files",
@@ -118,7 +149,7 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
                native.glob([resource + "/lib/" + t.runtime + "/**"]) +
                # The MSVC targets' directory: none before libc++ for them.
                native.glob([target + "/" + p for p in t.libraries], allow_empty = msvc) +
-               sdk_linker_files,
+               sdk_linker_files + runtime_linker_files,
     )
     native.filegroup(
         name = name + "_all_files",
@@ -141,8 +172,8 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
         "cpp-module-deps-scanner": scanner,
     }
 
-    # The config file in place of bin/<target>.cfg.
-    flags = ["--no-default-config", "--config=%s/%s" % (root, config), "--target=" + target]
+    # The config file in place of bin/<target>.cfg (config_flag).
+    flags = ["--no-default-config", "--target=" + target]
     builtin_dirs = [resource + "/include"] + [target + "/" + p.removesuffix("/**") for p in t.headers] + shared_dirs
 
     link_flags = flags + ["--driver-mode=g++", "-no-canonical-prefixes"]
@@ -167,6 +198,7 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
     # the __config_site names that library in every object in place of
     # the normal one, libc++asan-x86_64.lib in compiler-rt's directory,
     # where lld-link finds it: the link needs nothing of its own.
+    # With the runtimes from source, theirs are instrumented by the feature.
     asan_compile_flags = []
     asan_link_flags = []
     if t.asan_libcxx:
@@ -175,6 +207,9 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
         if not msvc:
             asan_link_flags = ["-nostdlib++", asan + "/libc++.a"]
         builtin_dirs.append("%s/%s/include" % (target, t.asan_libcxx))
+    if runtimes:
+        asan_compile_flags = select({source_any: [], "//conditions:default": asan_compile_flags})
+        asan_link_flags = select({source_any: [], "//conditions:default": asan_link_flags})
 
     # lld's --gc-sections, on for Linux and off for Windows (bazel/BUILD.bazel).
     gc_sections = [Label("//bazel:gc_sections_msvc" if msvc else "//bazel:gc_sections")]
@@ -219,7 +254,7 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
         asan_compile_flags = asan_compile_flags,
         asan_link_flags = asan_link_flags,
         compiler = "clang",
-        compile_flags = compile_flags,
+        compile_flags = config_flag + compile_flags,
         coverage_compile_flags = ["-fprofile-instr-generate", "-fcoverage-mapping"],
         coverage_link_flags = ["-fprofile-instr-generate"],
         cpu = t.cpu,
@@ -235,13 +270,19 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
         extra_known_features = (gc_sections if t.os == "windows" else []) +
                                ([Label("//bazel/dsym:generate_dsym_file")] if dsym_link else []),
         host_system_name = host,
-        link_flags = link_flags,
+        link_flags = config_flag + link_flags,
         link_tool = dsym_link[0] if dsym_link else "",
         # --macos_minimum_os, but not below what xclang's libc++ runs on
         # (Bazel's default is the SDK's version on macOS, 11.0 elsewhere).
         macos_minimum_os = MACOS_MIN if t.os == "macos" else "",
         opt_compile_flags = ["-O2", "-DNDEBUG", "-ffunction-sections", "-fdata-sections"],
         opt_link_flags = opt_link_flags,
+        runtime_include = select({source_build: ":runtime_include", "//conditions:default": None}) if runtimes else None,
+        runtime_include_dirs = [root + "/libc++/include/c++/v1"],
+        runtime_libraries = select({source_build: [":runtime_libraries"], "//conditions:default": []}) if runtimes else [],
+        # macOS unwinds with the system's libunwind.
+        runtime_link_flags = ["-nostdlib++"] + ([] if t.os == "macos" else ["--unwindlib=none"]),
+        msan_runtime = select({Label("//runtimes:msan_build"): [":runtime_msan_files"], "//conditions:default": []}) if runtimes else [],
         sanitizer_link_flags = sanitizer_link_flags,
         # A library's objects linked as they are, between --start-lib and
         # --end-lib, which lld's ELF and Mach-O drivers take (its MinGW and
