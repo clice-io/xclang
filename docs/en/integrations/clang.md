@@ -43,9 +43,9 @@ Build scripts written for GCC keep working. `-latomic`, `-lgcc`,
 ## MSVC Targets
 
 `x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc` build against
-Microsoft's CRT, STL and Windows SDK, which the toolchain's `xclang`
-command fetches. Fetch them once, accepting Microsoft's license; then they
-build from every host:
+Microsoft's CRT and Windows SDK, which the toolchain's `xclang` command
+fetches, with xclang's libc++ as their C++ library. Fetch them once,
+accepting Microsoft's license; then they build from every host:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -64,16 +64,26 @@ and a compile that includes one stops (`'stdio.h' file not found`); one
 that needs none, such as `-ffreestanding`, works
 ([why](../design/windows.md#msvc-targets)).
 
-By default a program links the VC runtime and the STL statically, and
+The C++ library is libc++, as on every other target, `import std`
+included (since 23.1.2.10; before, Microsoft's STL). `-stdlib=platform`
+(clang-cl: `/clang:-stdlib=platform`) selects Microsoft's STL instead, for
+C++ interfaces to libraries built with MSVC, whose types are the STL's
+([why](../design/windows.md#libc-and-the-stl)).
+
+clang's default standard for MSVC targets is C++14, where libc++ has
+none of the C++17 library that the STL offers early, such as
+`std::is_integral_v`: build with `-std=c++17` (`/std:c++17`) or later.
+
+By default a program links libc++ and the VC runtime statically, and
 UCRT from Windows: it loads Windows' DLLs and UCRT's API sets
 (`api-ms-win-crt-*`), no `vcruntime140.dll` or `msvcp140.dll`. That is
 Microsoft's hybrid CRT ([why](../design/windows.md#msvc-targets)). The
-other C runtimes are explicit:
+other C runtimes are explicit, with either C++ library:
 
 | C runtime | clang, clang++ | clang-cl |
 |---|---|---|
 | hybrid, the default | | `/MT`, the default |
-| the DLLs: `vcruntime140.dll`, `msvcp140.dll` | `-fms-runtime-lib=dll` | `/MD` |
+| the DLLs: `vcruntime140.dll`, and `msvcp140.dll` with the STL | `-fms-runtime-lib=dll` | `/MD` |
 | all static, UCRT too | `-Wl,/nodefaultlib:ucrt.lib -llibucrt` | `/link /nodefaultlib:ucrt.lib libucrt.lib` |
 | the static debug CRT | `-fms-runtime-lib=static_dbg -Wl,/nodefaultlib:ucrt.lib` | `/MTd /link /nodefaultlib:ucrt.lib` |
 

@@ -26,7 +26,7 @@ must be xclang's `clang++`. It finds the package through `PATH`
 
 | name | kind | |
 |---|---|---|
-| `xclang::std` | CMake target | a static library of the `std` and `std.compat` modules of libc++ (of Microsoft's STL for the MSVC targets), for the build's target; built only when something links it ([language options](../integrations/cmake.md#use-c-20-modules-and-import-std)) |
+| `xclang::std` | CMake target | a static library of the `std` and `std.compat` modules of libc++ (of Microsoft's STL for an MSVC target with `-stdlib=platform`), for the build's target; built only when something links it ([language options](../integrations/cmake.md#use-c-20-modules-and-import-std)) |
 | `xclang_add_std(<name>)` | function | another such library; its `PUBLIC` options reach its importers |
 | `xclang_debug_symbols(<program> [GSYM_ARGS <option>...])` | function | after each link of the CMake target `<program>`: `<program>.gsym` next to it, by llvm-gsymutil with one thread (the same file each run; `GSYM_ARGS` come after `--num-threads=1`), with its output in `<program>.gsym.log`; for a macOS target, `<program>.dSYM` first ([debugging](../features/debugging.md#usage)); nothing for an MSVC target, whose link writes a PDB |
 | `XCLANG_ROOT` | variable | the toolchain directory |
@@ -45,6 +45,7 @@ cmake -G Ninja -B build --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake [-D
 |---|---|
 | `XCLANG_TARGET` | `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`, `x86_64-w64-mingw32`, `aarch64-w64-mingw32`, `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-pc-windows-msvc` or `aarch64-pc-windows-msvc`; the host's by default. The MSVC targets, and the macOS targets on Linux and Windows hosts, build with the SDK that the toolchain's `xclang` fetched. The musl targets, from 23.1.2.10 on, are no cross build on a Linux host of their architecture, which runs their static programs (`try_run`, tests) |
 | `XCLANG_ROOT` | the toolchain directory, when the file is used from outside one |
+| `XCLANG_MSVC_STL` | `ON`: an MSVC target's C++ library is Microsoft's STL, not libc++ (`-stdlib=platform` in `CMAKE_CXX_FLAGS`), and `xclang::std` the STL's; ignored for other targets |
 
 It sets the C, C++ and ASM compilers, and the binary tools, to those of the
 toolchain directory: `llvm-ar`, `llvm-ranlib`, `llvm-nm`, `llvm-objcopy`,

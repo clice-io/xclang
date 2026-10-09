@@ -8,13 +8,16 @@
 ///                              the target's __config_site in
 ///                              libc++/include/<target>/c++/v1, and
 ///                              mingw-w64's (common.shareHeaders)
-///   lib/clang/<ver>/lib/...    compiler-rt: builtins, crt objects, profile
+///   lib/clang/<ver>/lib/...    compiler-rt: builtins, crt objects, profile;
+///                              the MSVC targets' libc++ (msvcCxx)
 ///
-/// The MSVC targets have no directory: their C and C++ libraries are
-/// Microsoft's, from the user's SDK. Their compiler-rt is built against the
-/// SDK that work/sdk/windows names, fetched by xclang's own command
-/// (`xclang sdk fetch windows --accept-license --sdk-dir work/sdk`); none
-/// of it is in what is collected.
+/// The MSVC targets' C runtime is Microsoft's, from the user's SDK, and so
+/// is vcruntime, their C++ ABI library. Their libc++ (msvcCxx) and
+/// compiler-rt are built against the SDK that work/sdk/windows names,
+/// fetched by xclang's own command (`xclang sdk fetch windows
+/// --accept-license --sdk-dir work/sdk`); none of it is in what is
+/// collected. Their <triple>/ holds libc++'s modules, and for x64 the
+/// __config_site of its ASan build.
 ///
 /// Every toolchain tree gets these files as they are, so each target is
 /// built once and serves every host.
@@ -250,6 +253,105 @@ function compilerRtMsvc(t: common.Target, stage: string): void {
   ]);
 }
 
+/// libc++ of an MSVC target, with clang-cl against the SDK
+/// (toolchain/cmake/caches/cxx-msvc.cmake), laid out as the config files
+/// and lld-link look for it:
+///
+///   lib/clang/<ver>/lib/windows/libc++-<arch>.lib
+///   lib/clang/<ver>/lib/windows/libc++experimental-<arch>.lib
+///                         next to compiler-rt, in the one directory lld-link
+///                         searches by itself: the config files cannot give
+///                         clang-cl's links, or lld-link's own, another
+///                         (clang-cl ignores -L), and both architectures
+///                         share it, so their names say the architecture
+///   <triple>/include/c++/v1
+///                         the headers, shared with the other targets but
+///                         for __config_site (common.shareHeaders), which
+///                         names the library in every object that includes
+///                         libc++ (msvcConfigSite)
+///   <triple>/lib/libc++.modules.json, <triple>/share/libc++/v1
+///                         the std and std.compat modules
+function msvcCxx(t: common.Target, stage: string): void {
+  const install = msvcCxxBuild(t, stage, []);
+  const windows = path.join(common.resourceDir(stage), "lib", "windows");
+  const libs = path.join(install, "lib");
+  for (const name of ["libc++", "libc++experimental"]) {
+    if (!fs.existsSync(path.join(libs, `${name}.lib`))) common.fail(`no ${name}.lib of ${t.triple} in ${libs}: ${fs.readdirSync(libs).join(", ")}`);
+    fs.renameSync(path.join(libs, `${name}.lib`), path.join(windows, `${name}-${t.arch}.lib`));
+  }
+  const prefix = path.join(stage, t.triple);
+  fs.rmSync(prefix, { recursive: true, force: true });
+  fs.mkdirSync(path.join(prefix, "lib"), { recursive: true });
+  fs.renameSync(path.join(libs, "libc++.modules.json"), path.join(prefix, "lib", "libc++.modules.json"));
+  fs.renameSync(path.join(install, "share"), path.join(prefix, "share"));
+  fs.renameSync(path.join(install, "include"), path.join(prefix, "include"));
+  const site = path.join(prefix, "include", "c++", "v1", "__config_site");
+  fs.writeFileSync(site, msvcConfigSite(fs.readFileSync(site, "utf8"), t, `libc++-${t.arch}.lib`));
+  fs.rmSync(install, { recursive: true, force: true });
+}
+
+/// Build libc++ of an MSVC target into a directory of its own, and return it.
+function msvcCxxBuild(t: common.Target, stage: string, args: string[]): string {
+  const sdk = path.join(stage, "sdk", "windows");
+  const name = `cxx${args.length ? "-asan" : ""}-${t.triple}`;
+  const install = path.join(common.WORK, "build", `${name}-install`);
+  fs.rmSync(install, { recursive: true, force: true });
+  cmake(name, path.join(src, "runtimes"), [
+    ...common.cmakeToolchainArgs(stage, t),
+    "-C", path.join(caches, "cxx-msvc.cmake"),
+    `-DLLVM_DEFAULT_TARGET_TRIPLE=${t.triple}`,
+    `-DCMAKE_INSTALL_PREFIX=${install}`,
+    ...["C", "CXX"].map((lang) => `-DCMAKE_${lang}_FLAGS=--no-default-config /winsysroot ${sdk}`),
+    ...args,
+  ]);
+  return install;
+}
+
+/// libc++'s ASan build for x64, the MSVC target with ASan, as cxxAsan
+/// builds it for the others: lib/clang/<ver>/lib/windows/libc++asan-x86_64.lib,
+/// and <triple>/lib/asan/include/__config_site, which names it instead of
+/// libc++-x86_64.lib. An ASan build takes -isystem <triple>/lib/asan/include;
+/// its objects then link the ASan libc++ by themselves. It names no ASan
+/// runtime either: the link of the program does, for its C runtime.
+function msvcCxxAsan(t: common.Target, stage: string): void {
+  const install = msvcCxxBuild(t, stage, ["-DLLVM_USE_SANITIZER=Address"]);
+  fs.renameSync(path.join(install, "lib", "libc++.lib"), path.join(common.resourceDir(stage), "lib", "windows", `libc++asan-${t.arch}.lib`));
+  const plain = fs.readFileSync(path.join(common.libcxxTargetDir(stage, t), "__config_site"), "utf8");
+  const asan = msvcConfigSite(fs.readFileSync(path.join(install, "include", "c++", "v1", "__config_site"), "utf8"), t,
+    `libc++asan-${t.arch}.lib`);
+  const flag = "#define _LIBCPP_INSTRUMENTED_WITH_ASAN";
+  if (asan.replace(`libc++asan-${t.arch}.lib`, `libc++-${t.arch}.lib`) !== plain.replace(`${flag} 0`, `${flag} 1`) || asan === plain) {
+    common.fail(`the ASan build's __config_site of ${t.triple} differs from the other in more than ${flag} and its library`);
+  }
+  const dest = path.join(stage, t.triple, "lib", "asan", "include");
+  fs.mkdirSync(dest, { recursive: true });
+  fs.writeFileSync(path.join(dest, "__config_site"), asan);
+  fs.rmSync(install, { recursive: true, force: true });
+}
+
+/// The __config_site of an MSVC target names its libraries, as libc++'s
+/// own auto-linking does (__config), by their names in
+/// lib/clang/<ver>/lib/windows: every object that includes libc++ links it,
+/// whatever links it, and objects that do not, C or with Microsoft's STL,
+/// do not.
+function msvcConfigSite(text: string, t: common.Target, library: string): string {
+  const end = "#endif // _LIBCPP___CONFIG_SITE";
+  if (!text.trimEnd().endsWith(end)) common.fail(`the __config_site of ${t.triple} does not end with ${end}`);
+  const block = [
+    "// xclang: the static libc++ of this target, named by its architecture in",
+    "// lib/clang/<version>/lib/windows, which lld-link searches by itself;",
+    "// libc++'s own auto-linking would name libc++.lib.",
+    "#define _LIBCPP_NO_AUTO_LINK",
+    `#pragma comment(lib, "${library}")`,
+    "#if __has_feature(experimental_library)",
+    `#  pragma comment(lib, "libc++experimental-${t.arch}.lib")`,
+    "#endif",
+    "",
+  ].join("\n");
+  const at = text.lastIndexOf(end);
+  return text.slice(0, at) + block + "\n" + text.slice(at);
+}
+
 /// Link (and, when it is this machine's own, run) a C++ program for the
 /// target with the finished tree: the config file, sysroot and runtimes
 /// together. x86_64 macOS programs are not run on arm64 through Rosetta;
@@ -262,6 +364,9 @@ function check(t: common.Target, stage: string): void {
   fs.writeFileSync(source, [
     "#include <cstdio>",
     "#include <stdexcept>",
+    "#ifndef _LIBCPP_VERSION",
+    "#error not libc++",
+    "#endif",
     "#include <string>",
     "#include <vector>",
     "int main() {",
@@ -324,8 +429,13 @@ if (values.target === "msvc") {
   /// Where the tree's config files look for it.
   fs.symlinkSync(sdk, path.join(stage, "sdk"));
   for (const t of common.MSVC_TARGETS) compilerRtMsvc(t, stage);
+  for (const t of common.MSVC_TARGETS) msvcCxx(t, stage);
+  common.shareHeaders(stage);
+  msvcCxxAsan(common.target("x86_64-pc-windows-msvc"), stage);
+  /// The config files again, now with libc++ (common.writeConfigs).
+  common.writeConfigs(stage, common.machineTarget().os);
   for (const t of common.MSVC_TARGETS) check(t, stage);
-  collect(stage, "msvc", [path.join(resource, "lib", "windows")]);
+  collect(stage, "msvc", [...common.MSVC_TARGETS.map((t) => t.triple), "libc++", path.join(resource, "lib", "windows")]);
 } else if (values.target === "darwin") {
   if (common.machine() !== "macos") common.fail("the macOS runtimes are built on macOS");
   process.env.SDKROOT ??= spawnSync("xcrun", ["--show-sdk-path"], { encoding: "utf8" }).stdout.trim();

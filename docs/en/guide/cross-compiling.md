@@ -68,8 +68,9 @@ needs. Why and how: [macOS](../design/macos.md#the-sdk-on-linux-and-windows-host
 ### MSVC Targets
 
 `x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc` build from every
-host against Microsoft's CRT, STL and Windows SDK, which the user fetches
-from Microsoft with the `xclang` command
+host against Microsoft's CRT and Windows SDK, which the user fetches from
+Microsoft with the `xclang` command, with libc++ as on every other target,
+or Microsoft's STL with `-stdlib=platform`
 ([MSVC targets](../integrations/clang.md#msvc-targets)).
 
 ## In Your Build System

@@ -22,7 +22,7 @@ xclang/bin/clang++ --target=aarch64-w64-mingw32 main.cpp -o main.exe
 
 用户用工具链自带的 `xclang` 命令（`xclang sdk fetch`）下载 SDK 后，从 23.1.2.7 起还支持：
 
-- **MSVC ABI 的目标平台**：使用微软 CRT、STL 和 Windows SDK 的 Windows x64 和 arm64，可在任何主机上构建（[MSVC targets](https://docs.clice.io/xclang/integrations/clang#msvc-targets)）。
+- **MSVC ABI 的目标平台**：使用微软 CRT 和 Windows SDK 的 Windows x64 和 arm64，C++ 库是 libc++（从 23.1.2.10 起），也可以换成微软的 STL，可在任何主机上构建（[MSVC targets](https://docs.clice.io/xclang/integrations/clang#msvc-targets)）。
 - **从 Linux 和 Windows 构建 macOS 程序**，使用 Apple 的 SDK（[macOS](https://docs.clice.io/xclang/design/macos#the-sdk-on-linux-and-windows-hosts)）。
 
 还不支持的，各自在路线图里的状态：

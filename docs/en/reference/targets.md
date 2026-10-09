@@ -29,8 +29,8 @@ GitHub-hosted runner.
 | `aarch64-w64-mingw32` | `aarch64-w64-windows-gnu`, `aarch64-pc-windows-gnu` | mingw-w64 with UCRT | Windows 10 or later | every host |
 | `aarch64-apple-darwin` | `arm64-apple-darwin`, `arm64-apple-macos`, `aarch64-apple-macosx`, ... | the SDK's libSystem | macOS 13.0 or later | macOS hosts; Linux and Windows hosts with the SDK `xclang` fetches |
 | `x86_64-apple-darwin` | `x86_64-apple-macos`, `x86_64-apple-macosx` | the SDK's libSystem | macOS 13.0 or later | macOS hosts; Linux and Windows hosts with the SDK `xclang` fetches |
-| `x86_64-pc-windows-msvc` | `x86_64-unknown-windows-msvc` | Microsoft's CRT and STL, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches |
-| `aarch64-pc-windows-msvc` | `aarch64-unknown-windows-msvc` | Microsoft's CRT and STL, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches |
+| `x86_64-pc-windows-msvc` | `x86_64-unknown-windows-msvc` | Microsoft's CRT, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches |
+| `aarch64-pc-windows-msvc` | `aarch64-unknown-windows-msvc` | Microsoft's CRT, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches |
 | `x86_64-unknown-linux-musl` | `x86_64-pc-linux-musl`, `x86_64-linux-musl` | musl 1.2.6, linked statically | any Linux x64 | every host, from 23.1.2.10 on |
 | `aarch64-unknown-linux-musl` | `aarch64-pc-linux-musl`, `aarch64-linux-musl` | musl 1.2.6, linked statically | any Linux arm64 | every host, from 23.1.2.10 on |
 
@@ -51,11 +51,11 @@ static, need no glibc, and run on the Linux x64 and arm64 runners
 | | Linux | Linux (musl) | Windows (MinGW) | macOS | Windows (MSVC) |
 |---|---|---|---|---|---|
 | C library | glibc 2.17, the system's | musl, static | UCRT, the system's | libSystem, the system's | UCRT, the system's |
-| C++ library | libc++, libc++abi, static | libc++, libc++abi, static | libc++, libc++abi, static | libc++, libc++abi, static (not the system's `libc++.dylib`) | Microsoft's STL, static |
+| C++ library | libc++, libc++abi, static | libc++, libc++abi, static | libc++, libc++abi, static | libc++, libc++abi, static (not the system's `libc++.dylib`) | libc++ on the VC runtime, static; Microsoft's STL with `-stdlib=platform` |
 | unwinder | libunwind, static | libunwind, static | libunwind, static | the system's (libSystem) | the VC runtime's, static |
 | compiler-rt builtins, profile | Supported | Supported | Supported | Supported | Supported |
 | ASan, TSan, LSan, UBSan, libFuzzer | Supported | UBSan only | Considered | Supported | Supported: UBSan; ASan and libFuzzer for x64 |
-| ASan libc++ | Supported | none | Considered | Supported | none: the STL |
+| ASan libc++ | Supported | none | Considered | Supported | Supported, x64 |
 | linker | ld.lld | ld.lld | ld.lld (MinGW driver) | ld64.lld; `-fuse-ld=ld` for Apple's, without LTO | lld-link |
 
 Sanitizers for the MinGW targets are

@@ -13,8 +13,9 @@ and its programs need nothing but Windows 10 or later. The toolchain
 archives hold no symbolic links, so every tool name is a small launcher;
 that costs a process start per compile. lld's `--gc-sections` drops some
 static initializers for MinGW targets, so the Bazel module leaves it off
-there. The MSVC targets build against the SDK the user fetches, with the
-VC runtime and the STL linked statically and UCRT from Windows.
+there. The MSVC targets build against the SDK the user fetches, with libc++ and
+the VC runtime linked statically and UCRT from Windows; Microsoft's STL is
+a switch.
 
 ## MinGW and MSVC
 
@@ -39,9 +40,10 @@ are first-class targets too.
 
 ## MSVC Targets
 
-The MSVC targets build against Microsoft's CRT, STL and Windows SDK, which
+The MSVC targets build against Microsoft's CRT and Windows SDK, which
 the user fetches from Microsoft with `xclang sdk fetch windows`
-([vendor SDKs](vendor-sdks.md)). How to use them is in
+([vendor SDKs](vendor-sdks.md)), with xclang's libc++
+([below](#libc-and-the-stl)). How to use them is in
 [MSVC targets](../integrations/clang.md#msvc-targets).
 
 **The SDK through the config files.** No archive can hold the SDK, so
@@ -64,8 +66,8 @@ a compile that includes a header of the CRT stops at it
 Windows hosts they name none, and clang finds Visual Studio and the
 Windows SDK as upstream clang does.
 
-**The hybrid CRT.** The VC runtime and the STL are linked statically, as
-`/MT` has them, and UCRT comes from `ucrtbase.dll`, a component of Windows
+**The hybrid CRT.** The VC runtime and the C++ library are linked
+statically, as `/MT` has them, and UCRT comes from `ucrtbase.dll`, a component of Windows
 10 and later. Microsoft calls this the hybrid CRT. A program then loads
 only Windows' DLLs, as the [hermeticity](hermeticity.md) rule asks, and
 shares one heap, one `errno` and one stdio with every DLL it loads. The
@@ -77,7 +79,7 @@ directives in order and the objects name `ucrt.lib` first.
 
 **compiler-rt.** xclang builds it for both targets with clang-cl, against
 windows-2022's SDK (MSVC 14.44), as newer toolsets link libraries of older
-ones. It is in `lib/clang/<major>/lib/windows/clang_rt.<name>-<arch>.lib`,
+ones, and libc++ the same way. It is in `lib/clang/<major>/lib/windows/clang_rt.<name>-<arch>.lib`,
 the one directory lld-link searches by itself. Neither clang driver links
 the builtins for MSVC targets, so the config files name them in every
 object too; otherwise `__int128` division does not link. The builtins name
@@ -105,11 +107,74 @@ wants `mt` for manifests, which xclang does not have (`llvm-mt` needs
 libxml2). The Bazel module does the same
 ([Bazel](../integrations/bazel.md#vendor-sdks)).
 
-**`import std` from the STL.** clang 23 builds `std.ixx` and
-`std.compat.ixx` of Microsoft's STL. For arm64 it takes the `_alloca` of
-`<malloc.h>`, which the STL includes inside the module, for a second
-declaration; the CMake package's copy of `std.ixx` includes `<malloc.h>`
-before the module, with the other C headers.
+**UCRT's inline functions.** UCRT declares some functions of the C
+library (`ctime`, `localtime`, `difftime`, ...) `static inline` unless
+`_STATIC_INLINE_UCRT_FUNCTIONS` is 0, which MSVC 19.50 makes the default.
+A module cannot export a function of internal linkage, so the `std`
+module did not build. The config files define it 0 for every compile.
+
+## libc++ and the STL
+
+The MSVC targets' C++ library is libc++, as every other target's, since
+23.1.2.10: one C++ library and one `import std` on every target, and the
+same behavior of `std::format`, `<filesystem>` and the containers.
+Microsoft's STL stays a choice: C++ types passed between a program and a
+library built with MSVC need the STL on both sides.
+
+**libc++ on vcruntime.** libc++ is built with clang-cl against the SDK,
+static, with Microsoft's vcruntime as its ABI library, as libc++'s own
+clang-cl configuration has it: vcruntime throws and catches the exceptions,
+holds the type information and `operator new`, and UCRT is the C library.
+There is no libc++abi or libunwind. Patch 0016 keeps libc++ from defining
+`std::nothrow` a second time, beside the C runtime's
+([patches](../reference/patches.md)).
+
+**One build for every C runtime.** libc++ is compiled `/MT` with `/Zl`: it
+names no C runtime, and its calls to UCRT and vcruntime are direct ones,
+which both their static libraries and their import libraries resolve. So
+the one `libc++-<arch>.lib` links with the hybrid CRT, `/MT`, `/MD` and
+the debug CRTs alike; each program's own objects name the C runtime. It
+is also built with `_CRT_STDIO_ARBITRARY_WIDE_SPECIFIERS`, UCRT's advice
+for static libraries, not libc++'s `_CRT_STDIO_ISO_WIDE_SPECIFIERS`, which
+would put a `/failifmismatch` in it that the objects of every program
+compiled without it contradict. The wide `printf` of a program keeps
+Microsoft's specifiers unless it chooses the ISO ones.
+
+**Found by the linker alone.** The library is
+`lib/clang/<major>/lib/windows/libc++-<arch>.lib`, next to compiler-rt, the
+one directory lld-link searches by itself; both architectures share it.
+The target's `__config_site` names it with `#pragma comment(lib, ...)`, as
+libc++'s own auto-linking does with `libc++.lib`. So every object that
+includes libc++ links it, also when lld-link links without clang (CMake
+with clang-cl, MSBuild), and no C object or object built with the STL
+does.
+
+**`-stdlib=` selects the library.** clang's MSVC toolchain did nothing
+with `-stdlib=`: the STL comes with the C runtime's headers, in the VC
+tools' include directory. [Patch 0015](../reference/patches.md) makes it
+take `-stdlib=libc++` and `-stdlib=platform`, the platform's library, the
+STL. The config files say `-stdlib=libc++` and give libc++'s headers with
+`-stdlib++-isystem`, as for the other targets; `-stdlib=platform` on the
+command line drops them, and the STL's are found as before. clang-cl has
+neither option, so its config files pass them with `/clang:`, which
+clang-cl reported unused in every C compile until
+[patch 0011](../reference/patches.md).
+
+**`import std`.** libc++'s `std` and `std.compat` modules are in
+`<target>/share/libc++/v1`, with `<target>/lib/libc++.modules.json`, as for
+the other targets. clang's `-print-library-module-manifest-path` does not
+report them for MSVC targets (it looks for a `libc++.a`), so the CMake
+package takes them from there. With `-stdlib=platform`, `xclang::std` is
+the STL's: clang 23 builds `std.ixx` and `std.compat.ixx` of Microsoft's
+STL. For arm64 it takes the `_alloca` of `<malloc.h>`, which the STL
+includes inside the module, for a second declaration; the CMake package's
+copy of `std.ixx` includes `<malloc.h>` before the module, with the other
+C headers.
+
+**The C++ standard.** clang's default for MSVC targets is C++14, as
+cl's. The STL has parts of C++17's library there already (the `_v`
+variable templates of `<type_traits>`), libc++ only from C++17 on. Code
+that relied on them builds with `-std=c++17` or later.
 
 ## The Launchers
 

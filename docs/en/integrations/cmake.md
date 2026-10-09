@@ -119,7 +119,11 @@ cmake --build build-msvc
 - The C runtime is the hybrid CRT in every configuration:
   `CMAKE_MSVC_RUNTIME_LIBRARY` is `MultiThreaded` unless set. Other values
   work too; CMake's own default would load the VC runtime's DLLs.
-- `xclang::std` is the `std` and `std.compat` of Microsoft's STL.
+- The C++ library is libc++, and `xclang::std` its `std` and
+  `std.compat`, as for the other targets. `-DXCLANG_MSVC_STL=ON` selects
+  Microsoft's STL instead (`-stdlib=platform`), for C++ interfaces to
+  libraries built with MSVC; `xclang::std` is then the STL's
+  ([MSVC targets](clang.md#msvc-targets)).
 - A link writes a PDB when it has `-g`: Debug and RelWithDebInfo do; a
   target given `-g` in another configuration needs it in
   `target_link_options` too.

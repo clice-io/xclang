@@ -26,7 +26,7 @@ macOS targets on Linux and Windows hosts.
 | Linux (musl), from 23.1.2.10 on | nothing: the kernel's system calls only | musl, libc++, libc++abi, libunwind, the builtins |
 | macOS | libSystem (the C library and the unwinder), the system frameworks the program links | libc++, libc++abi, the builtins |
 | Windows (MinGW) | the OS DLLs (`kernel32`, ...) and UCRT (`api-ms-win-crt-*`), part of Windows 10 and later | libc++, libc++abi, libunwind, the builtins, winpthreads, the mingw-w64 runtime |
-| Windows (MSVC) | the OS DLLs and UCRT (`ucrtbase.dll`), as for MinGW | Microsoft's VC runtime and STL (the "hybrid CRT"), the builtins |
+| Windows (MSVC) | the OS DLLs and UCRT (`ucrtbase.dll`), as for MinGW | libc++ (or Microsoft's STL), Microsoft's VC runtime (the "hybrid CRT"), the builtins |
 
 No one can ship the libraries in the left column with a program. glibc's
 dynamic loader and libc form one ABI with the kernel interface of the

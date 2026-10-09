@@ -159,11 +159,13 @@ export const TARGETS: readonly Target[] = [
 /// target: the targets but musl's.
 export const HOSTS: readonly Target[] = TARGETS.filter((t) => t.os !== "musl");
 
-/// The MSVC ABI's targets, against Microsoft's CRT, STL and Windows SDK,
-/// which the user fetches (`xclang sdk fetch windows`) into the tree's
-/// sdk/windows: no directory of their own in the tree, only compiler-rt
-/// (lib/clang/<ver>/lib/windows) and the config files. Neither a host nor
-/// one of the targets every tree is built and tested with.
+/// The MSVC ABI's targets, against Microsoft's CRT and Windows SDK, which
+/// the user fetches (`xclang sdk fetch windows`) into the tree's
+/// sdk/windows, with xclang's libc++ (or Microsoft's STL: -stdlib=platform):
+/// their libc++ and compiler-rt in lib/clang/<ver>/lib/windows, libc++'s
+/// modules in their directory (toolchain/runtimes.ts), and the config
+/// files. Neither a host nor one of the targets every tree is built and
+/// tested with.
 export const MSVC_TARGETS: readonly Target[] = [
   { triple: "x86_64-pc-windows-msvc", os: "msvc", arch: "x86_64" },
   { triple: "aarch64-pc-windows-msvc", os: "msvc", arch: "aarch64" },
@@ -452,7 +454,7 @@ export function shareHeaders(tree: string): void {
     };
     prune(from);
   };
-  for (const t of TARGETS) {
+  for (const t of [...TARGETS, ...MSVC_TARGETS]) {
     const include = path.join(tree, t.triple, linuxSysroot(t) ? "usr" : "", "include");
     move(path.join(include, "c++", "v1"), path.join(tree, ...SHARED_HEADERS[0]!.split("/")), libcxxTargetDir(tree, t),
       (file) => file === "__config_site");
@@ -471,7 +473,9 @@ export function shareHeaders(tree: string): void {
 /// sdk/macos elsewhere. So do the MSVC targets': on Windows, clang finds
 /// Visual Studio by itself when no SDK is in use. Theirs read the SDK in use
 /// from bin/<triple>-sdk.cfg and bin/<triple>-clang-cl-sdk.cfg, which say
-/// none here and which xclang sdk (cli/) writes.
+/// none here and which xclang sdk (cli/) writes. They name libc++ where the
+/// tree has it (since 23.1.2.10): the config files of a release before it,
+/// repacked, stay with Microsoft's STL.
 export function writeConfigs(tree: string, host: Os): void {
   const bin = path.join(tree, "bin");
   fs.mkdirSync(bin, { recursive: true });
@@ -483,7 +487,9 @@ export function writeConfigs(tree: string, host: Os): void {
     .replaceAll("@MACOS_MIN@", MACOS_MIN);
   /// Off Windows, the MSVC targets' SDK is the tree's sdk/windows, whatever
   /// the machine has.
-  const msvc = (name: string, t: Target) => (host === "mingw" ? "" : config(`${name}-sysroot.cfg`, t)) + config(`${name}.cfg`, t);
+  const libcxx = (t: Target) => fs.existsSync(path.join(libcxxTargetDir(tree, t), "__config_site"));
+  const msvc = (name: string, t: Target) => (host === "mingw" ? "" : config(`${name}-sysroot.cfg`, t)) +
+    config(`${name}.cfg`, t) + (libcxx(t) ? config(`${name}-libcxx.cfg`, t) : "");
   for (const t of MSVC_TARGETS) {
     for (const name of cfgNames(t)) {
       fs.writeFileSync(path.join(bin, `${name}.cfg`), msvc("msvc", t));

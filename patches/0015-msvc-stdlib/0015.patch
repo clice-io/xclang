@@ -1,0 +1,149 @@
+diff --git a/clang/include/clang/Driver/ToolChain.h b/clang/include/clang/Driver/ToolChain.h
+index 863ba10..d665429 100644
+--- a/clang/include/clang/Driver/ToolChain.h
++++ b/clang/include/clang/Driver/ToolChain.h
+@@ -803,8 +803,9 @@ public:
+ 
+   /// AddClangCXXStdlibIsystemArgs - Add the clang -cc1 level arguments to set
+   /// the specified include paths for the C++ standard library.
+-  void AddClangCXXStdlibIsystemArgs(const llvm::opt::ArgList &DriverArgs,
+-                                    llvm::opt::ArgStringList &CC1Args) const;
++  virtual void
++  AddClangCXXStdlibIsystemArgs(const llvm::opt::ArgList &DriverArgs,
++                               llvm::opt::ArgStringList &CC1Args) const;
+ 
+   /// Returns if the C++ standard library should be linked in.
+   /// Note that e.g. -lm should still be linked even if this returns false.
+diff --git a/clang/lib/Driver/ToolChains/MSVC.cpp b/clang/lib/Driver/ToolChains/MSVC.cpp
+index 2aa69ec..a4de218 100644
+--- a/clang/lib/Driver/ToolChains/MSVC.cpp
++++ b/clang/lib/Driver/ToolChains/MSVC.cpp
+@@ -927,9 +927,55 @@ void MSVCToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
+ #endif
+ }
+ 
++// The C++ standard library of MSVC targets is Microsoft's STL, which comes
++// with the C runtime's headers in the include directory of the VC tools
++// (AddClangSystemIncludeArgs). -stdlib=libc++ selects libc++ instead.
++// CLANG_DEFAULT_CXX_STDLIB, the default of the other toolchains, does not
++// change it.
++static bool selectsLibcxx(const ToolChain &TC, const ArgList &Args) {
++  return Args.hasArg(options::OPT_stdlib_EQ) &&
++         TC.GetCXXStdlibType(Args) == ToolChain::CST_Libcxx;
++}
++
+ void MSVCToolChain::AddClangCXXStdlibIncludeArgs(const ArgList &DriverArgs,
+                                                  ArgStringList &CC1Args) const {
+-  // FIXME: There should probably be logic here to find libc++ on Windows.
++  if (DriverArgs.hasArg(options::OPT_nostdinc, options::OPT_nostdlibinc,
++                        options::OPT_nostdincxx) ||
++      !selectsLibcxx(*this, DriverArgs))
++    return;
++
++  // libc++ installed with the compiler, as on other targets: the target's own
++  // headers (its __config_site) in include/<triple>/c++/v1, then the shared
++  // ones in include/c++/v1, both before the headers of the C runtime, which
++  // libc++'s include.
++  SmallString<128> Include(getDriver().Dir);
++  llvm::sys::path::append(Include, "..", "include");
++  std::string Version = detectLibcxxVersion(Include);
++  if (Version.empty())
++    return;
++  if (std::optional<std::string> TargetInclude = getStdlibIncludePath()) {
++    SmallString<128> TargetDir(*TargetInclude);
++    llvm::sys::path::append(TargetDir, "c++", Version);
++    if (getVFS().exists(TargetDir))
++      addSystemInclude(DriverArgs, CC1Args, TargetDir);
++  }
++  llvm::sys::path::append(Include, "c++", Version);
++  addSystemInclude(DriverArgs, CC1Args, Include);
++}
++
++void MSVCToolChain::AddClangCXXStdlibIsystemArgs(const ArgList &DriverArgs,
++                                                 ArgStringList &CC1Args) const {
++  // -stdlib=platform (or any other library than libc++) selects Microsoft's
++  // STL, whose headers are the system's: there is no include directory of a
++  // C++ library for -stdlib++-isystem to stand for. So a configuration file
++  // can give libc++'s with -stdlib=libc++, and -stdlib=platform on the
++  // command line takes them away.
++  if (DriverArgs.hasArg(options::OPT_stdlib_EQ) &&
++      !selectsLibcxx(*this, DriverArgs)) {
++    DriverArgs.ClaimAllArgs(options::OPT_stdlibxx_isystem);
++    return;
++  }
++  ToolChain::AddClangCXXStdlibIsystemArgs(DriverArgs, CC1Args);
+ }
+ 
+ VersionTuple MSVCToolChain::computeMSVCVersion(const Driver *D,
+diff --git a/clang/lib/Driver/ToolChains/MSVC.h b/clang/lib/Driver/ToolChains/MSVC.h
+index 6878d6a..d436f8b 100644
+--- a/clang/lib/Driver/ToolChains/MSVC.h
++++ b/clang/lib/Driver/ToolChains/MSVC.h
+@@ -104,6 +104,9 @@ public:
+   void AddClangCXXStdlibIncludeArgs(
+       const llvm::opt::ArgList &DriverArgs,
+       llvm::opt::ArgStringList &CC1Args) const override;
++  void AddClangCXXStdlibIsystemArgs(
++      const llvm::opt::ArgList &DriverArgs,
++      llvm::opt::ArgStringList &CC1Args) const override;
+ 
+   void AddCudaIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                           llvm::opt::ArgStringList &CC1Args) const override;
+diff --git a/clang/test/Driver/msvc-libcxx.cpp b/clang/test/Driver/msvc-libcxx.cpp
+new file mode 100644
+index 0000000..405e67d
+--- /dev/null
++++ b/clang/test/Driver/msvc-libcxx.cpp
+@@ -0,0 +1,52 @@
++// The C++ standard library of MSVC targets: Microsoft's STL, from the
++// system's headers, unless -stdlib=libc++; then libc++ installed with the
++// compiler, include/<triple>/c++/v1 and include/c++/v1, before them.
++
++// RUN: rm -rf %t && mkdir -p %t/bin %t/include/c++/v1 %t/include/x86_64-pc-windows-msvc/c++/v1
++
++// RUN: %clang -### --target=x86_64-pc-windows-msvc -ccc-install-dir %/t/bin \
++// RUN:   -stdlib=libc++ -fsyntax-only %s 2>&1 | FileCheck --check-prefix=LIBCXX %s
++// RUN: %clang_cl -### --target=x86_64-pc-windows-msvc -ccc-install-dir %/t/bin \
++// RUN:   /clang:-stdlib=libc++ /Zs -- %s 2>&1 | FileCheck --check-prefix=LIBCXX %s
++// LIBCXX: InstalledDir: [[INSTALLDIR:.+$]]
++// LIBCXX: "-internal-isystem" "[[INSTALLDIR]]{{/|\\\\}}..{{/|\\\\}}include{{/|\\\\}}x86_64-pc-windows-msvc{{/|\\\\}}c++{{/|\\\\}}v1"
++// LIBCXX-SAME: "-internal-isystem" "[[INSTALLDIR]]{{/|\\\\}}..{{/|\\\\}}include{{/|\\\\}}c++{{/|\\\\}}v1"
++// LIBCXX-SAME: "-internal-isystem" "{{[^"]*}}{{/|\\\\}}include"
++
++// Another target has no headers of its own there: the shared ones only.
++// RUN: %clang -### --target=aarch64-pc-windows-msvc -ccc-install-dir %/t/bin \
++// RUN:   -stdlib=libc++ -fsyntax-only %s 2>&1 | FileCheck --check-prefix=SHARED %s
++// SHARED: InstalledDir: [[INSTALLDIR:.+$]]
++// SHARED-NOT: "-internal-isystem" "{{[^"]*}}aarch64-pc-windows-msvc{{/|\\\\}}c++{{/|\\\\}}v1"
++// SHARED: "-internal-isystem" "[[INSTALLDIR]]{{/|\\\\}}..{{/|\\\\}}include{{/|\\\\}}c++{{/|\\\\}}v1"
++
++// Microsoft's STL: by default, with -stdlib=platform, and with -nostdinc++.
++// RUN: %clang -### --target=x86_64-pc-windows-msvc -ccc-install-dir %/t/bin \
++// RUN:   -fsyntax-only %s 2>&1 | FileCheck --check-prefix=STL %s
++// RUN: %clang -### --target=x86_64-pc-windows-msvc -ccc-install-dir %/t/bin \
++// RUN:   -stdlib=libc++ -stdlib=platform -fsyntax-only %s 2>&1 | FileCheck --check-prefix=STL %s
++// RUN: %clang_cl -### --target=x86_64-pc-windows-msvc -ccc-install-dir %/t/bin \
++// RUN:   /clang:-stdlib=platform /Zs -- %s 2>&1 | FileCheck --check-prefix=STL %s
++// RUN: %clang -### --target=x86_64-pc-windows-msvc -ccc-install-dir %/t/bin \
++// RUN:   -stdlib=libc++ -nostdinc++ -fsyntax-only %s 2>&1 | FileCheck --check-prefix=STL %s
++// STL-NOT: argument unused during compilation
++// STL-NOT: "-internal-isystem" "{{[^"]*}}c++{{/|\\\\}}v1"
++
++// -stdlib++-isystem stands for libc++'s directories, by default too, and
++// -stdlib=platform takes them away.
++// RUN: %clang -### --target=x86_64-pc-windows-msvc -ccc-install-dir %/t/bin \
++// RUN:   -stdlib++-isystem /tmp/foo -stdlib++-isystem /tmp/bar -stdlib=libc++ \
++// RUN:   -fsyntax-only %s 2>&1 | FileCheck --check-prefix=ISYSTEM %s
++// RUN: %clang -### --target=x86_64-pc-windows-msvc -ccc-install-dir %/t/bin \
++// RUN:   -stdlib++-isystem /tmp/foo -stdlib++-isystem /tmp/bar \
++// RUN:   -fsyntax-only %s 2>&1 | FileCheck --check-prefix=ISYSTEM %s
++// ISYSTEM: "-internal-isystem" "/tmp/foo" "-internal-isystem" "/tmp/bar"
++// ISYSTEM-NOT: "-internal-isystem" "{{[^"]*}}c++{{/|\\\\}}v1"
++// RUN: %clang -### --target=x86_64-pc-windows-msvc -ccc-install-dir %/t/bin \
++// RUN:   -stdlib++-isystem /tmp/foo -stdlib=libc++ -stdlib=platform \
++// RUN:   -fsyntax-only %s 2>&1 | FileCheck --check-prefix=ISYSTEM-STL %s
++// RUN: %clang_cl -### --target=x86_64-pc-windows-msvc -ccc-install-dir %/t/bin \
++// RUN:   /clang:-stdlib++-isystem/tmp/foo /clang:-stdlib=platform /Zs -- %s 2>&1 \
++// RUN:   | FileCheck --check-prefix=ISYSTEM-STL %s
++// ISYSTEM-STL-NOT: argument unused during compilation
++// ISYSTEM-STL-NOT: "/tmp/foo"

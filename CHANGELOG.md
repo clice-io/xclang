@@ -8,6 +8,30 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+- **libc++ is the C++ library of the MSVC targets**, as of every other
+  target, `import std` included; until 23.1.2.9 it was Microsoft's STL.
+  This breaks code that passes C++ types to or from libraries built with
+  MSVC (or with the STL), whose ABI is the STL's: `-stdlib=platform`
+  (clang-cl: `/clang:-stdlib=platform`, CMake: `-DXCLANG_MSVC_STL=ON`)
+  selects the STL again. C interfaces are not affected. libc++ is static,
+  on Microsoft's vcruntime (exceptions, RTTI) and UCRT, with the hybrid CRT
+  as before: a program still loads only Windows' DLLs. One build serves
+  every C runtime (`/MT`, `/MD`, `/MTd`, `/MDd`); for x64 there is its ASan
+  build too. clang's default standard for MSVC targets stays C++14, where
+  libc++ has none of the C++17 library the STL offers early
+  (`std::is_integral_v`): build with `-std=c++17` or later
+  ([MSVC targets](docs/en/integrations/clang.md#msvc-targets),
+  [Windows](docs/en/design/windows.md#msvc-targets)).
+- **0015** added: clang's MSVC toolchain takes `-stdlib=libc++` (libc++
+  installed with the compiler, or the directories of `-stdlib++-isystem`)
+  and `-stdlib=platform` (Microsoft's STL). **0016** added: libc++ on
+  vcruntime no longer defines `std::nothrow`, which the C runtime does,
+  and its std module builds. **0011** added: a config file's `/clang:`
+  options are not reported unused by clang-cl
+  ([patches](docs/en/reference/patches.md)).
+- The MSVC targets' config files define `_STATIC_INLINE_UCRT_FUNCTIONS=0`,
+  MSVC 19.50's default: UCRT's inline functions (`ctime`, ...) have
+  external linkage, which a module needs to export them.
 - **musl targets**, `x86_64-unknown-linux-musl` and
   `aarch64-unknown-linux-musl`, in every toolchain archive: static programs
   with no program interpreter and no shared library, which take nothing

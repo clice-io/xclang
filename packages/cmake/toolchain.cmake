@@ -27,8 +27,12 @@
 #                   CMAKE_OSX_SYSROOT given. MSVC targets build with the
 #                   Windows SDK the toolchain's xclang fetched (xclang sdk
 #                   fetch windows), with clang and clang++ (not clang-cl),
-#                   and the hybrid CRT: CMAKE_MSVC_RUNTIME_LIBRARY is
-#                   MultiThreaded unless set.
+#                   the hybrid CRT (CMAKE_MSVC_RUNTIME_LIBRARY is
+#                   MultiThreaded unless set) and libc++.
+#   XCLANG_MSVC_STL ON: an MSVC target's C++ library is Microsoft's STL, not
+#                   libc++ (-stdlib=platform in CMAKE_CXX_FLAGS), for C++
+#                   interfaces to libraries built with MSVC; xclang::std is
+#                   then the STL's. Ignored for other targets.
 
 if(NOT XCLANG_ROOT)
     get_filename_component(XCLANG_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
@@ -38,7 +42,7 @@ if(NOT EXISTS "${XCLANG_ROOT}/bin/x86_64-unknown-linux-gnu.cfg")
     message(FATAL_ERROR "xclang: no toolchain at ${XCLANG_ROOT}; set XCLANG_ROOT to an unpacked xclang")
 endif()
 # try_compile projects read this file again, without the cache.
-list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES XCLANG_ROOT XCLANG_TARGET)
+list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES XCLANG_ROOT XCLANG_TARGET XCLANG_MSVC_STL)
 
 if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64|ARM64)$")
     set(_xclang_host_arch aarch64)
@@ -114,8 +118,8 @@ elseif(_xclang_target_os STREQUAL "msvc")
 endif()
 
 if(_xclang_target_os STREQUAL "msvc")
-    # Microsoft's CRT, STL and Windows SDK, where the config files of the
-    # MSVC targets read them: fetched into the tree. On Windows, without
+    # Microsoft's CRT (and STL) and Windows SDK, where the config files of
+    # the MSVC targets read them: fetched into the tree. On Windows, without
     # one, clang finds Visual Studio.
     if(NOT CMAKE_HOST_WIN32 AND NOT EXISTS "${XCLANG_ROOT}/sdk/windows/${XCLANG_TARGET}.cfg")
         message(FATAL_ERROR "xclang: ${XCLANG_TARGET} needs the Windows SDK in ${XCLANG_ROOT}/sdk/windows, "
@@ -127,6 +131,12 @@ if(_xclang_target_os STREQUAL "msvc")
     # no Windows has.
     if(NOT DEFINED CMAKE_MSVC_RUNTIME_LIBRARY)
         set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreaded)
+    endif()
+    # libc++ comes from the config files (-stdlib=libc++); -stdlib=platform
+    # takes it away, and clang finds Microsoft's STL next to the CRT's
+    # headers.
+    if(XCLANG_MSVC_STL)
+        string(APPEND CMAKE_CXX_FLAGS_INIT " -stdlib=platform")
     endif()
     # With a debug CRT (MultiThreadedDebug, MultiThreadedDebugDLL), links
     # take no ucrt.lib, which the config files' hybrid CRT names in every

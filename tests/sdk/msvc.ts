@@ -11,12 +11,18 @@
 /// both targets programs built with clang, clang++ and clang-cl into
 /// <dir>/<target>/msvc-<host>, and in
 /// programs.json what each prints and how it ends (tests/lib/on-target.ts
-/// runs them on Windows): C, C++ with the STL (exceptions, threads,
-/// <filesystem>, <format>), __int128, Win32, the hybrid CRT and /MT, /MD
-/// and /MTd, debug information, ThinLTO, UBSan, the profile runtime, and
-/// for x64 ASan and libFuzzer; the DLLs each program imports checked here.
-/// tests/cmake for both targets through the CMake package; with --kotatsu,
-/// kotatsu's tests for x64. Programs built for this machine run here too.
+/// runs them on Windows): C, C++ with libc++ (exceptions, threads,
+/// <filesystem>, <format>) and with Microsoft's STL (-stdlib=platform), __int128,
+/// Win32, the hybrid CRT and /MT, /MD and /MTd (/MDd linked only), debug
+/// information, ThinLTO, UBSan, the profile runtime, and for x64 ASan and
+/// libFuzzer; the DLLs each program imports checked here. tests/cmake for
+/// both targets through the CMake package, with libc++ and with the STL
+/// (XCLANG_MSVC_STL); with --kotatsu, kotatsu's tests for x64. Programs
+/// built for this machine run here too.
+///
+/// A toolchain before 23.1.2.10 has no libc++ for the MSVC targets
+/// (checks.yml tests this checkout with the latest release): its C++
+/// programs are the STL's either way.
 ///
 /// Only programs leave the job, and xclang's ASan DLL next to them: nothing
 /// of the SDK.
@@ -73,6 +79,16 @@ const tool = (name: string) => path.join(tree, "bin", name + exe);
 const work = fs.mkdtempSync(path.join(fs.realpathSync.native(os.tmpdir()), "xclang-msvc-"));
 const arch = os.arch() === "arm64" ? "aarch64" : "x86_64";
 const sources = path.join(common.ROOT, "tests", "sdk");
+/// libc++ of the MSVC targets, the C++ library of their config files where
+/// the tree has it (toolchain/common.ts, writeConfigs).
+const libcxx = fs.existsSync(path.join(common.resourceDir(tree), "lib", "windows", "libc++-x86_64.lib"));
+const library = (stl: boolean) => `library: ${libcxx && !stl ? "libc++" : "msvc-stl"}`;
+{
+  const release = /^set\(PACKAGE_VERSION "(.+)"\)$/m
+    .exec(fs.readFileSync(path.join(tree, "lib", "cmake", "xclang", "xclang-config-version.cmake"), "utf8"))?.[1] ?? "";
+  const since = release.split(".").map(Number).reduce((v, n) => v * 1000 + n, 0) >= 23001002010;
+  check(libcxx === since, `libc++ for the MSVC targets ${since ? "in" : "not in"} ${release}`);
+}
 const write = (name: string, text: string) => {
   fs.writeFileSync(path.join(work, name), text);
   return path.join(work, name);
@@ -80,11 +96,12 @@ const write = (name: string, text: string) => {
 
 /// 1. Without an SDK: what needs none compiles for both targets, with clang
 /// and clang-cl (a plain one too), as clice queries the compiler
-/// (-ffreestanding -undef -nostdinc). On Windows clang finds Visual Studio,
-/// without a Developer Command Prompt's variables: a program builds and
-/// runs, and so does tests/cmake through the CMake package. Elsewhere a
-/// compile that includes the CRT stops, and clang looks for it in the
-/// tree's sdk/windows.
+/// (-ffreestanding -undef -nostdinc); clang-cl with /WX, as no option of
+/// the config files may be reported unused (patches/0011). On Windows
+/// clang finds Visual Studio, without a Developer Command Prompt's
+/// variables: programs build and run, libc++'s too, and so does
+/// tests/cmake through the CMake package. Elsewhere a compile that includes
+/// the CRT stops, and clang looks for it in the tree's sdk/windows.
 const hello = path.join(sources, "hello.c");
 const bare = write("bare.c", "int f(void) { return 0; }\n");
 const freestanding = write("freestanding.c", "#include <stddef.h>\n#include <stdint.h>\nint32_t f(size_t n) { return (int32_t)n; }\n");
@@ -95,9 +112,10 @@ for (const a of ["x86_64", "aarch64"]) {
   for (const [driver, args] of [
     ["clang", [target, "-ffreestanding", "-undef", "-nostdinc", "-fsyntax-only", bare]],
     ["clang++", [target, "-ffreestanding", "-fsyntax-only", "-x", "c++", freestanding]],
-    ["clang-cl", [target, "/Zs", "--", bare]],
-    ["clang-cl", [target, "/Zs", "/clang:-ffreestanding", "--", freestanding]],
-    ...(a === arch ? [["clang-cl", ["/Zs", "--", bare]]] as const : []),
+    ["clang-cl", [target, "/Zs", "/WX", "--", bare]],
+    ["clang-cl", [target, "/Zs", "/WX", "/clang:-ffreestanding", "--", freestanding]],
+    ["clang-cl", [target, "/Zs", "/WX", "/clang:-ffreestanding", "/TP", "--", freestanding]],
+    ...(a === arch ? [["clang-cl", ["/Zs", "/WX", "--", bare]]] as const : []),
   ] as const) {
     const r = run(tool(driver), [...args], { cwd: work, env: noPrompt });
     check(r.status === 0, `without an SDK: ${driver} ${args.filter((x) => !path.isAbsolute(x)).join(" ")}`);
@@ -105,13 +123,15 @@ for (const a of ["x86_64", "aarch64"]) {
 }
 if (windows) {
   const program = (driver: string) => path.join(work, `vs-${driver}.exe`);
-  for (const [driver, args] of [
-    ["clang", ["-O2", hello, "-o", program("clang")]],
-    ["clang-cl", ["/O2", `/Fe${program("clang-cl")}`, "--", hello]],
+  for (const [driver, args, expect] of [
+    ["clang", ["-O2", hello, "-o", program("clang")], "hello, C"],
+    ["clang-cl", ["/O2", `/Fe${program("clang-cl")}`, "--", hello], "hello, C"],
+    /// libc++ on Visual Studio's vcruntime and UCRT.
+    ["clang++", ["-O2", path.join(sources, "library.cpp"), "-o", program("clang++")], library(false)],
   ] as const) {
     const built = run(tool(driver), [`--target=${arch}-pc-windows-msvc`, ...args], { cwd: work, env: noPrompt });
-    check(built.status === 0 && run(program(driver), []).out.includes("hello, C"),
-      `without an SDK: ${driver} finds Visual Studio, and the program runs`);
+    check(built.status === 0 && run(program(driver), []).out.includes(expect),
+      `without an SDK: ${driver} finds Visual Studio, and the program runs (${expect})`);
   }
   const dir = path.join(work, "cmake-vs");
   const toolchain = path.join(tree, "lib", "cmake", "xclang", "toolchain.cmake");
@@ -168,6 +188,18 @@ int main(int argc, char **argv) {
 const asan = write("asan.cpp", `#include <sanitizer/asan_interface.h>
 int main(int argc, char**) { int* p = new int[4]; int r = p[argc + 4]; delete[] p; return r; }
 `);
+/// Past a std::string's size, within its capacity: only an instrumented
+/// libc++ annotates it (examples/sanitizers/overflow.cpp).
+const overflow = path.join(common.ROOT, "examples", "sanitizers", "overflow.cpp");
+/// Out of a std::vector's buffer, which libc++ allocates.
+const asanVector = write("asan-vector.cpp", `#include <string>
+#include <vector>
+int main(int argc, char**) {
+  std::vector<int> v(4, 1);
+  std::string s(32, 'x');
+  return v[argc + 4] + s[0];
+}
+`);
 const ubsan = write("ubsan.c", `#include <limits.h>
 #include <stdio.h>
 int main(int argc, char **argv) { (void)argv; int x = INT_MAX; x += argc; printf("ubsan %d\\n", x); return 0; }
@@ -218,6 +250,7 @@ for (const a of ["x86_64", "aarch64"]) {
   };
   const cpp = path.join(sources, "hello.cpp");
   const cppOut = "threads: 10, file size: 5, pi: 3.142";
+  const lib = path.join(sources, "library.cpp");
   build("c", "clang", ["-O2", hello], "hello, C", "hybrid");
   build("c-cl", "clang-cl", ["/O2", "--", hello], "hello, C", "hybrid");
   build("cpp", "clang++", ["-std=c++23", "-O2", cpp], cppOut, "hybrid");
@@ -234,6 +267,21 @@ for (const a of ["x86_64", "aarch64"]) {
   /// an option of the link, which comes before the objects' own.
   build("cpp-mtd", "clang++", ["-std=c++23", "-g", "-fms-runtime-lib=static_dbg", cpp, "-Wl,/nodefaultlib:ucrt.lib"], cppOut, "static");
   build("cpp-cl-mtd", "clang-cl", ["/EHsc", "/std:c++latest", "/MTd", "/Zi", `/Tp${cpp}`, "/link", "/nodefaultlib:ucrt.lib"], cppOut, "static");
+  /// The C++ library each driver takes, and Microsoft's STL instead with
+  /// -stdlib=platform.
+  build("library", "clang++", ["-O2", lib], library(false), "hybrid");
+  build("library-cl", "clang-cl", ["/EHsc", "/O2", "--", lib], library(false), "hybrid");
+  build("library-stl", "clang++", ["-O2", "-stdlib=platform", lib], library(true), "hybrid");
+  build("library-cl-stl", "clang-cl", ["/EHsc", "/O2", "/clang:-stdlib=platform", "--", lib], library(true), "hybrid");
+  build("cpp-stl", "clang++", ["-std=c++23", "-O2", "-stdlib=platform", cpp], cppOut, "hybrid");
+  build("cpp-cl-stl", "clang-cl", ["/EHsc", "/std:c++latest", "/O2", "/clang:-stdlib=platform", "--", cpp], cppOut, "hybrid");
+  /// The DLL debug CRT: Visual Studio's debug DLLs, which no Windows has
+  /// by itself; linked here, not run.
+  const mdd = path.join(work, `cpp-mdd-${a}.exe`);
+  const mddBuilt = run(tool("clang++"), [`--target=${triple}`, "-std=c++23", "-g", "-fms-runtime-lib=dll_dbg", cpp,
+    "-Wl,/nodefaultlib:ucrt.lib", "-o", mdd], { cwd: work }).status === 0;
+  const mddDlls = mddBuilt ? run(tool("llvm-readobj"), ["--needed-libs", mdd]).out.toLowerCase() : "";
+  check(mddBuilt && mddDlls.includes("ucrtbased.dll") && /vcruntime\d+d\.dll/.test(mddDlls), `${triple}: cpp-mdd links with the DLL debug CRT`);
   build("int128", "clang", ["-O2", int128], "int128 ", "hybrid");
   build("int128-cl", "clang-cl", ["/O2", "--", int128], "int128 ", "hybrid");
   build("win32", "clang", ["-O2", path.join(sources, "win32.c"), "-luser32", "-ladvapi32"], "thread: 42", "hybrid");
@@ -241,8 +289,19 @@ for (const a of ["x86_64", "aarch64"]) {
   build("profile", "clang", ["-fprofile-instr-generate", "-O1", profile], "profile ", "hybrid", { profile: true });
   if (a === "x86_64") {
     build("asan", "clang++", ["-fsanitize=address", "-g", "-O1", asan], "heap-buffer-overflow", null, { fails: true });
+    build("asan-vector", "clang++", ["-fsanitize=address", "-g", "-O1", asanVector], "heap-buffer-overflow", null, { fails: true });
+    build("asan-vector-cl", "clang-cl", ["-fsanitize=address", "/EHsc", "/Zi", "/O1", "--", asanVector], "heap-buffer-overflow", null, { fails: true });
     build("asan-md", "clang++", ["-fsanitize=address", "-fms-runtime-lib=dll", "-g", "-O1", asan], "heap-buffer-overflow", null, { fails: true });
-    build("fuzzer", "clang++", ["-fsanitize=fuzzer", "-O1", fuzzer], "Done 1000 runs", null, { args: ["-runs=1000"] });
+    /// The ASan libc++, whose std::string annotates its capacity.
+    if (libcxx) {
+      const include = path.join(tree, triple, "lib", "asan", "include");
+      build("asan-libcxx", "clang++", ["-fsanitize=address", "-isystem", include, "-g", "-O1", overflow], "container-overflow", null, { fails: true });
+      build("asan-libcxx-md", "clang++", ["-fsanitize=address", "-fms-runtime-lib=dll", "-isystem", include, "-g", "-O1", overflow],
+        "container-overflow", null, { fails: true });
+      build("asan-libcxx-cl", "clang-cl", ["-fsanitize=address", "/EHsc", "/Zi", "/O1", `/clang:-isystem${include}`, "--", overflow],
+        "container-overflow", null, { fails: true });
+    }
+    build("fuzzer", "clang++", ["-std=c++17", "-fsanitize=fuzzer", "-O1", fuzzer], "Done 1000 runs", null, { args: ["-runs=1000"] });
     /// ASan's runtime is a DLL, which the program finds next to it.
     const dll = "clang_rt.asan_dynamic-x86_64.dll";
     fs.copyFileSync(path.join(common.resourceDir(tree), "lib", "windows", dll), path.join(dir, dll));
@@ -259,16 +318,23 @@ for (const a of ["x86_64", "aarch64"]) {
   summary.push(`- ${triple}: ${programs.length} programs`);
 }
 
-/// 4. CMake: tests/cmake through the package's toolchain file.
+/// 4. CMake: tests/cmake through the package's toolchain file, with libc++
+/// and with Microsoft's STL, whose std.ixx the package copies into the
+/// build (xclang_std/std.cppm).
 const toolchain = path.join(tree, "lib", "cmake", "xclang", "toolchain.cmake");
 for (const a of ["x86_64", "aarch64"]) {
-  const triple = `${a}-pc-windows-msvc`;
-  const dir = path.join(work, `cmake-${a}`);
-  const configure = run("cmake", ["-G", "Ninja", "-S", path.join(common.ROOT, "tests", "cmake"), "-B", dir,
-    "-DCMAKE_BUILD_TYPE=Release", `--toolchain=${toolchain}`, `-DXCLANG_TARGET=${triple}`]);
-  const built = configure.status === 0 && run("cmake", ["--build", dir]).status === 0;
-  check(built, `tests/cmake for ${triple}`);
-  if (built && native && a === "x86_64") check(run("ctest", ["--test-dir", dir, "--output-on-failure"]).status === 0, `tests/cmake's tests for ${triple}`);
+  for (const stl of [false, true]) {
+    const triple = `${a}-pc-windows-msvc`;
+    const dir = path.join(work, `cmake-${a}${stl ? "-stl" : ""}`);
+    const what = `tests/cmake for ${triple}${stl ? " with XCLANG_MSVC_STL" : ""}`;
+    const configure = run("cmake", ["-G", "Ninja", "-S", path.join(common.ROOT, "tests", "cmake"), "-B", dir,
+      "-DCMAKE_BUILD_TYPE=Release", `--toolchain=${toolchain}`, `-DXCLANG_TARGET=${triple}`, `-DXCLANG_MSVC_STL=${stl ? "ON" : "OFF"}`]);
+    const built = configure.status === 0 && run("cmake", ["--build", dir]).status === 0;
+    check(built, what);
+    if (!built) continue;
+    check(fs.existsSync(path.join(dir, "xclang_std", "std.cppm")) === (stl || !libcxx), `${what}: xclang::std from ${stl || !libcxx ? "the STL" : "libc++"}`);
+    if (native && a === "x86_64") check(run("ctest", ["--test-dir", dir, "--output-on-failure"]).status === 0, `${what}: its tests`);
+  }
 }
 
 /// 5. kotatsu, a real project: its tests for x64, run in its source tree.

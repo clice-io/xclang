@@ -53,7 +53,7 @@ license.
 | <a id="linux"></a>Linux x64, arm64 | glibc 2.17 | the toolchain | 1 | Supported |
 | <a id="mingw"></a>Windows x64, arm64 (MinGW) | mingw-w64, UCRT | the toolchain | 1 | Supported |
 | <a id="macos"></a>macOS arm64, x64, from macOS hosts | Apple's SDK | Xcode | 1 | Supported |
-| <a id="msvc"></a>Windows x64, arm64 (MSVC), with their sanitizers | Microsoft's CRT and STL, Windows SDK | the user (SDK) | 1 | Supported |
+| <a id="msvc"></a>Windows x64, arm64 (MSVC), with their sanitizers | Microsoft's CRT, Windows SDK; libc++ or Microsoft's STL | the user (SDK) | 1 | Supported |
 | <a id="macos-any-host"></a>macOS arm64, x64, from Linux and Windows hosts | Apple's SDK | the user (SDK) | 1 | Supported |
 | <a id="musl"></a>Linux x64, arm64 (musl), in every archive | musl 1.2.6, static | the toolchain | 1 | Unreleased |
 | <a id="windows-x86-msvc"></a>Windows x86 (MSVC) | Microsoft's CRT and STL, Windows SDK | the user (SDK) | 1 | In research |
@@ -81,9 +81,10 @@ What sets these targets apart:
 
 - **MSVC targets.** First-class targets, as the MinGW ones are, since
   23.1.2.7. The default C runtime is Microsoft's "hybrid CRT": the VC
-  runtime and the STL static, UCRT dynamic. xclang builds their
-  compiler-rt: the builtins, the profile runtime and UBSan, and for x64
-  AddressSanitizer, whose runtime is a DLL, and libFuzzer. The MSVC and
+  runtime and the C++ library static, UCRT dynamic. xclang builds their
+  libc++ ([below](#libcxx-msvc)) and compiler-rt: the builtins, the
+  profile runtime and UBSan, and for x64 AddressSanitizer, whose runtime
+  is a DLL, and libFuzzer. The MSVC and
   Windows SDK versions are pinned to ones the shipped clang accepts, and
   the user fetches them with the [`xclang` command](#xclang-command),
   which every toolchain archive carries
@@ -174,7 +175,7 @@ its C compiler and linker. Every toolchain archive carries it, as
 | <a id="bazel-gsymutil"></a>`@xclang//bazel:llvm-gsymutil`, the toolchain's llvm-gsymutil for `bazel run` | Supported |
 | <a id="cargo-helper"></a>An `xclang cargo` helper that sets cargo's variables | Considered |
 | <a id="libgcc-s-script"></a>`libgcc_s.a` as a linker script naming libunwind, for Rust's Linux targets | Considered |
-| <a id="libcxx-msvc"></a>libc++ as the C++ library of MSVC targets | Planned |
+| <a id="libcxx-msvc"></a>libc++ as the C++ library of MSVC targets | Unreleased |
 | <a id="openmp"></a>An OpenMP runtime | Not planned |
 | <a id="tool-binaries"></a>clang-format, clang-tidy and clangd programs | Not planned |
 | <a id="shared-runtime"></a>A shared C++ runtime across shared libraries | Not planned |
@@ -212,9 +213,10 @@ links, would have them, and its programs would need musl on the machine
 ([sanitizers](../features/sanitizers.md#musl-targets)).
 
 **libc++ for MSVC targets** gives them the C++ library of every other
-target, its `import std` included, and becomes their default. Microsoft's
-STL stays a choice: C++ types passed between a program and libraries
-built with MSVC need the same library on both sides.
+target, its `import std` included, as their default. Microsoft's STL stays
+a choice, `-stdlib=platform`: C++ types passed between a program and
+libraries built with MSVC need the same library on both sides
+([Windows](windows.md#libc-and-the-stl)).
 
 The not-planned items follow from what xclang is. It is a compiler
 toolchain, and libclang has the libraries that tools on clang link. Its

@@ -29,6 +29,9 @@ Build the C++ dependencies with xclang, for the same target: with CMake,
 Bazel, or vcpkg with xclang's toolchain file chain-loaded. A C++ library
 built with GCC's libstdc++ (a distribution's Qt or Boost) or with MSVC's
 STL has another ABI than xclang's libc++. C libraries are not affected.
+For the MSVC targets, `-stdlib=platform` builds with Microsoft's STL,
+which libraries built with MSVC link
+([MSVC targets](../integrations/clang.md#msvc-targets)).
 
 ### "version `GLIBC_2.34' not found" on an older machine
 
