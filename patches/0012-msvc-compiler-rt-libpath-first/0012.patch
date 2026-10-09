@@ -1,0 +1,48 @@
+diff --git a/clang/lib/Driver/ToolChains/MSVC.cpp b/clang/lib/Driver/ToolChains/MSVC.cpp
+index 2aa69ec..f089d01 100644
+--- a/clang/lib/Driver/ToolChains/MSVC.cpp
++++ b/clang/lib/Driver/ToolChains/MSVC.cpp
+@@ -157,6 +157,22 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
+                             llvm::archToLegacyVCArch(TC.getArch()));
+     CmdArgs.push_back(Args.MakeArgString(Twine("-libpath:") + DIAPath));
+   }
++  // Add the compiler-rt library directories to libpath if they exist to help
++  // the linker find the various sanitizer, builtin, and profiling runtimes.
++  // They come before Visual Studio's, which has clang_rt libraries of its own
++  // (Microsoft's build, for its clang): lld-link takes the first it finds.
++  for (const auto &LibPath : TC.getLibraryPaths()) {
++    if (TC.getVFS().exists(LibPath))
++      CmdArgs.push_back(Args.MakeArgString("-libpath:" + LibPath));
++  }
++  for (const auto &LibPath : TC.getFilePaths()) {
++    if (LibPath.length() > 0)
++      CmdArgs.push_back(Args.MakeArgString("-libpath:" + LibPath));
++  }
++  auto CRTPath = TC.getCompilerRTPath();
++  if (TC.getVFS().exists(CRTPath))
++    CmdArgs.push_back(Args.MakeArgString("-libpath:" + CRTPath));
++
+   if (!llvm::sys::Process::GetEnv("LIB") ||
+       Args.hasArg(options::OPT__SLASH_vctoolsdir,
+                   options::OPT__SLASH_vctoolsversion,
+@@ -199,20 +215,6 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
+     CmdArgs.push_back("/subsystem:console");
+   }
+ 
+-  // Add the compiler-rt library directories to libpath if they exist to help
+-  // the linker find the various sanitizer, builtin, and profiling runtimes.
+-  for (const auto &LibPath : TC.getLibraryPaths()) {
+-    if (TC.getVFS().exists(LibPath))
+-      CmdArgs.push_back(Args.MakeArgString("-libpath:" + LibPath));
+-  }
+-  for (const auto &LibPath : TC.getFilePaths()) {
+-    if (LibPath.length() > 0)
+-      CmdArgs.push_back(Args.MakeArgString("-libpath:" + LibPath));
+-  }
+-  auto CRTPath = TC.getCompilerRTPath();
+-  if (TC.getVFS().exists(CRTPath))
+-    CmdArgs.push_back(Args.MakeArgString("-libpath:" + CRTPath));
+-
+   // SYCL offload compilation creates .llvm.offloading sections in each object
+   // file to store device code and metadata. Suppress linker warning about
+   // multiple sections with different attributes (LNK4078).

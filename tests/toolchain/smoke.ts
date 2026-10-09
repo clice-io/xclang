@@ -211,6 +211,18 @@ for (const t of targets) {
   }
 }
 
+/// The "pc" spellings of the Linux and MinGW targets, which have config
+/// files of their own, find compiler-rt too (patches/0013, from 23.1.2.10).
+if (since("23.1.2.10")) {
+  for (const t of ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32"]) {
+    const spelled = t.replace(/-(unknown|w64)-/, "-pc-").replace("mingw32", "windows-gnu");
+    const out = path.join(work, `hello-${spelled}${t.endsWith("mingw32") ? ".exe" : ""}`);
+    if (run(tool("clang"), [`--target=${spelled}`, "-O2", helloC, "-o", out]) === undefined || !runnable(t)) continue;
+    const output = run(out, []);
+    if (output !== undefined && !output.includes("hello c")) failures.push(`${out} printed ${JSON.stringify(output)}`);
+  }
+}
+
 /// Atomics too wide to be lock-free, from compiler-rt; -latomic as GCC's
 /// toolchains want it.
 const atomics = write("atomics.cpp", `#include <atomic>
@@ -481,6 +493,19 @@ if (!fs.existsSync(path.join(tree, "sdk", "windows"))) {
       const program = path.join(work, driver === "clang" ? "hello-msvc.exe" : "hello-msvc-cl.exe");
       const ran = result.status === 0 && spawnSync(program, [], { encoding: "utf8" }).stdout?.includes("hello c");
       if (!ran) failures.push(`${driver} ${args.join(" ")} without the Windows SDK finds no Visual Studio: ${result.stderr}`);
+    }
+    /// xclang's compiler-rt comes before Visual Studio's own clang_rt
+    /// libraries (patches/0012, from 23.1.2.10): __int128 division, from
+    /// the builtins, and UBSan link and run.
+    if (since("23.1.2.10")) {
+      const wide = write("int128.c", "int main(int argc, char **argv) { volatile __int128 n = (__int128)argc << 70; return (int)(n / 3 >> 64) == 21 ? 0 : 1; }\n");
+      for (const flags of [[], ["-fsanitize=undefined"]]) {
+        const out = path.join(work, `int128-msvc${flags.length ? "-ubsan" : ""}.exe`);
+        const result = spawnSync(tool("clang"), [`--target=${arch}-pc-windows-msvc`, ...flags, wide, "-o", out], { encoding: "utf8", cwd: work, env: noPrompt });
+        if (result.status !== 0 || spawnSync(out, []).status !== 0) {
+          failures.push(`clang ${flags.join(" ")} int128.c without the Windows SDK: ${result.stderr}`);
+        }
+      }
     }
   } else if (!windows) {
     const result = spawnSync(tool("clang"), ["--target=x86_64-pc-windows-msvc", "-c", helloC], { encoding: "utf8", cwd: work });

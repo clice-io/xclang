@@ -101,6 +101,12 @@ the [patches](docs/en/reference/patches.md) of its tag.
   in the sandbox it had the module file but not the source: at `-c opt -g`
   a primary interface importing its partition stopped at "cannot open
   file".
+- Patches: **0012** added, clang links MSVC targets with xclang's
+  compiler-rt ahead of Visual Studio's own `clang_rt.*.lib`: on a Windows
+  host without a fetched SDK, `__int128` division, UBSan and libFuzzer
+  link. **0013** added, the `pc` spellings of the Linux and MinGW targets
+  (`--target=x86_64-pc-linux-gnu`, GCC's, and `x86_64-pc-windows-gnu`),
+  which read config files of their own, find compiler-rt and link.
 
 ## [23.1.2.9](https://github.com/clice-io/xclang/releases/tag/23.1.2.9) — 2026-10-06
 
