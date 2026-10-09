@@ -8,6 +8,10 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+## [23.1.2.10](https://github.com/clice-io/xclang/releases/tag/23.1.2.10) — 2026-10-09
+
+Built by 23.1.2.6.
+
 - **libc++ is the C++ library of the MSVC targets**, as of every other
   target, `import std` included; until 23.1.2.9 it was Microsoft's STL.
   This breaks code that passes C++ types to or from libraries built with
