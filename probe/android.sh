@@ -45,7 +45,7 @@ du -sh "$SR/usr/include" "$SR/usr/lib"/* || true
 
 common=(
   -G Ninja
-  -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR="$arch"
+  -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR="$arch" -DANDROID=ON
   -DCMAKE_C_COMPILER="$X/bin/clang" -DCMAKE_CXX_COMPILER="$X/bin/clang++" -DCMAKE_ASM_COMPILER="$X/bin/clang"
   -DCMAKE_C_COMPILER_TARGET="$T" -DCMAKE_CXX_COMPILER_TARGET="$T" -DCMAKE_ASM_COMPILER_TARGET="$T"
   -DCMAKE_AR="$X/bin/llvm-ar" -DCMAKE_RANLIB="$X/bin/llvm-ranlib" -DCMAKE_NM="$X/bin/llvm-nm"
