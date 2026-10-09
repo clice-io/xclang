@@ -1,0 +1,47 @@
+name: probe-sizes
+
+# Research probe for the target survey (exp/target-probes only): what each
+# target takes of 23.1.2.10's Linux x64 archive, unpacked and as xz.
+
+on:
+  push:
+    branches: ["exp/target-probes"]
+    paths: [".github/workflows/probe-sizes.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  sizes:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          curl -fsSL -o x.tar.xz https://github.com/clice-io/xclang/releases/download/23.1.2.10/xclang-23.1.2.10-x86_64-unknown-linux-gnu.tar.xz
+          ls -l x.tar.xz
+          tar xf x.tar.xz
+          cd xclang
+          du -s --block-size=1 . | awk '{printf "total unpacked %.1f MB\n", $1/1e6}'
+          size() {  # <label> <paths...>
+            label=$1; shift
+            u=$(du -cs --apparent-size --block-size=1 "$@" | tail -1 | cut -f1)
+            x=$(tar -cf - "$@" | xz -T0 -9e | wc -c)
+            printf "| %s | %.1f | %.2f |\n" "$label" "$(echo "$u/1000000" | bc -l)" "$(echo "$x/1000000" | bc -l)" | tee -a "$GITHUB_STEP_SUMMARY"
+          }
+          echo "| part | unpacked MB | xz -9e MB |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          ls lib/clang/23/lib
+          for t in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu x86_64-unknown-linux-musl aarch64-unknown-linux-musl x86_64-w64-mingw32 aarch64-w64-mingw32 aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-msvc aarch64-pc-windows-msvc; do
+            [ -d "$t" ] && size "$t sysroot+libc++" "$t"
+            n=$t
+            case $t in *-w64-mingw32) n=${t%%-*}-w64-windows-gnu ;; esac
+            [ -d "lib/clang/23/lib/$n" ] && size "$t compiler-rt" "lib/clang/23/lib/$n"
+          done
+          size "darwin compiler-rt (both)" lib/clang/23/lib/darwin
+          size "windows compiler-rt + MSVC libc++ (both)" lib/clang/23/lib/windows
+          size "libc++ headers (shared)" libc++
+          size "mingw-w64 headers (shared)" mingw-w64
+          size "clang resource headers" lib/clang/23/include
+          size "bin" bin
+          size "share" share
+          size "lib other than clang" $(ls -d lib/* | grep -v '^lib/clang$')
+          du -sh * lib/* lib/clang/23/lib/* | sort -h | tail -40
