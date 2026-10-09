@@ -9,7 +9,8 @@
 /// unpacked), and every member compared: its kind, mode, link target and
 /// the sha256 of its bytes. Only what toolchain/package.ts writes from the
 /// checkout may differ: the config files, the CMake package, the xclang
-/// command and the license notices. Any other file that differs, comes or
+/// command, the license notices and the runtimes' sources (libc++/src,
+/// from the pinned LLVM source and patches/). Any other file that differs, comes or
 /// goes fails the check; the programs, libraries and headers are the
 /// earlier release's, byte for byte. The members that differ are listed,
 /// also in the job summary.
@@ -32,6 +33,7 @@ const PACKAGING = [
   /^lib\/cmake\/xclang(\/|$)/,
   /^share\/licenses(\/|$)/,
   /^LICENSE$/,
+  /^libc\+\+\/src(\/|$)/,
 ];
 
 /// xclang-<version>-<host>.tar.xz and the like, keyed by the name without

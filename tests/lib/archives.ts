@@ -7,7 +7,8 @@
 ///   node tests/lib/archives.ts --host <triple> --out <dir> --release <tag|latest>
 ///       a published release's, downloaded from GitHub and checked against
 ///       its SHA256SUMS, with this checkout's config files and CMake package
-///       in the toolchain: what a repack of the release would ship
+///       in the toolchain, and the runtimes' sources if it has none (before
+///       23.1.2.11): what a repack of the release would ship
 ///       (toolchain/package.ts writes the same), so that a change to them is
 ///       tested before any build
 ///
@@ -23,6 +24,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import * as common from "../../toolchain/common.ts";
+import { runtimesSources } from "../../toolchain/runtimes-src.ts";
 
 const { values } = parseArgs({
   options: { host: { type: "string" }, out: { type: "string" }, dist: { type: "string" }, release: { type: "string" } },
@@ -75,7 +77,8 @@ if (!fs.existsSync(path.join(tree, "bin"))) common.fail(`no toolchain in ${out}`
 if (values.release) {
   common.writeConfigs(tree, host.os);
   common.writeCMakePackage(path.join(tree, "lib", "cmake", "xclang"), version);
-  console.log(`${tree}: ${version}, with this checkout's config files and CMake package`);
+  if (!fs.existsSync(path.join(tree, "libc++", "src"))) await runtimesSources(path.join(tree, "libc++", "src"));
+  console.log(`${tree}: ${version}, with this checkout's config files, CMake package and runtimes' sources`);
 }
 
 const slash = (p: string) => p.replaceAll("\\", "/");

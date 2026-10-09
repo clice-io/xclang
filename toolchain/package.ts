@@ -2,7 +2,9 @@
 ///
 ///   xclang-<version>-<host>      the toolchain of work/out/toolchain-<host>,
 ///                                with every target of work/out/runtimes-*,
-///                                and the CMake package in lib/cmake/xclang
+///                                the runtimes' sources in libc++/src
+///                                (toolchain/runtimes-src.ts), and the CMake
+///                                package in lib/cmake/xclang
 ///   libclang-<version>-<host>    work/out/libclang-<host>
 ///   libclang-<version>-<host>-asan  work/out/libclang-<host>-asan, if built
 ///   llvm-option-inc-<version>    Linux x64 only: clang's, lld's, llvm-lib's
@@ -25,6 +27,7 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import * as common from "./common.ts";
 import * as licenses from "./licenses.ts";
+import { runtimesSources } from "./runtimes-src.ts";
 
 const { values } = parseArgs({
   options: {
@@ -81,6 +84,10 @@ const toolchain = path.join(out, `toolchain-${host.triple}`);
 if (!fs.existsSync(path.join(toolchain, "bin"))) common.fail(`missing ${toolchain}`);
 const tree = common.makeTree(path.join(common.WORK, "package", host.triple, "xclang"), toolchain, runtimes, host.os);
 fs.copyFileSync(path.join(common.ROOT, "LICENSE"), path.join(tree, "LICENSE"));
+/// The sources the CMake package and the Bazel module build the runtimes
+/// from, for the variants the prebuilt ones are not: once per tree, next
+/// to libc++'s headers.
+await runtimesSources(path.join(tree, "libc++", "src"));
 /// find_package(xclang) and the toolchain file (packages/cmake).
 common.writeCMakePackage(path.join(tree, "lib", "cmake", "xclang"), version);
 /// windres, the name CMake looks for to compile a MinGW project's .rc
@@ -100,8 +107,8 @@ if (values.cli) {
 }
 licenses.write(tree, `xclang-${version}-${host.triple}`, version, [
   licenses.xclang(version, "xclang's config files, CMake package (lib/cmake/xclang) and xclang command (bin/xclang)"),
-  await licenses.llvmProject("clang, lld and the LLVM tools in bin/, clang's resource headers, and libc++, " +
-    "libc++abi, libunwind and compiler-rt of every target"),
+  await licenses.llvmProject("clang, lld and the LLVM tools in bin/, clang's resource headers, libc++, " +
+    "libc++abi, libunwind and compiler-rt of every target, and their sources in libc++/src"),
   ...await licenses.compression(host),
   ...licenses.linuxSysroots(),
   await licenses.musl(),
