@@ -156,6 +156,7 @@ jobs:
           done < pairs.txt
 
   ohos:
+    if: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -170,6 +171,7 @@ jobs:
           path: out/
 
   ohos-run:
+    if: false
     needs: ohos
     runs-on: ubuntu-24.04-arm
     steps:
@@ -187,3 +189,22 @@ jobs:
             docker run --rm -v "$PWD/out:/w:ro" $img /w/$(basename $f) \
               && echo "::notice::$(basename $f) runs in dockerharmony" || echo "::warning::$(basename $f) fails in dockerharmony"
           done
+
+  freebsd:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: sudo apt-get install -y -qq ninja-build > /dev/null
+      - run: probe/freebsd.sh
+      - name: run in a FreeBSD 14.3 VM (KVM)
+        uses: vmactions/freebsd-vm@v1
+        with:
+          release: "14.3"
+          run: |
+            freebsd-version; sysctl kern.vm_guest
+            ldd out/hello-freebsd
+            out/hello-freebsd
+      - run: echo "::notice::hello-freebsd runs in the FreeBSD 14.3 VM"
