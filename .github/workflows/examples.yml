@@ -88,6 +88,20 @@ jobs:
           if grep -iE 'libstdc\+\+|libc\+\+|libgcc|libunwind|winpthread' needed.txt; then
             echo "::error::a program loads a C++ runtime"; exit 1
           fi
+      # docs/en/guide/cross-compiling.md: static programs with musl, which
+      # releases before 23.1.2.10 lack, run where they are built.
+      - name: Static programs with musl
+        if: runner.os == 'Linux'
+        run: |
+          [[ -d .pixi/envs/default/opt/xclang/x86_64-unknown-linux-musl ]] || { echo "::notice::no musl targets"; exit 0; }
+          pixi run clang++ -O2 --target=x86_64-unknown-linux-musl hello.cpp -o hello-static-x64
+          pixi run clang++ -O2 --target=aarch64-unknown-linux-musl hello.cpp -o hello-static-arm64
+          pixi run llvm-readelf --program-headers hello-static-x64
+          for arch in x64 arm64; do
+            pixi run llvm-readelf --program-headers --dynamic hello-static-$arch | tee headers.txt
+            if grep -E 'INTERP|NEEDED|Dynamic section' headers.txt; then echo "::error::hello-static-$arch is not static"; exit 1; fi
+          done
+          ./hello-static-$([[ "$(uname -m)" == x86_64 ]] && echo x64 || echo arm64) | diff expected.txt -
       - name: Check what was built
         run: |
           pixi run llvm-readobj --file-headers hello-windows-arm64.exe
@@ -669,8 +683,8 @@ jobs:
           path: ${{ runner.temp }}/programs
           if-no-files-found: error
 
-  # docs/en/integrations/cargo.md: Rust programs for Windows, and for Linux
-  # arm64, linked by xclang from Linux and macOS.
+  # docs/en/integrations/cargo.md: Rust programs for Windows, for Linux
+  # arm64 and for musl, linked by xclang from Linux and macOS.
   cargo:
     name: cargo (${{ matrix.host }})
     strategy:
@@ -718,6 +732,20 @@ jobs:
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-Clink-arg=--target=aarch64-unknown-linux-gnu -Clink-arg=-l:libunwind.a"
           cargo build --release --target aarch64-unknown-linux-gnu
           llvm-readobj --needed-libs target/aarch64-unknown-linux-gnu/release/hello
+      # Rust's musl targets against xclang's musl, which releases before
+      # 23.1.2.10 lack: static programs, run on Linux.
+      - name: Linux, musl
+        run: |
+          export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
+          [[ -d .pixi/envs/default/opt/xclang/x86_64-unknown-linux-musl ]] || { echo "::notice::no musl targets"; exit 0; }
+          rustup target add x86_64-unknown-linux-musl
+          export CC_x86_64_unknown_linux_musl=clang CXX_x86_64_unknown_linux_musl=clang++ AR_x86_64_unknown_linux_musl=llvm-ar
+          export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=clang
+          export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-Clink-arg=--target=x86_64-unknown-linux-musl -Clink-self-contained=no"
+          cargo build --release --target x86_64-unknown-linux-musl
+          llvm-readelf --program-headers --dynamic target/x86_64-unknown-linux-musl/release/hello | tee headers.txt
+          if grep -E 'INTERP|NEEDED' headers.txt; then echo "::error::hello for musl loads a library"; exit 1; fi
+          if [[ "$RUNNER_OS" == Linux ]]; then target/x86_64-unknown-linux-musl/release/hello | diff expected.txt -; fi
       - name: Programs to run on their targets
         run: |
           stage() {  # <target> <program>

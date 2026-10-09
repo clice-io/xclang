@@ -91,7 +91,9 @@ jobs:
     uses: ./.github/workflows/on-target.yml
     with:
       # x86_64 macOS programs run on both Macs, natively or through Rosetta.
-      targets: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin"]'
+      # musl's static programs run on the Linux runners (none for releases
+      # before 23.1.2.10, which have no musl targets).
+      targets: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl"]'
       pattern: programs-smoke-*
 
   # The members of each archive against the release's: reading them takes a

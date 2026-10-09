@@ -3,7 +3,9 @@
 /// that builds for another target leaves its programs in one layout:
 ///
 ///   <dir>/<target>/<origin>/programs.json   the programs (Program), each
-///                                           file relative to it
+///                                           file relative to it; none on
+///                                           purpose (a target the archives
+///                                           lack) if empty
 ///   <dir>/<target>/<origin>/expected.txt    or: every other file there is
 ///                                           a program that prints it
 ///
@@ -12,7 +14,8 @@
 ///
 ///   node tests/lib/on-target.ts <dir>...
 ///       runs every program under the directories, a table of them in the
-///       job summary; fails if one fails or there is none
+///       job summary; fails if one fails or there is none, but for empty
+///       programs.json files
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -72,21 +75,22 @@ export function writePrograms(dir: string, programs: Program[]): void {
 const clean = (text: string) => text.replaceAll("\r", "").replace(/\n+$/, "");
 
 /// Every program under dir: those of each programs.json, and those beside
-/// an expected.txt; never inside a runfiles tree.
-function find(root: string, dir: string, found: { root: string; dir: string; program: Program }[]): void {
+/// an expected.txt; never inside a runfiles tree. empty lists the
+/// directories whose programs.json lists none.
+function find(root: string, dir: string, found: { root: string; dir: string; program: Program }[], empty: string[]): void {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   const names = entries.map((e) => e.name);
   if (names.includes("programs.json")) {
-    for (const program of JSON.parse(fs.readFileSync(path.join(dir, "programs.json"), "utf8")) as Program[]) {
-      found.push({ root, dir, program });
-    }
+    const programs = JSON.parse(fs.readFileSync(path.join(dir, "programs.json"), "utf8")) as Program[];
+    if (!programs.length) empty.push(dir);
+    for (const program of programs) found.push({ root, dir, program });
     return;
   }
   if (names.includes("expected.txt")) {
     const output = clean(fs.readFileSync(path.join(dir, "expected.txt"), "utf8"));
     for (const e of entries) if (e.isFile() && e.name !== "expected.txt") found.push({ root, dir, program: { file: e.name, output } });
   }
-  for (const e of entries) if (e.isDirectory() && !e.name.endsWith(".runfiles")) find(root, path.join(dir, e.name), found);
+  for (const e of entries) if (e.isDirectory() && !e.name.endsWith(".runfiles")) find(root, path.join(dir, e.name), found, empty);
 }
 
 /// Every file under dir, for their modes.
@@ -104,12 +108,14 @@ function capture(cmd: string, args: string[]): string {
 }
 
 /// Run every program under the roots; the number that failed, or -1 if
-/// there was none.
+/// there was none and no empty programs.json either.
 export function runPrograms(roots: string[]): number {
   const windows = process.platform === "win32";
   const arm64Mac = process.platform === "darwin" && os.arch() === "arm64";
   const found: { root: string; dir: string; program: Program }[] = [];
-  for (const root of roots) if (fs.existsSync(root)) find(path.resolve(root), path.resolve(root), found);
+  const empty: string[] = [];
+  for (const root of roots) if (fs.existsSync(root)) find(path.resolve(root), path.resolve(root), found, empty);
+  for (const dir of empty) console.log(`nothing to run in ${dir}, on purpose`);
   const rows: string[] = [];
   let failed = 0;
   for (const { root, dir, program: p } of found) {
@@ -179,7 +185,7 @@ export function runPrograms(roots: string[]): number {
       `### Run on ${host()}\n\n| | program | prints | |\n|---|---|---|---|\n${rows.join("\n")}\n\n`);
   }
   console.log(`${found.length} programs ran, ${failed} failed`);
-  return found.length ? failed : -1;
+  return found.length || empty.length ? failed : -1;
 }
 
 if (import.meta.main) {

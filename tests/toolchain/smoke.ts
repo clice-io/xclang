@@ -7,6 +7,9 @@
 ///   this machine can run them; with --out, those it cannot run go to
 ///   <dir>/<target>/smoke-<host>, for tests/lib/on-target.ts to run on a
 ///   machine of the target;
+/// - the musl targets' programs are static: no program interpreter, no
+///   shared library; std::filesystem, std::format, an exception through
+///   musl's qsort and `import std;` too;
 /// - natively also `import std;`, a precompiled header and ThinLTO;
 /// - dSYM and GSYM debug symbols by the tree's dsymutil and llvm-gsymutil;
 /// - share/licenses names every component.
@@ -113,12 +116,20 @@ for (const file of programs) {
   }
 }
 
+/// The musl targets, in the archives that carry them (23.1.2.10 and later).
+/// For archives without, a machine of the target has nothing to run, which an
+/// empty list says (tests/lib/on-target.ts).
+const MUSL = ["x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl"];
+const musl = MUSL.filter((t) => fs.existsSync(path.join(tree, t)));
+if (values.out && !musl.length) for (const t of MUSL) writePrograms(programsDir(path.resolve(values.out), t, "smoke"), []);
+
 /// The headers that targets share are in the archive once
 /// (common.shareHeaders), each target's __config_site its own.
 const triples: [string, string][] = [
   ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-gnu"], ["aarch64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"],
   ["x86_64-w64-mingw32", "x86_64-w64-windows-gnu"], ["aarch64-w64-mingw32", "aarch64-w64-windows-gnu"],
   ["aarch64-apple-darwin", "aarch64-apple-darwin"], ["x86_64-apple-darwin", "x86_64-apple-darwin"],
+  ...musl.map((t): [string, string] => [t, t]),
 ];
 for (const file of ["libc++/include/c++/v1/vector", "mingw-w64/include/windows.h",
   ...triples.map(([, clang]) => `libc++/include/${clang}/c++/v1/__config_site`)]) {
@@ -130,7 +141,7 @@ for (const dir of ["include", ...triples.flatMap(([t]) => [`${t}/include`, `${t}
 
 /// The license notices of what the archive holds (toolchain/licenses.ts).
 failures.push(...licenses.check(tree, ["xclang", "llvm-project", "zstd", "glibc", "linux", "nss", "mingw-w64",
-  ...(fs.existsSync(tool("xclang")) ? ["rust", "rust-crates"] : [])]));
+  ...(musl.length ? ["musl"] : []), ...(fs.existsSync(tool("xclang")) ? ["rust", "rust-crates"] : [])]));
 
 run(tool("FileCheck"), [write("check.txt", "CHECK: hello\nCHECK-NEXT: world\n"),
   `--input-file=${write("input.txt", "hello\nworld\n")}`]);
@@ -139,12 +150,15 @@ run(tool("FileCheck"), [write("check.txt", "CHECK: hello\nCHECK-NEXT: world\n"),
 const targets = [
   "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32",
   ...(process.platform === "darwin" ? ["aarch64-apple-darwin", "x86_64-apple-darwin"] : []),
+  ...musl,
 ];
 /// What runs here: the native target, x86_64 macOS on arm64 macOS
-/// (Rosetta) and x86_64 Windows on arm64 Windows (emulation).
+/// (Rosetta), x86_64 Windows on arm64 Windows (emulation), and musl's static
+/// programs on Linux of their architecture.
 const runnable = (t: string) => t === native ||
   (native === "aarch64-apple-darwin" && t === "x86_64-apple-darwin") ||
-  (native === "aarch64-w64-mingw32" && t === "x86_64-w64-mingw32");
+  (native === "aarch64-w64-mingw32" && t === "x86_64-w64-mingw32") ||
+  (process.platform === "linux" && t === `${arch}-unknown-linux-musl`);
 /// What does not run here, kept for a machine of its target (--out).
 const elsewhere = new Map<string, Program[]>();
 function keep(t: string, file: string, expect: string): void {
@@ -205,6 +219,75 @@ for (const t of targets) {
   if (fs.existsSync(staticOut) && runnable(t)) {
     const output = run(staticOut, []);
     if (output !== undefined && !output.includes("hello c++")) failures.push(`${staticOut} printed ${JSON.stringify(output)}`);
+  }
+}
+
+/// `import std;`: libc++'s std module, built for the target from the sources
+/// its module manifest names, and a program importing it, run here or kept.
+function importStd(t: string): void {
+  const manifest = run(tool("clang++"), [`--target=${t}`, "-print-library-module-manifest-path"])?.trim();
+  if (!manifest || !fs.existsSync(manifest)) {
+    failures.push(`no module manifest for ${t}: ${manifest}`);
+    return;
+  }
+  const std = JSON.parse(fs.readFileSync(manifest, "utf8")).modules.find((m: { "logical-name": string }) => m["logical-name"] === "std");
+  const stdSource = path.resolve(path.dirname(manifest), std["source-path"]);
+  const useStd = write("use_std.cpp", `import std;
+int main() { std::println("{} {}", "import", std::vector{1, 2, 3}); }
+`);
+  const pcm = path.join(work, `std-${t}.pcm`);
+  const flags = [`--target=${t}`, "-std=c++23", "-O2"];
+  if (run(tool("clang++"), [...flags, "-Wno-reserved-module-identifier", "--precompile", stdSource, "-o", pcm]) === undefined) return;
+  const program = path.join(work, `use_std-${t}${t === native ? exe : ""}`);
+  if (run(tool("clang++"), [...flags, `-fmodule-file=std=${pcm}`, useStd, pcm, "-o", program]) === undefined) return;
+  keep(t, program, "import [1, 2, 3]");
+  if (!runnable(t)) return;
+  const output = run(program, []);
+  if (output !== undefined && !output.includes("import [1, 2, 3]")) failures.push(`${program} printed ${JSON.stringify(output)}`);
+}
+
+/// The musl targets: static programs, with no program interpreter and no
+/// dynamic section, so no shared library either; what of libc++ leans on
+/// musl (std::filesystem, std::format's locale, threads); an exception
+/// through musl's qsort, whose objects have unwind tables
+/// (toolchain/sysroot.ts); `import std;`; UBSan.
+const muslCxx = write("musl.cpp", `#include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <format>
+#include <stdexcept>
+#include <thread>
+static int compare(const void*, const void*) { throw std::runtime_error("thrown through qsort"); }
+int main() {
+  int v[] = {2, 1};
+  try { std::qsort(v, 2, sizeof(int), compare); } catch (const std::exception& e) { std::puts(e.what()); }
+  auto dir = std::filesystem::temp_directory_path() / "xclang-musl";
+  std::filesystem::create_directories(dir);
+  std::jthread([&] { std::FILE* f = std::fopen((dir / "a.txt").c_str(), "w"); std::fputs("musl", f); std::fclose(f); });
+  std::puts(std::format("{} {} {:.2f}", std::filesystem::file_size(dir / "a.txt"), dir.filename().string(), 3.14159).c_str());
+  std::filesystem::remove_all(dir);
+}
+`);
+for (const t of musl) {
+  for (const [source, driver, std, expected] of [[helloC, "clang", "-std=c17", "hello c"], [muslCxx, "clang++", "-std=c++23", "4 xclang-musl 3.14"]]) {
+    const out = path.join(work, `static-${path.basename(source)}-${t}`);
+    if (run(tool(driver), [`--target=${t}`, std, "-O2", source, "-o", out]) === undefined) continue;
+    const headers = run(tool("llvm-readelf"), ["--program-headers", "--dynamic", out]) ?? "";
+    if (/INTERP|NEEDED|Dynamic section/.test(headers)) failures.push(`${out} is not a static program: ${headers}`);
+    keep(t, out, expected);
+    if (!runnable(t)) continue;
+    const output = run(out, []);
+    if (output !== undefined && !output.includes(expected)) failures.push(`${out} printed ${JSON.stringify(output)}`);
+  }
+  importStd(t);
+  /// UBSan, the sanitizer of static programs, with its standalone runtime.
+  const ubsan = path.join(work, `ubsan-${t}`);
+  if (run(tool("clang++"), [`--target=${t}`, "-fsanitize=undefined", "-O1", write("ubsan.cpp", `#include <climits>
+#include <cstdio>
+int main(int argc, char**) { int x = INT_MAX; x += argc; std::printf("%d\\n", x); }
+`), "-o", ubsan]) !== undefined) {
+    keep(t, ubsan, "signed integer overflow");
+    if (runnable(t)) expectReport(`-fsanitize=undefined for ${t}`, ubsan, [], "signed integer overflow");
   }
 }
 
@@ -472,23 +555,7 @@ int main() {
   }
 }
 
-const manifest = run(tool("clang++"), [`--target=${native}`, "-print-library-module-manifest-path"])?.trim();
-if (manifest && fs.existsSync(manifest)) {
-  const std = JSON.parse(fs.readFileSync(manifest, "utf8")).modules.find((m: { "logical-name": string }) => m["logical-name"] === "std");
-  const stdSource = path.resolve(path.dirname(manifest), std["source-path"]);
-  const useStd = write("use_std.cpp", `import std;
-int main() { std::println("{} {}", "import", std::vector{1, 2, 3}); }
-`);
-  const pcm = path.join(work, "std.pcm");
-  const flags = [`--target=${native}`, "-std=c++23", "-O2"];
-  if (run(tool("clang++"), [...flags, "-Wno-reserved-module-identifier", "--precompile", stdSource, "-o", pcm]) !== undefined) {
-    const program = path.join(work, `use_std${exe}`);
-    run(tool("clang++"), [...flags, `-fmodule-file=std=${pcm}`, useStd, pcm, "-o", program]);
-    if (fs.existsSync(program)) run(program, []);
-  }
-} else {
-  failures.push(`no module manifest for ${native}: ${manifest}`);
-}
+importStd(native);
 
 /// clang -E keeps a raw string literal of a CRLF file as compiling it does,
 /// through a text-mode stream too (Windows), and the lines after it
