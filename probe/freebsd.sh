@@ -23,7 +23,7 @@ tar xf llvm.tar.xz --wildcards \
   'llvm-project-23.1.2.src/third-party/*' 'llvm-project-23.1.2.src/libc/*'
 rm llvm.tar.xz
 L=$W/llvm-project-23.1.2.src
-curl -fsSL https://ftp-archive.freebsd.org/pub/FreeBSD-Archive/old-releases/amd64/14.0-RELEASE/base.txz \
+curl -fsSL http://ftp-archive.freebsd.org/pub/FreeBSD-Archive/old-releases/amd64/14.0-RELEASE/base.txz \
   | tar xJ -C "$SR" ./usr/include ./usr/lib ./lib
 rm -rf "$SR/usr/include/c++" "$SR"/usr/lib/libc++* "$SR"/usr/lib/libcxxrt* "$SR"/lib/libcxxrt* "$SR"/usr/lib/debug
 du -sh "$SR"
