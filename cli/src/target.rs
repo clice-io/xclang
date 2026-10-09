@@ -28,9 +28,14 @@ use crate::toolchain::Toolchain;
 use crate::{Context, Result, bail, http, links, mb};
 
 /// The targets every toolchain carries.
-pub const BUILT_IN: [(&str, &str); 6] = [
+pub const BUILT_IN: [(&str, &str); 8] = [
     ("x86_64-unknown-linux-gnu", "Linux x64, glibc 2.17"),
     ("aarch64-unknown-linux-gnu", "Linux arm64, glibc 2.17"),
+    ("x86_64-unknown-linux-musl", "Linux x64, musl 1.2.6, static"),
+    (
+        "aarch64-unknown-linux-musl",
+        "Linux arm64, musl 1.2.6, static",
+    ),
     ("x86_64-w64-mingw32", "Windows x64, MinGW-w64 (UCRT)"),
     ("aarch64-w64-mingw32", "Windows arm64, MinGW-w64 (UCRT)"),
     (
