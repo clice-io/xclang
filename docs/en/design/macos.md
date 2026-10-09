@@ -164,7 +164,7 @@ or from the directory of the program. That is the one exception to
 
 | | status |
 |---|---|
-| [macOS targets from Linux and Windows hosts in the Bazel module](roadmap.md#macos-any-host-bazel) | Planned |
+| [macOS targets from Linux and Windows hosts in the Bazel module](roadmap.md#macos-any-host-bazel) | Unreleased |
 | [iOS, tvOS, watchOS, visionOS and their simulators](roadmap.md#ios) | In research |
 
 ## Known Limitations

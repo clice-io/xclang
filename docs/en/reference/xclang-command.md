@@ -13,6 +13,7 @@ xclang sdk list [macos|windows]
 xclang sdk fetch macos --accept-license [--preset P] [--version V]
 xclang sdk fetch windows --accept-license [--preset P] [--msvc-version V] [--sdk-version V] [--arch x86_64,aarch64,x86]
 xclang sdk path macos|windows [the options of fetch]
+xclang sdk packages macos|windows [the options of fetch] [--json]
 xclang sdk use <name>
 xclang sdk remove <name>
 xclang target list
@@ -37,6 +38,8 @@ unpacks the SDK into a directory of its own:
 |---|---|
 | `--accept-license` | without it, fetch prints the vendor's license terms and stops |
 | `sdk path` | prints the directory that fetch, with the same options, fetches to: `-isysroot "$(xclang sdk path macos)"` |
+| `sdk packages` | prints what fetch, with the same options, downloads: each package's sha256, size and URL, or with `--json` `{"name": <the SDK's directory>, "packages": [{"url", "size", "sha256", "file"}]}`. A build system downloads them itself, under the names `file`, into a directory that `fetch --cache` then takes them from; the Bazel module does ([Bazel](../integrations/bazel.md#vendor-sdks)) |
+| `--cache <dir>` | fetch keeps its downloads in the directory, and takes from it those already there, by their sha256 |
 | `sdk list` | the fetched SDKs, and those in use; `.xclang-sdk.json`, written last, records what an SDK was fetched from, and a directory without it is listed as incomplete |
 | `sdk use <name>` | makes a fetched SDK the one in use (below) |
 | `sdk remove <name>` | removes a fetched SDK, and its link if it is in use |

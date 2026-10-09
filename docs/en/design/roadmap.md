@@ -87,8 +87,8 @@ What sets these targets apart:
   Windows SDK versions are pinned to ones the shipped clang accepts, and
   the user fetches them with the [`xclang` command](#xclang-command),
   which every toolchain archive carries
-  ([Windows](windows.md#msvc-targets)). CMake builds them; the Bazel module
-  does not yet ([below](#msvc-bazel)).
+  ([Windows](windows.md#msvc-targets)). CMake builds them, and so does the
+  Bazel module, unreleased ([below](#msvc-bazel)).
 - **macOS from any host.** Since 23.1.2.7. Apple's macOS SDK is in the
   Command Line Tools package on Apple's update servers, and needs no
   Apple ID to download. The user fetches it with the
@@ -97,7 +97,8 @@ What sets these targets apart:
   stays the one in use. The programs are those of a macOS host: xclang's
   libc++ linked in, ld64.lld, dSYMs, the sanitizers
   ([macOS](macos.md#the-sdk-on-linux-and-windows-hosts)). CMake builds
-  them; the Bazel module does not yet ([below](#macos-any-host-bazel)).
+  them, and so does the Bazel module, unreleased
+  ([below](#macos-any-host-bazel)).
 - **musl.** Static programs that take nothing from the system they run on,
   in every archive from 23.1.2.10 on, as the six are: musl built by xclang,
   libc++ and every runtime linked in, UBSan the only sanitizer, as the
@@ -132,8 +133,8 @@ What sets these targets apart:
 | <a id="xclang-command"></a>The `xclang` command: `xclang sdk fetch` for the vendor SDKs | Supported |
 | <a id="target-archives"></a>Target archives and a release index, for `xclang target add` | Planned |
 | <a id="fetched-targets-in-build-systems"></a>Fetched targets and vendor SDKs in the CMake package and the Bazel module | Planned |
-| <a id="msvc-bazel"></a>The MSVC targets in the Bazel module, with the Windows SDK fetched by a repository rule | Planned |
-| <a id="macos-any-host-bazel"></a>macOS targets from Linux and Windows hosts in the Bazel module, with the macOS SDK fetched by a repository rule | Planned |
+| <a id="msvc-bazel"></a>The MSVC targets in the Bazel module, with the Windows SDK fetched by a repository rule | Unreleased |
+| <a id="macos-any-host-bazel"></a>macOS targets from Linux and Windows hosts in the Bazel module, with the macOS SDK fetched by a repository rule | Unreleased |
 
 `xclang` is a program in Rust (`cli/`), built for every host with xclang as
 its C compiler and linker. Every toolchain archive carries it, as

@@ -14,7 +14,10 @@ need it are the MSVC targets, and the macOS targets on Linux and Windows
 hosts; on macOS hosts, the macOS targets use the installed Xcode's SDK.
 The SDK in use is a link in the toolchain's `sdk/`, so config files name a
 fixed path while versions change
-([the SDK in use](../reference/xclang-command.md#the-sdk-in-use)).
+([the SDK in use](../reference/xclang-command.md#the-sdk-in-use)). In
+Bazel, the project's `MODULE.bazel` accepts the license, and the SDK is a
+repository the same command unpacks
+([the Bazel module](bazel-module.md#vendor-sdks-as-repositories)).
 
 ## Why Fetch, Not Ship
 

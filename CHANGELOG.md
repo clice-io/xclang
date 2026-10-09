@@ -23,6 +23,26 @@ the [patches](docs/en/reference/patches.md) of its tag.
   ([Rust's musl targets](docs/en/integrations/cargo.md#static-programs-with-musl))
   build them. They add 0.6 to 2.1 MB to an archive, and 42 MB unpacked.
   `xclang target list` names them as built in.
+- **Bazel: the MSVC targets, and the macOS targets from Linux and
+  Windows hosts.** The root module accepts the vendor's license with a
+  tag of the extension, `xclang.windows_sdk(accept_license = True)` and
+  `xclang.macos_sdk(accept_license = True)`, and the module fetches the
+  SDK when a build first needs it: Bazel downloads the vendor's packages
+  into its repository cache, and the toolchain's `xclang` command unpacks
+  them into the output base, nowhere else. The platforms
+  `@xclang//platforms:x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc`
+  have the C library `@xclang//platforms/libc:msvc`, which their
+  toolchains ask for: a Windows platform without it stays MinGW's. Their
+  features: `generate_pdb_file` (on with `-c dbg`; the PDB names its
+  sources relative to the execution root), `dynamic_link_msvcrt`,
+  `debug_msvcrt` and `msvc_stl`, Microsoft's STL for the whole build,
+  which `@xclang//bazel:std` follows; `xclang_debug_symbols` gives their
+  PDB. The macOS targets make their dSYM on every host
+  ([Bazel](docs/en/integrations/bazel.md#vendor-sdks)).
+- `xclang sdk packages macos|windows [--json]`: what `xclang sdk fetch`
+  downloads, for a build system that downloads it itself and has fetch
+  take it from `--cache`
+  ([the xclang command](docs/en/reference/xclang-command.md#vendor-sdks)).
 - The repository's layout: what builds the toolchain is under
   `toolchain/` (its scripts, the CMake caches, the config files'
   templates, the PGO training, the Windows launcher, license texts), the

@@ -22,8 +22,10 @@ The module downloads the host archive by its sha256 into a repository.
 Every file of it that an action reads is declared: the programs, the clang
 resource headers and the target headers for compiling, the target
 libraries and compiler-rt for linking. Nothing comes from the machine
-except the macOS SDK, which `xcrun` finds; `--macos_minimum_os` sets the
-deployment target.
+except Xcode's macOS SDK on macOS hosts, which `xcrun` finds;
+`--macos_minimum_os` sets the deployment target. The vendor SDKs a project
+fetches are repositories too, their files inputs alike
+([below](#vendor-sdks-as-repositories)).
 
 Before the module, xclang's Bazel rules found clang on `PATH` and declared
 nothing, the common way to wrap a local compiler. Two things went wrong:
@@ -64,9 +66,12 @@ them:
   built.
 - **`__DATE__`, `__TIME__` and `__TIMESTAMP__`** are redacted.
 
-Two absolute paths remain: the macOS SDK path, which comes from the
-machine, and on macOS the rpath of the sanitizer features to the
+Two absolute paths remain on macOS hosts: Xcode's SDK path, which comes
+from the machine, and the rpath of the sanitizer features to the
 toolchain's runtimes. Only those sanitizer links depend on the checkout.
+An MSVC target's PDB names its sources relative to the execution root
+(`/pdbsourcepath:.`), and its program names the PDB without a directory;
+its links are `/Brepro`, and its objects carry no time.
 
 ## A Toolchain per Host and Target
 
@@ -76,25 +81,29 @@ host, a toolchain for every target: `exec_compatible_with` the host,
 runs on and the platform it builds for, and only that host archive is
 downloaded.
 
-A macOS target from a Linux or Windows host gets a toolchain that fails at
-once and says why. That is clearer than a compiler error later, or "no
-toolchain found".
+A target that needs a vendor SDK the root module does not fetch, an MSVC
+target or a macOS one off macOS, gets a toolchain that fails at once and
+says which tag fetches it. That is clearer than a compiler error later, or
+"no toolchain found".
 
 The toolchains ask a platform for its os and cpu only. The platforms of the
-module add a C library constraint (`glibc`, `mingw`, `macosx`) for
-`select()`. The musl targets share an os and cpu with the glibc ones, and
-get toolchains of their own through that constraint: theirs ask for
-`@xclang//platforms/libc:musl` too, and are registered ahead of the
-others, so a musl platform gets them and a Linux platform without a C
-library gets glibc. The MSVC targets are [planned](roadmap.md#msvc-bazel)
-in the module the same way.
+module add a C library constraint (`glibc`, `musl`, `mingw`, `macosx`,
+`msvc`) for `select()`. The musl targets share an os and cpu with the glibc
+ones, and the MSVC targets with the MinGW ones; they get toolchains of their
+own through that constraint: theirs ask for `@xclang//platforms/libc:musl`
+or `:msvc` too, and are registered ahead of the others, so a musl platform
+gets them, an MSVC one too, and a platform without a C library gets glibc
+on Linux and MinGW on Windows.
 
 ## rules_cc's Config, Copied
 
 The toolchains are the unix toolchain config of rules_cc, with xclang's
 changes:
 
-- Windows names for MinGW programs and shared libraries (`.exe`, `.dll`);
+- Windows names for MinGW and MSVC programs and shared libraries (`.exe`,
+  `.dll`);
+- for the MSVC targets, lld-link's spellings, no PIC, and features for the
+  PDB, the C runtimes and Microsoft's STL;
 - static linking by default (below);
 - headers of other repositories as system headers (`-isystem`), whose
   warnings are not the build's;
@@ -102,7 +111,11 @@ changes:
 - `gc_sections` off for Windows targets
   ([why](windows.md#gc-sections-and-static-initializers));
 - a link program of the toolchain's own, which makes the dSYM in the link
-  ([why](../features/debugging.md#why-a-dsym-comes-from-the-link));
+  ([why](../features/debugging.md#why-a-dsym-comes-from-the-link)), with
+  dsymutil's classic DWARF linker: the parallel one, LLVM 23's default,
+  writes DWARF 5 line tables (macOS 15 and later) that atos crashes on;
+- macOS deployment targets no older than 13.0, which xclang's libc++
+  needs;
 - a strip for shipped binaries, by object format
   ([strip](../features/debugging.md#strip)).
 
@@ -135,6 +148,51 @@ statically into tests and programs. `cc_binary(linkshared = True)` still
 makes a shared library (`libfoo.so`, `libfoo.dylib`, `foo.dll`), and
 `features = ["supports_dynamic_linker"]` gives a Bazel target the dynamic
 linking back.
+
+## Vendor SDKs as Repositories
+
+The MSVC targets need Microsoft's SDK, and the macOS targets off macOS
+Apple's. The [`xclang` command](../reference/xclang-command.md) fetches
+them for clang and CMake, into the toolchain. A Bazel build cannot write
+there, and its inputs must be declared, so each SDK is a repository of
+the module's extension.
+
+- **The license in `MODULE.bazel`.** A tag of the extension,
+  `xclang.windows_sdk(accept_license = True)`, is the project's acceptance
+  of the vendor's license, as `--accept-license` is the user's. Only the
+  root module's tags count: a library cannot accept it for the projects
+  that use it.
+- **Bazel downloads, the command unpacks.** `xclang sdk packages --json`
+  lists the packages the command's version table pins, by URL, size and
+  sha256. The repository rule downloads them with Bazel's own downloader,
+  so they land in the repository cache, shared by every workspace of the
+  machine, and a mirror or proxy configured for Bazel applies. Then
+  `xclang sdk fetch --cache` unpacks them: Apple's xar, pbzx and cpio and
+  Visual Studio's layout are the command's, and so are the links for the
+  spellings Windows code uses on a case-sensitive file system. The SDK
+  the command writes is the same one the CMake package uses.
+- **A config file per SDK.** The repository writes `sdk.cfg`, the SDK by
+  its path from the execution root: `-isysroot` for macOS, and for an
+  MSVC target the command's own config file, which names the MSVC and
+  Windows SDK versions too. clang finds those versions in the SDK's
+  include directories, which a link's sandbox does not have. The
+  toolchain's config file of the target includes `sdk.cfg` where the
+  archive's names the toolchain's `sdk/`.
+- **Lazy, per architecture.** The Windows SDK is a repository per
+  architecture, a download of 310 MB for x64 and 380 MB for arm64; a
+  build for other targets fetches none.
+- **Inputs, never outputs.** The SDK's files are inputs of the actions,
+  and none of their outputs. Bazel's sandbox needs every file declared, so
+  `glob()` lists the SDK, and the macOS SDK's links that point into their
+  own directories (`Ruby.framework`'s `ruby/ruby` is `.`) are removed,
+  which `glob()` would follow without end. A link reads the macOS SDK's
+  `.tbd` stubs only, by the install names of re-exported libraries too
+  (`Versions/A/`), and a compile the rest.
+
+The cost is the inputs, which the sandbox lays out for every action: a
+compile for an MSVC target declares the SDK's 7,300 headers and links, a
+link its 1,300 libraries; for macOS, 15,000 and 9,800 files, the
+frameworks' through their links counted again.
 
 ## The Registry
 

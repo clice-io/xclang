@@ -102,8 +102,8 @@ the MSVC targets with clang++, as it does every other target. CMake then
 links through the clang driver, so every link reads the config file. With
 clang-cl, CMake runs lld-link itself, which reads no config file, and
 wants `mt` for manifests, which xclang does not have (`llvm-mt` needs
-libxml2). The Bazel module is planned the same way
-([roadmap](roadmap.md#msvc-bazel)).
+libxml2). The Bazel module does the same
+([Bazel](../integrations/bazel.md#vendor-sdks)).
 
 **`import std` from the STL.** clang 23 builds `std.ixx` and
 `std.compat.ixx` of Microsoft's STL. For arm64 it takes the `_alloca` of
@@ -193,7 +193,7 @@ sent upstream as llvm/llvm-project#226794.
 
 | | status |
 |---|---|
-| [MSVC targets in the Bazel module](roadmap.md#msvc-bazel) | Planned |
+| [MSVC targets in the Bazel module](roadmap.md#msvc-bazel) | Unreleased |
 | [Windows x86 (MSVC)](roadmap.md#windows-x86-msvc) | In research |
 | [Windows 7 and XP](roadmap.md#windows-7) | In research |
 | [Windows x86 (MinGW)](roadmap.md#windows-x86-mingw) | Considered |

@@ -180,8 +180,9 @@ and libclang; a Linux host runs the musl tests of its architecture
 1. **No absolute paths.** A copy of the checkout elsewhere, with another
    output base, builds the programs from the disk cache alone. So do they
    built for a target of another OS, which fetches no other host toolchain
-   and only that target's libclang. A macOS target off macOS fails and
-   says why.
+   and only that target's libclang. Without the vendor's SDK, an MSVC
+   target, and a macOS target off macOS, fail and say why; a Windows
+   platform of os and cpu alone gets MinGW.
 2. **The registry archive.** The module as `packages/bazel/bazel.ts`
    packs it for bazel.clice.io gives the same actions, from the disk
    cache.
@@ -210,6 +211,17 @@ and libclang; a Linux host runs the musl tests of its architecture
 12. **An optimized macOS program exports nothing**: its `.stripped` has
     no external symbol and runs; without `no_exported_symbols`, the weak
     definition of its template stays.
+
+test-bazel.yml's cross jobs build `tests/bazel` on every host for every
+other target, and run its tests on a runner of that target. Its sdk jobs do
+the same for the targets of the vendor SDKs, the module accepting their
+licenses for the build: the MSVC targets from Linux x64, macOS arm64 and
+Windows x64, the macOS targets from Linux and Windows, with the latest
+release's toolchain and this checkout's `xclang` command, which fetches
+the SDKs. A `-c dbg` program's PDB names its sources relative to the
+execution root, and no path of the output base (checked where it was
+built: Microsoft's PDBs take part in it); a macOS one's dSYM, made in the
+link on Linux and Windows too, gives its UUIDs and main's line on the Mac.
 
 examples.yml builds `examples/bazel` from bazel.clice.io on every host, and
 for another target.
