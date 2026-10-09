@@ -34,7 +34,7 @@ common=(
   -DCMAKE_C_COMPILER="$X/bin/clang" -DCMAKE_CXX_COMPILER="$X/bin/clang++" -DCMAKE_ASM_COMPILER="$X/bin/clang"
   -DCMAKE_C_COMPILER_TARGET="$T" -DCMAKE_CXX_COMPILER_TARGET="$T" -DCMAKE_ASM_COMPILER_TARGET="$T"
   -DCMAKE_AR="$X/bin/llvm-ar" -DCMAKE_RANLIB="$X/bin/llvm-ranlib" -DCMAKE_NM="$X/bin/llvm-nm"
-  -DCMAKE_SYSROOT="$SR" -DCMAKE_LINKER_TYPE=LLD
+  -DCMAKE_SYSROOT="$SR" -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld
   -DCMAKE_C_FLAGS=--no-default-config -DCMAKE_CXX_FLAGS=--no-default-config -DCMAKE_ASM_FLAGS=--no-default-config
 )
 P=$W/cxx
