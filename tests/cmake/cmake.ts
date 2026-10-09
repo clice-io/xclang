@@ -10,7 +10,8 @@
 ///    on find_package(Clang).
 /// 2. Every other target this host builds for, through the toolchain file
 ///    and XCLANG_TARGET; run where this machine runs them (x86_64 macOS on
-///    arm64, through Rosetta).
+///    arm64, through Rosetta; musl's static programs on Linux of their
+///    architecture). The musl targets only with archives that carry them.
 /// 3. With --url, nothing installed: FetchContent of xclang's tag (this
 ///    checkout in its place, through FETCHCONTENT_SOURCE_DIR_XCLANG; with
 ///    --git, that tag, branch or commit on GitHub), whose xclang.cmake
@@ -103,11 +104,13 @@ build("path", [
 ], pathEnv);
 
 /// 2. The other targets: macOS ones only on macOS (the SDK); arm64 macOS
-/// runs x86_64 programs through Rosetta.
+/// runs x86_64 programs through Rosetta, Linux the static programs of musl
+/// of its architecture.
 const toolchain = path.join(installed, "toolchain.cmake");
-for (const t of common.TARGETS.filter((t) => t !== native && (t.os !== "darwin" || native.os === "darwin"))) {
+for (const t of common.TARGETS.filter((t) => t !== native && (t.os !== "darwin" || native.os === "darwin") &&
+  (t.os !== "musl" || fs.existsSync(path.join(tree, t.triple))))) {
   build(t.triple, [`--toolchain=${toolchain}`, `-DXCLANG_TARGET=${t.triple}`], process.env,
-    t.os === "darwin" && native.arch === "aarch64");
+    (t.os === "darwin" && native.arch === "aarch64") || (t.os === "musl" && native.os === "linux" && t.arch === native.arch));
 }
 
 /// 3. Nothing installed: the toolchain downloaded by xclang.cmake.

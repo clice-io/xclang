@@ -12,6 +12,13 @@ add_executable(hello_cpp hello.cpp)
 target_link_libraries(hello_cpp PRIVATE names)
 add_test(NAME hello_cpp COMMAND hello_cpp)
 set_tests_properties(hello_cpp PROPERTIES PASS_REGULAR_EXPRESSION "hello from xclang, caught 42")
+# A musl target's programs are static: no program interpreter, no dynamic
+# section.
+if(CMAKE_CXX_COMPILER_TARGET MATCHES "-musl$")
+    add_test(NAME hello_cpp_static COMMAND "${XCLANG_READOBJ}" --program-headers "$<TARGET_FILE:hello_cpp>")
+    set_tests_properties(hello_cpp_static PROPERTIES
+        PASS_REGULAR_EXPRESSION "PT_LOAD" FAIL_REGULAR_EXPRESSION "PT_INTERP|PT_DYNAMIC")
+endif()
 
 # Its debug symbols after the link (xclang_debug_symbols): hello_cpp.gsym,
 # from hello_cpp.dSYM on macOS, read back by the toolchain's llvm-gsymutil.

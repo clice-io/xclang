@@ -14,12 +14,16 @@
 #   XCLANG_ROOT     the tree, when this file is not in one (xclang.cmake's
 #                   download, tests/cmake)
 #   XCLANG_TARGET   x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu,
+#                   x86_64-unknown-linux-musl, aarch64-unknown-linux-musl,
 #                   x86_64-w64-mingw32, aarch64-w64-mingw32,
 #                   aarch64-apple-darwin, x86_64-apple-darwin,
 #                   x86_64-pc-windows-msvc or aarch64-pc-windows-msvc; the
-#                   host's by default. macOS targets build with Xcode's
-#                   SDK on macOS, and elsewhere with the one the toolchain's
-#                   xclang fetched (xclang sdk fetch macos), or the
+#                   host's by default. musl targets build static programs:
+#                   on a Linux host of their architecture, which runs them,
+#                   the build is no cross build (try_run, tests).
+#                   macOS targets build with Xcode's SDK on macOS, and
+#                   elsewhere with the one the toolchain's xclang fetched
+#                   (xclang sdk fetch macos), or the
 #                   CMAKE_OSX_SYSROOT given. MSVC targets build with the
 #                   Windows SDK the toolchain's xclang fetched (xclang sdk
 #                   fetch windows), with clang and clang++ (not clang-cl),
@@ -55,13 +59,20 @@ endif()
 set(_xclang_target_os "${_xclang_host_os}")
 set(_xclang_target_arch "${_xclang_host_arch}")
 if(XCLANG_TARGET)
-    if(NOT XCLANG_TARGET MATCHES "^(x86_64|aarch64)-(unknown-linux-gnu|w64-mingw32|apple-darwin|pc-windows-msvc)$")
+    if(NOT XCLANG_TARGET MATCHES "^(x86_64|aarch64)-(unknown-linux-gnu|unknown-linux-musl|w64-mingw32|apple-darwin|pc-windows-msvc)$")
         message(FATAL_ERROR "xclang: XCLANG_TARGET ${XCLANG_TARGET} is none of x86_64-unknown-linux-gnu, "
-            "aarch64-unknown-linux-gnu, x86_64-w64-mingw32, aarch64-w64-mingw32, aarch64-apple-darwin, "
-            "x86_64-apple-darwin, x86_64-pc-windows-msvc, aarch64-pc-windows-msvc")
+            "aarch64-unknown-linux-gnu, x86_64-unknown-linux-musl, aarch64-unknown-linux-musl, x86_64-w64-mingw32, "
+            "aarch64-w64-mingw32, aarch64-apple-darwin, x86_64-apple-darwin, x86_64-pc-windows-msvc, "
+            "aarch64-pc-windows-msvc")
     endif()
     set(_xclang_target_arch "${CMAKE_MATCH_1}")
-    if(CMAKE_MATCH_2 STREQUAL "w64-mingw32")
+    if(CMAKE_MATCH_2 STREQUAL "unknown-linux-musl")
+        set(_xclang_target_os musl)
+        if(NOT IS_DIRECTORY "${XCLANG_ROOT}/${XCLANG_TARGET}")
+            message(FATAL_ERROR "xclang: the toolchain at ${XCLANG_ROOT} has no ${XCLANG_TARGET}: "
+                "the musl targets are in 23.1.2.10 and later")
+        endif()
+    elseif(CMAKE_MATCH_2 STREQUAL "w64-mingw32")
         set(_xclang_target_os mingw)
     elseif(CMAKE_MATCH_2 STREQUAL "pc-windows-msvc")
         set(_xclang_target_os msvc)
@@ -173,6 +184,17 @@ elseif(_xclang_target_os STREQUAL "msvc" AND CMAKE_HOST_WIN32 AND _xclang_target
     foreach(_xclang_lang C CXX ASM)
         set(CMAKE_${_xclang_lang}_COMPILER_TARGET "${XCLANG_TARGET}")
     endforeach()
+elseif(_xclang_target_os STREQUAL "musl" AND _xclang_host_os STREQUAL "linux" AND _xclang_target_arch STREQUAL _xclang_host_arch)
+    # Nor is musl on Linux of its architecture, where its static programs
+    # run; but what the build links is looked for in its sysroot only.
+    foreach(_xclang_lang C CXX ASM)
+        set(CMAKE_${_xclang_lang}_COMPILER_TARGET "${XCLANG_TARGET}")
+    endforeach()
+    set(CMAKE_SYSROOT "${XCLANG_ROOT}/${XCLANG_TARGET}")
+    set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+    set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+    set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+    set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 elseif(NOT _xclang_target_os STREQUAL _xclang_host_os OR NOT _xclang_target_arch STREQUAL _xclang_host_arch)
     if(_xclang_target_os MATCHES "^(mingw|msvc)$")
         set(CMAKE_SYSTEM_NAME Windows)
