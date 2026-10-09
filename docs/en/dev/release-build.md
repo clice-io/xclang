@@ -96,7 +96,11 @@ packaging of the checkout ([releasing](releasing.md#full-rebuild-or-repack)).
 Its input `repack-of` adds to the `test` stage the comparison of each
 host's archives with that release's, file by file: only the config files,
 the CMake package, the `xclang` command and the license notices may
-differ.
+differ. `repack-of` can also name a run of the same revision instead of a
+release: a full rebuild with that run's profile (`profile-run`) must then
+give its archives again, but for the Windows hosts' `llvm.exe` until the
+bootstrap has patch 0017
+([reproducible builds](../design/roadmap.md#reproducible-builds)).
 
 With the `cli` input, on by default, the `package` stage also builds the
 [xclang command](../reference/xclang-command.md) (cli.yml) and puts it into

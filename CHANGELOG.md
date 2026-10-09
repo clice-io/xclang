@@ -112,6 +112,12 @@ the [patches](docs/en/reference/patches.md) of its tag.
   target, so the same source gave another object on every compile
   (llvm/llvm-project#222099, upstream's fix). MSVC targets keep it, as
   `link.exe /INCREMENTAL` wants; `/Brepro` drops it there.
+- `clang --version` and LLVM's `VCSRevision.h` name LLVM's release commit
+  (`https://github.com/llvm/llvm-project 85ac5602…`), not the commit of
+  xclang's checkout, and a rebuild of a revision with its profile gives the
+  same archives again, but for the Windows hosts' `llvm.exe`
+  ([reproducible builds](docs/en/design/roadmap.md#reproducible-builds)):
+  the runtimes for Windows carry no compile or link time.
 - Patches: **0017** added, lld-link lays out a program the same way on
   every link: with a call graph profile (PGO), local functions of the same
   name in several objects, such as `static` ones, went where a walk in

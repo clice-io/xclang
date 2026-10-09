@@ -244,6 +244,7 @@ The training is widened between releases, not while one is pending
 | <a id="gsym-determinism"></a>The same GSYM file on every run (`xclang_debug_symbols` passing `--num-threads=1`) | Supported |
 | <a id="immutable-releases"></a>Immutable GitHub releases | Planned |
 | <a id="reproducible-archives"></a>Reproducible release archives | Supported |
+| <a id="reproducible-builds"></a>Reproducible toolchain builds: a rebuild of a revision on its profile is the same bytes (the Windows hosts' `llvm.exe` once the bootstrap has patch 0017) | Unreleased |
 | <a id="license-notices"></a>Third-party license notices in the archives | Supported |
 | <a id="slsa"></a>SLSA provenance attestations | Considered |
 
@@ -260,8 +261,19 @@ The training is widened between releases, not while one is pending
 - **Reproducible archives**, since 23.1.2.7: sorted entries, the commit's
   time and no owner in the `.tar.xz` files, xz in fixed blocks whatever
   its threads; each host's archives are made twice, on two machines, and
-  compared ([build](../dev/release-build.md#the-stages)). The toolchain
-  builds themselves are not compared.
+  compared ([build](../dev/release-build.md#the-stages)).
+- **Reproducible builds**, since 23.1.2.10: a full rebuild of a revision
+  with the same profile gives the same archives again, file by file (the
+  `xclang` command aside, which each run builds): `clang --version` names
+  LLVM's release commit, not xclang's, nothing built for Windows holds a
+  time, and the macOS sanitizers' dylibs hold no file times. Two such
+  builds of 23.1.2.10 differed only in the Windows hosts' `llvm.exe`,
+  which the bootstrap's lld-link links: it lays out PGO-built programs
+  differently from one link to the next, which
+  [patch 0017](../reference/patches.md) fixes in 23.1.2.10's own
+  lld-link, so a bootstrap of 23.1.2.10 or later makes them the same too.
+  Each training gives another profile; a release is rebuilt on its own
+  (`profile-run`).
 - **License notices**, since 23.1.2.7: every archive has `share/licenses`,
   each component's license files and an SPDX document
   ([layout](../reference/layout.md#licenses)).
