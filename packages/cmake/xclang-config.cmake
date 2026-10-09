@@ -2,7 +2,8 @@
 # xclang's clang compiles, as a library to link.
 #
 #   xclang::std         libc++'s std and std.compat modules (for an MSVC
-#                       target, those of Microsoft's STL), built for the
+#                       target with -stdlib=platform, XCLANG_MSVC_STL of the
+#                       toolchain file, those of Microsoft's STL), built for the
 #                       build's target with the settings of the directory
 #                       that called find_package(xclang), as they stand at
 #                       the end of its CMakeLists.txt
@@ -65,12 +66,27 @@ get_filename_component(XCLANG_ROOT "${XCLANG_ROOT}/.." ABSOLUTE)
 
 # libc++'s module manifest of the target, from the compiler: the sources of
 # std and std.compat, and the directory they include from. For an MSVC
-# target, the STL's (modules.json, std.ixx), in the toolset of the SDK the
-# config files read, which clang does not report; on Windows without one,
-# in Visual Studio's, next to the STL's headers clang includes.
+# target, which clang does not report (it looks for a libc++.a): libc++'s
+# in the target's directory, or, with -stdlib=platform (or a toolchain before
+# 23.1.2.10, without libc++ for MSVC targets), the STL's (modules.json,
+# std.ixx), in the toolset of the SDK the config files read; on Windows
+# without one, in Visual Studio's, next to the STL's headers clang includes.
 get_property(_xclang_manifest GLOBAL PROPERTY XCLANG_STD_MANIFEST)
 if(NOT _xclang_manifest AND CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
-    file(GLOB _xclang_manifest "${XCLANG_ROOT}/sdk/windows/VC/Tools/MSVC/*/modules/modules.json")
+    if(CMAKE_CXX_COMPILER_ARCHITECTURE_ID MATCHES "^(ARM64|aarch64)$")
+        set(_xclang_arch aarch64)
+    else()
+        set(_xclang_arch x86_64)
+    endif()
+    set(_xclang_libcxx "${XCLANG_ROOT}/${_xclang_arch}-pc-windows-msvc/lib/libc++.modules.json")
+    # The last -stdlib= of the flags, after the config files' -stdlib=libc++.
+    string(REGEX MATCHALL "-stdlib=[^ ]*" _xclang_stdlib " -stdlib=libc++ ${CMAKE_CXX_FLAGS}")
+    list(GET _xclang_stdlib -1 _xclang_stdlib)
+    if(EXISTS "${_xclang_libcxx}" AND _xclang_stdlib STREQUAL "-stdlib=libc++")
+        set(_xclang_manifest "${_xclang_libcxx}")
+    else()
+        file(GLOB _xclang_manifest "${XCLANG_ROOT}/sdk/windows/VC/Tools/MSVC/*/modules/modules.json")
+    endif()
     if(NOT _xclang_manifest AND CMAKE_HOST_WIN32)
         # The search list of clang -v (CMake records none for this compiler).
         set(_xclang_args -E -v -x c++ NUL)

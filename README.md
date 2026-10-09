@@ -39,8 +39,9 @@ macOS hosts.
 With the SDKs the user fetches with the toolchain's `xclang` command
 (`xclang sdk fetch`), from 23.1.2.7 on:
 
-- **MSVC-ABI targets**, Windows x64 and arm64 against Microsoft's CRT, STL
-  and Windows SDK, from every host
+- **MSVC-ABI targets**, Windows x64 and arm64 against Microsoft's CRT
+  and Windows SDK, from every host, with libc++ (since 23.1.2.10) or
+  Microsoft's STL
   ([MSVC targets](https://docs.clice.io/xclang/integrations/clang#msvc-targets)).
 - **macOS targets from Linux and Windows**, with Apple's SDK
   ([macOS](https://docs.clice.io/xclang/design/macos#the-sdk-on-linux-and-windows-hosts)).

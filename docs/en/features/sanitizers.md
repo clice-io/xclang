@@ -225,8 +225,16 @@ program is then instrumented the same way, and the reports are real.
 The [MSVC targets](../integrations/clang.md#msvc-targets) carry UBSan,
 and for x64 ASan and libFuzzer, as compiler-rt has them for Windows.
 clang names their libraries itself, with `-fsanitize=`, from
-`lib/clang/<major>/lib/windows`. There is no ASan libc++: the C++ library
-is Microsoft's STL.
+`lib/clang/<major>/lib/windows`.
+
+- **The ASan libc++ of x64** is
+  `lib/clang/<major>/lib/windows/libc++asan-x86_64.lib`, with its
+  `__config_site` in `x86_64-pc-windows-msvc/lib/asan/include` of the
+  toolchain directory, `$XCLANG` below. An ASan build compiles with
+  `-isystem $XCLANG/x86_64-pc-windows-msvc/lib/asan/include`, whose
+  `__config_site` names the ASan library in every object in place of the
+  normal one; the link needs nothing more. It names no ASan runtime
+  either, so it serves every C runtime.
 
 - **ASan's runtime is a DLL**, `clang_rt.asan_dynamic-x86_64.dll`, also for
   a program with the static CRT. Copy it next to the program. It loads
@@ -236,7 +244,8 @@ is Microsoft's STL.
 
 <!-- not run: needs a vendor SDK the user accepts the license of; test-sdk.yml runs these, through tests/sdk/msvc.ts, and their programs on Windows -->
 ```sh
-clang++ --target=x86_64-pc-windows-msvc -fsanitize=address -g -O1 asan.cpp -o asan.exe
+clang++ --target=x86_64-pc-windows-msvc -fsanitize=address -isystem "$XCLANG/x86_64-pc-windows-msvc/lib/asan/include" \
+    -g -O1 asan.cpp -o asan.exe
 clang --target=aarch64-pc-windows-msvc -fsanitize=undefined -O1 ubsan.c -o ubsan.exe
 ```
 

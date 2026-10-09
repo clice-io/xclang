@@ -319,19 +319,29 @@ exports:
   }
 }
 
-/// The MSVC targets: compiler-rt in the layout lld-link searches, and the
+/// The MSVC targets: compiler-rt and, from 23.1.2.10 on, libc++ in the
+/// layout lld-link searches, libc++'s modules and __config_site, and the
 /// config files of clang and of clang-cl (a plain clang-cl too: none of the
 /// host target's options), which read the Windows SDK the tree's xclang
 /// fetches into sdk/windows (tests/sdk/msvc.ts builds with it). Without one,
 /// what needs none compiles (clice's queries: -ffreestanding -undef
-/// -nostdinc); on Windows clang finds Visual Studio, elsewhere a compile
-/// that includes the CRT stops. clang-cl without the config files warns of
-/// nothing.
+/// -nostdinc), with clang-cl's /WX too, as no option of the config files
+/// may be reported unused (patches/0011); on Windows clang finds Visual
+/// Studio, elsewhere a compile that includes the CRT stops. clang-cl
+/// without the config files warns of nothing.
+const release = /^set\(PACKAGE_VERSION "(.+)"\)$/m
+  .exec(fs.readFileSync(path.join(tree, "lib", "cmake", "xclang", "xclang-config-version.cmake"), "utf8"))?.[1] ?? "";
+const msvcLibcxx = release.split(".").map(Number).reduce((v, n) => v * 1000 + n, 0) >= 23001002010;
 for (const a of ["x86_64", "aarch64"]) {
-  for (const lib of ["builtins", "profile", ...(a === "x86_64" ? ["asan_dynamic"] : [])]) {
-    const file = path.join(tree, "lib", "clang", fs.readdirSync(path.join(tree, "lib", "clang"))[0]!, "lib", "windows", `clang_rt.${lib}-${a}.lib`);
-    if (!fs.existsSync(file)) failures.push(`missing ${file}`);
+  const windowsLib = path.join(tree, "lib", "clang", fs.readdirSync(path.join(tree, "lib", "clang"))[0]!, "lib", "windows");
+  const files = ["builtins", "profile", ...(a === "x86_64" ? ["asan_dynamic"] : [])].map((lib) => path.join(windowsLib, `clang_rt.${lib}-${a}.lib`));
+  if (msvcLibcxx) {
+    files.push(path.join(windowsLib, `libc++-${a}.lib`), path.join(windowsLib, `libc++experimental-${a}.lib`),
+      path.join(tree, `${a}-pc-windows-msvc`, "lib", "libc++.modules.json"),
+      path.join(tree, `${a}-pc-windows-msvc`, "share", "libc++", "v1", "std.cppm"),
+      path.join(tree, "libc++", "include", `${a}-pc-windows-msvc`, "c++", "v1", "__config_site"));
   }
+  for (const file of files) if (!fs.existsSync(file)) failures.push(`missing ${file}`);
 }
 /// Visual Studio through its Setup API (patches/0004), with none of a
 /// Developer Command Prompt's variables, on a Windows host that has it.
@@ -346,6 +356,10 @@ if (!fs.existsSync(path.join(tree, "sdk", "windows"))) {
     run(tool("clang"), [target, "-ffreestanding", "-undef", "-nostdinc", "-fsyntax-only", bare]);
     run(tool("clang++"), [target, "-ffreestanding", "-fsyntax-only", "-x", "c++", freestanding]);
     run(tool("clang-cl"), [target, "/Zs", "/clang:-ffreestanding", "--", freestanding]);
+    for (const args of [[target, "/Zs", "--", bare], [target, "/Zs", "/clang:-ffreestanding", "/TP", "--", freestanding]]) {
+      const result = spawnSync(tool("clang-cl"), ["/WX", ...args], { encoding: "utf8", cwd: work });
+      if (result.status !== 0 || /warning:/.test(result.stderr ?? "")) failures.push(`clang-cl /WX ${args.join(" ")}: ${result.stderr}`);
+    }
   }
   run(tool("clang-cl"), ["/Zs", "--", bare]);
   if (windows && fs.existsSync(vswhere)) {

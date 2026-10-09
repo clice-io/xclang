@@ -17,7 +17,8 @@ xclang/
                            target; <target>-sdk.cfg, the SDK in use of an
                            MSVC target, which the xclang command writes
   lib/clang/<major>/       clang's resource headers, compiler-rt's headers,
-                           and compiler-rt for every target
+                           and compiler-rt for every target; for the MSVC
+                           targets libc++ too
   lib/cmake/xclang/        the CMake package
   libc++/include/c++/v1/   libc++'s headers, the same for every target
   libc++/include/<target>/c++/v1/
@@ -33,9 +34,16 @@ xclang/
                            sdk/macos, those in use
 ```
 
-The MSVC targets have no sysroot: their compiler-rt is
-`lib/clang/<major>/lib/windows`, their C and C++ libraries are the fetched
-SDK's.
+The MSVC targets have no sysroot: their C library is the fetched SDK's.
+Their compiler-rt and libc++ are in `lib/clang/<major>/lib/windows`, the
+directory lld-link searches by itself: `libc++-<arch>.lib`,
+`libc++experimental-<arch>.lib` and, for x64, `libc++asan-x86_64.lib`,
+which the target's `__config_site` names in every object that includes
+libc++ ([Windows](../design/windows.md#libc-and-the-stl)). Their
+`<target>/` holds libc++'s module sources (`share/libc++/v1`), its module
+manifest (`lib/libc++.modules.json`), which
+`-print-library-module-manifest-path` does not report for them, and the
+ASan build's `__config_site` (`lib/asan/include`).
 
 ## Sysroots
 

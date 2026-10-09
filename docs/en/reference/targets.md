@@ -29,8 +29,8 @@ GitHub-hosted runner.
 | `aarch64-w64-mingw32` | `aarch64-w64-windows-gnu`, `aarch64-pc-windows-gnu` | mingw-w64 with UCRT | Windows 10 or later | every host |
 | `aarch64-apple-darwin` | `arm64-apple-darwin`, `arm64-apple-macos`, `aarch64-apple-macosx`, ... | the SDK's libSystem | macOS 13.0 or later | macOS hosts; Linux and Windows hosts with the SDK `xclang` fetches |
 | `x86_64-apple-darwin` | `x86_64-apple-macos`, `x86_64-apple-macosx` | the SDK's libSystem | macOS 13.0 or later | macOS hosts; Linux and Windows hosts with the SDK `xclang` fetches |
-| `x86_64-pc-windows-msvc` | `x86_64-unknown-windows-msvc` | Microsoft's CRT and STL, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches |
-| `aarch64-pc-windows-msvc` | `aarch64-unknown-windows-msvc` | Microsoft's CRT and STL, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches |
+| `x86_64-pc-windows-msvc` | `x86_64-unknown-windows-msvc` | Microsoft's CRT, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches |
+| `aarch64-pc-windows-msvc` | `aarch64-unknown-windows-msvc` | Microsoft's CRT, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches |
 
 All six are tier 1. The macOS targets need Apple's SDK, which comes from
 Xcode on macOS hosts ([macOS](../design/macos.md#the-sdk-is-xcode-s)). On
@@ -45,11 +45,11 @@ runs their programs on Windows x64 and arm64 runners
 
 | | Linux | Windows (MinGW) | macOS | Windows (MSVC) |
 |---|---|---|---|---|
-| C++ library | libc++, libc++abi, static | libc++, libc++abi, static | libc++, libc++abi, static (not the system's `libc++.dylib`) | Microsoft's STL, static |
+| C++ library | libc++, libc++abi, static | libc++, libc++abi, static | libc++, libc++abi, static (not the system's `libc++.dylib`) | libc++ on the VC runtime, static; Microsoft's STL with `-stdlib=platform` |
 | unwinder | libunwind, static | libunwind, static | the system's (libSystem) | the VC runtime's, static |
 | compiler-rt builtins, profile | Supported | Supported | Supported | Supported |
 | ASan, TSan, LSan, UBSan, libFuzzer | Supported | Considered | Supported | Supported: UBSan; ASan and libFuzzer for x64 |
-| ASan libc++ | Supported | Considered | Supported | none: the STL |
+| ASan libc++ | Supported | Considered | Supported | Supported, x64 |
 | linker | ld.lld | ld.lld (MinGW driver) | ld64.lld; `-fuse-ld=ld` for Apple's, without LTO | lld-link |
 
 Sanitizers for the MinGW targets are

@@ -1,0 +1,30 @@
+diff --git a/clang/lib/Driver/Driver.cpp b/clang/lib/Driver/Driver.cpp
+--- a/clang/lib/Driver/Driver.cpp
++++ b/clang/lib/Driver/Driver.cpp
+@@ -1479,7 +1479,11 @@
+   // In CL mode, look for any pass-through arguments
+   if (IsCLMode() && !ContainsError) {
+     SmallVector<const char *, 16> CLModePassThroughArgList;
++    // Whether each one comes from a configuration file, whose arguments are
++    // claimed already.
++    SmallVector<bool, 16> CLModePassThroughClaimed;
+     for (const auto *A : Args.filtered(options::OPT__SLASH_clang)) {
++      CLModePassThroughClaimed.push_back(A->isClaimed());
+       A->claim();
+       CLModePassThroughArgList.push_back(A->getValue());
+     }
+@@ -1492,8 +1496,13 @@
+                           ContainsError));
+ 
+       if (!ContainsError)
+-        for (auto *Opt : *CLModePassThroughOptions)
++        for (auto *Opt : *CLModePassThroughOptions) {
++          // Like the other arguments of a configuration file, those it
++          // passes through are not reported as unused.
++          if (CLModePassThroughClaimed[Opt->getIndex()])
++            Opt->claim();
+           appendOneArg(Args, Opt);
++        }
+     }
+   }
+ 

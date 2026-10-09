@@ -36,7 +36,7 @@ features:
     details: Every release is pinned by sha256. Bazel builds carry no absolute paths, so one cache serves every checkout.
     link: ./design/bazel-module
   - title: MSVC-ABI Targets
-    details: Windows x64 and arm64 with Microsoft's CRT and STL, from every host, with their sanitizers. The xclang command fetches the SDK from Microsoft.
+    details: Windows x64 and arm64 with Microsoft's CRT and libc++ (or the STL), from every host, with their sanitizers. The xclang command fetches the SDK from Microsoft.
     link: ./integrations/clang#msvc-targets
   - title: macOS from Any Host
     details: arm64 and x64 macOS programs from Linux and Windows too, with Apple's SDK fetched from Apple by the xclang command.

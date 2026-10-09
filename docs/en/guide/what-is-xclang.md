@@ -32,8 +32,9 @@ item's status.
   target has its sysroot, libc++, libc++abi, libunwind and compiler-rt,
   prebuilt, and a config file that points clang at them.
 - **The MSVC targets**, Windows x64 and arm64 with Microsoft's CRT and
-  STL, from every host, against the SDK that the `xclang` command fetches
-  from Microsoft ([MSVC targets](../integrations/clang.md#msvc-targets)).
+  xclang's libc++ (or Microsoft's STL), from every host, against the SDK
+  that the `xclang` command fetches from Microsoft
+  ([MSVC targets](../integrations/clang.md#msvc-targets)).
 - **Programs that run where they are copied.** Everything but the OS's own
   libraries is linked in ([hermeticity](../design/hermeticity.md)).
 - **A CMake package and a Bazel module**: the toolchain for the host or
@@ -88,8 +89,9 @@ toolchain is the better one.
 - **C++ libraries from another toolchain do not link.** xclang's C++
   library is libc++, linked into every program. A library built with GCC's
   libstdc++ (a distribution's Qt or Boost) or with MSVC's STL has another
-  ABI; only the MSVC targets, whose C++ library is Microsoft's STL, link
-  the latter. Build C++ dependencies with xclang for the target, through
+  ABI; only the MSVC targets link the latter, with `-stdlib=platform`,
+  which makes Microsoft's STL their C++ library. Build C++ dependencies
+  with xclang for the target, through
   CMake, Bazel or vcpkg's chain-loaded toolchain file. C libraries are
   fine.
 - **C++ objects should not cross shared libraries.** Each shared library
