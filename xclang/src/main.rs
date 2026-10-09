@@ -1,10 +1,13 @@
 //! `xclang`, the toolchain's own command: fetches what the toolchain does
 //! not carry. Vendor SDKs come from the vendors themselves, pinned by
 //! sha256 (`xclang sdk`); more targets come from the release's index of
-//! target archives (`xclang target`).
+//! target archives (`xclang target`). `xclang cargo` runs cargo with the
+//! toolchain as the C compiler and linker of its targets.
 
 mod args;
+mod cargo;
 mod http;
+mod link;
 mod links;
 mod macos;
 mod pkg;
@@ -18,7 +21,9 @@ mod windows;
 mod xml;
 mod zip;
 
+use std::ffi::OsString;
 use std::fmt::Display;
+use std::process::Command;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -157,6 +162,12 @@ xclang: fetches what the toolchain does not carry.
   xclang target add <target>...
   xclang target remove <target>...
       add a target's archive to the toolchain, or remove it
+  xclang cargo <cargo's arguments> [--target <Rust target>]...
+      cargo, with the toolchain as the C and C++ compiler and the linker of
+      the targets it builds for: {x86_64,aarch64}-unknown-linux-{gnu,musl},
+      -pc-windows-gnullvm, -apple-darwin, -pc-windows-msvc; those of
+      --target, of build.target, or the host's. A missing standard library
+      is added with rustup
 
 Options:
   --preset P         a GitHub runner image or its label (windows-2022,
@@ -177,6 +188,9 @@ Options:
   -h, --help         this text
   -V, --version      the versions of this program and of the toolchain
 
+xclang cargo keeps its linkers in $XCLANG_CACHE_DIR, or the user's cache
+directory.
+
 Requests carry the User-Agent xclang/<version> and nothing else about you.
 HTTPS_PROXY, HTTP_PROXY, ALL_PROXY and NO_PROXY are honoured; certificates
 are checked against the system's trust store.
@@ -193,13 +207,25 @@ fn main() {
         // SAFETY: SIGPIPE (13 on Linux and macOS) back to its default, SIG_DFL.
         unsafe { signal(13, 0) };
     }
-    if let Err(e) = run() {
+    let mut args = std::env::args_os();
+    let program = args.next().unwrap_or_default();
+    let result = match cargo::linker_of(&program) {
+        // rustc's linker, run by `xclang cargo`.
+        Some(t) => link::main(t, args.collect()),
+        None => run(),
+    };
+    if let Err(e) = result {
         eprintln!("error: {e}");
         std::process::exit(1);
     }
 }
 
 fn run() -> Result<()> {
+    // cargo's arguments, as they are.
+    let given: Vec<OsString> = std::env::args_os().skip(1).collect();
+    if given.first().is_some_and(|w| w == "cargo") {
+        return cargo::main(given[1..].to_vec());
+    }
     let mut a = args::Args::parse()?;
     if a.flag("version") {
         return version(&a);
@@ -214,6 +240,26 @@ fn run() -> Result<()> {
         ["sdk", ..] => sdk::main(&mut a),
         ["target", ..] => target::main(&mut a),
         _ => bail!("unknown command {}; see xclang --help", words.join(" ")),
+    }
+}
+
+/// Run the command in place of this program: its exit status is this
+/// program's.
+pub fn replace(mut command: Command) -> ! {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        let e = command.exec();
+        eprintln!("error: {:?}: {e}", command.get_program());
+        std::process::exit(127)
+    }
+    #[cfg(not(unix))]
+    match command.status() {
+        Ok(status) => std::process::exit(status.code().unwrap_or(1)),
+        Err(e) => {
+            eprintln!("error: {:?}: {e}", command.get_program());
+            std::process::exit(127)
+        }
     }
 }
 
