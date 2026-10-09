@@ -83,21 +83,29 @@ cmake "${common[@]}" -S "$L/runtimes" -B b-cxx \
 ninja -C b-cxx install
 echo "::notice::$T libc++ $((SECONDS - step)) s"
 
-# The profile runtime and UBSan's minimal runtime (compiler-rt, with the
-# C++ runtimes there).
+# The profile runtime and UBSan's minimal runtime, only those targets.
+# musl 1.2.4 and later declare stat64 and the other LFS64 names only with
+# _LARGEFILE64_SOURCE, which sanitizer_common needs on 32-bit targets.
 step=$SECONDS
 rm -rf b-crt
 cmake "${common[@]}" -S "$L/compiler-rt" -B b-crt \
+  -DCMAKE_C_FLAGS="--no-default-config -D_LARGEFILE64_SOURCE" -DCMAKE_CXX_FLAGS="--no-default-config -D_LARGEFILE64_SOURCE" \
   -DCMAKE_BUILD_TYPE=Release -DCOMPILER_RT_DEFAULT_TARGET_ONLY=ON -DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON \
   -DCOMPILER_RT_INSTALL_PATH="$RES" \
   -DCOMPILER_RT_BUILD_BUILTINS=OFF -DCOMPILER_RT_BUILD_CRT=OFF -DCOMPILER_RT_BUILD_PROFILE=ON \
-  -DCOMPILER_RT_BUILD_SANITIZERS=ON -DCOMPILER_RT_SANITIZERS_TO_BUILD=ubsan_minimal \
+  -DCOMPILER_RT_BUILD_SANITIZERS=ON -DCOMPILER_RT_SANITIZERS_TO_BUILD="ubsan_minimal;ubsan" \
   -DCOMPILER_RT_BUILD_LIBFUZZER=OFF -DCOMPILER_RT_BUILD_XRAY=OFF -DCOMPILER_RT_BUILD_MEMPROF=OFF \
   -DCOMPILER_RT_BUILD_ORC=OFF -DCOMPILER_RT_BUILD_GWP_ASAN=OFF -DCOMPILER_RT_BUILD_CTX_PROFILE=OFF \
   -DCOMPILER_RT_USE_BUILTINS_LIBRARY=ON -DSANITIZER_CXX_ABI=libc++ -DSANITIZER_USE_STATIC_CXX_ABI=ON \
   -DCMAKE_EXE_LINKER_FLAGS="--rtlib=compiler-rt --unwindlib=libunwind -stdlib=libc++ -static -fuse-ld=lld" \
+  -DCMAKE_SHARED_LINKER_FLAGS="--rtlib=compiler-rt --unwindlib=libunwind -stdlib=libc++ -fuse-ld=lld" \
   -DCOMPILER_RT_INCLUDE_TESTS=OFF
-ninja -C b-crt install || echo "::warning::$T compiler-rt (profile, ubsan_minimal) failed"
+targets=$(ninja -C b-crt -t targets all | grep -oE '^clang_rt\.(profile|ubsan_minimal|ubsan_standalone)-[A-Za-z0-9_]+' | sort -u)
+echo "targets: $targets"
+for t in $targets; do
+  ninja -C b-crt "$t" && echo "::notice::$T $t builds" || echo "::warning::$T $t fails"
+done
+find b-crt/lib -name 'libclang_rt.*.a' -exec cp {} "$RES/lib/$T/" \;
 echo "::notice::$T profile $((SECONDS - step)) s"
 ls -l "$RES/lib/$T" || ls -lR "$RES/lib"
 
@@ -136,6 +144,8 @@ EOF
   || echo "::warning::$T profile program does not link"
 "$X/bin/clang" "${flags[@]}" -fsanitize=undefined -fsanitize-minimal-runtime prof.c -o "$OUT/ubsan-$T" \
   || echo "::warning::$T ubsan minimal program does not link"
+"$X/bin/clang++" "${flags[@]}" -std=c++23 -fsanitize=undefined hello.cpp -o "$OUT/ubsanfull-$T" \
+  || echo "::warning::$T ubsan (standalone) program does not link"
 "$X/bin/llvm-readelf" -h "$OUT/hello-$T" | grep -E 'Class|Machine|Flags'
 ls -l "$OUT"
 # Sizes: the sysroot and the runtimes as a target archive would carry them.

@@ -1,0 +1,144 @@
+name: probe-targets2
+
+# Research probes for the target survey (exp/target-probes only), round 2:
+# the profile and UBSan runtimes of the other Linux architectures with
+# musl; Android programs built by xclang's clang run in termux-docker; a
+# command-line program in the iOS simulator.
+
+on:
+  push:
+    branches: ["exp/target-probes"]
+    paths: ["probe/**", ".github/workflows/probe-targets2.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  musl-arch:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - triple: i686-unknown-linux-musl
+            karch: x86
+          - triple: armv7-unknown-linux-musleabihf
+            karch: arm
+          - triple: riscv64-unknown-linux-musl
+            karch: riscv
+          - triple: powerpc64le-unknown-linux-musl
+            karch: powerpc
+          - triple: s390x-unknown-linux-musl
+            karch: s390
+          - triple: loongarch64-unknown-linux-musl
+            karch: loongarch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: sudo apt-get install -y -qq ninja-build qemu-user > /dev/null
+      - run: probe/musl-arch.sh ${{ matrix.triple }} ${{ matrix.karch }}
+      - name: run (natively for i686; qemu-user, as a sanity check only, otherwise)
+        run: |
+          cd out
+          for f in *; do
+            case ${{ matrix.triple }} in
+              i686-*) ./$f ;;
+              armv7-*) qemu-arm ./$f ;;
+              riscv64-*) qemu-riscv64 ./$f ;;
+              powerpc64le-*) qemu-ppc64le ./$f ;;
+              s390x-*) qemu-s390x ./$f ;;
+              loongarch64-*) qemu-loongarch64 ./$f ;;
+            esac && echo "::notice::$f ran" || echo "::warning::$f failed"
+          done
+
+  android:
+    strategy:
+      fail-fast: false
+      matrix:
+        triple: [x86_64-linux-android24, i686-linux-android24, aarch64-linux-android24, armv7a-linux-androideabi24]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: sudo apt-get install -y -qq ninja-build > /dev/null
+      - run: probe/android.sh ${{ matrix.triple }}
+      - name: run in termux-docker (x86_64, i686)
+        if: startsWith(matrix.triple, 'x86_64') || startsWith(matrix.triple, 'i686')
+        run: |
+          tag=${{ startsWith(matrix.triple, 'x86_64') && 'x86_64' || 'i686' }}
+          docker run --rm termux/termux-docker:$tag /system/bin/sh -c 'grep -E "ro.build.version.(sdk|release)=" /system/build.prop' || true
+          for f in out/*; do
+            docker run --rm -v "$PWD/out:/w:ro" termux/termux-docker:$tag /w/$(basename $f) \
+              && echo "::notice::$(basename $f) runs in termux-docker:$tag" || echo "::warning::$(basename $f) fails in termux-docker:$tag"
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android-${{ matrix.triple }}
+          path: out/
+
+  android-arm:
+    needs: android
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: android-a*
+          path: out
+          merge-multiple: true
+      - run: |
+          chmod +x out/*
+          ls -l out
+          for tag in aarch64 arm; do
+            docker run --rm termux/termux-docker:$tag /system/bin/sh -c 'grep -E "ro.build.version.(sdk|release)=" /system/build.prop' || true
+            case $tag in aarch64) glob='*aarch64*' ;; arm) glob='*armv7a*' ;; esac
+            for f in out/$glob; do
+              docker run --rm -v "$PWD/out:/w:ro" termux/termux-docker:$tag /w/$(basename $f) \
+                && echo "::notice::$(basename $f) runs in termux-docker:$tag" || echo "::warning::$(basename $f) fails in termux-docker:$tag"
+            done
+          done
+
+  apple-sim:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - run: curl -fsSL https://github.com/clice-io/xclang/releases/download/23.1.2.10/xclang-23.1.2.10-aarch64-apple-darwin.tar.xz | tar xJ
+      - name: build
+        run: |
+          X=$PWD/xclang/bin
+          printf '#include <stdio.h>\nint main(void){puts("c ok");return 0;}\n' > hello.c
+          printf '#include <iostream>\n#include <stdexcept>\nint main(){try{throw std::runtime_error("cxx ok");}catch(const std::exception&e){std::cout<<e.what()<<std::endl;}}\n' > hello.cpp
+          for p in iphonesimulator:ios:16.0 appletvsimulator:tvos:16.0 watchsimulator:watchos:9.0 xrsimulator:xros:1.0; do
+            IFS=: read sdk os min <<< "$p"
+            S=$(xcrun --sdk $sdk --show-sdk-path)
+            $X/clang --target=arm64-apple-$os$min-simulator -isysroot "$S" hello.c -o c-$os || echo "::warning::$os C fails"
+            $X/clang++ --target=arm64-apple-$os$min-simulator -isysroot "$S" hello.cpp -o cxx-$os || echo "::warning::$os C++ fails"
+          done
+          ls -l
+      - name: run on simulators
+        run: |
+          python3 - <<'PY' > pairs.txt
+          import json, subprocess
+          rts = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "runtimes", "-j"]))["runtimes"]
+          for plat, os_ in [("iOS", "ios"), ("tvOS", "tvos"), ("watchOS", "watchos"), ("visionOS", "xros")]:
+              r = [x for x in rts if x["platform"] == plat and x["isAvailable"]]
+              if not r: continue
+              r = r[-1]
+              d = r["supportedDeviceTypes"][-1]["identifier"]
+              print(os_, r["identifier"], d)
+          PY
+          cat pairs.txt
+          while read os rt dt; do
+            start=$(date +%s)
+            dev=$(xcrun simctl create "probe-$os" "$dt" "$rt")
+            xcrun simctl boot "$dev"; xcrun simctl bootstatus "$dev" -b > /dev/null || true
+            echo "::notice::$os simulator ($rt) boots in $(( $(date +%s) - start )) s"
+            for f in c-$os cxx-$os; do
+              [ -f "$f" ] || continue
+              xcrun simctl spawn "$dev" "$PWD/$f" && echo "::notice::$f runs in the $os simulator" || echo "::warning::$f fails in the $os simulator"
+            done
+            xcrun simctl shutdown "$dev" || true
+          done < pairs.txt
