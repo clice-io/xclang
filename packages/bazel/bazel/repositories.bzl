@@ -132,11 +132,12 @@ def _toolchain_impl(rctx):
     # dependency files. The vendor SDK is its repository's (bazel/sdk.bzl),
     # whose config file names it. A target of a later release (musl's, from
     # 23.1.2.10 on; the MSVC targets', from 23.1.2.7) has no toolchain here
-    # (bazel/toolchain.bzl); the MSVC targets' have no directory before
-    # 23.1.2.10, only config files.
+    # (bazel/toolchain.bzl): it has no config file, or no compiler-rt, where
+    # a newer checkout's config files are in an older toolchain (CI's). (The
+    # MSVC targets have no directory of their own before 23.1.2.10.)
     root = "external/" + rctx.name
     for target, t in TARGETS.items():
-        if not rctx.path("bin/%s.cfg" % t.cfg).exists:
+        if not rctx.path("bin/%s.cfg" % t.cfg).exists or not rctx.path("lib/clang/%s/lib/%s" % (clang_version, t.runtime)).exists:
             continue
         sdk = sdk_repository(host, target)
         rctx.file("cfg/%s.cfg" % target, "# bin/%s.cfg for Bazel (bazel/repositories.bzl).\n%s\n-resource-dir=%s/lib/clang/%s\n" % (
