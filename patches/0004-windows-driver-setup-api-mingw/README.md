@@ -12,9 +12,13 @@ Developer Command Prompt set `VCToolsInstallDir` or put `cl.exe` in PATH
 mingw-w64 has the COM support classes the lookup uses (comdef.h, comip.h,
 comutil.h, also without exceptions). What it lacks is the interface IDs:
 its `__uuidof` is emulated (always, unless `_MSC_VER`) and takes them from
-`__CRT_UUID_DECL`, not from `DECLSPEC_UUID`. The patch enables the lookup
-on MinGW, declares the IDs, and links LLVMWindowsDriver with ole32 and
-oleaut32.
+`__CRT_UUID_DECL`, not from `DECLSPEC_UUID`. The patch uses the lookup on
+every Windows host (`_WIN32` in place of `USE_MSVC_SETUP_API`) and, for
+MinGW, declares the IDs next to the include, which leaves MSVCSetupApi.h
+as Microsoft ships it. It links nothing more: ole32 comes with
+LLVMSupport, oleaut32 with CMake's default libraries on Windows. What
+mingw-w64 needs for the lookup (sal.h's `_Deref_out_opt_`, comdef.h's
+`_com_raise_error`) is there since v10.0.0, which LLVM needs already.
 
 Everything else of the MSVC environment (the Windows SDK, the UCRT,
 ATL/MFC, lld-link's library paths, `_MSC_VER` from `cl.exe`'s version)
@@ -23,9 +27,9 @@ on MinGW; without them a MinGW-built clang also fell back to a hard-coded
 list of Visual Studio 2010 to 2005 directories (clang's MSVC.cpp).
 
 - Upstream: [#226794](https://github.com/llvm/llvm-project/pull/226794),
-  this patch as sent. GCC needs no pragma of its own: LLVM turns on
-  `-Wnon-virtual-dtor` only for clang. Separately, not reported:
-  `sys::InitializeCOMRAII` calls `CoUninitialize` even when
+  this patch as sent (its head ab18226604ff). GCC needs no pragma of its
+  own: LLVM turns on `-Wnon-virtual-dtor` only for clang. Separately, not
+  reported: `sys::InitializeCOMRAII` calls `CoUninitialize` even when
   `CoInitializeEx` failed (a thread already in another apartment), which
   releases the caller's reference; the same in MSVC builds.
 - Checked: MSVCPaths.cpp compiles without warnings for x86_64 and aarch64

@@ -1,31 +1,20 @@
-diff --git a/llvm/lib/WindowsDriver/CMakeLists.txt b/llvm/lib/WindowsDriver/CMakeLists.txt
-index 4747df5..dbe00ae 100644
---- a/llvm/lib/WindowsDriver/CMakeLists.txt
-+++ b/llvm/lib/WindowsDriver/CMakeLists.txt
-@@ -1,3 +1,8 @@
-+if(MINGW)
-+  # CoCreateInstance and the BSTR functions of the Setup API lookup.
-+  set(imported_libs ole32 oleaut32)
-+endif()
-+
- add_llvm_component_library(LLVMWindowsDriver
-   MSVCPaths.cpp
- 
 diff --git a/llvm/lib/WindowsDriver/MSVCPaths.cpp b/llvm/lib/WindowsDriver/MSVCPaths.cpp
-index 09468da..d8190ad 100644
+index 3092ee2fbf5b..453d0d7b0463 100644
 --- a/llvm/lib/WindowsDriver/MSVCPaths.cpp
 +++ b/llvm/lib/WindowsDriver/MSVCPaths.cpp
-@@ -35,8 +35,7 @@
- #include <windows.h>
+@@ -35,11 +35,6 @@
+ #define NOMINMAX
  #endif
- 
+ #include <windows.h>
+-#endif
+-
 -#ifdef _MSC_VER
 -// Don't support SetupApi on MinGW.
-+#if defined(_MSC_VER) || defined(__MINGW32__)
- #define USE_MSVC_SETUP_API
+-#define USE_MSVC_SETUP_API
  
  // Make sure this comes before MSVCSetupApi.h
-@@ -51,6 +50,24 @@
+ #include <comdef.h>
+@@ -53,6 +48,24 @@
  #ifdef __clang__
  #pragma clang diagnostic pop
  #endif
@@ -50,3 +39,12 @@ index 09468da..d8190ad 100644
  _COM_SMARTPTR_TYPEDEF(ISetupConfiguration, __uuidof(ISetupConfiguration));
  _COM_SMARTPTR_TYPEDEF(ISetupConfiguration2, __uuidof(ISetupConfiguration2));
  _COM_SMARTPTR_TYPEDEF(ISetupHelper, __uuidof(ISetupHelper));
+@@ -636,7 +649,7 @@ bool llvm::findVCToolChainViaEnvironment(vfs::FileSystem &VFS,
+ bool llvm::findVCToolChainViaSetupConfig(
+     vfs::FileSystem &VFS, std::optional<StringRef> VCToolsVersion,
+     std::string &Path, ToolsetLayout &VSLayout) {
+-#if !defined(USE_MSVC_SETUP_API)
++#ifndef _WIN32
+   return false;
+ #else
+   // FIXME: This really should be done once in the top-level program's main
