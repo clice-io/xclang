@@ -145,6 +145,9 @@ xclang: fetches what the toolchain does not carry.
       clang++ --target=x86_64-pc-windows-msvc, clang-cl
   xclang sdk path macos|windows [the options of fetch]
       where the SDK fetch would fetch is
+  xclang sdk packages macos|windows [the options of fetch] [--json]
+      what fetch would download, for a build system that downloads them
+      itself (the Bazel module) and has fetch take them from --cache
   xclang sdk use <name>
       use another fetched SDK of its vendor (fetch uses the one it fetched)
   xclang sdk remove <name>

@@ -5,7 +5,7 @@ use lexopt::ValueExt;
 use crate::{Result, bail};
 
 /// Options that take no value.
-const FLAGS: &[&str] = &["accept-license", "force", "help"];
+const FLAGS: &[&str] = &["accept-license", "force", "help", "json"];
 /// Options every command takes.
 const GLOBAL: &[&str] = &["root", "sdk-dir", "table"];
 

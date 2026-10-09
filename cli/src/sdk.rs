@@ -72,6 +72,13 @@ pub fn main(a: &mut Args) -> Result<()> {
             a.allow(&allowed)?;
             fetch(a, &table, Vendor::parse(vendor)?)
         }
+        ["packages", vendor] => {
+            let mut allowed = selection.to_vec();
+            allowed.push("json");
+            a.allow(&allowed)?;
+            let choice = choose(a, &table, Vendor::parse(vendor)?)?;
+            packages(&table, &choice, a.flag("json"))
+        }
         ["path", vendor] => {
             a.allow(&selection)?;
             let vendor = Vendor::parse(vendor)?;
@@ -283,6 +290,87 @@ fn choose<'a>(a: &Args, table: &'a Table, vendor: Vendor) -> Result<Choice<'a>> 
     }
 }
 
+/// A package of the SDK the options select, and the name fetch gives it
+/// among its downloads (--cache).
+pub struct Download {
+    pub kind: Kind,
+    pub package: Package,
+    pub file: String,
+}
+
+/// What fetch downloads for the choice: the macOS SDK's Command Line Tools
+/// package; the MSVC and Windows SDK packages of the headers, then those
+/// of each architecture.
+fn downloads(table: &Table, choice: &Choice) -> Vec<Download> {
+    let base = |url: &str| url.rsplit('/').next().unwrap().to_string();
+    match choice {
+        Choice::Macos { package, .. } => vec![Download {
+            kind: Kind::Sdk,
+            package: Package {
+                url: package.url.clone(),
+                size: package.size,
+                sha256: package.sha256.clone(),
+            },
+            file: format!("{}-{}", package.product, base(&package.url)),
+        }],
+        Choice::Windows {
+            msvc, sdk, archs, ..
+        } => {
+            let (m, s) = (
+                table.windows.msvc.get(msvc).unwrap(),
+                table.windows.sdk.get(sdk).unwrap(),
+            );
+            let mut packages = vec![(Kind::Crt, &m.headers), (Kind::Sdk, &s.headers)];
+            for arch in archs {
+                packages.extend(m.arch(arch).unwrap().iter().map(|(_, p)| (Kind::Crt, p)));
+                packages.push((Kind::Sdk, s.arch(arch).unwrap()));
+            }
+            packages
+                .into_iter()
+                .map(|(kind, p)| Download {
+                    kind,
+                    package: p.clone(),
+                    file: base(&p.url),
+                })
+                .collect()
+        }
+    }
+}
+
+/// `sdk packages`: what fetch would download, for a build system that
+/// downloads them itself into a directory fetch then takes them from
+/// (--cache), such as the Bazel module's repository rule. With --json,
+/// {"name": <the SDK's directory>, "packages": [{"url", "size", "sha256",
+/// "file"}, ...]}; else a line of each.
+fn packages(table: &Table, choice: &Choice, json: bool) -> Result<()> {
+    let list = downloads(table, choice);
+    if json {
+        let packages: Vec<serde_json::Value> = list
+            .iter()
+            .map(|d| {
+                serde_json::json!({
+                    "url": d.package.url,
+                    "size": d.package.size,
+                    "sha256": d.package.sha256,
+                    "file": d.file,
+                })
+            })
+            .collect();
+        let out = serde_json::json!({ "name": choice.name(), "packages": packages });
+        println!("{}", serde_json::to_string_pretty(&out)?);
+    } else {
+        for d in &list {
+            println!(
+                "{}  {:>9}  {}",
+                d.package.sha256,
+                mb(d.package.size),
+                d.package.url
+            );
+        }
+    }
+    Ok(())
+}
+
 fn fetch(a: &Args, table: &Table, vendor: Vendor) -> Result<()> {
     if !a.flag("accept-license") {
         eprintln!(
@@ -339,15 +427,12 @@ fn fetch(a: &Args, table: &Table, vendor: Vendor) -> Result<()> {
                     pkg
                 }
                 None => {
-                    let file = cache.join(format!(
-                        "{}-{}",
-                        package.product,
-                        package.url.rsplit('/').next().unwrap()
-                    ));
+                    let d = &downloads(table, &choice)[0];
+                    let file = cache.join(&d.file);
                     crate::http::fetch_pinned(
-                        &package.url,
-                        &package.sha256,
-                        Some(package.size),
+                        &d.package.url,
+                        &d.package.sha256,
+                        Some(d.package.size),
                         &file,
                     )?;
                     file
@@ -383,22 +468,20 @@ fn fetch(a: &Args, table: &Table, vendor: Vendor) -> Result<()> {
             if a.value("links").is_some() || a.value("pkg").is_some() {
                 bail!("--links and --pkg are for macos");
             }
-            let (m, s) = (
-                table.windows.msvc.get(msvc).unwrap(),
-                table.windows.sdk.get(sdk).unwrap(),
-            );
+            let m = table.windows.msvc.get(msvc).unwrap();
             eprintln!("MSVC {msvc} ({}), Windows SDK {sdk}", m.manifest);
-            let mut packages = vec![(Kind::Crt, &m.headers), (Kind::Sdk, &s.headers)];
-            for arch in archs {
-                packages.extend(m.arch(arch).unwrap().iter().map(|(_, p)| (Kind::Crt, p)));
-                packages.push((Kind::Sdk, s.arch(arch).unwrap()));
-            }
-            let files = crate::parallel(&packages, 4, |(kind, p)| {
-                let file = cache.join(p.url.rsplit('/').next().unwrap());
-                crate::http::fetch_pinned(&p.url, &p.sha256, Some(p.size), &file)?;
-                Ok((*kind, file))
+            let packages = downloads(table, &choice);
+            let files = crate::parallel(&packages, 4, |d| {
+                let file = cache.join(&d.file);
+                crate::http::fetch_pinned(
+                    &d.package.url,
+                    &d.package.sha256,
+                    Some(d.package.size),
+                    &file,
+                )?;
+                Ok((d.kind, file))
             })?;
-            let total: u64 = packages.iter().map(|(_, p)| p.size).sum();
+            let total: u64 = packages.iter().map(|d| d.package.size).sum();
             eprintln!(
                 "{} packages, {}, in {:.1} s",
                 packages.len(),
@@ -418,7 +501,7 @@ fn fetch(a: &Args, table: &Table, vendor: Vendor) -> Result<()> {
                 toolset: Some(unpacked.toolset),
                 sdk_directory: Some(unpacked.sdk_version),
                 archs: archs.clone(),
-                packages: packages.iter().map(|(_, p)| (*p).clone()).collect(),
+                packages: packages.into_iter().map(|d| d.package).collect(),
             }
         }
     };
