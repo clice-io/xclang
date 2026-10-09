@@ -1,0 +1,22 @@
+diff --git a/lld/COFF/Writer.cpp b/lld/COFF/Writer.cpp
+index 3cab426..719ffc7 100644
+--- a/lld/COFF/Writer.cpp
++++ b/lld/COFF/Writer.cpp
+@@ -1045,8 +1045,15 @@ void Writer::sortSections() {
+     DenseMap<const SectionChunk *, int> order =
+         computeCallGraphProfileOrder(ctx);
+     for (auto it : order) {
+-      if (DefinedRegular *sym = it.first->sym)
+-        ctx.config.order[sym->getName()] = it.second;
++      // Local symbols of different object files can have the same name.
++      // Take the lowest order of them, which does not depend on the
++      // iteration order of the map, keyed by pointers.
++      if (DefinedRegular *sym = it.first->sym) {
++        auto [entry, inserted] =
++            ctx.config.order.try_emplace(sym->getName(), it.second);
++        if (!inserted)
++          entry->second = std::min(entry->second, it.second);
++      }
+     }
+   }
+   if (!ctx.config.order.empty())

@@ -25,6 +25,7 @@ again, builds the same thing; libclang's manifest lists them
 | [`0014-coff-timestamp-default`](https://github.com/clice-io/xclang/blob/main/patches/0014-coff-timestamp-default/README.md) | COFF objects for MinGW targets have no compile time in their header again, as in LLVM 22 and GNU tools: the same source gives the same object (llvm/llvm-project#222099) |
 | [`0015-msvc-stdlib`](https://github.com/clice-io/xclang/blob/main/patches/0015-msvc-stdlib/README.md) | clang's MSVC toolchain takes `-stdlib=`: `libc++`, the installation's or `-stdlib++-isystem`'s, and `platform`, Microsoft's STL, which drops `-stdlib++-isystem` |
 | [`0016-libcxx-vcruntime`](https://github.com/clice-io/xclang/blob/main/patches/0016-libcxx-vcruntime/README.md) | libc++ on vcruntime defines no `std::nothrow`, the C runtime's, and defines `std::set_new_handler` and `get_new_handler`, which only Microsoft's STL library did |
+| [`0017-lld-coff-call-graph-order`](https://github.com/clice-io/xclang/blob/main/patches/0017-lld-coff-call-graph-order/README.md) | lld-link lays out a PGO-built program the same way on every link: local functions of the same name in several objects no longer move from one link to the next |
 
 0005 (ASan's container checks in libc++'s ODR signature) was in 23.1.2.3 and
 23.1.2.4; the ASan libc++ replaced it in 23.1.2.5.

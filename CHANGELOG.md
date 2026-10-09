@@ -112,6 +112,12 @@ the [patches](docs/en/reference/patches.md) of its tag.
   target, so the same source gave another object on every compile
   (llvm/llvm-project#222099, upstream's fix). MSVC targets keep it, as
   `link.exe /INCREMENTAL` wants; `/Brepro` drops it there.
+- Patches: **0017** added, lld-link lays out a program the same way on
+  every link: with a call graph profile (PGO), local functions of the same
+  name in several objects, such as `static` ones, went where a walk in
+  the order of memory addresses put them, so the same objects linked to
+  another program now and then (clice's `clice.exe`: three layouts in six
+  links).
 
 ## [23.1.2.9](https://github.com/clice-io/xclang/releases/tag/23.1.2.9) — 2026-10-06
 

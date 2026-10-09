@@ -17,6 +17,7 @@
 ///   node tests/toolchain/smoke.ts --tree <xclang> [--out <dir>]
 
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -233,6 +234,38 @@ if (since("23.1.2.10")) {
     if (run(tool("clang"), [`--target=${target}`, "-c", bare, "-o", object]) === undefined) continue;
     const stamp = fs.readFileSync(object).readUInt32LE(4);
     if ((stamp === 0) !== zero) failures.push(`${target}: the COFF object's TimeDateStamp is ${stamp}`);
+  }
+}
+
+/// lld-link lays out a program the same way on every link: 24 objects,
+/// each with a local hot() that its f<i> calls, in a call graph profile as
+/// PGO leaves it, linked 12 times give one program (patches/0017, from
+/// 23.1.2.10).
+if (since("23.1.2.10")) {
+  const assemble = (name: string, text: string) => {
+    const object = path.join(work, `${name}.obj`);
+    const ok = run(tool("clang"), ["--target=x86_64-pc-windows-msvc", "--no-default-config", "-c", write(`${name}.s`, text), "-o", object]);
+    return ok === undefined ? undefined : object;
+  };
+  const local = (name: string, body: string) =>
+    `\t.def ${name}; .scl 3; .type 32; .endef\n\t.section .text,"xr",one_only,${name}\n${name}:\n${body}\tretq\n`;
+  const objects = [assemble("cg-main", `\t.text\n\t.globl entry\nentry:\n${Array.from({ length: 24 }, (_, i) => `\tcallq f${i + 1}\n`).join("")}\tretq\n`)];
+  for (let i = 1; i <= 24; i++) {
+    objects.push(assemble(`cg${i}`, [
+      local("hot", `\tleal ${i}(%rcx), %eax\n`),
+      local("cold", `\tleal -${i}(%rcx), %eax\n`),
+      `\t.def f${i}; .scl 2; .type 32; .endef\n\t.section .text,"xr",one_only,f${i}\n\t.globl f${i}\nf${i}:\n\tcallq hot\n\tcallq cold\n\tretq\n`,
+      `\t.cg_profile f${i}, hot, ${1000 + i}\n\t.cg_profile f${i}, cold, 1\n`,
+    ].join("")));
+  }
+  if (!objects.includes(undefined)) {
+    const programs = new Set<string>();
+    for (let link = 0; link < 12; link++) {
+      const out = path.join(work, `cg-${link}.exe`);
+      if (run(tool("lld-link"), ["/entry:entry", "/subsystem:console", "/nodefaultlib", "/Brepro", `/out:${out}`, ...objects as string[]]) === undefined) break;
+      programs.add(createHash("sha256").update(fs.readFileSync(out)).digest("hex"));
+    }
+    if (programs.size > 1) failures.push(`lld-link: 12 links of the same objects gave ${programs.size} different programs`);
   }
 }
 

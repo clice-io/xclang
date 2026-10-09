@@ -141,8 +141,6 @@ FetchContent or the Bazel registry.
 - **No Bazel sandbox on Windows** by default: an action can read
   undeclared files there. The Linux and macOS builds of the same targets
   enforce the declarations.
-- **Large Windows ThinLTO links** are not always the same bytes; the cause
-  is not known ([Windows](../design/windows.md#known-limitations)).
 - **Header units** are built by neither CMake nor Bazel, and Bazel's
   module support is experimental.
 - **glibc 2.17 has no `-static-pie`**
