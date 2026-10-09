@@ -8,6 +8,21 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+- **musl targets**, `x86_64-unknown-linux-musl` and
+  `aarch64-unknown-linux-musl`, in every toolchain archive: static programs
+  with no program interpreter and no shared library, which take nothing
+  from the system they run on
+  ([musl targets](docs/en/reference/targets.md#musl-targets)). musl 1.2.6
+  with the patches of its security advisories and Linux 6.18's UAPI
+  headers, built by xclang; libc++, libc++abi, libunwind, compiler-rt and
+  `import std` as for the other Linux targets; of the sanitizers UBSan, as
+  the others need dynamic linking. `-static` by default, `-static-pie` on
+  request. The CMake package (`XCLANG_TARGET`), the Bazel module
+  (`@xclang//platforms:<arch>-unknown-linux-musl`,
+  `@xclang//platforms/libc:musl`) and cargo
+  ([Rust's musl targets](docs/en/integrations/cargo.md#static-programs-with-musl))
+  build them. They add 0.6 to 2.1 MB to an archive, and 42 MB unpacked.
+  `xclang target list` names them as built in.
 - The repository's layout: what builds the toolchain is under
   `toolchain/` (its scripts, the CMake caches, the config files'
   templates, the PGO training, the Windows launcher, license texts), the
