@@ -21,7 +21,7 @@ again, builds the same thing; libclang's manifest lists them
 | [`0010-windows-stack-trace`](https://github.com/clice-io/xclang/blob/main/patches/0010-windows-stack-trace/README.md) | crash stack traces on arm64 Windows go past system DLL frames, whose return addresses are signed: a crash in a C library callback, or a trace printed from a signal handler, reaches the code that crashed |
 | [`0011-clang-cl-config-pass-through`](https://github.com/clice-io/xclang/blob/main/patches/0011-clang-cl-config-pass-through/README.md) | clang-cl reports no option of a config file unused, also those it passes through with `/clang:`: the MSVC targets' C compiles with `/WX` |
 | [`0015-msvc-stdlib`](https://github.com/clice-io/xclang/blob/main/patches/0015-msvc-stdlib/README.md) | clang's MSVC toolchain takes `-stdlib=`: `libc++`, the installation's or `-stdlib++-isystem`'s, and `platform`, Microsoft's STL, which drops `-stdlib++-isystem` |
-| [`0016-libcxx-vcruntime`](https://github.com/clice-io/xclang/blob/main/patches/0016-libcxx-vcruntime/README.md) | libc++ on vcruntime defines no `std::nothrow`, the C runtime's, and its `std` module builds without `std::get_new_handler` |
+| [`0016-libcxx-vcruntime`](https://github.com/clice-io/xclang/blob/main/patches/0016-libcxx-vcruntime/README.md) | libc++ on vcruntime defines no `std::nothrow`, the C runtime's, and defines `std::set_new_handler` and `get_new_handler`, which only Microsoft's STL library did |
 
 0005 (ASan's container checks in libc++'s ODR signature) was in 23.1.2.3 and
 23.1.2.4; the ASan libc++ replaced it in 23.1.2.5.

@@ -125,9 +125,10 @@ library built with MSVC need the STL on both sides.
 static, with Microsoft's vcruntime as its ABI library, as libc++'s own
 clang-cl configuration has it: vcruntime throws and catches the exceptions,
 holds the type information and `operator new`, and UCRT is the C library.
-There is no libc++abi or libunwind. Patch 0016 keeps libc++ from defining
-`std::nothrow` a second time, beside the C runtime's
-([patches](../reference/patches.md)).
+There is no libc++abi or libunwind. libc++ counted on Microsoft's STL
+library for `std::set_new_handler` and repeated the C runtime's
+`std::nothrow`; [patch 0016](../reference/patches.md) gives it the one and
+not the other.
 
 **One build for every C runtime.** libc++ is compiled `/MT` with `/Zl`: it
 names no C runtime, and its calls to UCRT and vcruntime are direct ones,
