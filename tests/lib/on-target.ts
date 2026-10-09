@@ -35,6 +35,9 @@ export interface Program {
   output?: string;
   /// It must end with other than 0, or abort (as ASan and TSan do on macOS).
   fails?: boolean;
+  /// It must end on a trap (__builtin_trap): SIGILL or SIGTRAP, or on
+  /// Windows an exception's status.
+  trap?: boolean;
   /// It must write a profile, LLVM_PROFILE_FILE.
   profile?: boolean;
   /// Where it runs: a directory relative to programs.json, or $NAME for an
@@ -159,7 +162,10 @@ export function runPrograms(roots: string[]): number {
     process.stdout.write(out.length > 20000 ? `${out.slice(0, 10000)}\n...\n${out.slice(-10000)}` : out);
     if (r.error) problems.push(r.error.message);
     const ended = r.status ?? r.signal;
-    if (p.fails ? !((r.status !== null && r.status !== 0) || r.signal === "SIGABRT") : r.status !== 0) problems.push(`ended with ${ended}`);
+    const endedAsExpected = p.trap
+      ? r.signal === "SIGILL" || r.signal === "SIGTRAP" || (r.status !== null && (r.status < 0 || r.status > 255))
+      : p.fails ? (r.status !== null && r.status !== 0) || r.signal === "SIGABRT" : r.status === 0;
+    if (!endedAsExpected) problems.push(`ended with ${ended}`);
     if (p.expect !== undefined && !out.includes(p.expect)) problems.push(`no "${p.expect}" in its output`);
     if (p.output !== undefined && clean(out) !== p.output) problems.push(`printed ${JSON.stringify(clean(out))}, not ${JSON.stringify(p.output)}`);
     if (p.profile && !(fs.existsSync(profile) && fs.statSync(profile).size > 0)) problems.push("no profile");

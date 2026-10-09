@@ -33,6 +33,14 @@
 #                   libc++ (-stdlib=platform in CMAKE_CXX_FLAGS), for C++
 #                   interfaces to libraries built with MSVC; xclang::std is
 #                   then the STL's. Ignored for other targets.
+#   XCLANG_RUNTIMES source: libc++, libc++abi and libunwind built from the
+#                   toolchain's sources, with libc++'s hardening and ABI
+#                   options, without exceptions, and so on; prebuilt by
+#                   default (runtimes.cmake, which names the options)
+#   XCLANG_SANITIZER
+#                   the sanitizers of the whole build, address, memory,
+#                   thread, undefined or leak, with C++ runtimes that suit
+#                   them (runtimes.cmake)
 
 if(NOT XCLANG_ROOT)
     get_filename_component(XCLANG_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
@@ -237,6 +245,18 @@ elseif(NOT _xclang_target_os STREQUAL _xclang_host_os OR NOT _xclang_target_arch
     set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
     set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 endif()
+
+# The target's triple, as its directory in the tree is named.
+if(XCLANG_TARGET)
+    set(_xclang_triple "${XCLANG_TARGET}")
+elseif(_xclang_host_os STREQUAL "darwin")
+    set(_xclang_triple "${_xclang_host_arch}-apple-darwin")
+elseif(_xclang_host_os STREQUAL "mingw")
+    set(_xclang_triple "${_xclang_host_arch}-w64-mingw32")
+else()
+    set(_xclang_triple "${_xclang_host_arch}-unknown-linux-gnu")
+endif()
+include("${CMAKE_CURRENT_LIST_DIR}/runtimes.cmake")
 
 # find_package(xclang): this file's package, also where packages are looked
 # for in the sysroot only.

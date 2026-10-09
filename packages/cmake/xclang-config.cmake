@@ -71,6 +71,18 @@ get_filename_component(XCLANG_ROOT "${XCLANG_ROOT}/.." ABSOLUTE)
 # 23.1.2.10, without libc++ for MSVC targets), the STL's (modules.json,
 # std.ixx), in the toolset of the SDK the config files read; on Windows
 # without one, in Visual Studio's, next to the STL's headers clang includes.
+# With the runtimes built from source (XCLANG_RUNTIMES=source, an option of
+# the toolchain file, runtimes.cmake), their own modules, which include
+# their headers.
+if(XCLANG_RUNTIMES STREQUAL "source")
+    if(NOT XCLANG_RUNTIMES_INSTALL)
+        set(xclang_FOUND FALSE)
+        set(xclang_NOT_FOUND_MESSAGE "XCLANG_RUNTIMES=source is an option of xclang's toolchain file: "
+            "--toolchain ${XCLANG_ROOT}/lib/cmake/xclang/toolchain.cmake")
+        return()
+    endif()
+    set_property(GLOBAL PROPERTY XCLANG_STD_MANIFEST "${XCLANG_RUNTIMES_INSTALL}/lib/libc++.modules.json")
+endif()
 get_property(_xclang_manifest GLOBAL PROPERTY XCLANG_STD_MANIFEST)
 if(NOT _xclang_manifest AND CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
     if(CMAKE_CXX_COMPILER_ARCHITECTURE_ID MATCHES "^(ARM64|aarch64)$")

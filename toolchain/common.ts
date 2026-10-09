@@ -535,14 +535,19 @@ export function writeConfigs(tree: string, host: Os): void {
 
 /// xclang's CMake package for its users (packages/cmake) in dest, as a
 /// toolchain tree's lib/cmake/xclang holds it: find_package(xclang), its
-/// version, and the toolchain file. (xclang.cmake, which downloads a
-/// toolchain, is used from a checkout of the release's tag.)
+/// version, the toolchain file, and what builds the runtimes from source
+/// (runtimes.cmake, with the CMake caches of toolchain/runtimes.ts' builds
+/// of libc++ and compiler-rt). (xclang.cmake, which downloads a toolchain,
+/// is used from a checkout of the release's tag.)
 export function writeCMakePackage(dest: string, version: string): void {
   const source = path.join(ROOT, "packages", "cmake");
   fs.rmSync(dest, { recursive: true, force: true });
   fs.mkdirSync(dest, { recursive: true });
-  for (const file of ["xclang-config.cmake", "toolchain.cmake"]) {
+  for (const file of ["xclang-config.cmake", "toolchain.cmake", "runtimes.cmake"]) {
     fs.copyFileSync(path.join(source, file), path.join(dest, file));
+  }
+  for (const cache of ["cxx", "compiler-rt"]) {
+    fs.copyFileSync(path.join(import.meta.dirname, "cmake", "caches", `${cache}.cmake`), path.join(dest, `runtimes-${cache}.cmake`));
   }
   const template = fs.readFileSync(path.join(source, "xclang-config-version.cmake.in"), "utf8");
   fs.writeFileSync(path.join(dest, "xclang-config-version.cmake"),
