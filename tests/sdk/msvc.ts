@@ -188,6 +188,15 @@ int main(int argc, char **argv) {
 const asan = write("asan.cpp", `#include <sanitizer/asan_interface.h>
 int main(int argc, char**) { int* p = new int[4]; int r = p[argc + 4]; delete[] p; return r; }
 `);
+/// std::set_new_handler, which vcruntime's <new.h> declares for libc++.
+const newHandler = write("new-handler.cpp", `#include <cstdio>
+#include <new>
+static void handler() { std::puts("handler"); std::set_new_handler(nullptr); }
+int main() {
+  std::set_new_handler(handler);
+  std::puts("new_handler set");
+}
+`);
 /// Past a std::string's size, within its capacity: only an instrumented
 /// libc++ annotates it (examples/sanitizers/overflow.cpp).
 const overflow = path.join(common.ROOT, "examples", "sanitizers", "overflow.cpp");
@@ -270,6 +279,7 @@ for (const a of ["x86_64", "aarch64"]) {
   /// The C++ library each driver takes, and Microsoft's STL instead with
   /// -stdlib=platform.
   build("library", "clang++", ["-O2", lib], library(false), "hybrid");
+  build("new-handler", "clang++", ["-O2", newHandler], "new_handler set", "hybrid");
   build("library-cl", "clang-cl", ["/EHsc", "/O2", "--", lib], library(false), "hybrid");
   build("library-stl", "clang++", ["-O2", "-stdlib=platform", lib], library(true), "hybrid");
   build("library-cl-stl", "clang-cl", ["/EHsc", "/O2", "/clang:-stdlib=platform", "--", lib], library(true), "hybrid");
