@@ -240,6 +240,9 @@ clang names their libraries itself, with `-fsanitize=`, from
   a program with the static CRT. Copy it next to the program. It loads
   `vcruntime140.dll`, as compiler-rt builds it with the DLL CRT.
 - The hybrid CRT, `/MD` and the static CRT all work with ASan.
+- With Microsoft's STL (`-stdlib=platform`), an ASan program that uses
+  the STL's containers does not link: they name the STL's
+  `stl_asan.lib`, which `xclang sdk fetch` does not fetch.
 - arm64 Windows has no ASan or libFuzzer in LLVM 23.
 
 <!-- not run: needs a vendor SDK the user accepts the license of; test-sdk.yml runs these, through tests/sdk/msvc.ts, and their programs on Windows -->
