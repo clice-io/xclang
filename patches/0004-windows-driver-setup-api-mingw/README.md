@@ -38,4 +38,7 @@ list of Visual Studio 2010 to 2005 directories (clang's MSVC.cpp).
   built for MinGW with xclang, found Visual Studio 18 on windows-2025 and
   Visual Studio 2022 on windows-11-arm with no Visual Studio environment,
   as LLVM's MSVC-built clang does, where xclang 23.1.2.2's clang found
-  Visual Studio 2010's directories.
+  Visual Studio 2010's directories. The version from #226794's head: the
+  whole series applies to 23.1.2 with `patch -F0`, and the smoke test's
+  Setup API check passes on windows-2025 and windows-11-arm (run
+  37897616656).
