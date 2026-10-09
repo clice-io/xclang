@@ -223,8 +223,10 @@ file built with other language options than its importer's. So put
 
 The sanitizers are features of the whole build: `--features=asan`,
 `tsan`, `ubsan` or `lsan`. `asan` compiles and links with the ASan libc++
-([sanitizers](../features/sanitizers.md#bazel)). Windows targets have no
-sanitizers.
+([sanitizers](../features/sanitizers.md#bazel)). The MinGW targets have no
+sanitizers. The MSVC targets have `ubsan`, and x64 also has `asan`. ASan's
+runtime there is a DLL, which a program finds beside itself or on `PATH`
+([MSVC targets](../features/sanitizers.md#msvc-targets)).
 
 ## Debug in gdb, lldb and VS Code
 

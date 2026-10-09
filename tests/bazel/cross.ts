@@ -13,7 +13,9 @@
 ///       targets', and the macOS targets' off macOS. For tests/bazel, the
 ///       debug information of //debug:debugged built with -c dbg: an MSVC
 ///       program's PDB, checked here, and a macOS program with its dSYM in
-///       <dir>, which on-target.ts checks there
+///       <dir>, which on-target.ts checks there; for x64 MSVC,
+///       //asan:overflow with --features=asan, whose report on-target.ts
+///       checks
 ///   node tests/bazel/cross.ts registry <module> <ws>
 ///       <ws>: the latest version of a module of the clice registry
 ///       (bazel.clice.io), from its source archive, on this checkout's
@@ -114,6 +116,8 @@ function collect(workspace: string, target: string, out: string, args: string[])
   const platform = `--platforms=@xclang//platforms:${target}`;
   bazel(workspace, ["build", platform, "--aspects=//xclang_cross:manifest.bzl%xclang_cross",
     "--output_groups=+xclang_cross", ...args, ...(args.some((a) => !a.startsWith("-")) ? [] : ["//..."])]);
+  /// The arguments' options, for the builds of single programs below.
+  const options = args.filter((a) => a.startsWith("-"));
   /// The build's bazel-bin (bazel info resolves no repository in --platforms).
   const bin = fs.realpathSync(path.join(workspace, "bazel-bin"));
   const execroot = bazel(workspace, ["info", "execution_root"]).trim();
@@ -166,7 +170,7 @@ function collect(workspace: string, target: string, out: string, args: string[])
   const msvc = target.endsWith("-pc-windows-msvc");
   const macos = target.endsWith("-apple-darwin");
   if ((msvc || macos) && fs.existsSync(path.join(workspace, "debug", "BUILD.bazel"))) {
-    bazel(workspace, ["build", platform, "-c", "dbg", "//debug:debugged"]);
+    bazel(workspace, ["build", platform, ...options, "-c", "dbg", "//debug:debugged"]);
     const built = path.join(fs.realpathSync(path.join(workspace, "bazel-bin")), "debug");
     const outputBase = bazel(workspace, ["info", "output_base"]).trim();
     /// Where the output base's path is in file, with what is around it.
@@ -209,6 +213,26 @@ function collect(workspace: string, target: string, out: string, args: string[])
       }
       programs.push({ name: `//debug:debugged -c dbg with its dSYM, built on ${host()}`, file: "dsym/debugged",
         expect: "hello debugger", adhoc: true, dsym: { address: `0x${address}`, source: "main.cpp" } });
+    }
+  }
+  /// tests/bazel's //asan:overflow with --features=asan for x64 MSVC, beside
+  /// ASan's runtime DLL: the ASan libc++ reports its container-overflow.
+  /// Not before libc++ for the MSVC targets (23.1.2.10), whose STL under
+  /// ASan names stl_asan.lib, which the SDK lacks.
+  if (target === "x86_64-pc-windows-msvc" && fs.existsSync(path.join(workspace, "asan", "BUILD.bazel"))) {
+    if (!fs.existsSync(path.join(toolchain, target, "lib", "asan", "include", "__config_site"))) {
+      console.log(`skipped: //asan:overflow, the toolchain has no ASan libc++ for ${target}`);
+    } else {
+      bazel(workspace, ["build", platform, ...options, "--features=asan", "//asan:overflow"]);
+      const built = path.join(fs.realpathSync(path.join(workspace, "bazel-bin")), "asan");
+      const asan = path.join(out, "asan");
+      fs.mkdirSync(asan, { recursive: true });
+      fs.copyFileSync(path.join(built, "overflow.exe"), path.join(asan, "overflow.exe"));
+      const clang = path.join(toolchain, "lib", "clang");
+      const dll = "clang_rt.asan_dynamic-x86_64.dll";
+      fs.copyFileSync(path.join(clang, fs.readdirSync(clang)[0]!, "lib", "windows", dll), path.join(asan, dll));
+      programs.push({ name: `//asan:overflow --features=asan, built on ${host()}`, file: "asan/overflow.exe",
+        expect: "container-overflow", fails: true });
     }
   }
   writePrograms(out, programs);

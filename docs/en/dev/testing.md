@@ -227,6 +227,9 @@ published, `@libclang` aside. A `-c dbg` program's PDB names its sources relativ
 execution root, and no path of the output base (checked where it was
 built: Microsoft's PDBs take part in it); a macOS one's dSYM, made in the
 link on Linux and Windows too, gives its UUIDs and main's line on the Mac.
+An x64 MSVC program built with `--features=asan` reports the
+container-overflow of the ASan libc++ on Windows, with a toolchain that
+has libc++ for the MSVC targets (a release's run until 23.1.2.10 is out).
 
 examples.yml builds `examples/bazel` from bazel.clice.io on every host, and
 for another target.

@@ -8,8 +8,9 @@ targets, which build against the SDK a project fetches (bazel/sdk.bzl)."""
 # toolchain config, compiler-rt's directory under lib/clang/<version>/lib,
 # what of the target's directory compiling and linking read (with the
 # headers targets share, bazel/toolchain.bzl), where in it the ASan build of
-# libc++ is (none for Windows), and the vendor SDK it builds against: Apple's
-# off macOS hosts (on them, Xcode's), Microsoft's always.
+# libc++ is (none for MinGW, musl and arm64 MSVC; for x64 MSVC its headers
+# alone), and the vendor SDK it builds against: Apple's off macOS hosts (on
+# them, Xcode's), Microsoft's always.
 TARGETS = {
     "x86_64-unknown-linux-gnu": struct(
         cfg = "x86_64-unknown-linux-gnu",
@@ -109,8 +110,8 @@ TARGETS = {
         sdk = None,
     ),
     # No directory of their own before libc++ for them (23.1.2.10), and no
-    # host: their compiler-rt is in lib/clang/<version>/lib/windows, where
-    # lld-link looks, and Microsoft's CRT, STL and Windows SDK are the SDK's.
+    # host: their compiler-rt and libc++ are in lib/clang/<version>/lib/windows,
+    # where lld-link looks, and Microsoft's CRT, STL and Windows SDK are the SDK's.
     "x86_64-pc-windows-msvc": struct(
         cfg = "x86_64-pc-windows-msvc",
         os = "windows",
@@ -120,7 +121,7 @@ TARGETS = {
         runtime = "windows",
         headers = ["include/**"],
         libraries = ["lib/**"],
-        asan_libcxx = None,
+        asan_libcxx = "lib/asan",
         sdk = "windows",
     ),
     "aarch64-pc-windows-msvc": struct(

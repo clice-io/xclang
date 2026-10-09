@@ -235,7 +235,8 @@ clang names their libraries itself, with `-fsanitize=`, from
   `-isystem $XCLANG/x86_64-pc-windows-msvc/lib/asan/include`, whose
   `__config_site` names the ASan library in every object in place of the
   normal one; the link needs nothing more. It names no ASan runtime
-  either, so it serves every C runtime.
+  either, so it serves every C runtime. Bazel's `--features=asan` does the
+  same ([Bazel](../integrations/bazel.md#use-sanitizers)).
 
 - **ASan's runtime is a DLL**, `clang_rt.asan_dynamic-x86_64.dll`, also for
   a program with the static CRT. Copy it next to the program. It loads

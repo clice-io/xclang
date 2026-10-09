@@ -1,0 +1,8 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
+# Past a std::string's size, within its capacity: with --features=asan only
+# the ASan libc++ reports it (tests/bazel/cross.ts, for x64 MSVC).
+cc_binary(
+    name = "overflow",
+    srcs = ["overflow.cpp"],
+)

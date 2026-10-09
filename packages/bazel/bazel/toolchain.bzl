@@ -163,13 +163,17 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
 
     # The asan feature builds and links with libc++'s ASan build: its
     # __config_site turns on std::string's container checks, and its
-    # libc++.a is instrumented like the code that calls it.
+    # libc++.a is instrumented like the code that calls it. For x64 MSVC,
+    # the __config_site names that library in every object in place of
+    # the normal one, libc++asan-x86_64.lib in compiler-rt's directory,
+    # where lld-link finds it: the link needs nothing of its own.
     asan_compile_flags = []
     asan_link_flags = []
     if t.asan_libcxx:
         asan = "%s/%s/%s" % (root, target, t.asan_libcxx)
         asan_compile_flags = ["-isystem", asan + "/include"]
-        asan_link_flags = ["-nostdlib++", asan + "/libc++.a"]
+        if not msvc:
+            asan_link_flags = ["-nostdlib++", asan + "/libc++.a"]
         builtin_dirs.append("%s/%s/include" % (target, t.asan_libcxx))
 
     # lld's --gc-sections, on for Linux and off for Windows (bazel/BUILD.bazel).

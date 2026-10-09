@@ -60,7 +60,8 @@ the [patches](docs/en/reference/patches.md) of its tag.
   features: `generate_pdb_file` (on with `-c dbg`; the PDB names its
   sources relative to the execution root), `dynamic_link_msvcrt`,
   `debug_msvcrt` and `msvc_stl`, Microsoft's STL for the whole build,
-  which `@xclang//bazel:std` follows; `xclang_debug_symbols` gives their
+  which `@xclang//bazel:std` follows, and the sanitizers `ubsan` and, for
+  x64, `asan`, with the ASan libc++; `xclang_debug_symbols` gives their
   PDB. The macOS targets make their dSYM on every host
   ([Bazel](docs/en/integrations/bazel.md#vendor-sdks)).
 - `xclang sdk packages macos|windows [--json]`: what `xclang sdk fetch`
