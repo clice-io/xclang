@@ -1,0 +1,206 @@
+name: probe-targets
+
+# Research probes for the target survey (exp/target-probes only): what the
+# GitHub-hosted runners can run natively, and whether xclang 23.1.2.10's
+# clang builds the runtimes of the other Linux architectures.
+
+on:
+  push:
+    branches: ["exp/target-probes"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-facts:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: machine
+        run: |
+          uname -a
+          lscpu | head -30
+          grep -m3 -E "CPU part|CPU implementer|model name|Features" /proc/cpuinfo || true
+          ls -l /dev/kvm || echo "::notice::${{ matrix.os }}: no /dev/kvm"
+          ls /dev/binder* 2>/dev/null || echo "no /dev/binder"
+          grep -E "CONFIG_(IA32_EMULATION|X86_X32_ABI|COMPAT|KVM|KVM_INTEL|KVM_AMD|ANDROID_BINDER_IPC|ANDROID_BINDERFS|ASHMEM|ARM64_SVE)=" /boot/config-$(uname -r) || true
+          ls /proc/sys/fs/binfmt_misc/
+          for f in /proc/sys/fs/binfmt_misc/*; do case $f in */register|*/status) ;; *) echo "== $f"; head -3 "$f";; esac; done
+          nproc; free -g
+      - name: kvm usable
+        run: |
+          if [ -e /dev/kvm ]; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+            sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+            ls -l /dev/kvm
+            sudo apt-get install -y -qq cpu-checker > /dev/null && kvm-ok || true
+          fi
+      - name: i386 userland (x64)
+        if: matrix.os == 'ubuntu-24.04'
+        run: |
+          docker run --rm --platform linux/386 i386/alpine:3.22 sh -c 'apk --version; uname -m; file /bin/busybox 2>/dev/null; echo i386-ok' \
+            && echo "::notice::i386 alpine runs on the x64 runner" || echo "::warning::i386 alpine fails on the x64 runner"
+          docker run --rm --platform linux/386 i386/debian:bookworm-slim sh -c 'dpkg --print-architecture; ls -l /lib/ld-linux.so.2' || true
+      - name: AArch32 userland (arm64)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: |
+          docker run --rm --platform linux/arm/v7 arm32v7/alpine:3.22 sh -c 'apk --version; uname -m; echo armv7-ok' \
+            && echo "::notice::armv7 alpine runs on the arm64 runner" || echo "::warning::armv7 alpine fails on the arm64 runner"
+          docker run --rm --platform linux/arm/v7 arm32v7/debian:bookworm-slim sh -c 'dpkg --print-architecture; ls -l /lib/ld-linux-armhf.so.3' || true
+          docker run --rm --platform linux/arm/v6 arm32v6/alpine:3.22 sh -c 'uname -m; echo armv6-ok' || true
+      - name: termux-docker
+        run: |
+          case "${{ matrix.os }}" in
+            ubuntu-24.04) tags="x86_64 i686" ;;
+            *) tags="aarch64 arm" ;;
+          esac
+          for tag in $tags; do
+            echo "=== termux-docker:$tag"
+            docker pull -q termux/termux-docker:$tag || { echo "::warning::no termux-docker:$tag"; continue; }
+            docker image inspect termux/termux-docker:$tag --format '{{.Architecture}} {{.Os}} {{json .Config.Entrypoint}} {{json .Config.Cmd}} {{.Config.User}}'
+            if timeout 120 docker run --rm termux/termux-docker:$tag /system/bin/sh -c 'uname -m; getprop ro.build.version.sdk; ls -l /system/bin/linker* /system/lib*/libc.so; echo termux-ok'; then
+              echo "::notice::termux-docker:$tag runs on ${{ matrix.os }}"
+            elif timeout 120 docker run --rm --privileged termux/termux-docker:$tag /system/bin/sh -c 'uname -m; echo termux-ok'; then
+              echo "::notice::termux-docker:$tag runs on ${{ matrix.os }} with --privileged"
+            else
+              echo "::warning::termux-docker:$tag fails on ${{ matrix.os }}"
+            fi
+          done
+
+  freebsd-vm:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            arch: x86_64
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - run: echo "start=$(date +%s)" >> "$GITHUB_ENV"; ls -l /dev/kvm || true
+      - uses: vmactions/freebsd-vm@v1
+        with:
+          release: "14.3"
+          arch: ${{ matrix.arch }}
+          run: |
+            uname -a
+            sysctl hw.model hw.ncpu kern.vm_guest hw.hv_vendor || true
+            freebsd-version
+      - run: echo "::notice::FreeBSD ${{ matrix.arch }} VM on ${{ matrix.os }}: $(( $(date +%s) - start )) s"
+
+  musl-arch:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - triple: i686-unknown-linux-musl
+            karch: x86
+          - triple: armv7-unknown-linux-musleabihf
+            karch: arm
+          - triple: riscv64-unknown-linux-musl
+            karch: riscv
+          - triple: powerpc64le-unknown-linux-musl
+            karch: powerpc
+          - triple: s390x-unknown-linux-musl
+            karch: s390
+          - triple: loongarch64-unknown-linux-musl
+            karch: loongarch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: sudo apt-get install -y -qq ninja-build qemu-user > /dev/null
+      - run: probe/musl-arch.sh ${{ matrix.triple }} ${{ matrix.karch }}
+      - name: run (natively for i686; qemu-user for a sanity check otherwise)
+        run: |
+          cd out
+          for p in hello prof ubsan; do
+            f=$p-${{ matrix.triple }}
+            [ -f "$f" ] || continue
+            case ${{ matrix.triple }} in
+              i686-*) ./$f && echo "::notice::$f runs natively on x64" ;;
+              armv7-*) qemu-arm ./$f ;;
+              riscv64-*) qemu-riscv64 ./$f ;;
+              powerpc64le-*) qemu-ppc64le ./$f ;;
+              s390x-*) qemu-s390x ./$f ;;
+              loongarch64-*) qemu-loongarch64 ./$f ;;
+            esac || echo "::warning::$f failed"
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: musl-${{ matrix.triple }}
+          path: out/
+
+  armv7-native:
+    needs: musl-arch
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: musl-armv7-unknown-linux-musleabihf
+      - run: |
+          ls /proc/sys/fs/binfmt_misc/
+          chmod +x hello-* prof-* ubsan-* || true
+          for f in hello-* prof-* ubsan-*; do
+            [ -f "$f" ] || continue
+            ./$f && echo "::notice::$f runs natively on the arm64 runner" || echo "::warning::$f fails natively on the arm64 runner"
+          done
+
+  apple-sim:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - name: SDKs and simulators
+        run: |
+          sw_vers; xcodebuild -version; xcode-select -p
+          xcodebuild -showsdks
+          xcrun simctl list runtimes
+          ls /Library/Developer/CommandLineTools/SDKs/ || true
+          CLT=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+          ls "$CLT/System/iOSSupport/System/Library/Frameworks" | head -20 || echo "::warning::no iOSSupport in the CLT SDK"
+          ls "$CLT/System/iOSSupport/usr/lib" | head || true
+          du -sh "$(xcrun --sdk iphoneos --show-sdk-path)" "$(xcrun --sdk iphonesimulator --show-sdk-path)" "$CLT" || true
+      - name: xclang toolchain
+        run: |
+          curl -fsSL https://github.com/clice-io/xclang/releases/download/23.1.2.10/xclang-23.1.2.10-aarch64-apple-darwin.tar.xz | tar xJ
+          ls xclang/lib/clang/23/lib/darwin | head -50
+      - name: build
+        run: |
+          X=$PWD/xclang/bin
+          SIM=$(xcrun --sdk iphonesimulator --show-sdk-path)
+          IOS=$(xcrun --sdk iphoneos --show-sdk-path)
+          CLT=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+          printf '#include <stdio.h>\nint main(void){puts("c ok");return 0;}\n' > hello.c
+          printf '#include <iostream>\n#include <stdexcept>\nint main(){try{throw std::runtime_error("cxx ok");}catch(const std::exception&e){std::cout<<e.what()<<std::endl;}}\n' > hello.cpp
+          xcrun -sdk iphonesimulator clang -arch arm64 -mios-simulator-version-min=16.0 hello.c -o apple-iossim-c
+          $X/clang --target=arm64-apple-ios16.0-simulator -isysroot "$SIM" hello.c -o xclang-iossim-c -v 2>&1 | tail -3 || echo "::warning::xclang iossim C fails"
+          $X/clang++ --target=arm64-apple-ios16.0-simulator -isysroot "$SIM" hello.cpp -o xclang-iossim-cxx 2>&1 | tail -5 || echo "::warning::xclang iossim C++ (SDK libc++) fails"
+          $X/clang --target=arm64-apple-ios16.0 -isysroot "$IOS" hello.c -o xclang-ios-c 2>&1 | tail -3 || echo "::warning::xclang ios device C fails"
+          $X/clang --target=arm64-apple-ios16.0-macabi -isysroot "$CLT" hello.c -o xclang-catalyst-clt-c 2>&1 | tail -5 || echo "::warning::xclang Catalyst against the CLT SDK fails"
+          $X/clang++ --target=arm64-apple-ios16.0-macabi -isysroot "$CLT" hello.cpp -o xclang-catalyst-clt-cxx 2>&1 | tail -5 || echo "::warning::xclang Catalyst C++ against the CLT SDK fails"
+          ls -l
+          for f in xclang-*; do [ -f "$f" ] && { echo "== $f"; xcrun vtool -show-build "$f" | head -8; otool -L "$f"; }; done
+      - name: run on a simulator, and Catalyst on the Mac
+        run: |
+          for f in xclang-catalyst-clt-c xclang-catalyst-clt-cxx; do [ -x "$f" ] && { ./$f && echo "::notice::$f runs on macOS"; } || true; done
+          RT=$(xcrun simctl list runtimes -j | python3 -c 'import json,sys; r=[x for x in json.load(sys.stdin)["runtimes"] if x["platform"]=="iOS" and x["isAvailable"]]; print(r[-1]["identifier"])')
+          DT=$(xcrun simctl list devicetypes -j | python3 -c 'import json,sys; print([d["identifier"] for d in json.load(sys.stdin)["devicetypes"] if "iPhone" in d["name"]][-1])')
+          echo "runtime $RT device $DT"
+          start=$(date +%s)
+          DEV=$(xcrun simctl create probe "$DT" "$RT")
+          xcrun simctl boot "$DEV"
+          xcrun simctl bootstatus "$DEV" -b || true
+          echo "::notice::simulator boot $(( $(date +%s) - start )) s"
+          for f in apple-iossim-c xclang-iossim-c xclang-iossim-cxx; do
+            [ -f "$f" ] || continue
+            xcrun simctl spawn "$DEV" "$PWD/$f" && echo "::notice::$f runs in the iOS simulator" || echo "::warning::$f fails in the simulator"
+          done
+          xcrun simctl shutdown "$DEV" || true
