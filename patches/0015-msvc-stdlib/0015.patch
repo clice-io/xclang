@@ -15,7 +15,7 @@ index 863ba10..d665429 100644
    /// Returns if the C++ standard library should be linked in.
    /// Note that e.g. -lm should still be linked even if this returns false.
 diff --git a/clang/lib/Driver/ToolChains/MSVC.cpp b/clang/lib/Driver/ToolChains/MSVC.cpp
-index 2aa69ec..a4de218 100644
+index 2aa69ec..c7ec626 100644
 --- a/clang/lib/Driver/ToolChains/MSVC.cpp
 +++ b/clang/lib/Driver/ToolChains/MSVC.cpp
 @@ -927,9 +927,55 @@ void MSVCToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
@@ -35,9 +35,9 @@ index 2aa69ec..a4de218 100644
  void MSVCToolChain::AddClangCXXStdlibIncludeArgs(const ArgList &DriverArgs,
                                                   ArgStringList &CC1Args) const {
 -  // FIXME: There should probably be logic here to find libc++ on Windows.
-+  if (DriverArgs.hasArg(options::OPT_nostdinc, options::OPT_nostdlibinc,
-+                        options::OPT_nostdincxx) ||
-+      !selectsLibcxx(*this, DriverArgs))
++  if (!selectsLibcxx(*this, DriverArgs) ||
++      DriverArgs.hasArg(options::OPT_nostdinc, options::OPT_nostdlibinc,
++                        options::OPT_nostdincxx))
 +    return;
 +
 +  // libc++ installed with the compiler, as on other targets: the target's own
@@ -91,7 +91,7 @@ index 6878d6a..d436f8b 100644
                            llvm::opt::ArgStringList &CC1Args) const override;
 diff --git a/clang/test/Driver/msvc-libcxx.cpp b/clang/test/Driver/msvc-libcxx.cpp
 new file mode 100644
-index 0000000..405e67d
+index 0000000..b4777c2
 --- /dev/null
 +++ b/clang/test/Driver/msvc-libcxx.cpp
 @@ -0,0 +1,52 @@
@@ -117,7 +117,7 @@ index 0000000..405e67d
 +// SHARED-NOT: "-internal-isystem" "{{[^"]*}}aarch64-pc-windows-msvc{{/|\\\\}}c++{{/|\\\\}}v1"
 +// SHARED: "-internal-isystem" "[[INSTALLDIR]]{{/|\\\\}}..{{/|\\\\}}include{{/|\\\\}}c++{{/|\\\\}}v1"
 +
-+// Microsoft's STL: by default, with -stdlib=platform, and with -nostdinc++.
++// Microsoft's STL, by default, with -stdlib=platform, and with -nostdinc++.
 +// RUN: %clang -### --target=x86_64-pc-windows-msvc -ccc-install-dir %/t/bin \
 +// RUN:   -fsyntax-only %s 2>&1 | FileCheck --check-prefix=STL %s
 +// RUN: %clang -### --target=x86_64-pc-windows-msvc -ccc-install-dir %/t/bin \

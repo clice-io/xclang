@@ -289,11 +289,13 @@ for (const a of ["x86_64", "aarch64"]) {
   build("profile", "clang", ["-fprofile-instr-generate", "-O1", profile], "profile ", "hybrid", { profile: true });
   if (a === "x86_64") {
     build("asan", "clang++", ["-fsanitize=address", "-g", "-O1", asan], "heap-buffer-overflow", null, { fails: true });
-    build("asan-vector", "clang++", ["-fsanitize=address", "-g", "-O1", asanVector], "heap-buffer-overflow", null, { fails: true });
-    build("asan-vector-cl", "clang-cl", ["-fsanitize=address", "/EHsc", "/Zi", "/O1", "--", asanVector], "heap-buffer-overflow", null, { fails: true });
     build("asan-md", "clang++", ["-fsanitize=address", "-fms-runtime-lib=dll", "-g", "-O1", asan], "heap-buffer-overflow", null, { fails: true });
-    /// The ASan libc++, whose std::string annotates its capacity.
+    /// libc++'s containers, and the ASan libc++, whose std::string
+    /// annotates its capacity. (The STL's, under ASan, name its stl_asan.lib,
+    /// which the SDK lacks.)
     if (libcxx) {
+      build("asan-vector", "clang++", ["-fsanitize=address", "-g", "-O1", asanVector], "heap-buffer-overflow", null, { fails: true });
+      build("asan-vector-cl", "clang-cl", ["-fsanitize=address", "/EHsc", "/Zi", "/O1", "--", asanVector], "heap-buffer-overflow", null, { fails: true });
       const include = path.join(tree, triple, "lib", "asan", "include");
       build("asan-libcxx", "clang++", ["-fsanitize=address", "-isystem", include, "-g", "-O1", overflow], "container-overflow", null, { fails: true });
       build("asan-libcxx-md", "clang++", ["-fsanitize=address", "-fms-runtime-lib=dll", "-isystem", include, "-g", "-O1", overflow],
