@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["toolchain", "tests", "cli/*.ts", "packages/*/*.ts"]
+  "include": ["toolchain", "tests", "xclang/*.ts", "packages/*/*.ts"]
 }

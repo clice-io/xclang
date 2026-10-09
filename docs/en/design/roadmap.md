@@ -139,7 +139,7 @@ What sets these targets apart:
 | <a id="msvc-bazel"></a>The MSVC targets in the Bazel module, with the Windows SDK fetched by a repository rule | Supported |
 | <a id="macos-any-host-bazel"></a>macOS targets from Linux and Windows hosts in the Bazel module, with the macOS SDK fetched by a repository rule | Supported |
 
-`xclang` is a program in Rust (`cli/`), built for every host with xclang as
+`xclang` is a program in Rust (`xclang/`), built for every host with xclang as
 its C compiler and linker. Every toolchain archive carries it, as
 `bin/xclang`, since 23.1.2.7
 ([the xclang command](../reference/xclang-command.md)).

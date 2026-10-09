@@ -253,7 +253,7 @@ for another target.
 ## The xclang Command
 
 cli.yml builds the `xclang` command for every host, with a released xclang
-as the C compiler and linker (`cli/cli.ts`). On a machine of each
+as the C compiler and linker (`xclang/build.ts`). On a machine of each
 host, in the latest release's toolchain (or a run's archives, with the
 command they carry), `tests/cli/cli.ts` then:
 

@@ -37,7 +37,7 @@ that means:
 - Apple's terms allow use of the SDK on Apple hardware. Building for macOS
   from Linux or Windows with it is the user's decision under those terms;
   xclang does not make it for them.
-- Versions are pinned. `cli/sdk-versions.json`, built into the program,
+- Versions are pinned. `xclang/sdk-versions.json`, built into the program,
   lists every version the vendors offer, with sizes and sha256. Its
   presets match GitHub's runner images (`macos-latest`, `windows-2022`,
   ...), so a cross build gets what a workflow on that image gets.

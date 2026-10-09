@@ -73,7 +73,7 @@ do not look.
 
 ### Versions
 
-`cli/sdk-versions.json`, built into the program, lists every
+`xclang/sdk-versions.json`, built into the program, lists every
 version the vendors offer:
 
 - 38 Windows SDKs from NuGet;

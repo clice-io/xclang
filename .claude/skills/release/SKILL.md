@@ -26,7 +26,7 @@ tells which.
   - packages/cmake/ (lib/cmake/xclang; xclang.cmake is used from the tag);
   - packages/bazel/ (the tag's module, published by published.yml; not in
     the archives);
-  - cli/ (the package stage builds the command anew);
+  - xclang/ (the package stage builds the command anew);
   - toolchain/package.ts, toolchain/licenses.ts, toolchain/licenses/,
     LICENSE, and what package.ts uses of toolchain/common.ts (makeTree,
     shareHeaders, writeConfigs, writeCMakePackage);

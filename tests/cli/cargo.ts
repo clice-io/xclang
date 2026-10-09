@@ -1,5 +1,5 @@
 /// xclang as cargo's C compiler and linker for the targets that need a
-/// vendor SDK, from Linux: cli/ cross-compiled for arm64 and
+/// vendor SDK, from Linux: xclang/ cross-compiled for arm64 and
 /// x86_64 macOS against the macOS SDK, and for x64 and arm64 Windows (MSVC
 /// ABI, the hybrid CRT: the VC runtime linked statically, UCRT a system
 /// DLL) against the /winsysroot, both fetched by the tree's bin/xclang:
@@ -20,7 +20,7 @@ const { values } = parseArgs({ options: { tree: { type: "string" }, out: { type:
 if (!values.tree || !values.out) fail("--tree <xclang> --out <dir>");
 const tree = path.resolve(values.tree);
 const out = path.resolve(values.out);
-const cli = path.join(import.meta.dirname, "..", "..", "cli");
+const cli = path.join(import.meta.dirname, "..", "..", "xclang");
 const exe = process.platform === "win32" ? ".exe" : "";
 const tool = (name: string) => path.join(tree, "bin", name + exe);
 

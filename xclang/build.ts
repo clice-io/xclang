@@ -1,8 +1,8 @@
-/// Build xclang's own command (cli/, Rust) for toolchain hosts, with an
+/// Build xclang's own command (xclang/, Rust) for toolchain hosts, with an
 /// xclang toolchain as the C compiler and linker of every target, and check
 /// that it loads nothing at run time but what its OS has:
 ///
-///   node cli/cli.ts [--xclang <tree>] [--host <triple>,...] [--revision <n>]
+///   node xclang/build.ts [--xclang <tree>] [--host <triple>,...] [--revision <n>]
 ///
 /// The toolchain is a released one (SOURCES' cli-linux, cli-macos) unless
 /// --xclang names another; the hosts are those this machine builds
@@ -42,7 +42,7 @@ const { values } = parseArgs({
     revision: { type: "string" },
   },
 });
-const cli = import.meta.dirname;
+const crate = import.meta.dirname;
 const hosts = (values.host?.split(",") ??
   common.HOSTS.filter((t) => common.buildMachine(t) === common.machine()).map((t) => t.triple)).map(common.target);
 
@@ -60,7 +60,7 @@ async function toolchain(): Promise<string> {
 
 const tree = await toolchain();
 const tool = (name: string) => path.join(tree, "bin", name + (process.platform === "win32" ? ".exe" : ""));
-const channel = /channel = "([^"]+)"/.exec(fs.readFileSync(path.join(cli, "rust-toolchain.toml"), "utf8"))![1]!;
+const channel = /channel = "([^"]+)"/.exec(fs.readFileSync(path.join(crate, "rust-toolchain.toml"), "utf8"))![1]!;
 common.run("rustup", ["toolchain", "install", channel, "--profile", "minimal", "--component", "clippy,rustfmt",
   "--target", hosts.map(rustTarget).join(",")]);
 
@@ -83,12 +83,12 @@ for (const host of hosts) {
   };
   if (values.revision) env.XCLANG_VERSION = `${common.LLVM_VERSION}.${values.revision}`;
   if (host.os === "darwin") env.MACOSX_DEPLOYMENT_TARGET = common.MACOS_MIN;
-  common.run("cargo", ["build", "--release", "--locked", ...(native ? [] : ["--target", target])], { cwd: cli, env });
+  common.run("cargo", ["build", "--release", "--locked", ...(native ? [] : ["--target", target])], { cwd: crate, env });
   const name = host.os === "mingw" ? "xclang.exe" : "xclang";
   const dest = path.join(common.WORK, "out", `cli-${host.triple}`);
   fs.rmSync(dest, { recursive: true, force: true });
   fs.mkdirSync(dest, { recursive: true });
-  fs.copyFileSync(path.join(cli, "target", native ? "" : target, "release", name), path.join(dest, name));
+  fs.copyFileSync(path.join(crate, "target", native ? "" : target, "release", name), path.join(dest, name));
   licenses(target, path.join(dest, "licenses"));
   summary.push(check(host, path.join(dest, name)));
 }
@@ -158,8 +158,8 @@ function licenses(target: string, dest: string): void {
     components.push(c);
   };
 
-  const sysroot = common.capture("rustc", ["--print", "sysroot"], { cwd: cli }).trim();
-  const rustc = /^rustc (\S+)/.exec(common.capture("rustc", ["--version"], { cwd: cli }))?.[1] ?? channel;
+  const sysroot = common.capture("rustc", ["--print", "sysroot"], { cwd: crate }).trim();
+  const rustc = /^rustc (\S+)/.exec(common.capture("rustc", ["--version"], { cwd: crate }))?.[1] ?? channel;
   const doc = path.join(sysroot, "share", "doc", "rust");
   /// COPYRIGHT-library.html has the notices of the standard library and
   /// its crates; COPYRIGHT.html, the compiler's too, is ten times as large.
@@ -180,7 +180,7 @@ function licenses(target: string, dest: string): void {
   interface Node { id: string; deps: { pkg: string; dep_kinds: { kind: string | null }[] }[] }
   const metadata = JSON.parse(common.capture("cargo", [
     "metadata", "--format-version", "1", "--locked", "--filter-platform", target,
-  ], { cwd: cli })) as { packages: Package[]; resolve: { root: string; nodes: Node[] } };
+  ], { cwd: crate })) as { packages: Package[]; resolve: { root: string; nodes: Node[] } };
   const nodes = new Map(metadata.resolve.nodes.map((n) => [n.id, n]));
   const linked = new Set<string>();
   const visit = (id: string) => {

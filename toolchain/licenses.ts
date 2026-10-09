@@ -4,7 +4,7 @@
 /// sbom.spdx.json, the same as an SPDX 2.3 document. The files come from the
 /// pinned sources (toolchain/common.ts' SOURCES), the pixi environment's
 /// glibc sysroots, toolchain/licenses/ (what no source ships: the Linux
-/// UAPI headers', NSS's) and, for the xclang command, what cli/cli.ts
+/// UAPI headers', NSS's) and, for the xclang command, what xclang/build.ts
 /// collected from its crates.
 
 import fs from "node:fs";
@@ -221,7 +221,7 @@ export async function musl(): Promise<Component> {
   };
 }
 
-/// The xclang command's components as cli/cli.ts recorded them in
+/// The xclang command's components as xclang/build.ts recorded them in
 /// <dir>/components.json, their files below <dir>.
 export function collected(dir: string): Component[] {
   const components = JSON.parse(fs.readFileSync(path.join(dir, "components.json"), "utf8")) as Component[];

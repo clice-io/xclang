@@ -13,7 +13,7 @@ name: checks
 #   test-cmake.yml      packages/cmake, tests/cmake, tests/libclang
 #   test-bazel.yml      packages/bazel, tests/bazel
 #   test-sdk.yml        tests/sdk, toolchain/config, packages/cmake
-#   cli.yml             cli, tests/cli, tests/sdk
+#   cli.yml             xclang, tests/cli, tests/sdk
 #   examples.yml        examples
 #
 # A change to one of these workflows, to on-target.yml, to the archives
@@ -69,7 +69,7 @@ jobs:
           area cmake '^(packages/cmake/|tests/cmake/|tests/libclang/|\.github/workflows/test-cmake\.yml)'
           area bazel '^(packages/bazel/|tests/bazel/|\.github/workflows/test-bazel\.yml)'
           area sdk '^(tests/sdk/|toolchain/config/|packages/cmake/|\.github/workflows/test-sdk\.yml)'
-          area cli '^(cli/|tests/cli/|tests/sdk/|\.github/workflows/cli\.yml)'
+          area cli '^(xclang/|tests/cli/|tests/sdk/|\.github/workflows/cli\.yml)'
           area examples '^(examples/|\.github/workflows/examples\.yml)'
 
   archives:

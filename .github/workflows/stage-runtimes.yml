@@ -58,8 +58,8 @@ jobs:
       - name: Windows SDK
         if: env.BUILD == 'true' && matrix.name == 'msvc'
         run: |
-          (cd cli && cargo build --release --locked)
-          cli/target/release/xclang sdk fetch windows --accept-license --preset windows-2022 --sdk-dir work/sdk
+          (cd xclang && cargo build --release --locked)
+          xclang/target/release/xclang sdk fetch windows --accept-license --preset windows-2022 --sdk-dir work/sdk
       - name: Runtimes
         if: env.BUILD == 'true'
         run: |

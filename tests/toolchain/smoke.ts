@@ -87,7 +87,7 @@ run(tool("clang"), ["--version"]);
 /// llvm is clang, lld and most tools; elsewhere they are its names (on
 /// Windows, programs that start it). FileCheck stands alone.
 const programs = [tool("llvm"), tool("clang"), tool("ld.lld"), tool("llvm-ar"), tool("FileCheck")];
-/// xclang's own command, in the archives that carry it (cli/cli.ts),
+/// xclang's own command, in the archives that carry it (xclang/build.ts),
 /// built for the release of the archive.
 if (fs.existsSync(tool("xclang"))) {
   programs.push(tool("xclang"));

@@ -205,7 +205,7 @@ with the `cc` of the system.
 
 ## What the Programs Load
 
-xclang's own command, `cli/`, with the C code of ring and liblzma, is built
+xclang's own command, `xclang/`, with the C code of ring and liblzma, is built
 this way for every host
 ([build pipeline](../dev/release-build.md#the-xclang-command)). It loads at
 run time:
@@ -241,7 +241,7 @@ cargo build --release --target aarch64-apple-darwin
 
 The MSVC targets need the Windows SDK, which `xclang sdk fetch windows`
 fetches ([MSVC targets](clang.md#msvc-targets)). CI runs this recipe from
-Linux. Built this way, `cli/` loads the same Windows DLLs as the MinGW
+Linux. Built this way, `xclang/` loads the same Windows DLLs as the MinGW
 build, and no vcruntime.
 
 It uses the hybrid CRT: the VC runtime linked statically, and UCRT as a

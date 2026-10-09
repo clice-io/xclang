@@ -20,7 +20,7 @@ this page is the same process, for people. What the pipeline does is in the
 A release whose changes are all in what the `package` stage reads from
 the checkout is a **repack**: the config files (`toolchain/config/`), the
 CMake package (`packages/cmake`), the Bazel module (`packages/bazel`,
-which the archives do not hold), the `xclang` command (`cli/`), the
+which the archives do not hold), the `xclang` command (`xclang/`), the
 license notices and `toolchain/package.ts`. It reuses the compiler,
 runtimes, libclang and profile of the run that built the previous
 release, the same bytes, and takes about half an hour instead of three

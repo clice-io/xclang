@@ -131,7 +131,7 @@ is in [contributing](contributing.md#where-things-are).
 
 ## The xclang Command
 
-`node cli/cli.ts` builds the
+`node xclang/build.ts` builds the
 [xclang command](../reference/xclang-command.md) for the hosts of the
 machine it runs on, with a released xclang
 (23.1.2.5, pinned in `toolchain/common.ts`) as the C compiler and linker:
@@ -171,7 +171,7 @@ lines.
 what the vendors offer now, and reads the presets anew:
 
 ```sh
-cd cli && cargo run --release --features maintainer -- sdk update-table --table sdk-versions.json
+cd xclang && cargo run --release --features maintainer -- sdk update-table --table sdk-versions.json
 ```
 
 It is part of the program rather than a script, because it shares the

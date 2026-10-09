@@ -47,7 +47,7 @@ export const SOURCES = {
     url: `${XCLANG}/23.1.2.6/xclang-23.1.2.6-aarch64-apple-darwin.tar.xz`,
     sha256: "d9fec015c97f9b06c8e259864b891c4fc6b453bd666f9d30d425690a2d7be2e1",
   },
-  /// What builds xclang's own command (cli/cli.ts): a released
+  /// What builds xclang's own command (xclang/build.ts): a released
   /// toolchain, the C compiler and linker of every host's binary.
   "cli-linux": {
     url: `${XCLANG}/23.1.2.5/xclang-23.1.2.5-x86_64-unknown-linux-gnu.tar.xz`,
@@ -493,7 +493,7 @@ export function shareHeaders(tree: string): void {
 /// sdk/macos elsewhere. So do the MSVC targets': on Windows, clang finds
 /// Visual Studio by itself when no SDK is in use. Theirs read the SDK in use
 /// from bin/<triple>-sdk.cfg and bin/<triple>-clang-cl-sdk.cfg, which say
-/// none here and which xclang sdk (cli/) writes. They name libc++ where the
+/// none here and which xclang sdk (xclang/) writes. They name libc++ where the
 /// tree has it (since 23.1.2.10): the config files of a release before it,
 /// repacked, stay with Microsoft's STL.
 export function writeConfigs(tree: string, host: Os): void {

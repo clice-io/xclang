@@ -8,7 +8,7 @@ Thanks for helping. The full guide is
   GitHub-hosted runners; run `release.yml` on a branch of your own
   (`exp/<name>`), reusing earlier stages with `reuse-run`. Locally, check
   types (`npm install && npm run check`), the docs (`node tests/docs/docs.ts`),
-  the xclang command (`cd cli && cargo test`), and patches with
+  the xclang command (`cd xclang && cargo test`), and patches with
   `patch -p1 -F0 --dry-run`.
 - **Every change comes with its check**: tests/toolchain/smoke.ts for the toolchain,
   runtimes and patches; tests/cmake, tests/bazel for the build systems;

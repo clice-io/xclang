@@ -24,8 +24,8 @@ toolchain/         the build pipeline, TypeScript run by Node 24:
                    ships (licenses.ts)
   musl/            the patches of musl's security advisories, applied to
                    its release (sysroot.ts)
-cli/               the xclang command, in Rust; its SDK version table,
-                   sdk-versions.json; cli.ts builds it
+xclang/            the xclang command, in Rust; its SDK version table,
+                   sdk-versions.json; build.ts builds it
 patches/           changes to LLVM, a directory and a README each
 packages/          what xclang's users build with (packages/README.md):
   bazel/           the Bazel module; bazel.ts makes its registry archive
@@ -82,10 +82,10 @@ the way CI does (pixi.toml), on a machine that can take it.
 These are cheap locally:
 
 - `npm install && npm run check`: TypeScript type checks of every
-  script: `toolchain/`, `tests/`, and those of `cli/` and `packages/`.
+  script: `toolchain/`, `tests/`, and those of `xclang/` and `packages/`.
 - `node tests/docs/docs.ts`: the code blocks of the docs against `examples/`,
   the links, and the status words.
-- `cd cli && cargo test`: the unit tests of the xclang command.
+- `cd xclang && cargo test`: the unit tests of the xclang command.
 - A patch: `patch -p1 -F0 --dry-run` against the LLVM release source, and
   compiling the patched file against the headers of a release
   ([patching LLVM](llvm-patches.md)).

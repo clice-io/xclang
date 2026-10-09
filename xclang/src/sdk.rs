@@ -130,7 +130,7 @@ pub fn main(a: &mut Args) -> Result<()> {
         #[cfg(feature = "maintainer")]
         ["update-table"] => {
             a.allow(&["jobs"])?;
-            let file = a.value("table").unwrap_or("cli/sdk-versions.json");
+            let file = a.value("table").unwrap_or("xclang/sdk-versions.json");
             let jobs = a
                 .value("jobs")
                 .map_or(Ok(8), str::parse)

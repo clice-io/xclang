@@ -1,13 +1,13 @@
 name: cli
 
-# xclang's own command (cli/, Rust). The build job builds it for every host
-# with a released xclang as the C compiler and linker (cli/cli.ts):
+# xclang's own command (xclang/, Rust). The build job builds it for every host
+# with a released xclang as the C compiler and linker (xclang/build.ts):
 # Linux and Windows from Linux x64, macOS on macOS arm64, as the
 # cli-build-* artifacts, and runs its rustfmt, clippy and unit tests. The
 # test jobs then check it in a toolchain, on a machine of each host
 # (tests/cli/cli.ts): both vendor SDKs fetched, C, C++ and Objective-C
 # programs cross-compiled against them, target add and remove against a
-# test index; from Linux, cli/ itself cross-built with cargo for macOS and
+# test index; from Linux, xclang/ itself cross-built with cargo for macOS and
 # the MSVC ABI against the SDKs (tests/cli/cargo.ts). The programs run on
 # macOS and Windows (on-target.yml). Only programs leave a job, never an
 # SDK.
@@ -62,10 +62,10 @@ jobs:
         with:
           node-version: 24
       - name: Build
-        run: node cli/cli.ts ${{ inputs.revision && format('--revision {0}', inputs.revision) || '' }}
+        run: node xclang/build.ts ${{ inputs.revision && format('--revision {0}', inputs.revision) || '' }}
       - name: rustfmt, clippy, unit tests
         if: ${{ matrix.machine == 'linux' }}
-        working-directory: cli
+        working-directory: xclang
         run: |
           cargo fmt --check
           cargo clippy --all-targets -- -D warnings

@@ -1,4 +1,4 @@
-/// Check xclang's own command (cli/) in a toolchain tree, on a machine of
+/// Check xclang's own command (xclang/) in a toolchain tree, on a machine of
 /// the tree's host:
 ///
 ///   node tests/cli/cli.ts --tree <xclang> --out <dir>

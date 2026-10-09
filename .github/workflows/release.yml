@@ -77,7 +77,7 @@ on:
         type: string
         default: ""
       cli:
-        description: Put xclang's own command (cli/) into the toolchain archives
+        description: Put xclang's own command (xclang/) into the toolchain archives
         type: boolean
         default: true
 

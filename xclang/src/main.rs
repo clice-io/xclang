@@ -22,7 +22,7 @@ use std::fmt::Display;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-/// The release this program was built for (cli/cli.ts sets it), or the
+/// The release this program was built for (xclang/build.ts sets it), or the
 /// crate's version for a build by hand.
 pub const VERSION: &str = match option_env!("XCLANG_VERSION") {
     Some(v) => v,
