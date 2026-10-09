@@ -84,13 +84,22 @@ function compilerRtTarget(stage: string, t: common.Target): string[] {
   return [...common.cmakeToolchainArgs(stage, t), `-DXCLANG_COMPILER_TARGET=${common.normalized(t)}`];
 }
 
+/// compiler-rt sets its targets' compile options itself, in place of those
+/// of toolchain/cmake/toolchain.cmake, so the flag there that keeps the
+/// compile time out of Windows objects comes in the flags here as well.
+function compilerRtFlags(t: common.Target, ...flags: string[]): string[] {
+  if (t.os === "mingw") flags.push("-mno-incremental-linker-compatible");
+  if (t.os === "msvc") flags.push("/Brepro");
+  return flags.length ? ["C", "CXX", "ASM"].map((lang) => `-DCMAKE_${lang}_FLAGS=${flags.join(" ")}`) : [];
+}
+
 function builtins(t: common.Target, stage: string): void {
   cmake(`builtins-${t.triple}`, path.join(src, "compiler-rt", "lib", "builtins"), [
     ...compilerRtTarget(stage, t),
     "-C", path.join(caches, "builtins.cmake"),
     `-DCOMPILER_RT_INSTALL_PATH=${common.resourceDir(stage)}`,
     `-DCOMPILER_RT_BUILD_CRT=${common.linuxSysroot(t) ? "ON" : "OFF"}`,
-    ...NO_CONFIG,
+    ...compilerRtFlags(t, "--no-default-config"),
   ]);
 }
 
@@ -184,6 +193,7 @@ function profile(t: common.Target, stage: string): void {
     `-DCOMPILER_RT_BUILD_LIBFUZZER=${SANITIZERS.includes(t.os) ? "ON" : "OFF"}`,
     ...(t.os === "linux" ? LINUX_SANITIZERS : []),
     ...(t.os === "musl" ? MUSL_SANITIZERS : []),
+    ...compilerRtFlags(t),
   ]);
   /// What a static program cannot use: the shared runtimes, and LSan's,
   /// which comes with any sanitizer.
@@ -234,12 +244,11 @@ function compilerRtDarwin(stage: string): void {
 /// DLL /MD.
 function compilerRtMsvc(t: common.Target, stage: string): void {
   const sdk = path.join(stage, "sdk", "windows");
-  const flags = ["C", "CXX", "ASM"].map((lang) => `-DCMAKE_${lang}_FLAGS=--no-default-config /winsysroot ${sdk}`);
   const args = [
     ...compilerRtTarget(stage, t),
     `-DCOMPILER_RT_INSTALL_PATH=${common.resourceDir(stage)}`,
     "-DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF",
-    ...flags,
+    ...compilerRtFlags(t, "--no-default-config", "/winsysroot", sdk),
   ];
   cmake(`builtins-${t.triple}`, path.join(src, "compiler-rt", "lib", "builtins"), [
     "-C", path.join(caches, "builtins.cmake"), ...args, "-DCOMPILER_RT_BUILD_CRT=OFF",
