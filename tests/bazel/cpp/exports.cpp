@@ -1,9 +1,10 @@
-// A template instantiated here is a weak definition, which a macOS program
-// exports for dyld to coalesce unless it is linked with
-// -no_exported_symbols (tests/bazel/bazel.ts).
-template <class T>
-[[gnu::noinline]] T twice(T x) {
-  return x + x;
-}
+// An inline variable is a weak definition, which a macOS program exports
+// for dyld to coalesce unless it is linked with -no_exported_symbols
+// (tests/bazel/bazel.ts). One the program writes stays exported at -O2,
+// where a function whose address nothing takes may be hidden instead.
+inline int calls = 0;
 
-int main(int argc, char**) { return twice(argc) == 2 ? 0 : 1; }
+int main(int argc, char**) {
+  calls += argc;
+  return calls == 1 ? 0 : 1;
+}

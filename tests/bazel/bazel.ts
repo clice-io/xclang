@@ -507,7 +507,7 @@ if (!windows) {
 }
 
 /// 12. An optimized macOS program exports nothing: //cpp:exports, whose
-/// template instantiation is a weak definition, keeps no external symbol in
+/// inline variable is a weak definition, keeps no external symbol in
 /// its .stripped with -c opt, and runs; with
 /// --features=-no_exported_symbols it exports the weak definition, which
 /// strip keeps for dyld. (The header's symbol aside.)
