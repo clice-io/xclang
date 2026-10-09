@@ -1,7 +1,8 @@
 # The C library a target links, as rules_cc's target_libc names it: for
 # select(), and so that another C library of an os and cpu (musl, MSVC's) can
-# have toolchains of its own. The toolchains here ask only for os and cpu, so
-# a platform without this constraint gets glibc on Linux and MinGW on Windows.
+# have toolchains of its own. Those of musl ask a platform for it
+# (bazel/toolchains/musl), the others only for os and cpu, so a platform
+# without this constraint gets glibc on Linux and MinGW on Windows.
 constraint_setting(
     name = "libc",
     visibility = ["//visibility:public"],
@@ -10,6 +11,13 @@ constraint_setting(
 # glibc 2.17 (Linux).
 constraint_value(
     name = "glibc",
+    constraint_setting = ":libc",
+    visibility = ["//visibility:public"],
+)
+
+# musl (Linux): static programs. Its toolchains ask a platform for it.
+constraint_value(
+    name = "musl",
     constraint_setting = ":libc",
     visibility = ["//visibility:public"],
 )

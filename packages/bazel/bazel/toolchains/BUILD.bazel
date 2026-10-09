@@ -1,11 +1,11 @@
-load("//bazel:hosts.bzl", "HOSTS", "TARGETS", "builds", "constraints")
+load("//bazel:hosts.bzl", "HOSTS", "OTHER_LIBCS", "TARGETS", "builds", "constraints")
 load("//bazel:unsupported.bzl", "xclang_unsupported_toolchain")
 
 # The C++ toolchain of every host for every target: <host> compiles for the
 # host itself, <host>-to-<target> for another target (--platforms,
 # //platforms). Each is the toolchain of the host's archive configured for
 # the target, and only the one of the machine is fetched
-# (bazel/repositories.bzl).
+# (bazel/repositories.bzl). Those of musl are in musl/, registered first.
 [
     toolchain(
         name = host if host == target else "%s-to-%s" % (host, target),
@@ -16,6 +16,7 @@ load("//bazel:unsupported.bzl", "xclang_unsupported_toolchain")
     )
     for host in HOSTS
     for target in TARGETS
+    if TARGETS[target].libc not in OTHER_LIBCS
 ]
 
 # The macOS targets from another host: a build for them fails with why,

@@ -1,0 +1,19 @@
+load("//bazel:hosts.bzl", "HOSTS", "TARGETS", "constraints")
+
+# The C++ toolchain of every host for the musl targets, <host>-to-<target>:
+# static Linux programs. They ask a platform for musl as well as for os and
+# cpu (//platforms/libc:musl), which the glibc toolchains of ../ do not, so
+# they are registered ahead of those (MODULE.bazel): a musl platform gets
+# them, a Linux platform without a C library glibc's.
+[
+    toolchain(
+        name = "%s-to-%s" % (host, target),
+        exec_compatible_with = constraints(host),
+        target_compatible_with = constraints(target),
+        toolchain = "@xclang_%s//:cc_%s" % (host, target),
+        toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+    )
+    for host in HOSTS
+    for target in TARGETS
+    if TARGETS[target].libc == "musl"
+]

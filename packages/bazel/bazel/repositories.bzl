@@ -81,6 +81,10 @@ def _toolchain_impl(rctx):
     # dependency files.
     root = "external/" + rctx.name
     for target, t in TARGETS.items():
+        # A target of a later release (musl's, from 23.1.2.10 on) has no
+        # toolchain here (bazel/toolchain.bzl).
+        if not rctx.path(target).exists:
+            continue
         text = rctx.read("bin/%s.cfg" % t.cfg).replace("<CFGDIR>/..", root)
         if "<CFGDIR>" in text:
             fail("bin/%s.cfg has paths other than <CFGDIR>/.." % t.cfg)

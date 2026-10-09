@@ -1,11 +1,12 @@
 name: test-bazel
 
 # The Bazel module (packages/bazel) on a machine of every host:
-# tests/bazel's tests, then tests/bazel/bazel.ts's checks of the actions'
-# keys and of the module as the registry and git_override have it; and
-# every host's toolchain for every other target it builds for, tests/bazel's
-# tests (and, from Linux x64 to Windows x64, kotatsu's) cross-compiled there
-# and run on a machine of the target (tests/bazel/cross.ts, on-target.yml).
+# tests/bazel's tests, for the host and the musl targets, then
+# tests/bazel/bazel.ts's checks of the actions' keys and of the module as
+# the registry and git_override have it; and every host's toolchain for
+# every other host's target it builds for, tests/bazel's tests (and, from
+# Linux x64 to Windows x64, kotatsu's) cross-compiled there and run on a
+# machine of the target (tests/bazel/cross.ts, on-target.yml).
 #
 #   release.yml     with a run's archives (dist-run), unpacked and named by
 #                   XCLANG_ROOT and the like, before they are released: the
@@ -101,6 +102,24 @@ jobs:
           gsym="$PWD/bazel-bin/symbols/hello.gsym"; [[ "$RUNNER_OS" == Windows ]] && gsym="$(cygpath -m "$gsym")"
           MSYS_NO_PATHCONV=1 bazel "${startup[@]}" build --strip=never //symbols:hello_symbols $REPO_ENV --disk_cache="$RUNNER_TEMP/disk"
           MSYS_NO_PATHCONV=1 bazel "${startup[@]}" run $REPO_ENV --disk_cache="$RUNNER_TEMP/disk" @xclang//bazel:llvm-gsymutil -- "$gsym" | grep '"main"'
+      # The musl targets from every host: tests/bazel's tests built, and on
+      # Linux of their architecture run, as static programs. Not the
+      # packages of shared libraries, debuggers and libclang (no musl build),
+      # and only with archives that carry them (23.1.2.10 and later).
+      - name: musl
+        working-directory: tests/bazel
+        run: |
+          startup=(); [[ "$RUNNER_OS" == Windows ]] && startup=(--output_user_root=C:/b --windows_enable_symlinks)
+          external="$(bazel "${startup[@]}" info output_base $REPO_ENV)/external"
+          for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl; do
+            if ! ls -d "$external"/*+xclang_${{ matrix.host }}/$target > /dev/null 2>&1; then
+              echo "::notice::the archives of ${{ matrix.host }} have no $target"
+              continue
+            fi
+            command=build; [[ "$RUNNER_OS" == Linux && "$target" == "$(uname -m)-unknown-linux-musl" ]] && command=test
+            bazel "${startup[@]}" $command --platforms=@xclang//platforms:$target //c/... //cpp/... //modules/... //options/... \
+              $REPO_ENV --disk_cache="$RUNNER_TEMP/disk"
+          done
       # gdb, for tests/bazel/bazel.ts's debugger checks.
       - name: gdb
         if: ${{ runner.os == 'Linux' && !inputs.dist-run }}

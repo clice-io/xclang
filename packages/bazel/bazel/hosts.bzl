@@ -75,25 +75,57 @@ TARGETS = {
         libraries = ["lib/**"],
         asan_libcxx = None,
     ),
+    # Static programs with musl, from 23.1.2.10 on.
+    "x86_64-unknown-linux-musl": struct(
+        cfg = "x86_64-unknown-linux-musl",
+        os = "linux",
+        arch = "x86_64",
+        cpu = "k8",
+        libc = "musl",
+        runtime = "x86_64-unknown-linux-musl",
+        headers = ["usr/include/**"],
+        libraries = ["usr/lib/**"],
+        asan_libcxx = None,
+    ),
+    "aarch64-unknown-linux-musl": struct(
+        cfg = "aarch64-unknown-linux-musl",
+        os = "linux",
+        arch = "aarch64",
+        cpu = "aarch64",
+        libc = "musl",
+        runtime = "aarch64-unknown-linux-musl",
+        headers = ["usr/include/**"],
+        libraries = ["usr/lib/**"],
+        asan_libcxx = None,
+    ),
 }
 
-# Every target is a host too.
-HOSTS = list(TARGETS.keys())
+# Every target is a host too, but musl's.
+HOSTS = [triple for triple, t in TARGETS.items() if t.libc != "musl"]
+
+# The C libraries that are not their os's own, which a platform names for
+# their toolchains (platforms/libc/BUILD.bazel): a platform with only an os
+# and a cpu gets glibc on Linux.
+OTHER_LIBCS = ["musl"]
 
 # Other spellings of the triples, as platforms (platforms/BUILD.bazel): clang's
 # normalized names of the MinGW ones, Debian's of the Linux ones, Apple's arm64.
 SPELLINGS = {
     "x86_64-linux-gnu": "x86_64-unknown-linux-gnu",
     "aarch64-linux-gnu": "aarch64-unknown-linux-gnu",
+    "x86_64-linux-musl": "x86_64-unknown-linux-musl",
+    "aarch64-linux-musl": "aarch64-unknown-linux-musl",
     "x86_64-w64-windows-gnu": "x86_64-w64-mingw32",
     "aarch64-w64-windows-gnu": "aarch64-w64-mingw32",
     "arm64-apple-darwin": "aarch64-apple-darwin",
 }
 
 def constraints(triple):
-    """The @platforms constraints of a target: its os and cpu, all a toolchain asks of a platform."""
+    """The constraints a toolchain asks of a platform: the target's os and
+    cpu, and a C library other than the os's own (OTHER_LIBCS)."""
     t = TARGETS[triple]
-    return ["@platforms//os:" + t.os, "@platforms//cpu:" + t.arch]
+    libc = [Label("//platforms/libc:" + t.libc)] if t.libc in OTHER_LIBCS else []
+    return ["@platforms//os:" + t.os, "@platforms//cpu:" + t.arch] + libc
 
 def builds(host, target):
     """Whether host's toolchain builds for target: the macOS targets need
@@ -103,7 +135,8 @@ def builds(host, target):
 def host_of(host_constraints):
     """The host of @platforms//host:constraints.bzl's HOST_CONSTRAINTS, or None."""
     names = [str(c).rpartition(":")[2] for c in host_constraints]
-    for triple, t in TARGETS.items():
+    for triple in HOSTS:
+        t = TARGETS[triple]
         if t.arch in names and (t.os in names or (t.os == "macos" and "osx" in names)):
             return triple
     return None

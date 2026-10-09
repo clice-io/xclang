@@ -32,4 +32,6 @@ use_repo(
     "xclang_x86_64-w64-mingw32",
 )
 
-register_toolchains("//bazel/toolchains:all")
+# musl's toolchains first: they ask a platform for musl, the others only for
+# os and cpu, which a musl platform has too.
+register_toolchains("//bazel/toolchains/musl:all", "//bazel/toolchains:all")

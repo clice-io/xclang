@@ -16,6 +16,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc/toolchains:cc_toolchain.bzl", "cc_toolchain")
 load("@xclang_unix_config//cc/private/toolchain:unix_cc_toolchain_config.bzl", "cc_toolchain_config")
 load(":hosts.bzl", "TARGETS", "builds")
+load(":unsupported.bzl", "xclang_unsupported_toolchain")
 
 def xclang_host_toolchains(host, clang_version, root, absolute_root, macos_sdk = None):
     """The BUILD file of a host's repository: cc_<target>, the cc_toolchain for
@@ -31,6 +32,13 @@ def xclang_host_toolchains(host, clang_version, root, absolute_root, macos_sdk =
         macos_sdk: the SDK of a macOS host, from xcrun.
     """
     for target in TARGETS:
+        if not native.glob(["cfg/%s.cfg" % target], allow_empty = True):
+            # A target of a later release than this one (bazel/repositories.bzl).
+            xclang_unsupported_toolchain(
+                name = "cc_" + target,
+                message = "this release of xclang has no %s: the musl targets are in 23.1.2.10 and later" % target,
+            )
+            continue
         if builds(host, target):
             xclang_cc_toolchain(
                 name = "cc_" + target,
