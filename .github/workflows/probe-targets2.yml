@@ -55,6 +55,7 @@ jobs:
           done
 
   android:
+    if: false
     strategy:
       fail-fast: false
       matrix:
@@ -82,6 +83,7 @@ jobs:
           path: out/
 
   android-arm:
+    if: false
     needs: android
     runs-on: ubuntu-24.04-arm
     steps:
@@ -152,3 +154,36 @@ jobs:
             done
             xcrun simctl shutdown "$dev" || true
           done < pairs.txt
+
+  ohos:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: sudo apt-get install -y -qq ninja-build > /dev/null
+      - run: probe/ohos.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ohos
+          path: out/
+
+  ohos-run:
+    needs: ohos
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: ohos
+          path: out
+      - run: |
+          chmod +x out/*
+          for img in ghcr.io/hqzing/dockerharmony:7.0 docker.io/hqzing/dockerharmony:7.0; do
+            docker pull -q $img && break
+          done
+          docker image inspect $img --format '{{.Architecture}} {{.Os}} {{json .Config.Entrypoint}} {{json .Config.Cmd}}' || true
+          for f in out/*; do
+            docker run --rm -v "$PWD/out:/w:ro" $img /w/$(basename $f) \
+              && echo "::notice::$(basename $f) runs in dockerharmony" || echo "::warning::$(basename $f) fails in dockerharmony"
+          done
