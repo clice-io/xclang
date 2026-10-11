@@ -144,7 +144,7 @@ left as it is, and the project's or the user's cargo config, and
 |---|---|
 | `CARGO_TARGET_<TARGET>_LINKER` | `xclang` itself, as `<Rust target>-linker` in xclang's cache: it runs the toolchain's clang with the target's `--target`, or for the MSVC targets lld-link with the Windows SDK in use (below) |
 | `CC_<target>`, `CXX_<target>`, `AR_<target>`, `RANLIB_<target>` | the toolchain's `clang`, `clang++`, `llvm-ar` (`llvm-lib` for MSVC) and `llvm-ranlib`. The `cc` crate passes them a `--target` of its own, whose config file has the sysroot and the runtimes |
-| `CXXSTDLIB_<target>` | `c++`: the `cc` crate links libc++ for C++ code, not libstdc++ |
+| `CXXSTDLIB_<target>` | `c++`: the `cc` crate links libc++ for C++ code, not libstdc++ (`stdc++` with `XCLANG_STDLIB=platform` for Linux and MinGW, [below](#the-system-s-c-library)) |
 | `CMAKE_TOOLCHAIN_FILE_<target>` | a file in xclang's cache that includes the toolchain's `lib/cmake/xclang/toolchain.cmake` for the target ([CMake](cmake.md)): the `cmake` crate's builds |
 | `CMAKE_GENERATOR_<target>` | MSVC targets, and every target on Windows: Ninja (off Windows, Unix Makefiles without Ninja), where the `cmake` crate would take Visual Studio's generator |
 | `BINDGEN_EXTRA_CLANG_ARGS_<target>` | `--target` and the header directories of the toolchain's clang for the target, for the libclang bindgen loads, the system's or another (`LIBCLANG_PATH`); followed by what the variable had |
@@ -178,6 +178,28 @@ host's. xclang's cache is `$XCLANG_CACHE_DIR`, or `xclang` in the user's
 cache directory (`~/.cache`, `~/Library/Caches`, `%LOCALAPPDATA%`): the
 linkers, which are symbolic links to `xclang` (on Windows hard links, or
 copies), and the CMake toolchain files, per toolchain.
+
+## The System's C++ Library
+
+`XCLANG_STDLIB=platform` builds the crates' C++ code with the platform's
+C++ library in place of xclang's libc++, for C++ interfaces to libraries
+built with it ([the system's C++ library](clang.md#the-system-s-c-library)):
+
+<!-- not run: in no release yet; tests/cli/cargo.ts builds the same for the host's target on Linux, macOS and Windows (MSVC) -->
+```sh
+XCLANG_STDLIB=platform xclang cargo build --release
+```
+
+- `-stdlib=platform` follows what the `cc` crate takes of
+  `CFLAGS_<target>` and `CXXFLAGS_<target>` (or `TARGET_CFLAGS`, `CFLAGS`,
+  ...), and the linker passes it to clang, for every target but MSVC,
+  whose objects name the STL's libraries themselves.
+- `CXXSTDLIB_<target>` is `stdc++` for the Linux and MinGW targets, whose
+  libstdc++ is the host's or that of a `--sysroot` the flags give.
+- On Linux, `-lgcc_s` stays: the program loads the machine's
+  `libgcc_s.so.1`, with its `libstdc++.so.6`.
+- The `cmake` crate's toolchain file sets `XCLANG_STDLIB` too
+  ([CMake](cmake.md#use-the-system-s-c-library)).
 
 ## Static Programs with musl
 

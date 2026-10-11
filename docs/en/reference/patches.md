@@ -23,11 +23,13 @@ again, builds the same thing; libclang's manifest lists them
 | [`0012-msvc-compiler-rt-libpath-first`](https://github.com/clice-io/xclang/blob/main/patches/0012-msvc-compiler-rt-libpath-first/README.md) | clang links MSVC targets with its own compiler-rt ahead of Visual Studio's `clang_rt.*.lib`: without a fetched SDK, `__int128` division, UBSan and libFuzzer link |
 | [`0013-runtime-dir-pc-vendor`](https://github.com/clice-io/xclang/blob/main/patches/0013-runtime-dir-pc-vendor/README.md) | `--target=x86_64-pc-linux-gnu` and `x86_64-pc-windows-gnu`, GCC's spellings, find compiler-rt under the usual spelling: they link |
 | [`0014-coff-timestamp-default`](https://github.com/clice-io/xclang/blob/main/patches/0014-coff-timestamp-default/README.md) | COFF objects for MinGW targets have no compile time in their header again, as in LLVM 22 and GNU tools: the same source gives the same object (llvm/llvm-project#222099) |
-| [`0015-msvc-stdlib`](https://github.com/clice-io/xclang/blob/main/patches/0015-msvc-stdlib/README.md) | clang's MSVC toolchain takes `-stdlib=`: `libc++`, the installation's or `-stdlib++-isystem`'s, and `platform`, Microsoft's STL, which drops `-stdlib++-isystem` |
 | [`0016-libcxx-vcruntime`](https://github.com/clice-io/xclang/blob/main/patches/0016-libcxx-vcruntime/README.md) | libc++ on vcruntime defines no `std::nothrow`, the C runtime's, and defines `std::set_new_handler` and `get_new_handler`, which only Microsoft's STL library did |
 | [`0017-lld-coff-call-graph-order`](https://github.com/clice-io/xclang/blob/main/patches/0017-lld-coff-call-graph-order/README.md) | lld-link lays out a PGO-built program the same way on every link: local functions of the same name in several objects no longer move from one link to the next |
+| [`0018-stdlib-system-config`](https://github.com/clice-io/xclang/blob/main/patches/0018-stdlib-system-config/README.md) | a `-stdlib=` of another library than libc++ (`platform`, `libstdc++`; clang-cl `/clang:-stdlib=platform`) selects the target's `<triple>-system.cfg`: the platform's C++ library, and its sysroot, on every target ([the system's C++ library](../integrations/clang.md#the-system-s-c-library)) |
 
 0005 (ASan's container checks in libc++'s ODR signature) was in 23.1.2.3 and
-23.1.2.4; the ASan libc++ replaced it in 23.1.2.5.
+23.1.2.4; the ASan libc++ replaced it in 23.1.2.5. 0015 (`-stdlib=` for MSVC
+targets: `platform` dropped `-stdlib++-isystem`) was in 23.1.2.10; 0018,
+for every target, replaced it.
 [CHANGELOG.md](https://github.com/clice-io/xclang/blob/main/CHANGELOG.md)
 has which release took which patch.

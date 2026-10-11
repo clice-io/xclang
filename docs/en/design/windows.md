@@ -150,16 +150,19 @@ includes libc++ links it, also when lld-link links without clang (CMake
 with clang-cl, MSBuild), and no C object or object built with the STL
 does.
 
-**`-stdlib=` selects the library.** clang's MSVC toolchain did nothing
-with `-stdlib=`: the STL comes with the C runtime's headers, in the VC
-tools' include directory. [Patch 0015](../reference/patches.md) makes it
-take `-stdlib=libc++` and `-stdlib=platform`, the platform's library, the
-STL. The config files say `-stdlib=libc++` and give libc++'s headers with
-`-stdlib++-isystem`, as for the other targets; `-stdlib=platform` on the
-command line drops them, and the STL's are found as before. clang-cl has
-neither option, so its config files pass them with `/clang:`, which
-clang-cl reported unused in every C compile until
-[patch 0011](../reference/patches.md).
+**`-stdlib=platform` selects the STL.** clang's MSVC toolchain does
+nothing with `-stdlib=`: the STL comes with the C runtime's headers, in
+the VC tools' include directory. The config files give libc++'s headers
+with `-stdlib++-isystem`, as for the other targets, which clang takes for
+an MSVC target as for any other. `-stdlib=platform` selects the target's
+other config file, `<triple>-system.cfg`, which is the same without them
+([patch 0018](../reference/patches.md), as on every target;
+[the system's C++ library](../integrations/clang.md#the-system-s-c-library)):
+the STL's headers are found as before, from the same SDK. clang-cl has no
+`-stdlib++-isystem` of its own, so its config files pass it with
+`/clang:`, which clang-cl reported unused in every C compile until
+[patch 0011](../reference/patches.md); it takes
+`/clang:-stdlib=platform`.
 
 **`import std`.** libc++'s `std` and `std.compat` modules are in
 `<target>/share/libc++/v1`, with `<target>/lib/libc++.modules.json`, as for

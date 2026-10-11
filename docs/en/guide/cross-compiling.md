@@ -136,9 +136,10 @@ directory. The same command means the same thing on every machine.
 
 The config files apply to native builds too. `clang++ hello.cpp` on Linux
 compiles against glibc 2.17, not the glibc of the machine. So a program
-built on a new distribution runs on an old one. `--no-default-config` skips
-the config file, and gives a bare compiler that uses the system's own
-headers and libraries
+built on a new distribution runs on an old one. `-stdlib=platform` builds
+with the system's C++ library and headers instead
+([the system's C++ library](../integrations/clang.md#the-system-s-c-library)),
+and `--no-default-config` skips the config file for a bare compiler
 ([config files](../design/toolchain.md#a-config-file-per-target)).
 
 Every target follows one rule: a program needs nothing but the system

@@ -189,6 +189,22 @@ with nothing in the left column. The price:
 - **musl's behavior where it differs from glibc**: `malloc` under threads,
   locales, name lookup ([compatibility](../reference/compatibility.md#known-limitations)).
 
+## The Platform's C++ Library
+
+A program that passes C++ types to a library built with the platform's C++
+library cannot keep the rule: both sides need the same C++ library, and
+the platform's is a shared one, or Microsoft's STL. `-stdlib=platform`
+leaves the rule for such a program, knowingly
+([the system's C++ library](../integrations/clang.md#the-system-s-c-library)).
+It then loads the platform's C++ runtime where it runs:
+
+| target | at run time, from the system, besides the left column above |
+|---|---|
+| Linux (glibc) | `libstdc++.so.6` and `libgcc_s.so.1` of the machine, as new as the build's; and the build's glibc, not 2.17 |
+| Linux (musl), Windows (MinGW) | what the sysroot given with `--sysroot` links: its libstdc++, statically or not |
+| macOS | `/usr/lib/libc++.1.dylib`, the OS's libc++ |
+| Windows (MSVC) | nothing more with the hybrid CRT, which links the STL in; `msvcp140.dll` with `/MD` |
+
 ## Not Yet Supported
 
 Every target keeps the same rule, also those not yet supported

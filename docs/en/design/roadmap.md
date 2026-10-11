@@ -234,9 +234,10 @@ links, would have them, and its programs would need musl on the machine
 
 **libc++ for MSVC targets**, since 23.1.2.10, gives them the C++ library
 of every other target, its `import std` included, as their default.
-Microsoft's STL stays a choice, `-stdlib=platform`: C++ types passed
-between a program and libraries built with MSVC need the same library on
-both sides ([Windows](windows.md#libc-and-the-stl)).
+Microsoft's STL stays a choice, `-stdlib=platform`, as the platform's C++
+library is on every target since 23.1.2.11: C++ types passed between a
+program and libraries built with MSVC need the same library on both sides
+([Windows](windows.md#libc-and-the-stl)).
 
 The not-planned items follow from what xclang is. It is a compiler
 toolchain, and libclang has the libraries that tools on clang link. Its

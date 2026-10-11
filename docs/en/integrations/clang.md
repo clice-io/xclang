@@ -32,13 +32,48 @@ The config file of each target decides what a command does not have to.
 It names the sysroot, the static libc++, libunwind and compiler-rt, lld as
 the linker, and for macOS the deployment target 13.0
 ([config files](../design/toolchain.md#a-config-file-per-target)).
-`--no-default-config` gives the bare compiler, which builds against the
-system's own headers and libraries.
+`-stdlib=platform` takes the platform's C++ library in place of libc++
+([below](#the-system-s-c-library)).
 
 Build scripts written for GCC keep working. `-latomic`, `-lgcc`,
 `-lgcc_eh`, `-lgcc_s` and on Windows `-lssp` find empty archives;
 `-lstdc++` means libc++; `windres` is `llvm-windres`
 ([GCC library names](../design/hermeticity.md#gcc-library-names)).
+
+## The System's C++ Library
+
+A program that passes C++ types to a library built with the platform's C++
+library, such as a distribution's Qt or Boost, or a library built with
+MSVC, needs that C++ library too. `-stdlib=platform` selects it on every
+target; clang-cl takes `/clang:-stdlib=platform`:
+
+<!-- not run: in no release yet; tests/toolchain/smoke.ts builds the same on Linux, macOS and Windows, tests/sdk/msvc.ts with the Windows SDK -->
+```sh
+clang++ -O2 -stdlib=platform hello.cpp -o hello
+clang++ -O2 -stdlib=platform --target=x86_64-pc-windows-msvc hello.cpp -o hello.exe
+```
+
+| target | C++ library | sysroot or SDK |
+|---|---|---|
+| Linux (glibc) | GCC's libstdc++, shared | this machine's; for another architecture, a distribution's cross packages (`g++-aarch64-linux-gnu`) or `--sysroot` |
+| Linux (musl) | the sysroot's libstdc++ | `--sysroot`, such as an Alpine root |
+| Windows (MinGW) | the sysroot's libstdc++ | `--sysroot`: MSYS2's `ucrt64`, or a distribution's mingw-w64 (`--sysroot=/usr` on Debian and Ubuntu) |
+| macOS | the SDK's libc++, `/usr/lib/libc++.1.dylib` | the same as without it: Xcode's, or the one `xclang sdk fetch macos` fetched |
+| Windows (MSVC) | Microsoft's STL, linked statically with the hybrid CRT | the same as without it: the fetched SDK, or Visual Studio |
+
+The option selects the target's second config file, `<triple>-system.cfg`,
+and so does `-stdlib=libstdc++`. That file keeps lld, the deployment target
+and the C runtime, and leaves out xclang's libc++ and sysroot
+([config files](../design/toolchain.md#a-config-file-per-target)). Give
+the option to every compile and link of a program, C's too: on Linux, musl
+and MinGW it selects the sysroot as well. The program then needs the
+platform's C++ runtime where it runs
+([hermeticity](../design/hermeticity.md#the-platform-s-c-library)). On
+macOS that is the OS's libc++, whose newer parts need a newer deployment
+target: `std::format` of a floating-point number needs macOS 13.3, so
+`-mmacos-version-min=13.3` or later.
+`--no-default-config` gives the bare compiler, as upstream clang is, and
+links with the system's linker.
 
 ## MSVC Targets
 
@@ -68,7 +103,8 @@ The C++ library is libc++, as on every other target, `import std`
 included (since 23.1.2.10; before, Microsoft's STL). `-stdlib=platform`
 (clang-cl: `/clang:-stdlib=platform`) selects Microsoft's STL instead, for
 C++ interfaces to libraries built with MSVC, whose types are the STL's
-([why](../design/windows.md#libc-and-the-stl)).
+([the system's C++ library](#the-system-s-c-library),
+[why](../design/windows.md#libc-and-the-stl)).
 
 clang's default standard for MSVC targets is C++14, where libc++ has
 none of the C++17 library that the STL offers early, such as

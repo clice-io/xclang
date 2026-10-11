@@ -51,7 +51,7 @@ static, need no glibc, and run on the Linux x64 and arm64 runners
 | | Linux | Linux (musl) | Windows (MinGW) | macOS | Windows (MSVC) |
 |---|---|---|---|---|---|
 | C library | glibc 2.17, the system's | musl, static | UCRT, the system's | libSystem, the system's | UCRT, the system's |
-| C++ library | libc++, libc++abi, static | libc++, libc++abi, static | libc++, libc++abi, static | libc++, libc++abi, static (not the system's `libc++.dylib`) | libc++ on the VC runtime, static; Microsoft's STL with `-stdlib=platform` |
+| C++ library | libc++, libc++abi, static; GCC's libstdc++ with `-stdlib=platform` | libc++, libc++abi, static; a `--sysroot`'s libstdc++ with `-stdlib=platform` | libc++, libc++abi, static; a `--sysroot`'s libstdc++ with `-stdlib=platform` | libc++, libc++abi, static (not the system's `libc++.dylib`, which `-stdlib=platform` takes) | libc++ on the VC runtime, static; Microsoft's STL with `-stdlib=platform` |
 | unwinder | libunwind, static | libunwind, static | libunwind, static | the system's (libSystem) | the VC runtime's, static |
 | compiler-rt builtins, profile | Supported | Supported | Supported | Supported | Supported |
 | ASan, TSan, LSan, UBSan, libFuzzer | Supported | UBSan only | Considered | Supported | Supported: UBSan; ASan and libFuzzer for x64 |

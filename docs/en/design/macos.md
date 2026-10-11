@@ -84,6 +84,12 @@ system's, in libSystem.
 - Every target has the same libc++, so the C++ of a program behaves the
   same on macOS, Linux and Windows.
 
+`-stdlib=platform` takes the SDK's libc++ instead, `libc++.1.dylib` of the
+OS, with the same SDK, deployment target and linker
+([the system's C++ library](../integrations/clang.md#the-system-s-c-library)):
+for C++ interfaces to libraries built against it, and the size of a
+program that leaves the library to the OS.
+
 Programs run on macOS 13.0 and later. The config file passes
 `-mmacos-version-min=13.0`; a later one on the command line replaces it.
 

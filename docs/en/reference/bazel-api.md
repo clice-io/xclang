@@ -71,11 +71,18 @@ Windows unless it names one of those.
 | `generate_pdb_file` | MSVC targets: on in `dbg` | the link writes `<name>.pdb` (output group `pdb_file`), with paths relative to the execution root |
 | `dynamic_link_msvcrt` | off | MSVC targets: the VC runtime's DLLs (`/MD`) in place of the hybrid CRT |
 | `debug_msvcrt` | off | MSVC targets: the debug CRT (`/MTd`, `/MDd` with `dynamic_link_msvcrt`) |
-| `msvc_stl` | off | MSVC targets: Microsoft's STL in place of libc++ (`-stdlib=platform`), for the whole build (`--features=msvc_stl`), which `@xclang//bazel:std` follows |
 
 A feature is turned on for a build with `--features=<name>`, off with
 `--features=-<name>`, and for one target with `features = ["<name>"]` or
 `["-<name>"]`.
+
+## The C++ Library
+
+A flag of the whole build:
+
+| flag | default | |
+|---|---|---|
+| `--@xclang//bazel:stdlib` | `libc++` | `platform`: the platform's C++ library in place of libc++, for the MSVC targets Microsoft's STL and for the macOS ones the SDK's libc++, from the same SDK; the config file `<target>-system.cfg` in place of the target's ([the system's C++ library](../integrations/clang.md#the-system-s-c-library)). `@xclang//bazel:std` follows it. The other targets refuse it, as does `--@xclang//runtimes:source` |
 
 ## Runtimes from Source
 
@@ -104,7 +111,7 @@ MemorySanitizer's runtime. No runtime is compiled with ThinLTO.
 
 | label | |
 |---|---|
-| `@xclang//bazel:std` | the `std` and `std.compat` modules of libc++, for the target platform, as a library to depend on; built with the `--cxxopt` of the build. For the MSVC targets with `msvc_stl` (or a release before 23.1.2.10), those of Microsoft's STL |
+| `@xclang//bazel:std` | the `std` and `std.compat` modules of libc++, for the target platform, as a library to depend on; built with the `--cxxopt` of the build. For the MSVC targets with `--@xclang//bazel:stdlib=platform` (or a release before 23.1.2.10), those of Microsoft's STL; for the macOS targets with it, none (incompatible) |
 | `xclang_debug_symbols(name, binary, gsymutil_args)` in `@xclang//bazel:debug_symbols.bzl` | `<binary>.gsym` for every target but the MSVC ones, by llvm-gsymutil with one thread (the same file each run; `gsymutil_args` come after `--num-threads=1`), and `<binary>.dSYM` for macOS ones (with `generate_dsym_file` on the `cc_binary`); llvm-gsymutil's output in the output group `gsym_log`. For an MSVC target, `<binary>.pdb` (with `generate_pdb_file`) |
 | `@xclang//bazel:llvm-gsymutil` | the llvm-gsymutil of the machine's toolchain, for `bazel run`: `bazel run @xclang//bazel:llvm-gsymutil -- <absolute .gsym> --address=0x<address>` |
 | `xclang_resource_dir(name, srcs)` in `@xclang//bazel:resource_dir.bzl` | clang's resource directory laid out as `lib/clang/<major>/` in the rule's package, for a program `bin/<name>` of that package; `@libclang`'s by default |

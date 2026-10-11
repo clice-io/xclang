@@ -29,16 +29,17 @@ Build the C++ dependencies with xclang, for the same target: with CMake,
 Bazel, or vcpkg with xclang's toolchain file chain-loaded. A C++ library
 built with GCC's libstdc++ (a distribution's Qt or Boost) or with MSVC's
 STL has another ABI than xclang's libc++. C libraries are not affected.
-For the MSVC targets, `-stdlib=platform` builds with Microsoft's STL,
-which libraries built with MSVC link
-([MSVC targets](../integrations/clang.md#msvc-targets)).
+Or build with the C++ library they were built with, `-stdlib=platform`:
+GCC's libstdc++ on Linux, Microsoft's STL for the MSVC targets
+([the system's C++ library](../integrations/clang.md#the-system-s-c-library)).
 
 ### "version `GLIBC_2.34' not found" on an older machine
 
 Link only libraries built with xclang for the target. A program from xclang
 needs glibc 2.17 at most, unless something in the link was built against a
 newer glibc. That is a shared library from the host (`-L/usr/lib/...`), or
-a build with `--no-default-config`, which uses the glibc of the machine.
+a build with `-stdlib=platform` or `--no-default-config`, which use the
+glibc of the machine.
 `llvm-readobj --needed-libs` and `llvm-objdump -T` show what a program asks
 for.
 
@@ -63,9 +64,12 @@ archive in xclang's sysroots
 
 ### I want the system's headers and libstdc++, not xclang's
 
-Pass `--no-default-config`. It skips the config file of the target. The bare
-compiler uses the system's headers and libraries, as upstream clang does
-([config files](../design/toolchain.md#the-bare-compiler)).
+Pass `-stdlib=platform`, to every compile and link. It selects the
+target's other config file, which leaves out xclang's sysroot and libc++:
+clang then uses the system's headers, glibc and GCC's libstdc++, and links
+with lld ([the system's C++ library](../integrations/clang.md#the-system-s-c-library)).
+`--no-default-config` skips the config file altogether, for the bare
+compiler upstream clang is ([config files](../design/toolchain.md#the-bare-compiler)).
 
 ## Cross-Compiling
 

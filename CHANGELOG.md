@@ -8,6 +8,13 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+- **Breaking: the switches to Microsoft's STL are renamed**, with no
+  alias. The CMake package's `XCLANG_MSVC_STL=ON` is now
+  `-DXCLANG_STDLIB=platform`, and the Bazel module's `--features=msvc_stl`
+  is now `--@xclang//bazel:stdlib=platform`; the old names do nothing.
+  `-stdlib=platform` on the command line (clang-cl:
+  `/clang:-stdlib=platform`) means what it did for the MSVC targets, and
+  now for every target (below).
 - **`xclang cargo`**: cargo for xclang's targets with no cargo config, as
   cargo-zigbuild does it with zig. `xclang cargo build --target <Rust
   target>`, and `run`, `test` and cargo's other commands, set up each
@@ -32,6 +39,26 @@ the [patches](docs/en/reference/patches.md) of its tag.
   `--@xclang//runtimes:source` and the flags beside it, instrumented by the
   sanitizer features, `--features=msan` among them. Not yet for the MSVC
   targets ([runtimes from source](docs/en/features/runtimes-from-source.md)).
+
+- **The system's C++ library on every target**: `-stdlib=platform`
+  (clang-cl: `/clang:-stdlib=platform`) builds with the platform's C++
+  library in place of xclang's libc++, for C++ interfaces to libraries
+  built with it: GCC's libstdc++ and the machine's glibc on Linux (or a
+  distribution's cross packages, or `--sysroot`), the SDK's
+  `libc++.1.dylib` for macOS, Microsoft's STL for the MSVC targets (as
+  before), and for musl and MinGW the libstdc++ of a `--sysroot`. Each
+  target has a second config file, `<triple>-system.cfg`, which the option
+  selects; it keeps the SDK, lld and the C runtime
+  ([the system's C++ library](docs/en/integrations/clang.md#the-system-s-c-library)).
+  The integrations follow, with one name: the CMake package's
+  `-DXCLANG_STDLIB=platform`, the Bazel module's
+  `--@xclang//bazel:stdlib=platform` for the MSVC and macOS targets, and
+  `XCLANG_STDLIB=platform xclang cargo`. The runtimes built from source are
+  libc++: with `XCLANG_RUNTIMES=source` (`--@xclang//runtimes:source`) the
+  platform's library is refused, with a message.
+- **0018** added: a `-stdlib=` of another library than libc++ selects the
+  target's `<triple>-system.cfg`. **0015** dropped: 0018 replaces its
+  `-stdlib=platform` for the MSVC targets.
 
 ## [23.1.2.10](https://github.com/clice-io/xclang/releases/tag/23.1.2.10) — 2026-10-09
 

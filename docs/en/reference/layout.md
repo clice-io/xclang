@@ -14,8 +14,10 @@ xclang/
                            (llvm-profdata, llvm-cov, llvm-dwarfdump,
                            llvm-strings, FileCheck), the xclang command,
                            and <target>.cfg for every spelling of every
-                           target; <target>-sdk.cfg, the SDK in use of an
-                           MSVC target, which the xclang command writes
+                           target, with <target>-system.cfg beside it for
+                           the platform's C++ library (-stdlib=platform);
+                           <target>-sdk.cfg, the SDK in use of an MSVC
+                           target, which the xclang command writes
   lib/clang/<major>/       clang's resource headers, compiler-rt's headers,
                            and compiler-rt for every target; for the MSVC
                            targets libc++ too

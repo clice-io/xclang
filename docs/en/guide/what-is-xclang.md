@@ -88,11 +88,12 @@ toolchain is the better one.
 - **C++ libraries from another toolchain do not link.** xclang's C++
   library is libc++, linked into every program. A library built with GCC's
   libstdc++ (a distribution's Qt or Boost) or with MSVC's STL has another
-  ABI; only the MSVC targets link the latter, with `-stdlib=platform`,
-  which makes Microsoft's STL their C++ library. Build C++ dependencies
-  with xclang for the target, through
-  CMake, Bazel or vcpkg's chain-loaded toolchain file. C libraries are
-  fine.
+  ABI. Build C++ dependencies with xclang for the target, through CMake,
+  Bazel or vcpkg's chain-loaded toolchain file, or build with the
+  platform's C++ library, `-stdlib=platform`, and give up what a program
+  carries in itself
+  ([the system's C++ library](../integrations/clang.md#the-system-s-c-library)).
+  C libraries are fine.
 - **C++ objects should not cross shared libraries.** Each shared library
   carries its own libc++. On Linux and macOS, a standard exception from one
   is caught in another only by `catch (...)`

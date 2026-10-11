@@ -180,9 +180,6 @@ there. Their features:
   names it without a directory.
 - `dynamic_link_msvcrt`: the VC runtime's DLLs (`/MD`), and
   `debug_msvcrt`: the debug CRT (`/MTd`, or `/MDd` with the other).
-- `msvc_stl`: Microsoft's STL in place of libc++, for the whole build
-  (`--features=msvc_stl`), `@xclang//bazel:std` included, which is then
-  the STL's `std` module.
 - `gc_sections` is lld-link's `/opt:ref`, off by default as for MinGW.
 
 The macOS targets' deployment target is `--macos_minimum_os`, but never
@@ -194,6 +191,15 @@ A Windows platform is MinGW's unless it has the C library constraint
 `@xclang//platforms/libc:msvc`, as `@xclang//platforms:x86_64-pc-windows-msvc`
 has. `@libclang` has no build for the MSVC targets: what depends on it is
 incompatible with them, and `//...` skips it.
+
+`--@xclang//bazel:stdlib=platform` builds the whole build with the
+platform's C++ library in place of libc++: Microsoft's STL for the MSVC
+targets, the SDK's `libc++.1.dylib` for the macOS ones, for C++ interfaces
+to libraries built with it; `@xclang//bazel:std` is then the STL's, and
+none for macOS
+([the system's C++ library](clang.md#the-system-s-c-library)). The other
+targets refuse it: their platform's library is in a sysroot outside the
+toolchain, which a build of them does not have.
 
 ## Use C++20 Modules and `import std`
 

@@ -8,7 +8,8 @@ clang finds each target's sysroot and runtimes through a config file per
 target, not through defaults built into the compiler. clang, lld and most
 tools are one program. The sysroots are plain directories that any clang
 can use. For users, that means `--target` is the whole difference between
-a native and a cross build, and `--no-default-config` gives back a bare,
+a native and a cross build, `-stdlib=platform` the switch to the
+platform's C++ library, and `--no-default-config` gives back a bare,
 upstream-like clang.
 
 ## A Config File per Target
@@ -44,6 +45,27 @@ works wherever it is unpacked. The config files apply to native builds
 too. A plain `clang++ main.cpp` on Linux compiles against glibc 2.17, not
 the machine's glibc, and links everything but glibc statically.
 
+### The Platform's C++ Library
+
+Every one of these files has a second one, `<spelling>-system.cfg` (and
+`<spelling>-clang-cl-system.cfg`), for the platform's C++ library. A
+`-stdlib=` of another library than libc++, `platform` or `libstdc++`, makes
+clang read it in place of the first ([patch 0018](../reference/patches.md));
+clang-cl takes `/clang:-stdlib=platform`. It holds what the target needs
+besides xclang's C++ library and sysroot:
+
+| target | `<spelling>-system.cfg` |
+|---|---|
+| Linux, Linux (musl), Windows (MinGW) | `-fuse-ld=lld`. The platform's library comes with a sysroot of its own: the host's, a distribution's cross packages, or that of `--sysroot` |
+| macOS | the SDK, `-mmacos-version-min=13.0`, `-fuse-ld=lld`: the SDK's libc++ |
+| Windows (MSVC) | the target's file without xclang's libc++: Microsoft's STL, from the same SDK or Visual Studio |
+
+The switch picks a file, as nothing after a config file can take back
+what it gave. `-stdlib++-isystem` stands for the C++ library's headers
+whatever `-stdlib=` says, a macOS `-L` finds `libc++.a` before the SDK's
+`libc++.tbd`, and the Linux sysroot has no libstdc++
+([the system's C++ library](../integrations/clang.md#the-system-s-c-library)).
+
 ### Why Not Built-In Defaults
 
 clang can be built with defaults instead (`CLANG_DEFAULT_CXX_STDLIB`,
@@ -65,8 +87,9 @@ behaves like upstream clang.
 
 The same separation gives the bare compiler back on demand.
 `--no-default-config` skips the config file. clang then builds against the
-system's own headers and libraries, as upstream clang would. Use it to
-link against the system's libstdc++, for example.
+system's own headers and libraries, as upstream clang would, and links
+with the system's linker. `-stdlib=platform` does the same with lld, and
+for the vendor SDKs too.
 
 ### Two Details
 

@@ -120,10 +120,10 @@ cmake --build build-msvc
   `CMAKE_MSVC_RUNTIME_LIBRARY` is `MultiThreaded` unless set. Other values
   work too; CMake's own default would load the VC runtime's DLLs.
 - The C++ library is libc++, and `xclang::std` its `std` and
-  `std.compat`, as for the other targets. `-DXCLANG_MSVC_STL=ON` selects
-  Microsoft's STL instead (`-stdlib=platform`), for C++ interfaces to
-  libraries built with MSVC; `xclang::std` is then the STL's
-  ([MSVC targets](clang.md#msvc-targets)).
+  `std.compat`, as for the other targets. `-DXCLANG_STDLIB=platform`
+  selects Microsoft's STL instead, for C++ interfaces to libraries built
+  with MSVC; `xclang::std` is then the STL's
+  ([the system's C++ library](#use-the-system-s-c-library)).
 - A link writes a PDB when it has `-g`: Debug and RelWithDebInfo do; a
   target given `-g` in another configuration needs it in
   `target_link_options` too.
@@ -256,6 +256,30 @@ importer's ([matching options](../features/modules.md#behavior)). So:
 
 Before putting ccache in front of the compiler, read
 [build caches and modules](../features/modules.md#build-caches-and-modules).
+
+## Use the System's C++ Library
+
+`-DXCLANG_STDLIB=platform` builds with the platform's C++ library in
+place of xclang's libc++, for C++ interfaces to libraries built with it:
+GCC's libstdc++ on Linux, Microsoft's STL for the MSVC targets, the SDK's
+libc++ for macOS ([the system's C++ library](clang.md#the-system-s-c-library)).
+The toolchain file adds `-stdlib=platform` to the flags of every language:
+
+<!-- not run: in no release yet; tests/cmake/cmake.ts builds the same on Linux and macOS (test-cmake.yml), tests/sdk/msvc.ts for the MSVC targets -->
+```sh
+cmake -G Ninja -B build-system --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake \
+    -DXCLANG_STDLIB=platform
+```
+
+- For Linux targets the sysroot is then the machine's, or
+  `CMAKE_SYSROOT`; for the musl and MinGW targets `CMAKE_SYSROOT` is
+  required, a sysroot that has their libstdc++ (an Alpine root, MSYS2's
+  `ucrt64`).
+- `xclang::std` is the STL's for the MSVC targets, and the platform
+  library's where it has a module manifest (GCC 15's libstdc++).
+  `find_package(xclang)` fails where it has none.
+- Not with `XCLANG_RUNTIMES=source`, which builds libc++; and
+  `XCLANG_SANITIZER=address` takes no ASan libc++.
 
 ## Build the C++ Runtimes from Source
 
