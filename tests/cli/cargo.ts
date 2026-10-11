@@ -25,6 +25,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { host, programsDir, writePrograms, type Program } from "../lib/on-target.ts";
+import { since } from "../lib/version.ts";
 
 const { values } = parseArgs({ options: { tree: { type: "string" }, out: { type: "string" } } });
 if (!values.tree || !values.out) fail("--tree <xclang> --out <dir>");
@@ -151,6 +152,32 @@ function loads(rust: string, file: string): string[] {
   const minos = /minos (\S+)/.exec(capture(tool("llvm-otool"), ["-l", file]))?.[1];
   bad(minos === "13.0" ? [] : [`macOS ${minos}`], "is for");
   return [...libs, `(macOS ${minos})`];
+}
+
+/// The platform's C++ library (XCLANG_STDLIB=platform), with a compiler that
+/// selects the config files for it (patches/0018, 23.1.2.11 and later): the probe crate for the
+/// host's target, run, with GCC's libstdc++ on Linux (where the host has it),
+/// which the program loads, Microsoft's STL on Windows (MSVC) and the SDK's
+/// libc++ on macOS, which it loads.
+if (since("23.1.2.11")) {
+  const rust = machine === "x86_64-unknown-linux-gnu" ? (fs.existsSync("/usr/include/c++") ? machine : undefined)
+    : machine === "x86_64-w64-mingw32" ? "x86_64-pc-windows-msvc"
+      : machine === "aarch64-apple-darwin" ? machine : undefined;
+  if (rust) {
+    const dir = path.join(crates[1]!.dir, "target", "xclang-platform");
+    const probe = crates[1]!;
+    /// The SDK's libc++ is macOS's: std::format of a floating-point number
+    /// (to_chars) from macOS 13.3 on.
+    const macos = rust.includes("apple") ? { MACOSX_DEPLOYMENT_TARGET: "14.0" } : {};
+    const env = { ...process.env, ...probe.env, ...macos, XCLANG_STDLIB: "platform", CARGO_TARGET_DIR: dir };
+    const r = xclang(["cargo", "run", "--release", "--locked", "--target", rust], { cwd: probe.dir, env });
+    check(r.out === probe.output, `XCLANG_STDLIB=platform cargo run --target ${rust} prints ${JSON.stringify(probe.output)}`);
+    const file = path.join(dir, rust, "release", `probe${rust.includes("windows") ? ".exe" : ""}`);
+    const capture = (cmd: string, args: string[]) => spawnSync(cmd, args, { encoding: "utf8" }).stdout ?? "";
+    if (rust.includes("linux")) check(/libstdc\+\+\.so\.6/.test(capture(tool("llvm-readobj"), ["--needed-libs", file])), `${rust}: loads libstdc++`);
+    if (rust.includes("apple")) check(capture(tool("llvm-otool"), ["-L", file]).includes("/usr/lib/libc++.1.dylib"), `${rust}: loads libc++.1.dylib`);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 /// The host's own target, and musl's on Linux: cargo run and cargo test,

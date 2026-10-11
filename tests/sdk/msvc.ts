@@ -17,7 +17,7 @@
 /// information, ThinLTO, UBSan, the profile runtime, and for x64 ASan and
 /// libFuzzer; the DLLs each program imports checked here. tests/cmake for
 /// both targets through the CMake package, with libc++ and with the STL
-/// (XCLANG_MSVC_STL); with --kotatsu, kotatsu's tests for x64. Programs
+/// (XCLANG_STDLIB=platform); with --kotatsu, kotatsu's tests for x64. Programs
 /// built for this machine run here too.
 ///
 /// A toolchain before 23.1.2.10 has no libc++ for the MSVC targets
@@ -34,6 +34,7 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import * as common from "../../toolchain/common.ts";
 import { programsDir, runPrograms, writePrograms, type Program } from "../lib/on-target.ts";
+import { since } from "../lib/version.ts";
 
 const { values } = parseArgs({
   options: {
@@ -333,16 +334,19 @@ for (const a of ["x86_64", "aarch64"]) {
 /// 4. CMake: tests/cmake through the package's toolchain file, with libc++
 /// and with Microsoft's STL, whose std.ixx the package copies into the
 /// build (xclang_std/std.cppm), with <malloc.h> after <intrin.h> (for
-/// arm64's _alloca), also from MSVC 14.51's, whose lines end in CRLF. The
-/// link takes -stdlib=platform without a word (patches/0015).
+/// arm64's _alloca), also from MSVC 14.51's, whose lines end in CRLF. A
+/// compile or link takes -stdlib=platform without a word (patches/0018, so
+/// from 23.1.2.11 on: the package, this checkout's, gives it to C compiles
+/// too).
 const toolchain = path.join(tree, "lib", "cmake", "xclang", "toolchain.cmake");
 for (const a of ["x86_64", "aarch64"]) {
-  for (const stl of [false, true]) {
+  for (const stl of since("23.1.2.11") ? [false, true] : [false]) {
     const triple = `${a}-pc-windows-msvc`;
     const dir = path.join(work, `cmake-${a}${stl ? "-stl" : ""}`);
-    const what = `tests/cmake for ${triple}${stl ? " with XCLANG_MSVC_STL" : ""}`;
+    const what = `tests/cmake for ${triple}${stl ? " with XCLANG_STDLIB=platform" : ""}`;
     const configure = run("cmake", ["-G", "Ninja", "-S", path.join(common.ROOT, "tests", "cmake"), "-B", dir,
-      "-DCMAKE_BUILD_TYPE=Release", `--toolchain=${toolchain}`, `-DXCLANG_TARGET=${triple}`, `-DXCLANG_MSVC_STL=${stl ? "ON" : "OFF"}`]);
+      "-DCMAKE_BUILD_TYPE=Release", `--toolchain=${toolchain}`, `-DXCLANG_TARGET=${triple}`,
+      `-DXCLANG_STDLIB=${stl ? "platform" : "libc++"}`]);
     const build = configure.status === 0 ? run("cmake", ["--build", dir]) : undefined;
     const built = build?.status === 0;
     check(built, what);

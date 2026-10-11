@@ -15,7 +15,9 @@
 ///       program's PDB, checked here, and a macOS program with its dSYM in
 ///       <dir>, which on-target.ts checks there; for x64 MSVC,
 ///       //asan:overflow with --features=asan, whose report on-target.ts
-///       checks
+///       checks; for the MSVC and macOS targets, //platform:stdlib with
+///       --@xclang//bazel:stdlib=platform, the platform's C++ library, which
+///       the other targets refuse
 ///   node tests/bazel/cross.ts registry <module> <ws>
 ///       <ws>: the latest version of a module of the clice registry
 ///       (bazel.clice.io), from its source archive, on this checkout's
@@ -234,6 +236,35 @@ function collect(workspace: string, target: string, out: string, args: string[])
       programs.push({ name: `//asan:overflow --features=asan, built on ${host()}`, file: "asan/overflow.exe",
         expect: "container-overflow", fails: true });
     }
+  }
+  /// tests/bazel's //platform:stdlib with the platform's C++ library
+  /// (--@xclang//bazel:stdlib=platform), with a toolchain that has the
+  /// config files for it (23.1.2.11 and later): Microsoft's STL for the MSVC
+  /// targets, the SDK's libc++ for the macOS ones, which the program loads.
+  /// The other targets refuse it, saying why.
+  const stdlib = "--@xclang//bazel:stdlib=platform";
+  const system = target.endsWith("-pc-windows-msvc") || target.includes("-apple-");
+  const configs = fs.readdirSync(path.join(toolchain, "bin")).some((f) => f.endsWith("-system.cfg"));
+  if (fs.existsSync(path.join(workspace, "platform", "BUILD.bazel")) && configs && system) {
+    bazel(workspace, ["build", platform, ...options, stdlib, "//platform:stdlib"]);
+    const exe = target.includes("windows") ? ".exe" : "";
+    const dir = path.join(out, "platform");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.copyFileSync(path.join(fs.realpathSync(path.join(workspace, "bazel-bin")), "platform", `stdlib${exe}`), path.join(dir, `stdlib${exe}`));
+    if (!exe) {
+      const dylibs = capture(tool("llvm-objdump"), ["--macho", "--dylibs-used", path.join(dir, "stdlib")]);
+      if (!dylibs.includes("/usr/lib/libc++.1.dylib")) common.fail(`//platform:stdlib ${stdlib} loads no libc++.1.dylib: ${dylibs}`);
+    }
+    programs.push({ name: `//platform:stdlib ${stdlib}, built on ${host()}`, file: `platform/stdlib${exe}`,
+      expect: exe ? "msvc-stl thrown" : " thrown", adhoc: !exe });
+  } else if (fs.existsSync(path.join(workspace, "platform", "BUILD.bazel")) && configs) {
+    const args = ["build", platform, ...options, stdlib, "//platform:stdlib"];
+    const result = spawnSync("bazel", [...(windows ? ["--output_user_root=C:/b", "--windows_enable_symlinks"] : []), ...args],
+      { cwd: workspace, encoding: "utf8", shell: windows, maxBuffer: 1 << 28 });
+    if (result.status === 0 || !(result.stderr ?? "").includes("is for the MSVC and macOS targets")) {
+      common.fail(`bazel ${args.join(" ")}: not refused for ${target}`);
+    }
+    console.log(`ok: ${stdlib} refused for ${target}`);
   }
   writePrograms(out, programs);
   console.log(`${out}: ${tests.length} tests of ${workspace} for ${target}`);

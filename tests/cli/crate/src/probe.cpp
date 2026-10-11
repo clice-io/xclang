@@ -3,7 +3,13 @@
 #include <stdexcept>
 #include <string>
 
-#ifndef _LIBCPP_VERSION
+// xclang's libc++, or with XCLANG_STDLIB=platform (build.rs) the platform's:
+// GCC's libstdc++, Microsoft's STL, the macOS SDK's libc++.
+#if defined(XCLANG_PROBE_PLATFORM)
+#if defined(_LIBCPP_VERSION) && !defined(__APPLE__)
+#error "with XCLANG_STDLIB=platform, crates' C++ code is compiled with the platform's C++ library"
+#endif
+#elif !defined(_LIBCPP_VERSION)
 #error "crates' C++ code is compiled with xclang's libc++"
 #endif
 

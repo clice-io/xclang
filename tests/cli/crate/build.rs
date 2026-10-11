@@ -4,11 +4,13 @@ use std::path::PathBuf;
 fn main() {
     // C, and C++ (exceptions, the C++ library), with the cc crate.
     cc::Build::new().file("src/probe.c").compile("probe_c");
-    cc::Build::new()
-        .cpp(true)
-        .std("c++20")
-        .file("src/probe.cpp")
-        .compile("probe_cpp");
+    let mut cpp = cc::Build::new();
+    cpp.cpp(true).std("c++20").file("src/probe.cpp");
+    println!("cargo:rerun-if-env-changed=XCLANG_STDLIB");
+    if env::var("XCLANG_STDLIB").as_deref() == Ok("platform") {
+        cpp.define("XCLANG_PROBE_PLATFORM", None);
+    }
+    cpp.compile("probe_cpp");
     // A CMake project, with the cmake crate.
     let cmake = cmake::build("cmake");
     println!("cargo:rustc-link-search=native={}", cmake.join("lib").display());

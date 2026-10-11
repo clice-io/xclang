@@ -571,6 +571,81 @@ if (windows && fs.existsSync(vswhere)) {
   if (!/VC\\\\Tools\\\\MSVC\\\\/.test(result.stderr ?? "")) failures.push(`clang++ ${args.join(" ")} finds no Visual Studio: ${result.stderr}`);
 }
 
+/// The platform's C++ library (patches/0018, from 23.1.2.11): -stdlib=platform,
+/// and -stdlib=libstdc++, select every target's <triple>-system.cfg, for
+/// each spelling of the triple, and /clang:-stdlib=platform clang-cl's
+/// <triple>-clang-cl-system.cfg; a later -stdlib=libc++ keeps the target's
+/// own; a C compile takes it without a word. Natively, a C++ program builds
+/// with the platform's library and runs: GCC's libstdc++ on Linux, where
+/// the host has it, the SDK's libc++ on macOS, and Microsoft's STL from
+/// Visual Studio on Windows without the Windows SDK (tests/sdk/msvc.ts
+/// builds with the SDK's).
+if (since("23.1.2.11")) {
+  const which = (driver: string, args: string[]) => {
+    const result = spawnSync(tool(driver), ["-###", ...args], { encoding: "utf8", cwd: work, env: noPrompt });
+    return /^Configuration file: .*[\\/]([^\\/\r\n]+?)\r?$/m.exec(result.stderr ?? "")?.[1];
+  };
+  const spellings: [string, string][] = [
+    ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-gnu"], ["aarch64-pc-linux-gnu", "aarch64-pc-linux-gnu"],
+    ["x86_64-w64-mingw32", "x86_64-w64-windows-gnu"], ["aarch64-pc-windows-gnu", "aarch64-pc-windows-gnu"],
+    ["arm64-apple-macos", "arm64-apple-macos"], ["x86_64-apple-darwin", "x86_64-apple-darwin"],
+    ["x86_64-pc-windows-msvc", "x86_64-pc-windows-msvc"], ["aarch64-pc-windows-msvc", "aarch64-pc-windows-msvc"],
+    ...musl.map((t): [string, string] => [t, t]),
+  ];
+  for (const [t, cfg] of spellings) {
+    for (const [args, file] of [
+      [["-stdlib=platform"], `${cfg}-system.cfg`],
+      [["-stdlib=libstdc++"], `${cfg}-system.cfg`],
+      [["-stdlib=platform", "-stdlib=libc++"], `${cfg}.cfg`],
+      [[], `${cfg}.cfg`],
+    ] as const) {
+      const got = which("clang++", [`--target=${t}`, ...args, "-c", helloCxx]);
+      if (got !== file) failures.push(`clang++ --target=${t} ${args.join(" ")} reads ${got}, not ${file}`);
+    }
+  }
+  for (const a of ["x86_64", "aarch64"]) {
+    const got = which("clang-cl", [`--target=${a}-pc-windows-msvc`, "/clang:-stdlib=platform", "/c", "--", helloCxx]);
+    if (got !== `${a}-pc-windows-msvc-clang-cl-system.cfg`) failures.push(`clang-cl /clang:-stdlib=platform for ${a} reads ${got}`);
+  }
+  const quiet = (driver: string, args: string[]) => {
+    const result = spawnSync(tool(driver), args, { encoding: "utf8", cwd: work, env: noPrompt });
+    if (result.status !== 0 || /warning:/.test(result.stderr ?? "")) failures.push(`${driver} ${args.join(" ")}: ${result.stderr}`);
+  };
+  const bare = write("stdlib.c", "int f(void) { return 0; }\n");
+  quiet("clang", ["-stdlib=platform", "-Werror", "-fsyntax-only", bare]);
+  quiet("clang-cl", ["/clang:-stdlib=platform", "/WX", "/Zs", "--", bare]);
+
+  const probe = write("stdlib.cpp", `#include <iostream>
+#include <stdexcept>
+int main() {
+  try { throw std::runtime_error("thrown"); } catch (const std::exception& e) {
+#if defined(_LIBCPP_VERSION)
+    std::cout << "libc++ " << _LIBCPP_VERSION << " " << e.what() << std::endl;
+#elif defined(__GLIBCXX__)
+    std::cout << "libstdc++ " << e.what() << std::endl;
+#elif defined(_MSVC_STL_VERSION)
+    std::cout << "msvc-stl " << e.what() << std::endl;
+#endif
+  }
+}
+`);
+  const platform = (target: string, expect: RegExp, needs: RegExp | undefined) => {
+    const out = path.join(work, `stdlib-${target}${exe}`);
+    const result = spawnSync(tool("clang++"), [`--target=${target}`, "-stdlib=platform", "-O2", probe, "-o", out], { encoding: "utf8", cwd: work, env: noPrompt });
+    const output = result.status === 0 ? spawnSync(out, [], { encoding: "utf8" }).stdout ?? "" : "";
+    if (!expect.test(output)) failures.push(`clang++ --target=${target} -stdlib=platform: ${JSON.stringify(output)} ${result.stderr}`);
+    if (needs && result.status === 0) {
+      const libs = run(process.platform === "darwin" ? tool("llvm-otool") : tool("llvm-readobj"), [process.platform === "darwin" ? "-L" : "--needed-libs", out]) ?? "";
+      if (!needs.test(libs)) failures.push(`${out} does not load the platform's C++ library: ${libs}`);
+    }
+  };
+  if (process.platform === "linux" && fs.existsSync("/usr/include/c++")) platform(native, /^libstdc\+\+ thrown/m, /libstdc\+\+\.so\.6/);
+  if (process.platform === "darwin") platform(native, /^libc\+\+ (?!23)\d+ thrown/m, /\/usr\/lib\/libc\+\+\.1\.dylib/);
+  if (windows && fs.existsSync(vswhere) && !fs.existsSync(path.join(tree, "sdk", "windows"))) {
+    platform(`${arch}-pc-windows-msvc`, /^msvc-stl thrown/m, undefined);
+  }
+}
+
 /// 3. Native: the sanitizers and libFuzzer (Linux, macOS), import std, a
 /// precompiled header, ThinLTO.
 function expectReport(label: string, program: string, args: string[], text: string): void {

@@ -1,0 +1,9 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
+# A C++ program that throws, and says which C++ library caught it: with
+# --@xclang//bazel:stdlib=platform the platform's, Microsoft's STL or the
+# macOS SDK's libc++ (tests/bazel/cross.ts).
+cc_binary(
+    name = "stdlib",
+    srcs = ["stdlib.cpp"],
+)

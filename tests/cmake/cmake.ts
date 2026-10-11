@@ -30,6 +30,12 @@
 ///    hardening variant for other targets too (from Linux x64: Linux arm64
 ///    and both MinGW targets; from arm64 macOS: x86_64 macOS), whose
 ///    programs tests/lib/on-target.ts runs on machines of those targets.
+/// 6. The platform's C++ library (XCLANG_STDLIB=platform), with a compiler
+///    that selects bin/<triple>-system.cfg for it (patches/0018, 23.1.2.11
+///    and later): tests/cmake/platform for this host's target, with GCC's
+///    libstdc++ on Linux (where the host has it) and the SDK's libc++ on
+///    macOS, run; a musl target without CMAKE_SYSROOT is refused. (Windows:
+///    tests/sdk/msvc.ts, with Microsoft's STL.)
 ///
 /// A tree whose lib/cmake/xclang is not the checkout's (releases before the
 /// package, or before a change of it) gets the checkout's.
@@ -42,6 +48,7 @@ import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import * as common from "../../toolchain/common.ts";
 import { programsDir, writePrograms, type Program } from "../lib/on-target.ts";
+import { since } from "../lib/version.ts";
 
 const { values } = parseArgs({
   options: {
@@ -233,6 +240,25 @@ if (fs.existsSync(sources)) {
   }
 } else {
   console.log(`\n${tree} has no runtimes' sources: no runtimes from source`);
+}
+
+/// 6. The platform's C++ library.
+if (since("23.1.2.11")) {
+  const project = path.join(source, "platform");
+  const expect = native.os === "linux" ? "^libstdc\\+\\+ thrown" : native.os === "darwin" ? "^libc\\+\\+ [0-9]+ thrown" : undefined;
+  if (expect && (native.os !== "linux" || fs.existsSync("/usr/include/c++"))) {
+    build("platform", [`--toolchain=${toolchain}`, "-DXCLANG_STDLIB=platform", `-DXCLANG_TEST_EXPECT=${expect}`], process.env, true, project);
+  }
+  if (native.os === "linux") {
+    const args = ["-G", "Ninja", "-S", project, "-B", path.join(work, "platform-musl"), `--toolchain=${toolchain}`,
+      `-DXCLANG_TARGET=${native.arch}-unknown-linux-musl`, "-DXCLANG_STDLIB=platform"];
+    const result = spawnSync("cmake", args, { encoding: "utf8" });
+    if (result.status === 0 || !/CMAKE_SYSROOT/.test(result.stdout + result.stderr)) {
+      failures.push(`platform-musl: cmake ${args.join(" ")} was not refused for want of CMAKE_SYSROOT`);
+    }
+  }
+} else {
+  console.log(`\n${tree}: a release before the platform's C++ library (23.1.2.11)`);
 }
 
 if (failures.length) common.fail(`${failures.length} builds failed:\n  ${failures.join("\n  ")}`);
