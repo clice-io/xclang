@@ -1,9 +1,10 @@
 # find_package(xclang): import std and import std.compat for a build that
 # xclang's clang compiles, as a library to link.
 #
-#   xclang::std         libc++'s std and std.compat modules (for an MSVC
-#                       target with -stdlib=platform, XCLANG_MSVC_STL of the
-#                       toolchain file, those of Microsoft's STL), built for the
+#   xclang::std         libc++'s std and std.compat modules (with
+#                       -stdlib=platform, XCLANG_STDLIB=platform of the
+#                       toolchain file, those of the platform's C++ library:
+#                       Microsoft's STL for an MSVC target), built for the
 #                       build's target with the settings of the directory
 #                       that called find_package(xclang), as they stand at
 #                       the end of its CMakeLists.txt
@@ -84,6 +85,10 @@ if(XCLANG_RUNTIMES STREQUAL "source")
     set_property(GLOBAL PROPERTY XCLANG_STD_MANIFEST "${XCLANG_RUNTIMES_INSTALL}/lib/libc++.modules.json")
 endif()
 get_property(_xclang_manifest GLOBAL PROPERTY XCLANG_STD_MANIFEST)
+# The last -stdlib= of the flags: libc++, the config files', unless one
+# selects the platform's (patches/0018).
+string(REGEX MATCHALL "-stdlib=[^ ]*" _xclang_stdlib " -stdlib=libc++ ${CMAKE_CXX_FLAGS}")
+list(GET _xclang_stdlib -1 _xclang_stdlib)
 if(NOT _xclang_manifest AND CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
     if(CMAKE_CXX_COMPILER_ARCHITECTURE_ID MATCHES "^(ARM64|aarch64)$")
         set(_xclang_arch aarch64)
@@ -91,9 +96,6 @@ if(NOT _xclang_manifest AND CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
         set(_xclang_arch x86_64)
     endif()
     set(_xclang_libcxx "${XCLANG_ROOT}/${_xclang_arch}-pc-windows-msvc/lib/libc++.modules.json")
-    # The last -stdlib= of the flags, after the config files' -stdlib=libc++.
-    string(REGEX MATCHALL "-stdlib=[^ ]*" _xclang_stdlib " -stdlib=libc++ ${CMAKE_CXX_FLAGS}")
-    list(GET _xclang_stdlib -1 _xclang_stdlib)
     if(EXISTS "${_xclang_libcxx}" AND _xclang_stdlib STREQUAL "-stdlib=libc++")
         set(_xclang_manifest "${_xclang_libcxx}")
     else()
@@ -121,7 +123,7 @@ if(NOT _xclang_manifest AND CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
     endif()
     set_property(GLOBAL PROPERTY XCLANG_STD_MANIFEST "${_xclang_manifest}")
 elseif(NOT _xclang_manifest)
-    set(_xclang_args "")
+    set(_xclang_args "${_xclang_stdlib}")
     if(CMAKE_CXX_COMPILER_TARGET)
         list(APPEND _xclang_args "--target=${CMAKE_CXX_COMPILER_TARGET}")
     endif()
@@ -137,8 +139,13 @@ elseif(NOT _xclang_manifest)
         RESULT_VARIABLE _xclang_result)
     if(NOT _xclang_result EQUAL 0 OR NOT EXISTS "${_xclang_manifest}")
         set(xclang_FOUND FALSE)
-        set(xclang_NOT_FOUND_MESSAGE
-            "${CMAKE_CXX_COMPILER} has no libc++ module manifest (${_xclang_manifest}): is it xclang's clang++?")
+        if(_xclang_stdlib STREQUAL "-stdlib=libc++")
+            set(xclang_NOT_FOUND_MESSAGE
+                "${CMAKE_CXX_COMPILER} has no libc++ module manifest (${_xclang_manifest}): is it xclang's clang++?")
+        else()
+            set(xclang_NOT_FOUND_MESSAGE "the platform's C++ library (${_xclang_stdlib}) has no module manifest "
+                "(${_xclang_manifest}) for import std")
+        endif()
         return()
     endif()
     file(TO_CMAKE_PATH "${_xclang_manifest}" _xclang_manifest)

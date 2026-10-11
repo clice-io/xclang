@@ -54,6 +54,10 @@ endif()
 if(NOT XCLANG_RUNTIMES MATCHES "^(prebuilt|source)$")
     message(FATAL_ERROR "xclang: XCLANG_RUNTIMES is ${XCLANG_RUNTIMES}, not prebuilt or source")
 endif()
+if(XCLANG_RUNTIMES STREQUAL "source" AND XCLANG_STDLIB STREQUAL "platform")
+    message(FATAL_ERROR "xclang: XCLANG_RUNTIMES=source builds libc++, and XCLANG_STDLIB=platform takes the "
+        "platform's C++ library: one or the other")
+endif()
 if(NOT XCLANG_RUNTIMES STREQUAL "source")
     foreach(_xclang_option IN LISTS _xclang_runtimes_options)
         if(NOT _xclang_option MATCHES "^XCLANG_(RUNTIMES|SANITIZER)$" AND NOT "${${_xclang_option}}" STREQUAL "")
@@ -118,8 +122,10 @@ if(XCLANG_RUNTIMES STREQUAL "prebuilt")
         _xclang_add(LINK "-fsanitize=${_xclang_fsanitize}")
     endif()
     # The ASan libc++, whose __config_site comes before the target's; for
-    # x64 MSVC it names its library itself.
-    if(address IN_LIST _xclang_sanitizers AND EXISTS "${_xclang_target_lib}/asan/include/__config_site")
+    # x64 MSVC it names its library itself. Not with the platform's C++
+    # library (XCLANG_STDLIB=platform).
+    if(address IN_LIST _xclang_sanitizers AND XCLANG_STDLIB STREQUAL "libc++"
+       AND EXISTS "${_xclang_target_lib}/asan/include/__config_site")
         _xclang_add(COMPILE "$<$<COMPILE_LANGUAGE:CXX,OBJCXX>:-isystem${_xclang_target_lib}/asan/include>")
         if(EXISTS "${_xclang_target_lib}/asan/libc++.a")
             _xclang_add(LINK -nostdlib++ "${_xclang_target_lib}/asan/libc++.a")

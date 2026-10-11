@@ -11,6 +11,7 @@
 //!                                 crate gives them its --target, whose config
 //!                                 file (bin/<triple>.cfg) has the rest
 //!   CXXSTDLIB_<t>                 c++: libc++, for the cc crate's C++ code
+//!                                 (stdc++ for the platform's libstdc++)
 //!   CMAKE_TOOLCHAIN_FILE_<t>      <cache>/<Rust target>-toolchain.cmake, which
 //!                                 includes lib/cmake/xclang/toolchain.cmake
 //!                                 for the target (the cmake crate)
@@ -25,6 +26,13 @@
 //! the linker; macOS targets: MACOSX_DEPLOYMENT_TARGET, the toolchain's (13.0),
 //! and off macOS SDKROOT, the fetched SDK in use; on Windows, CMAKE_GENERATOR
 //! Ninja. A variable the environment has already is left as it is.
+//!
+//! XCLANG_STDLIB=platform builds C++ code with the platform's C++ library in
+//! place of xclang's libc++ (patches/0018): -stdlib=platform after the cc
+//! crate's CFLAGS and CXXFLAGS (CFLAGS_<t>, CXXFLAGS_<t>) and in the linker's
+//! clang, XCLANG_STDLIB in the cmake crate's toolchain file, and CXXSTDLIB_<t>
+//! stdc++ for Linux and MinGW targets, whose libstdc++ is the host's or that
+//! of a --sysroot the flags give.
 //!
 //! The targets are those of --target, else of build.target (--config,
 //! CARGO_BUILD_TARGET, cargo's config files), else the host's. Only those:
@@ -417,7 +425,7 @@ fn write(file: &Path, text: &str) -> Result<()> {
 }
 
 /// The cmake crate's toolchain file for t: xclang's, for the target.
-fn toolchain_file(root: &Path, cmake: &Path, t: &Target) -> String {
+fn toolchain_file(root: &Path, cmake: &Path, t: &Target, platform: bool) -> String {
     let mut text = format!(
         "# xclang cargo: the cmake crate's toolchain file for {}\n\
          set(XCLANG_ROOT \"{}\")\n\
@@ -426,6 +434,9 @@ fn toolchain_file(root: &Path, cmake: &Path, t: &Target) -> String {
         cmake_path(root),
         t.triple
     );
+    if platform {
+        text.push_str("set(XCLANG_STDLIB platform)\n");
+    }
     if t.kind == Kind::Mingw {
         // The cmake crate gives a MinGW target the C compiler's windres, by
         // its name, or else the C compiler: clang. With another than the
@@ -459,10 +470,13 @@ fn quote(word: &str) -> String {
 
 /// The directories clang searches for #include <...>, in order, for C or
 /// C++; a framework directory ends with " (framework directory)".
-fn search_dirs(clang: &Path, t: &Target, language: &str) -> Result<Vec<String>> {
+fn search_dirs(clang: &Path, t: &Target, platform: bool, language: &str) -> Result<Vec<String>> {
     let mut c = Command::new(clang);
-    c.arg(format!("--target={}", t.triple))
-        .args(["-E", "-x", language, "-", "-v"])
+    c.arg(format!("--target={}", t.triple));
+    if platform {
+        c.arg("-stdlib=platform");
+    }
+    c.args(["-E", "-x", language, "-", "-v"])
         .stdin(std::process::Stdio::null());
     let what = format!("{c:?}");
     let out = c.output().context(&what)?;
@@ -487,7 +501,7 @@ fn search_dirs(clang: &Path, t: &Target, language: &str) -> Result<Vec<String>> 
 /// libclang's then: those before them -isystem (-cxx-isystem for C++'s
 /// alone, libc++), those after -idirafter, as the config files order them
 /// (mingw-w64's headers come after clang's, which include_next them).
-fn bindgen_args(root: &Path, t: &Target) -> Result<String> {
+fn bindgen_args(root: &Path, t: &Target, platform: bool) -> Result<String> {
     let clang = root
         .join("bin")
         .join(format!("clang{}", env::consts::EXE_SUFFIX));
@@ -502,8 +516,8 @@ fn bindgen_args(root: &Path, t: &Target) -> Result<String> {
             None => (vec![], dirs),
         }
     };
-    let (c_before, c_after) = split(search_dirs(&clang, t, "c")?);
-    let (cxx_before, _) = split(search_dirs(&clang, t, "c++")?);
+    let (c_before, c_after) = split(search_dirs(&clang, t, platform, "c")?);
+    let (cxx_before, _) = split(search_dirs(&clang, t, platform, "c++")?);
     let mut args = vec![format!("--target={}", t.triple), "-nostdlibinc".into()];
     let mut add = |option: &str, dir: &str| match dir.strip_suffix(" (framework directory)") {
         Some(framework) => args.extend(["-iframework".into(), framework.to_string()]),
@@ -568,6 +582,37 @@ impl Env {
     fn default_for(&mut self, prefix: &str, t: &Target, value: impl Into<OsString>) {
         let name = format!("{prefix}_{}", t.rust.replace('-', "_"));
         self.default(&name, &[&format!("{prefix}_{}", t.rust)], value);
+    }
+
+    /// Set <prefix>_<target>, in both spellings, to what the cc crate takes
+    /// of its variables, the first of <prefix>_<target>, TARGET_<prefix> and
+    /// <prefix> that is set, followed by value.
+    fn append_for(&mut self, prefix: &str, t: &Target, value: &str) {
+        let names = [
+            format!("{prefix}_{}", t.rust),
+            format!("{prefix}_{}", t.rust.replace('-', "_")),
+        ];
+        let given = names
+            .iter()
+            .cloned()
+            .chain([format!("TARGET_{prefix}"), prefix.to_string()])
+            .find_map(|n| self.get(&n))
+            .map(|v| v.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let joined = format!("{given} {value}");
+        for name in names {
+            self.set(name, joined.trim());
+        }
+    }
+}
+
+/// XCLANG_STDLIB: libc++ (the default), xclang's; platform, the platform's
+/// C++ library (-stdlib=platform, patches/0018).
+pub fn platform_stdlib() -> Result<bool> {
+    match env::var("XCLANG_STDLIB").as_deref() {
+        Err(_) | Ok("") | Ok("libc++") => Ok(false),
+        Ok("platform") => Ok(true),
+        Ok(other) => bail!("XCLANG_STDLIB is {other}, not libc++ or platform"),
     }
 }
 
@@ -718,6 +763,7 @@ pub fn main(args: Vec<OsString>) -> Result<()> {
         crate::replace(cargo);
     }
     let strict = inv.compiles();
+    let platform = platform_stdlib()?;
     let toolchain = Toolchain::find(None)?;
     let root = toolchain.root;
     let bin = root.join("bin");
@@ -790,7 +836,17 @@ pub fn main(args: Vec<OsString>) -> Result<()> {
         );
         if t.kind != Kind::Msvc {
             e.default_for("RANLIB", t, tool("llvm-ranlib"));
-            e.default_for("CXXSTDLIB", t, "c++");
+            let stdlib = if platform && t.kind != Kind::Darwin {
+                "stdc++"
+            } else {
+                "c++"
+            };
+            e.default_for("CXXSTDLIB", t, stdlib);
+        }
+        if platform {
+            for prefix in ["CFLAGS", "CXXFLAGS"] {
+                e.append_for(prefix, t, "-stdlib=platform");
+            }
         }
         let cmake = root
             .join("lib")
@@ -799,7 +855,7 @@ pub fn main(args: Vec<OsString>) -> Result<()> {
             .join("toolchain.cmake");
         if cmake.is_file() {
             let file = cache.join(format!("{}-toolchain.cmake", t.rust));
-            write(&file, &toolchain_file(&root, &cmake, t))?;
+            write(&file, &toolchain_file(&root, &cmake, t, platform))?;
             e.default(
                 &var("CMAKE_TOOLCHAIN_FILE"),
                 &[
@@ -842,7 +898,7 @@ pub fn main(args: Vec<OsString>) -> Result<()> {
         ]
         .iter()
         .find_map(|n| e.get(n));
-        let mut value = bindgen_args(&root, t)?;
+        let mut value = bindgen_args(&root, t, platform)?;
         if let Some(given) = given {
             value.push(' ');
             value.push_str(&given.to_string_lossy());

@@ -29,10 +29,16 @@
 #                   fetch windows), with clang and clang++ (not clang-cl),
 #                   the hybrid CRT (CMAKE_MSVC_RUNTIME_LIBRARY is
 #                   MultiThreaded unless set) and libc++.
-#   XCLANG_MSVC_STL ON: an MSVC target's C++ library is Microsoft's STL, not
-#                   libc++ (-stdlib=platform in CMAKE_CXX_FLAGS), for C++
-#                   interfaces to libraries built with MSVC; xclang::std is
-#                   then the STL's. Ignored for other targets.
+#   XCLANG_STDLIB   libc++ (the default): the toolchain's libc++, and its
+#                   sysroot; platform: the platform's C++ library, for C++
+#                   interfaces to libraries built with it: -stdlib=platform
+#                   in the flags of every language, which selects the
+#                   target's bin/<triple>-system.cfg (patches/0018). That is
+#                   GCC's libstdc++ of this Linux, of a distribution's cross
+#                   packages or of the CMAKE_SYSROOT given (which the musl and
+#                   MinGW targets need), the SDK's libc++ for macOS and
+#                   Microsoft's STL for MSVC; xclang::std is the STL's, and
+#                   for the others the platform library's, where it has one.
 #   XCLANG_RUNTIMES source: libc++, libc++abi and libunwind built from the
 #                   toolchain's sources, with libc++'s hardening and ABI
 #                   options, without exceptions, and so on; prebuilt by
@@ -50,7 +56,7 @@ if(NOT EXISTS "${XCLANG_ROOT}/bin/x86_64-unknown-linux-gnu.cfg")
     message(FATAL_ERROR "xclang: no toolchain at ${XCLANG_ROOT}; set XCLANG_ROOT to an unpacked xclang")
 endif()
 # try_compile projects read this file again, without the cache.
-list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES XCLANG_ROOT XCLANG_TARGET XCLANG_MSVC_STL)
+list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES XCLANG_ROOT XCLANG_TARGET XCLANG_STDLIB)
 
 if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64|ARM64)$")
     set(_xclang_host_arch aarch64)
@@ -92,6 +98,25 @@ if(XCLANG_TARGET)
         set(_xclang_target_os darwin)
     else()
         set(_xclang_target_os linux)
+    endif()
+endif()
+
+if(NOT XCLANG_STDLIB)
+    set(XCLANG_STDLIB libc++)
+endif()
+if(NOT XCLANG_STDLIB MATCHES "^(libc\\+\\+|platform)$")
+    message(FATAL_ERROR "xclang: XCLANG_STDLIB is ${XCLANG_STDLIB}, not libc++ or platform")
+endif()
+if(XCLANG_STDLIB STREQUAL "platform")
+    # The platform's C++ library: -stdlib=platform on every compile and
+    # link, C's too, as it selects the sysroot of Linux, musl and MinGW
+    # targets as well (patches/0018).
+    foreach(_xclang_lang C CXX ASM OBJC OBJCXX)
+        string(APPEND CMAKE_${_xclang_lang}_FLAGS_INIT " -stdlib=platform")
+    endforeach()
+    if(_xclang_target_os MATCHES "^(musl|mingw)$" AND NOT CMAKE_SYSROOT)
+        message(FATAL_ERROR "xclang: XCLANG_STDLIB=platform takes the C++ library of a ${_xclang_target_os} target "
+            "from a sysroot that has one (an Alpine root, MSYS2's ucrt64), which the toolchain has not: set CMAKE_SYSROOT")
     endif()
 endif()
 
@@ -139,12 +164,6 @@ if(_xclang_target_os STREQUAL "msvc")
     # no Windows has.
     if(NOT DEFINED CMAKE_MSVC_RUNTIME_LIBRARY)
         set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreaded)
-    endif()
-    # libc++ comes from the config files (-stdlib=libc++); -stdlib=platform
-    # takes it away, and clang finds Microsoft's STL next to the CRT's
-    # headers.
-    if(XCLANG_MSVC_STL)
-        string(APPEND CMAKE_CXX_FLAGS_INIT " -stdlib=platform")
     endif()
     # With a debug CRT (MultiThreadedDebug, MultiThreadedDebugDLL), links
     # take no ucrt.lib, which the config files' hybrid CRT names in every
@@ -208,7 +227,9 @@ elseif(_xclang_target_os STREQUAL "musl" AND _xclang_host_os STREQUAL "linux" AN
     foreach(_xclang_lang C CXX ASM)
         set(CMAKE_${_xclang_lang}_COMPILER_TARGET "${XCLANG_TARGET}")
     endforeach()
-    set(CMAKE_SYSROOT "${XCLANG_ROOT}/${XCLANG_TARGET}")
+    if(XCLANG_STDLIB STREQUAL "libc++")
+        set(CMAKE_SYSROOT "${XCLANG_ROOT}/${XCLANG_TARGET}")
+    endif()
     set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
     set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
     set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
@@ -232,12 +253,14 @@ elseif(NOT _xclang_target_os STREQUAL _xclang_host_os OR NOT _xclang_target_arch
         set(CMAKE_RC_FLAGS_INIT "--target=${XCLANG_TARGET}")
     endif()
     # The sysroot the config file names (for MSVC targets, the SDK): what
-    # the build links is looked for there, not on this machine.
+    # the build links is looked for there, not on this machine. With the
+    # platform's C++ library, a Linux or MinGW target's is the CMAKE_SYSROOT
+    # given, or none.
     if(_xclang_target_os STREQUAL "msvc")
         if(EXISTS "${XCLANG_ROOT}/sdk/windows")
             set(CMAKE_FIND_ROOT_PATH "${XCLANG_ROOT}/sdk/windows")
         endif()
-    else()
+    elseif(XCLANG_STDLIB STREQUAL "libc++")
         set(CMAKE_SYSROOT "${XCLANG_ROOT}/${XCLANG_TARGET}")
     endif()
     set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)

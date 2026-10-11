@@ -1,0 +1,144 @@
+diff --git a/clang/include/clang/Driver/Driver.h b/clang/include/clang/Driver/Driver.h
+index eece9ac..b960509 100644
+--- a/clang/include/clang/Driver/Driver.h
++++ b/clang/include/clang/Driver/Driver.h
+@@ -300,6 +300,9 @@ private:
+   /// Paths to configuration files used.
+   std::vector<std::string> ConfigFiles;
+ 
++  /// Whether a -stdlib= selected the configuration file, <triple>-system.cfg.
++  bool StdlibSelectedConfig = false;
++
+   /// Allocator for string saver.
+   llvm::BumpPtrAllocator Alloc;
+ 
+diff --git a/clang/lib/Driver/Driver.cpp b/clang/lib/Driver/Driver.cpp
+index c4f750a..e2355fb 100644
+--- a/clang/lib/Driver/Driver.cpp
++++ b/clang/lib/Driver/Driver.cpp
+@@ -1357,6 +1357,22 @@ static bool findTripleConfigFile(llvm::cl::ExpansionContext &ExpCtx,
+   return ExpCtx.findConfigFile(Triple.str() + Suffix, ConfigFilePath);
+ }
+ 
++// Whether the last -stdlib= of the command line, in clang-cl the last
++// /clang:-stdlib=, names another C++ library than libc++.
++static bool selectsPlatformStdlib(const InputArgList &Args, bool CLMode) {
++  StringRef Stdlib;
++  for (const Arg *A : Args) {
++    if (A->getOption().matches(options::OPT_stdlib_EQ)) {
++      Stdlib = A->getValue();
++    } else if (CLMode && A->getOption().matches(options::OPT__SLASH_clang)) {
++      StringRef Value = A->getValue();
++      if (Value.consume_front("-stdlib="))
++        Stdlib = Value;
++    }
++  }
++  return !Stdlib.empty() && Stdlib != "libc++";
++}
++
+ bool Driver::loadDefaultConfigFiles(llvm::cl::ExpansionContext &ExpCtx) {
+   // Disable default config if CLANG_NO_DEFAULT_CONFIG is set to a non-empty
+   // value.
+@@ -1395,6 +1411,22 @@ bool Driver::loadDefaultConfigFiles(llvm::cl::ExpansionContext &ExpCtx) {
+   if (RealTriple.isOSzOS() && loadZOSCustomizationFile(ExpCtx))
+     return true;
+ 
++  // The platform's C++ library, and with it the platform's sysroot or SDK,
++  // in place of the toolchain's own: a -stdlib= of another library than
++  // libc++ (platform, libstdc++) selects <triple>-<mode>-system.cfg or
++  // <triple>-system.cfg where there is one. A configuration file that gives
++  // libc++ with -stdlib++-isystem, -L and --sysroot cannot be undone by
++  // the options that come after it.
++  if (selectsPlatformStdlib(*CLOptions, IsCLMode())) {
++    SmallString<128> SystemCfgPath;
++    if (findTripleConfigFile(ExpCtx, SystemCfgPath, Triple,
++                             "-" + RealMode + "-system.cfg") ||
++        findTripleConfigFile(ExpCtx, SystemCfgPath, Triple, "-system.cfg")) {
++      StdlibSelectedConfig = true;
++      return readConfigFile(SystemCfgPath, ExpCtx);
++    }
++  }
++
+   // Search for config files in the following order:
+   // 1. <triple>-<mode>.cfg using real driver mode
+   //    (e.g. i386-pc-linux-gnu-clang++.cfg).
+@@ -1506,6 +1538,11 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
+     }
+   }
+ 
++  // A -stdlib= that selected the configuration file has done its work, also
++  // in a C compile or a link, which have no use for it.
++  if (StdlibSelectedConfig)
++    Args.ClaimAllArgs(options::OPT_stdlib_EQ);
++
+   // Check for working directory option before accessing any files
+   if (Arg *WD = Args.getLastArg(options::OPT_working_directory))
+     if (VFS->setCurrentWorkingDirectory(WD->getValue()))
+diff --git a/clang/test/Driver/config-file-stdlib.c b/clang/test/Driver/config-file-stdlib.c
+new file mode 100644
+index 0000000..8cdf857
+--- /dev/null
++++ b/clang/test/Driver/config-file-stdlib.c
+@@ -0,0 +1,62 @@
++// A -stdlib= of another C++ library than libc++ selects <triple>-system.cfg,
++// and before it <triple>-<mode>-system.cfg, in place of the target's default
++// configuration file.
++
++// RUN: rm -rf %t && mkdir -p %t
++// RUN: echo "-DDEFAULT" > %t/x86_64-unknown-linux-gnu.cfg
++// RUN: echo "-DSYSTEM" > %t/x86_64-unknown-linux-gnu-system.cfg
++// RUN: echo "-DDEFAULT" > %t/aarch64-unknown-linux-gnu.cfg
++// RUN: echo "/DCL_DEFAULT" > %t/x86_64-pc-windows-msvc-clang-cl.cfg
++// RUN: echo "/DCL_SYSTEM" > %t/x86_64-pc-windows-msvc-clang-cl-system.cfg
++// RUN: touch %t/main.o
++
++// RUN: env -u CLANG_NO_DEFAULT_CONFIG %clang --config-system-dir=%t --config-user-dir= --target=x86_64-unknown-linux-gnu \
++// RUN:   -c -### %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
++// RUN: env -u CLANG_NO_DEFAULT_CONFIG %clang --config-system-dir=%t --config-user-dir= --target=x86_64-unknown-linux-gnu \
++// RUN:   -x c++ -stdlib=libc++ -c -### %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
++// RUN: env -u CLANG_NO_DEFAULT_CONFIG %clang --config-system-dir=%t --config-user-dir= --target=x86_64-unknown-linux-gnu \
++// RUN:   -x c++ -stdlib=platform -stdlib=libc++ -c -### %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
++// DEFAULT: Configuration file: {{.*}}x86_64-unknown-linux-gnu.cfg
++// DEFAULT: "-D" "DEFAULT"
++
++// RUN: env -u CLANG_NO_DEFAULT_CONFIG %clang --config-system-dir=%t --config-user-dir= --target=x86_64-unknown-linux-gnu \
++// RUN:   -x c++ -stdlib=platform -c -### %s 2>&1 | FileCheck %s --check-prefix=SYSTEM
++// RUN: env -u CLANG_NO_DEFAULT_CONFIG %clang --config-system-dir=%t --config-user-dir= --target=x86_64-unknown-linux-gnu \
++// RUN:   -x c++ -stdlib=libstdc++ -c -### %s 2>&1 | FileCheck %s --check-prefix=SYSTEM
++// RUN: env -u CLANG_NO_DEFAULT_CONFIG %clang --config-system-dir=%t --config-user-dir= --target=x86_64-unknown-linux-gnu \
++// RUN:   -x c++ -stdlib=libc++ --stdlib platform -c -### %s 2>&1 | FileCheck %s --check-prefix=SYSTEM
++// RUN: env -u CLANG_NO_DEFAULT_CONFIG %clang --config-system-dir=%t --config-user-dir= --target=x86_64-unknown-linux-gnu \
++// RUN:   -stdlib=platform -c -### %s 2>&1 | FileCheck %s --check-prefix=SYSTEM
++// SYSTEM-NOT: argument unused
++// SYSTEM: Configuration file: {{.*}}x86_64-unknown-linux-gnu-system.cfg
++// SYSTEM-NOT: argument unused
++// SYSTEM: "-D" "SYSTEM"
++
++// A link takes it without a word.
++// RUN: env -u CLANG_NO_DEFAULT_CONFIG %clang --config-system-dir=%t --config-user-dir= --target=x86_64-unknown-linux-gnu \
++// RUN:   -stdlib=platform %t/main.o -### 2>&1 | FileCheck %s --check-prefix=LINK
++// LINK: Configuration file: {{.*}}x86_64-unknown-linux-gnu-system.cfg
++// LINK-NOT: argument unused
++
++// A target without one: its default configuration file, and -stdlib= as before.
++// RUN: env -u CLANG_NO_DEFAULT_CONFIG %clang --config-system-dir=%t --config-user-dir= --target=aarch64-unknown-linux-gnu \
++// RUN:   -x c++ -stdlib=platform -c -### %s 2>&1 | FileCheck %s --check-prefix=NONE
++// NONE: Configuration file: {{.*}}aarch64-unknown-linux-gnu.cfg
++
++// --no-default-config: none at all.
++// RUN: env -u CLANG_NO_DEFAULT_CONFIG %clang --config-system-dir=%t --config-user-dir= --target=x86_64-unknown-linux-gnu \
++// RUN:   --no-default-config -x c++ -stdlib=platform -c -### %s 2>&1 | FileCheck %s --check-prefix=NOCFG
++// NOCFG-NOT: Configuration file:
++// NOCFG: "-cc1"
++
++// clang-cl: /clang:-stdlib=, and <triple>-clang-cl-system.cfg.
++// RUN: env -u CLANG_NO_DEFAULT_CONFIG %clang_cl --config-system-dir=%t --config-user-dir= --target=x86_64-pc-windows-msvc \
++// RUN:   /c -### -- %s 2>&1 | FileCheck %s --check-prefix=CL-DEFAULT
++// CL-DEFAULT: Configuration file: {{.*}}x86_64-pc-windows-msvc-clang-cl.cfg
++// CL-DEFAULT: "-D" "CL_DEFAULT"
++// RUN: env -u CLANG_NO_DEFAULT_CONFIG %clang_cl --config-system-dir=%t --config-user-dir= --target=x86_64-pc-windows-msvc \
++// RUN:   /clang:-stdlib=platform /c -### -- %s 2>&1 | FileCheck %s --check-prefix=CL-SYSTEM
++// CL-SYSTEM-NOT: argument unused
++// CL-SYSTEM: Configuration file: {{.*}}x86_64-pc-windows-msvc-clang-cl-system.cfg
++// CL-SYSTEM-NOT: argument unused
++// CL-SYSTEM: "-D" "CL_SYSTEM"

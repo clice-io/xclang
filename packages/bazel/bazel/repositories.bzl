@@ -140,12 +140,20 @@ def _toolchain_impl(rctx):
         if not rctx.path("bin/%s.cfg" % t.cfg).exists or not rctx.path("lib/clang/%s/lib/%s" % (clang_version, t.runtime)).exists:
             continue
         sdk = sdk_repository(host, target)
-        text = "%s\n-resource-dir=%s/lib/clang/%s\n" % (
-            _bazel_cfg(rctx, t.cfg + ".cfg", root, "../../%s/sdk.cfg" % Label("@%s//:sdk.cfg" % sdk).repo_name if sdk else None),
-            root,
-            clang_version,
-        )
+        sdk_cfg = "../../%s/sdk.cfg" % Label("@%s//:sdk.cfg" % sdk).repo_name if sdk else None
+        text = "%s\n-resource-dir=%s/lib/clang/%s\n" % (_bazel_cfg(rctx, t.cfg + ".cfg", root, sdk_cfg), root, clang_version)
         rctx.file("cfg/%s.cfg" % target, "# bin/%s.cfg for Bazel (bazel/repositories.bzl).\n%s" % (t.cfg, text))
+
+        # The platform's C++ library, for the MSVC and macOS targets
+        # (--@xclang//bazel:stdlib=platform, bazel/toolchain.bzl): none
+        # before the release that has bin/<target>-system.cfg.
+        if (t.libc == "msvc" or t.os == "macos") and rctx.path("bin/%s-system.cfg" % t.cfg).exists:
+            rctx.file("cfg/%s-system.cfg" % target, "# bin/%s-system.cfg for Bazel (bazel/repositories.bzl).\n%s\n-resource-dir=%s/lib/clang/%s\n" % (
+                t.cfg,
+                _bazel_cfg(rctx, t.cfg + "-system.cfg", root, sdk_cfg),
+                root,
+                clang_version,
+            ))
 
         # The same without the C++ library's headers, for the runtimes built
         # from source (bazel/runtimes.bzl), whose own take their place.

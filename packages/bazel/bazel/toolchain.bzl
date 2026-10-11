@@ -96,16 +96,36 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
     # too; the variant's __config_site and the other headers of libc++ in
     # their place, and their libraries in place of the prebuilt ones.
     runtimes = not msvc
-    source_any = Label("//runtimes:source_any")
     source_build = Label("//runtimes:source_build")
-    config_flag = ["--config=%s/%s" % (root, config)]
     runtime_compiler_files = []
     runtime_linker_files = []
+
+    # The platform's C++ library (--@xclang//bazel:stdlib=platform): the
+    # config file without xclang's libc++ (bin/<target>-system.cfg,
+    # patches/0018), for the MSVC targets Microsoft's STL, for the macOS
+    # ones the SDK's libc++. Only those: the others' is in a sysroot outside
+    # the toolchain. Nor with the runtimes from source, which are libc++.
+    system = msvc or t.os == "macos"
+    system_config = "cfg/%s-system.cfg" % target
+    config_flag = ["--config=%s/%s" % (root, config)]
+    system_flag = ["--config=%s/%s" % (root, system_config)]
     if runtimes:
-        config_flag = select({
-            source_any: ["--config=%s/cfg/%s-runtimes.cfg" % (root, target)],
-            "//conditions:default": config_flag,
-        })
+        configs = {
+            Label("//bazel:stdlib_libcxx_source"): ["--config=%s/cfg/%s-runtimes.cfg" % (root, target)],
+            Label("//bazel:stdlib_libcxx_prebuilt"): config_flag,
+        }
+        if system:
+            configs[Label("//bazel:stdlib_platform_prebuilt")] = system_flag
+    else:
+        configs = {
+            Label("//bazel:stdlib_libcxx"): config_flag,
+            Label("//bazel:stdlib_platform"): system_flag,
+        }
+    libcxx_prebuilt = Label("//bazel:stdlib_libcxx_prebuilt" if runtimes else "//bazel:stdlib_libcxx")
+    config_flag = select(configs, no_match_error = "xclang: --@xclang//bazel:stdlib=platform is for the MSVC " +
+                                                   "and macOS targets, not %s, and not with " % target +
+                                                   "--@xclang//runtimes:source, which builds libc++")
+    if runtimes:
         runtime_compiler_files = ["cfg/%s-runtimes.cfg" % target] + select({
             source_build: [":runtime_include"],
             "//conditions:default": [],
@@ -137,7 +157,8 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
     )
     native.filegroup(
         name = name + "_compiler_files",
-        srcs = [name + "_bin", config, scanner] + native.glob([resource + "/include/**"]) +
+        srcs = [name + "_bin", config, scanner] + native.glob([system_config], allow_empty = True) +
+               native.glob([resource + "/include/**"]) +
                native.glob([target + "/" + p for p in t.headers] + shared_headers, allow_empty = True) +
                # libc++'s ASan build: none in releases before 23.1.2.5.
                (native.glob([target + "/" + t.asan_libcxx + "/include/**"], allow_empty = True) if t.asan_libcxx else []) +
@@ -145,7 +166,7 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
     )
     native.filegroup(
         name = name + "_linker_files",
-        srcs = [name + "_bin", config] +
+        srcs = [name + "_bin", config] + native.glob([system_config], allow_empty = True) +
                native.glob([resource + "/lib/" + t.runtime + "/**"]) +
                # The MSVC targets' directory: none before libc++ for them.
                native.glob([target + "/" + p for p in t.libraries], allow_empty = msvc) +
@@ -198,7 +219,8 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
     # the __config_site names that library in every object in place of
     # the normal one, libc++asan-x86_64.lib in compiler-rt's directory,
     # where lld-link finds it: the link needs nothing of its own.
-    # With the runtimes from source, theirs are instrumented by the feature.
+    # With the runtimes from source, theirs are instrumented by the feature;
+    # with the platform's C++ library, there is none.
     asan_compile_flags = []
     asan_link_flags = []
     if t.asan_libcxx:
@@ -207,9 +229,8 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
         if not msvc:
             asan_link_flags = ["-nostdlib++", asan + "/libc++.a"]
         builtin_dirs.append("%s/%s/include" % (target, t.asan_libcxx))
-    if runtimes:
-        asan_compile_flags = select({source_any: [], "//conditions:default": asan_compile_flags})
-        asan_link_flags = select({source_any: [], "//conditions:default": asan_link_flags})
+    asan_compile_flags = select({libcxx_prebuilt: asan_compile_flags, "//conditions:default": []})
+    asan_link_flags = select({libcxx_prebuilt: asan_link_flags, "//conditions:default": []})
 
     # lld's --gc-sections, on for Linux and off for Windows (bazel/BUILD.bazel).
     gc_sections = [Label("//bazel:gc_sections_msvc" if msvc else "//bazel:gc_sections")]
@@ -336,9 +357,11 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
 def xclang_std_modules(name, target, root):
     """The std and std.compat modules of target's C++ library, as a
     cc_library: a target importing them depends on it and has the
-    cpp_modules feature. libc++'s; for an MSVC target, Microsoft's STL's
-    from the Windows SDK's repository (bazel/sdk.bzl) with the msvc_stl
-    feature, and in releases without libc++ for them (before 23.1.2.10).
+    cpp_modules feature. libc++'s. With the platform's C++ library
+    (--@xclang//bazel:stdlib=platform), for an MSVC target Microsoft's STL's,
+    from the Windows SDK's repository (bazel/sdk.bzl), as in releases
+    without libc++ for them (before 23.1.2.10); for a macOS target none, as
+    the SDK has no module sources.
 
     Args:
         name: the cc_library.
@@ -353,13 +376,23 @@ def xclang_std_modules(name, target, root):
         native.alias(
             name = name,
             actual = select({
-                Label("//bazel:msvc_stl"): stl,
+                Label("//bazel:stdlib_platform"): stl,
                 "//conditions:default": ":%s_libcxx" % name if libcxx else stl,
             }),
             visibility = ["//visibility:public"],
         )
         if not libcxx:
             return
+        name += "_libcxx"
+    elif TARGETS[target].os == "macos":
+        native.alias(
+            name = name,
+            actual = select({
+                Label("//bazel:stdlib_platform"): Label("//bazel:none"),
+                "//conditions:default": ":%s_libcxx" % name,
+            }),
+            visibility = ["//visibility:public"],
+        )
         name += "_libcxx"
     cc_library(
         name = name,

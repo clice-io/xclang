@@ -1,3 +1,4 @@
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc/toolchains:args.bzl", "cc_args")
@@ -162,13 +163,55 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
-# Microsoft's STL in place of libc++ for the MSVC targets, a feature of the
-# whole build (--features=msvc_stl), which @xclang//bazel:std follows
-# (bazel/toolchain.bzl): a module's importers take the options it was built
-# with.
+# The C++ library of the whole build: libc++, xclang's, or the platform's
+# (--@xclang//bazel:stdlib=platform), which the config file
+# <target>-system.cfg gives (bazel/toolchain.bzl): Microsoft's STL for the
+# MSVC targets, the SDK's libc++ for the macOS ones. The other targets take
+# their platform's library from a sysroot outside the toolchain, which the
+# build has not: they refuse it. @xclang//bazel:std follows it.
+string_flag(
+    name = "stdlib",
+    build_setting_default = "libc++",
+    values = [
+        "libc++",
+        "platform",
+    ],
+)
+
 config_setting(
-    name = "msvc_stl",
-    values = {"features": "msvc_stl"},
+    name = "stdlib_libcxx",
+    flag_values = {":stdlib": "libc++"},
+)
+
+config_setting(
+    name = "stdlib_platform",
+    flag_values = {":stdlib": "platform"},
+)
+
+# The same with the runtimes built from source (//runtimes:source) or not:
+# the config file of each.
+config_setting(
+    name = "stdlib_libcxx_source",
+    flag_values = {
+        ":stdlib": "libc++",
+        "//runtimes:source": "True",
+    },
+)
+
+config_setting(
+    name = "stdlib_libcxx_prebuilt",
+    flag_values = {
+        ":stdlib": "libc++",
+        "//runtimes:source": "False",
+    },
+)
+
+config_setting(
+    name = "stdlib_platform_prebuilt",
+    flag_values = {
+        ":stdlib": "platform",
+        "//runtimes:source": "False",
+    },
 )
 
 # The same with --features=asan, which @libclang follows (bazel/libclang.bzl).

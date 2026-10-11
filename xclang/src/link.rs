@@ -16,6 +16,9 @@
 //!             from Windows (ucrt.lib, not libucrt.lib)
 //!   MinGW, macOS  nothing but --target
 //!
+//! With XCLANG_STDLIB=platform (cargo.rs), clang links with -stdlib=platform
+//! too, the platform's C++ library and, for Linux, its libgcc_s.
+//!
 //! rustc gives the options in a response file, @<dir>/linker-arguments,
 //! when the command line would be too long; that file is read, and its
 //! options, changed, written to another for clang or lld-link.
@@ -33,6 +36,7 @@ use crate::{Context, Result};
 /// Link for t, with rustc's arguments.
 pub fn main(t: &Target, args: Vec<OsString>) -> Result<()> {
     let root = Toolchain::find(None)?.root;
+    let platform = crate::cargo::platform_stdlib()?;
     let bin = root.join("bin");
     let tool = |name: &str| bin.join(format!("{name}{}", env::consts::EXE_SUFFIX));
     let mut file = None;
@@ -60,9 +64,15 @@ pub fn main(t: &Target, args: Vec<OsString>) -> Result<()> {
             }
             (tool("lld-link"), args)
         }
-        _ => (tool("clang"), vec![format!("--target={}", t.triple)]),
+        _ => {
+            let mut args = vec![format!("--target={}", t.triple)];
+            if platform {
+                args.push("-stdlib=platform".into());
+            }
+            (tool("clang"), args)
+        }
     };
-    args.extend(filter(t.kind, given));
+    args.extend(filter(t.kind, platform, given));
     if t.kind == Kind::Msvc {
         // The objects of the VC runtime name PDBs that are not shipped.
         args.extend(
@@ -90,8 +100,9 @@ pub fn main(t: &Target, args: Vec<OsString>) -> Result<()> {
     crate::replace(command)
 }
 
-/// rustc's arguments, changed for xclang's sysroots and runtimes.
-fn filter(kind: Kind, args: Vec<String>) -> Vec<String> {
+/// rustc's arguments, changed for xclang's sysroots and runtimes; with the
+/// platform's C++ library, its sysroot, the Linux one's libgcc_s is real.
+fn filter(kind: Kind, platform: bool, args: Vec<String>) -> Vec<String> {
     let mut out = Vec::with_capacity(args.len());
     let mut args = args.into_iter().peekable();
     let rustlib = |path: &str| {
@@ -106,7 +117,7 @@ fn filter(kind: Kind, args: Vec<String>) -> Vec<String> {
     };
     while let Some(arg) = args.next() {
         match kind {
-            Kind::Linux if arg == "-lgcc_s" => out.push("-l:libunwind.a".into()),
+            Kind::Linux if arg == "-lgcc_s" && !platform => out.push("-l:libunwind.a".into()),
             Kind::Linux
                 if arg.starts_with("-B") && rustlib(&arg[2..]) && arg.ends_with("gcc-ld") => {}
             Kind::Linux
@@ -223,7 +234,7 @@ mod tests {
             "-B/my/tools",
         ]);
         assert_eq!(
-            filter(Kind::Linux, args),
+            filter(Kind::Linux, false, args),
             strings(&[
                 "-m64",
                 "a.o",
@@ -257,7 +268,7 @@ mod tests {
             "/my/self-contained/x.o",
         ]);
         assert_eq!(
-            filter(Kind::Musl, args),
+            filter(Kind::Musl, false, args),
             strings(&[
                 "-m64",
                 "a.o",
@@ -281,7 +292,7 @@ mod tests {
             "/OUT:a.exe",
         ]);
         assert_eq!(
-            filter(Kind::Msvc, args),
+            filter(Kind::Msvc, false, args),
             strings(&[
                 "/NOLOGO",
                 "a.o",
@@ -291,7 +302,7 @@ mod tests {
             ])
         );
         let args = strings(&["-lgcc_s", "-nostartfiles"]);
-        assert_eq!(filter(Kind::Mingw, args.clone()), args);
+        assert_eq!(filter(Kind::Mingw, false, args.clone()), args);
     }
 
     #[test]

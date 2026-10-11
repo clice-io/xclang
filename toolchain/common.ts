@@ -496,6 +496,13 @@ export function shareHeaders(tree: string): void {
 /// none here and which xclang sdk (xclang/) writes. They name libc++ where the
 /// tree has it (since 23.1.2.10): the config files of a release before it,
 /// repacked, stay with Microsoft's STL.
+///
+/// Each file has a second one, bin/<triple>-system.cfg (and
+/// <triple>-clang-cl-system.cfg), which a -stdlib= of another library than
+/// libc++ selects (patches/0018): the platform's C++ library in place of
+/// xclang's libc++, and for Linux, musl and MinGW the sysroot it comes with,
+/// the host's or --sysroot's, in place of the tree's. It keeps the SDK, the
+/// linker and the C runtime of the target's own file.
 export function writeConfigs(tree: string, host: Os): void {
   const bin = path.join(tree, "bin");
   fs.mkdirSync(bin, { recursive: true });
@@ -508,12 +515,16 @@ export function writeConfigs(tree: string, host: Os): void {
   /// Off Windows, the MSVC targets' SDK is the tree's sdk/windows, whatever
   /// the machine has.
   const libcxx = (t: Target) => fs.existsSync(path.join(libcxxTargetDir(tree, t), "__config_site"));
-  const msvc = (name: string, t: Target) => (host === "mingw" ? "" : config(`${name}-sysroot.cfg`, t)) +
-    config(`${name}.cfg`, t) + (libcxx(t) ? config(`${name}-libcxx.cfg`, t) : "");
+  const msvc = (name: string, t: Target, system: boolean) => (host === "mingw" ? "" : config(`${name}-sysroot.cfg`, t)) +
+    config(`${name}.cfg`, t) + (!system && libcxx(t) ? config(`${name}-libcxx.cfg`, t) : "");
+  const write = (name: string, own: string, system: string) => {
+    fs.writeFileSync(path.join(bin, `${name}.cfg`), own);
+    fs.writeFileSync(path.join(bin, `${name}-system.cfg`), system);
+  };
   for (const t of MSVC_TARGETS) {
     for (const name of cfgNames(t)) {
-      fs.writeFileSync(path.join(bin, `${name}.cfg`), msvc("msvc", t));
-      fs.writeFileSync(path.join(bin, `${name}-clang-cl.cfg`), msvc("msvc-clang-cl", t));
+      write(name, msvc("msvc", t, false), msvc("msvc", t, true));
+      write(`${name}-clang-cl`, msvc("msvc-clang-cl", t, false), msvc("msvc-clang-cl", t, true));
     }
     for (const sdk of [`${t.triple}-sdk.cfg`, `${t.triple}-clang-cl-sdk.cfg`]) {
       fs.writeFileSync(path.join(bin, sdk), config("msvc-no-sdk.cfg", t));
@@ -524,11 +535,16 @@ export function writeConfigs(tree: string, host: Os): void {
     /// <default target>.cfg, before it turns to the MSVC target: a plain
     /// clang-cl reads the clang-cl file of the MSVC target of its
     /// architecture, and none of the host target's options.
-    const cl = msvc("msvc-clang-cl", MSVC_TARGETS.find((m) => m.arch === t.arch)!);
-    const sdk = t.os !== "darwin" ? "" : config(host === "darwin" ? "darwin-xcode.cfg" : "darwin-sdk.cfg", t);
+    const m = MSVC_TARGETS.find((m) => m.arch === t.arch)!;
+    /// macOS: the SDK, the deployment target and the linker, then xclang's
+    /// libc++; the system's is the SDK's.
+    const own = t.os === "darwin"
+      ? config(host === "darwin" ? "darwin-xcode.cfg" : "darwin-sdk.cfg", t) + config("darwin.cfg", t)
+      : "";
     for (const name of cfgNames(t)) {
-      fs.writeFileSync(path.join(bin, `${name}.cfg`), sdk + config(`${t.os}.cfg`, t));
-      fs.writeFileSync(path.join(bin, `${name}-clang-cl.cfg`), cl);
+      if (t.os === "darwin") write(name, own + config("darwin-libcxx.cfg", t), own);
+      else write(name, config(`${t.os}.cfg`, t), config(`${t.os}-system.cfg`, t));
+      write(`${name}-clang-cl`, msvc("msvc-clang-cl", m, false), msvc("msvc-clang-cl", m, true));
     }
   }
 }
