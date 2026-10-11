@@ -8,6 +8,10 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+## [23.1.2.11](https://github.com/clice-io/xclang/releases/tag/23.1.2.11) — 2026-10-11
+
+Built by 23.1.2.6.
+
 - **Breaking: the switches to Microsoft's STL are renamed**, with no
   alias. The CMake package's `XCLANG_MSVC_STL=ON` is now
   `-DXCLANG_STDLIB=platform`, and the Bazel module's `--features=msvc_stl`
