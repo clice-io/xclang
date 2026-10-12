@@ -63,8 +63,8 @@ number of the same one.
    checks each host's archives against that release's, file by file
    (`tests/release/repack.ts`): only the packaging's files may differ.
 4. **Check the draft**: 17 assets, every job of the run green, sizes
-   against the previous release. Its commit is `bazel: the module of
-   <version>`, which the `release` stage commits on the run's, with its
+   against the previous release. Its commit is `bazel: the module
+   of <version>`, which the `release` stage commits on the run's, with its
    times, and pushes to the branch: `packages/bazel/bazel/versions.bzl`
    and `MODULE.bazel` name the release and its digests, so its tag, and
    `main` after it, download its archives through `git_override`.

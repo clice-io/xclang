@@ -300,10 +300,13 @@ for (const [page, { lines }] of parsed) {
 /// code span. Code blocks, code spans (which may span lines, not
 /// paragraphs) and comments are blanked first, keeping offsets for line
 /// numbers.
+/// A line that starts with `<word` is an HTML block to VitePress even in
+/// the middle of a code span that spans lines (GitHub's CommonMark keeps it
+/// in the span): such a span is reflowed so the line starts with a word.
 const HTML = new Set(["a", "br", "details", "summary", "div", "span", "sup", "sub", "kbd", "img", "table", "tr", "td", "th"]);
 for (const page of pages) {
   let fenced = false;
-  const text = fs
+  const outsideBlocks = fs
     .readFileSync(page, "utf8")
     .split("\n")
     .map((line) => {
@@ -311,7 +314,14 @@ for (const page of pages) {
       return fenced || /^\s*```/.test(line) ? " ".repeat(line.length) : line;
     })
     .join("\n")
-    .replace(/<!--[\s\S]*?-->|(`+)(?:(?!\n\s*\n)[\s\S])*?\1/g, (m) => m.replace(/[^\n]/g, " "));
+    .replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, " "));
+  outsideBlocks.split("\n").forEach((text, i) => {
+    const m = /^\s*<\/?([A-Za-z][\w-]*)/.exec(text);
+    if (m && !HTML.has(m[1]!.toLowerCase())) {
+      failures.push(`${path.relative(ROOT, page)}:${i + 1}: a line that starts with <${m[1]} is an HTML block to VitePress, also inside a code span: reflow it`);
+    }
+  });
+  const text = outsideBlocks.replace(/(`+)(?:(?!\n\s*\n)[\s\S])*?\1/g, (m) => m.replace(/[^\n]/g, " "));
   for (const m of text.matchAll(/<\/?([A-Za-z][\w-]*)[^<>\n]*>/g)) {
     if (HTML.has(m[1]!.toLowerCase())) continue;
     const line = text.slice(0, m.index).split("\n").length;
