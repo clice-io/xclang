@@ -66,8 +66,12 @@ bazel run //:hello
 ```
 
 It prints `hello from xclang: 3 targets, the first linux`. The module
-registers its toolchains itself. A library that only builds with xclang
-makes the `bazel_dep` a `dev_dependency`.
+registers its toolchains itself. Bazel tries the toolchains of a build's
+modules in the order of their `bazel_dep`s, so rules_cc's detection of the
+local compiler stays off (`.bazelrc` above), and a build with
+`apple_support` before `xclang` sets `BAZEL_NO_APPLE_CPP_TOOLCHAIN=1` too
+([variables](../reference/bazel-api.md#features)). A library that only
+builds with xclang makes the `bazel_dep` a `dev_dependency`.
 
 ## On a Windows Host
 

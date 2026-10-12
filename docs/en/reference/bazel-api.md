@@ -64,7 +64,7 @@ Windows unless it names one of those.
 | `gc_sections` | Linux targets: on in `opt`; Windows targets: off | lld's `--gc-sections`, lld-link's `/opt:ref` for the MSVC targets ([why not for Windows](../design/windows.md#gc-sections-and-static-initializers)) |
 | `thinlto_cache` | on | the linker's ThinLTO cache, with flags only when `XCLANG_THINLTO_CACHE` names a directory |
 | `generate_dsym_file` | off | macOS targets: the link makes `<name>.dSYM` (output group `dsyms`); `--apple_generate_dsym` turns it on for the build |
-| `supports_dynamic_linker` | off | Bazel's dynamic linking of libraries into tests and programs; off, they link statically |
+| `supports_dynamic_linker` | off | Bazel's dynamic linking of libraries into tests and programs, for the Linux targets; off, they link statically, as they do for the others always |
 | `release_strip` | on | what `<name>.stripped` does: `--strip-unneeded` for ELF and COFF, `--strip-all` for Mach-O ([strip](../features/debugging.md#strip)) |
 | `modules_embed_all_files` | on | a C++20 module interface's file embeds its sources (`-Xclang -fmodules-embed-all-files`): an importer that reads them (with `-g`) has them in the sandbox |
 | `no_exported_symbols` | macOS targets: on in `opt` | the program exports nothing (`-Wl,-no_exported_symbols`), so that its strip leaves no symbol to name a crash log's frames ([strip](../features/debugging.md#strip)); off for a program whose plugins bind to its symbols |
@@ -155,7 +155,8 @@ Given with `--repo_env=<name>=<value>`:
 | `XCLANG_THINLTO_CACHE` | an absolute directory for the ThinLTO cache of the linker; the module makes it ([the ThinLTO cache](../features/thinlto-cache.md#usage)) |
 | `XCLANG_ROOT` | an unpacked host toolchain to use instead of the release's |
 | `XCLANG_LIBCLANG_ROOT`, `XCLANG_LIBCLANG_ASAN_ROOT` | an unpacked host libclang, or its ASan build, to use instead of the release's |
-| `BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1` | Bazel's own: turns rules_cc's detection of a local compiler off, recommended |
+| `BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1` | rules_cc's: turns its detection of a local compiler off. Needed unless `xclang`'s `bazel_dep` comes before `rules_cc`'s: Bazel tries the toolchains of the modules in the order of their `bazel_dep`s, and rules_cc's of the local compiler takes the host's builds, and on Windows those of every Windows platform |
+| `BAZEL_NO_APPLE_CPP_TOOLCHAIN=1` | apple_support's: turns its toolchain of Xcode's clang off, which takes the macOS targets' builds on a Mac when `apple_support`'s `bazel_dep` comes before `xclang`'s |
 
 ## The Release
 

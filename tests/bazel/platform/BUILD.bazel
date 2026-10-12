@@ -1,4 +1,5 @@
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load(":generated.bzl", "generated")
 
 # A C++ program that throws, and says which C++ library caught it: with
 # --@xclang//bazel:stdlib=platform the platform's, Microsoft's STL or the
@@ -6,4 +7,17 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 cc_binary(
     name = "stdlib",
     srcs = ["stdlib.cpp"],
+)
+
+# A C++ tool the build runs, built for the host whatever the target and its
+# C++ library: --@xclang//bazel:stdlib=platform is the target's only, which
+# the host's toolchain may refuse.
+cc_binary(
+    name = "tool",
+    srcs = ["tool.cpp"],
+)
+
+generated(
+    name = "generated",
+    tool = ":tool",
 )

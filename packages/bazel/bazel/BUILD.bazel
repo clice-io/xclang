@@ -168,9 +168,12 @@ cc_library(
 # <target>-system.cfg gives (bazel/toolchain.bzl): Microsoft's STL for the
 # MSVC targets, the SDK's libc++ for the macOS ones. The other targets take
 # their platform's library from a sysroot outside the toolchain, which the
-# build has not: they refuse it. @xclang//bazel:std follows it.
+# build has not: they refuse it. @xclang//bazel:std follows it. Of the
+# target's build only: the tools a build runs (cfg = "exec") are built
+# with libc++, for a host whose toolchain may refuse the platform's.
 string_flag(
     name = "stdlib",
+    scope = "target",
     build_setting_default = "libc++",
     values = [
         "libc++",

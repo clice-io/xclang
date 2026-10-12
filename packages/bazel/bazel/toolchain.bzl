@@ -265,8 +265,11 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
     elif t.os == "macos":
         # The SDK is Xcode's. Its parent directory too: clang reports
         # SDKSettings.json under the versioned SDK name, not the symlink.
+        # The links' too: clang would ask xcrun again, in the actions'
+        # environment, without the DEVELOPER_DIR or SDKROOT that chose it.
         builtin_dirs += [xcode_sdk, xcode_sdk.rpartition("/")[0]]
         compile_flags += ["-isysroot", xcode_sdk]
+        link_flags += ["-isysroot", xcode_sdk]
     if t.os == "macos":
         opt_link_flags = ["-Wl,-dead_strip"]
         tool_paths["libtool"] = tool("llvm-libtool-darwin")

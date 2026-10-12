@@ -146,8 +146,10 @@ Windows, the default DLLs did not link at all.
 So the patched config turns `supports_dynamic_linker` off. Libraries link
 statically into tests and programs. `cc_binary(linkshared = True)` still
 makes a shared library (`libfoo.so`, `libfoo.dylib`, `foo.dll`), and
-`features = ["supports_dynamic_linker"]` gives a Bazel target the dynamic
-linking back.
+`features = ["supports_dynamic_linker"]` gives a Bazel target of a Linux
+target the dynamic linking back. rules_cc's configuration of the macOS
+targets has no such feature, and the Windows targets' DLLs do not link
+that way.
 
 ## Vendor SDKs as Repositories
 

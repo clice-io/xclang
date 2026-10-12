@@ -16,7 +16,8 @@
 ///       <dir>, which on-target.ts checks there; for x64 MSVC,
 ///       //asan:overflow with --features=asan, whose report on-target.ts
 ///       checks; for the MSVC and macOS targets, //platform:stdlib with
-///       --@xclang//bazel:stdlib=platform, the platform's C++ library, which
+///       --@xclang//bazel:stdlib=platform, the platform's C++ library (and
+///       //platform:generated, whose C++ tool is built for the host), which
 ///       the other targets refuse; for the MSVC targets, the runtimes from
 ///       source and their options refused
 ///   node tests/bazel/cross.ts registry <module> <ws>
@@ -241,13 +242,14 @@ function collect(workspace: string, target: string, out: string, args: string[])
   /// tests/bazel's //platform:stdlib with the platform's C++ library
   /// (--@xclang//bazel:stdlib=platform), with a toolchain that has the
   /// config files for it (23.1.2.11 and later): Microsoft's STL for the MSVC
-  /// targets, the SDK's libc++ for the macOS ones, which the program loads.
-  /// The other targets refuse it, saying why.
+  /// targets, the SDK's libc++ for the macOS ones, which the program loads;
+  /// and //platform:generated, which runs a C++ tool built for the host
+  /// with libc++. The other targets refuse it, saying why.
   const stdlib = "--@xclang//bazel:stdlib=platform";
   const system = target.endsWith("-pc-windows-msvc") || target.includes("-apple-");
   const configs = fs.readdirSync(path.join(toolchain, "bin")).some((f) => f.endsWith("-system.cfg"));
   if (fs.existsSync(path.join(workspace, "platform", "BUILD.bazel")) && configs && system) {
-    bazel(workspace, ["build", platform, ...options, stdlib, "//platform:stdlib"]);
+    bazel(workspace, ["build", platform, ...options, stdlib, "//platform:stdlib", "//platform:generated"]);
     const exe = target.includes("windows") ? ".exe" : "";
     const dir = path.join(out, "platform");
     fs.mkdirSync(dir, { recursive: true });
