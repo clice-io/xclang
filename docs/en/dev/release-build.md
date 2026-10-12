@@ -57,6 +57,7 @@ The bootstrap clang is an earlier xclang release, pinned with its sha256 in
 | 23.1.2.9 | 23.1.2.7's compiler, repacked |
 | 23.1.2.10 | 23.1.2.6 |
 | 23.1.2.11 | 23.1.2.6 |
+| 23.1.2.12 | 23.1.2.11's compiler, repacked |
 
 xclang builds itself with the same config files, runtimes and linker its
 users get, so the release pipeline is its first user. The bootstrap moves

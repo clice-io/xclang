@@ -8,6 +8,10 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+## [23.1.2.12](https://github.com/clice-io/xclang/releases/tag/23.1.2.12) — 2026-10-12
+
+The compiler and runtimes are 23.1.2.11's.
+
 - **Bazel: what the module cannot build stops the build at once**, saying
   why: `--@xclang//runtimes:source` and the flags beside it for the MSVC
   targets, which built against the prebuilt libc++ instead; those flags
