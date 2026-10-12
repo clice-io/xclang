@@ -1072,8 +1072,12 @@ jobs:
           EOF
           bazel build --platforms=@xclang//platforms:x86_64-pc-windows-msvc //:hello
           bazel build --platforms=@xclang//platforms:aarch64-apple-darwin //:hello
-          cp bazel-bin/hello.exe bazel-bin/hello "$RUNNER_TEMP/"
-          llvm-readobj --file-headers "$RUNNER_TEMP/hello.exe" "$RUNNER_TEMP/hello" | grep -E '^(Format|Arch):'
+          llvm-readobj --file-headers bazel-bin/hello.exe bazel-bin/hello | grep -E '^(Format|Arch):'
+          # Directories of their own: Git Bash takes hello for hello.exe.
+          dir=$RUNNER_TEMP/programs/x86_64-pc-windows-msvc/bazel-sdk-${{ matrix.host }}
+          mkdir -p "$dir" && cp bazel-bin/hello.exe ../cmake/expected.txt "$dir/"
+          dir=$RUNNER_TEMP/programs/aarch64-apple-darwin/bazel-sdk-${{ matrix.host }}
+          mkdir -p "$dir" && cp bazel-bin/hello ../cmake/expected.txt "$dir/"
           git checkout MODULE.bazel
           bazel shutdown
       - name: Programs to run on their targets
@@ -1096,8 +1100,6 @@ jobs:
           stage aarch64-apple-darwin cmake cmake/build-macos/hello cmake/expected.txt
           stage aarch64-apple-darwin cargo cargo/target/aarch64-apple-darwin/release/hello cargo/expected.txt
           stage x86_64-pc-windows-msvc cargo cargo/target/x86_64-pc-windows-msvc/release/hello.exe cargo/expected.txt
-          stage x86_64-pc-windows-msvc bazel "$RUNNER_TEMP/hello.exe" cmake/expected.txt
-          stage aarch64-apple-darwin bazel "$RUNNER_TEMP/hello" cmake/expected.txt
           find "$RUNNER_TEMP/programs" -type f | sort
       # What the steps before a failure built still runs on its target.
       - uses: actions/upload-artifact@v7
