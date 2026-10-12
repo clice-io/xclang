@@ -164,10 +164,8 @@ jobs:
           cmake --build build-aarch64-w64-mingw32
       # docs/en/features/runtimes-from-source.md: the runtimes built at the
       # first configure, with libc++'s hardening, and with MemorySanitizer
-      # on Linux. Not on the Windows hosts, whose runners take the longest
-      # to build them; test-cmake.yml builds them there.
+      # on Linux.
       - name: CMake, runtimes from source
-        if: runner.os != 'Windows'
         working-directory: examples/cmake
         run: |
           XCLANG=$PWD/../quickstart/.pixi/envs/default/opt/xclang
@@ -176,7 +174,7 @@ jobs:
               -DXCLANG_RUNTIMES=source -DXCLANG_LIBCXX_HARDENING=fast
           cmake --build build
           ls build/xclang-runtimes
-          ./build/hello | diff expected.txt -
+          ./build/hello | tr -d '\r' | diff expected.txt -
       - name: CMake, MemorySanitizer
         if: runner.os == 'Linux'
         working-directory: examples/cmake
