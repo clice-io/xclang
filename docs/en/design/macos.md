@@ -51,7 +51,9 @@ SDK a compile uses:
 | Linux, Windows | the last `-isysroot` of the command line, else `sdk/macos` |
 
 On Linux and Windows clang does not read `SDKROOT`: it does so only when
-there is no `-isysroot`, and the config file has one. Build systems that
+there is no `-isysroot`, and the config file has one. Nor does `--sysroot`
+take the SDK's place: compiles keep the config file's `-isysroot`, and only
+the link takes `--sysroot`'s libraries. Another SDK is `-isysroot`. Build systems that
 honor `SDKROOT` pass it as `-isysroot`, which wins: cargo and rustc, and
 the CMake package ([CMake](../integrations/cmake.md#build-for-macos-from-linux-or-windows)).
 Without the SDK, clang warns that `sdk/macos` does not exist and finds no

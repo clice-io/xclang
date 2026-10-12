@@ -60,7 +60,7 @@ clang++ -O2 -stdlib=platform --target=x86_64-pc-windows-msvc hello.cpp -o hello.
 |---|---|---|
 | Linux (glibc) | GCC's libstdc++, shared | this machine's; for another architecture, a distribution's cross packages (`g++-aarch64-linux-gnu`) or `--sysroot` |
 | Linux (musl) | the sysroot's libstdc++ | `--sysroot`, such as an Alpine root |
-| Windows (MinGW) | the sysroot's libstdc++ | `--sysroot`: MSYS2's `ucrt64`, or a distribution's mingw-w64 (`--sysroot=/usr` on Debian and Ubuntu) |
+| Windows (MinGW) | the sysroot's libstdc++ | `--sysroot`: MSYS2's `ucrt64`, or for a distribution's mingw-w64 a directory of two links, `x86_64-w64-mingw32` to `/usr/x86_64-w64-mingw32` and `lib/gcc` to `/usr/lib/gcc` on Debian and Ubuntu (`--sysroot=/usr` would add this machine's `/usr/include` and `/usr/lib`) |
 | macOS | the SDK's libc++, `/usr/lib/libc++.1.dylib` | the same as without it: Xcode's, or the one `xclang sdk fetch macos` fetched |
 | Windows (MSVC) | Microsoft's STL, linked statically with the hybrid CRT | the same as without it: the fetched SDK, or Visual Studio |
 
