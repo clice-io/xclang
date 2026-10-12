@@ -2,14 +2,20 @@
 ///
 ///   node packages/bazel/bazel.ts versions <SHA256SUMS>
 ///       packages/bazel/bazel/versions.bzl: the release's version and the
-///       sha256 of each of its archives
+///       sha256 of each of its archives; and the version of
+///       packages/bazel/MODULE.bazel
+///   node packages/bazel/bazel.ts check <SHA256SUMS>
+///       fails if those name an older release than that one, or that one
+///       with other digests (checks.yml, with the latest release's)
 ///   node packages/bazel/bazel.ts archive <SHA256SUMS> <dir>
 ///       <dir>/xclang-bazel-<version>.tar.gz: packages/bazel at that
 ///       release, its source archive in the clice Bazel registry
 ///       (published.yml publishes it); prints its integrity
 ///
-/// The release is tagged before its archives exist, so the module of the
-/// tag cannot hold their digests: the archive made here does.
+/// A release's archives are built before their digests exist, so its draft
+/// is made at a commit of its own (stage-draft.yml): the run's, with the
+/// module at the release (versions). Its tag, and main fast-forwarded to
+/// it, name the release: a git_override of either downloads its archives.
 
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -19,8 +25,8 @@ import * as common from "../../toolchain/common.ts";
 
 const MODULE = import.meta.dirname;
 const [command, sums, dir] = process.argv.slice(2);
-if (!sums || !["versions", "archive"].includes(command!) || (command === "archive" && !dir)) {
-  common.fail("versions <SHA256SUMS> | archive <SHA256SUMS> <dir>");
+if (!sums || !["versions", "check", "archive"].includes(command!) || (command === "archive" && !dir)) {
+  common.fail("versions <SHA256SUMS> | check <SHA256SUMS> | archive <SHA256SUMS> <dir>");
 }
 
 const archives = new Map<string, string>();
@@ -41,9 +47,40 @@ ${[...archives].sort(([a], [b]) => (a < b ? -1 : 1)).map(([f, sha]) => `    "${f
 }
 `;
 
+/// MODULE.bazel with the version of the module given.
+const moduleFile = path.join(MODULE, "MODULE.bazel");
+const versionsFile = path.join(MODULE, "bazel", "versions.bzl");
+const versioned = (module: string): string => {
+  const out = module.replace(/^(    version = )"[^"]*",$/m, `$1"${version}",`);
+  if (out === module && !module.includes(`version = "${version}"`)) common.fail("no version in MODULE.bazel");
+  return out;
+};
+
 if (command === "versions") {
-  fs.writeFileSync(path.join(MODULE, "bazel", "versions.bzl"), versions);
-  console.log(`packages/bazel/bazel/versions.bzl: ${version}, ${archives.size} archives`);
+  fs.writeFileSync(versionsFile, versions);
+  fs.writeFileSync(moduleFile, versioned(fs.readFileSync(moduleFile, "utf8")));
+  console.log(`packages/bazel: ${version}, ${archives.size} archives`);
+} else if (command === "check") {
+  const named = /^VERSION = "([^"]+)"$/m.exec(fs.readFileSync(versionsFile, "utf8"))?.[1] ?? "";
+  const declared = /^    version = "([^"]+)",$/m.exec(fs.readFileSync(moduleFile, "utf8"))?.[1] ?? "";
+  /// Versions compared part by part, as numbers.
+  const order = (a: string, b: string): number => {
+    const [x, y] = [a, b].map((v) => v.split(".").map(Number));
+    for (let i = 0; i < Math.max(x!.length, y!.length); i++) {
+      if ((x![i] ?? 0) !== (y![i] ?? 0)) return (x![i] ?? 0) - (y![i] ?? 0);
+    }
+    return 0;
+  };
+  const fix = `node packages/bazel/bazel.ts versions <its SHA256SUMS>`;
+  if (named !== declared) common.fail(`versions.bzl names ${named}, MODULE.bazel ${declared}: ${fix}`);
+  if (order(named, version) < 0) {
+    common.fail(`packages/bazel names ${named}, older than the release ${version}, whose archives a git_override ` +
+      `of this commit would not download: ${fix}`);
+  }
+  if (named === version && fs.readFileSync(versionsFile, "utf8") !== versions) {
+    common.fail(`versions.bzl names ${version} with other digests than its SHA256SUMS: ${fix}`);
+  }
+  console.log(`packages/bazel: ${named}, not older than ${version}`);
 } else {
   const name = `xclang-bazel-${version}`;
   const stage = path.join(common.WORK, "bazel-module");
@@ -57,10 +94,7 @@ if (command === "versions") {
     filter: (src) => !/^(bazel-.*|MODULE\.bazel\.lock|bazel\.ts|runtimes\.ts)$/.test(path.relative(MODULE, src)),
   });
   fs.copyFileSync(path.join(common.ROOT, "LICENSE"), path.join(root, "LICENSE"));
-  const module = fs.readFileSync(path.join(MODULE, "MODULE.bazel"), "utf8");
-  const versioned = module.replace(/^(    version = )"[^"]*",$/m, `$1"${version}",`);
-  if (versioned === module && !module.includes(`version = "${version}"`)) common.fail("no version in MODULE.bazel");
-  fs.writeFileSync(path.join(root, "MODULE.bazel"), versioned);
+  fs.writeFileSync(path.join(root, "MODULE.bazel"), versioned(fs.readFileSync(moduleFile, "utf8")));
   fs.writeFileSync(path.join(root, "bazel", "versions.bzl"), versions);
   /// The same bytes from the same files, on any host (tests/bazel/bazel.ts makes
   /// one on each): a ustar archive written here, sorted, with no owners or

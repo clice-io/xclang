@@ -22,6 +22,9 @@ name: checks
 # A change to one of these workflows, to on-target.yml, to the archives
 # action or to tests/lib runs what uses it. The release's own pipeline
 # (release.yml) is not among them: its stages build for hours.
+#
+# Every push also checks that the Bazel module names the latest release, or
+# a newer one (the bazel-version job).
 
 on:
   push:
@@ -74,6 +77,27 @@ jobs:
           area sdk '^(tests/sdk/|toolchain/config/|packages/cmake/|\.github/workflows/test-sdk\.yml)'
           area cli '^(xclang/|tests/cli/|tests/sdk/|packages/cmake/|\.github/workflows/cli\.yml)'
           area examples '^(examples/|\.github/workflows/examples\.yml)'
+
+  # packages/bazel names the latest release or a newer one, with its
+  # digests (packages/bazel/bazel.ts check): a git_override of this commit
+  # downloads archives that have what its rules use. stage-draft.yml moves
+  # it to each release, on the release's branch, which main then takes.
+  bazel-version:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: The release the module names
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
+          node packages/bazel/bazel.ts check "$RUNNER_TEMP/SHA256SUMS"
 
   archives:
     needs: changes

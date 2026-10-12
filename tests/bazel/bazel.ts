@@ -249,9 +249,9 @@ check(registered.executed === 0 && registered.hits > 0,
   `the registry's archive: ${registered.hits} actions from the disk cache, ${registered.executed} run`);
 
 /// git_override of the checkout's HEAD, a local repository for its remote.
-/// When HEAD's versions.bzl names another release (a tag's names the one
-/// before it, the previous of 4.), with a disk cache of its own: 4. would
-/// find that release's actions in the shared one.
+/// When HEAD's versions.bzl names another release (in a release's run,
+/// whose archives the draft's commit names), with a disk cache of its own:
+/// 4. would find that release's actions in the shared one.
 const head = common.capture("git", ["-C", common.ROOT, "rev-parse", "HEAD"]).trim();
 const same = common.capture("git", ["-C", common.ROOT, "show", "HEAD:packages/bazel/bazel/versions.bzl"]) === versions;
 const remote = common.ROOT.replaceAll("\\", "/");

@@ -66,11 +66,13 @@ the release run tests them with the new archives.
      empty Unreleased;
    - docs/en/dev/release-build.md: the release's row in the bootstrap
      chain table (a repack: "<previous>'s compiler, repacked").
-   Nothing else names a release: the docs, READMEs and examples/ reach the
-   newest by themselves (pixi `xclang = "*"`, `releases/latest`, the
-   `latest` branch for FetchContent), and the Bazel `bazel_dep` versions
+   Nothing else names a release by hand: the docs, READMEs and examples/
+   reach the newest by themselves (pixi `xclang = "*"`, `releases/latest`,
+   the `latest` branch for FetchContent), the Bazel `bazel_dep` versions
    are the oldest release they take, raised only when the docs need
-   something newer.
+   something newer, and the Bazel module's own version
+   (packages/bazel/bazel/versions.bzl, MODULE.bazel) is the draft's work
+   (step 4).
 3. **Full run, with a draft.**
    ```sh
    gh workflow run release.yml -R clice-io/xclang --ref exp/<version> \
@@ -109,7 +111,13 @@ the release run tests them with the new archives.
    profile 30 (`gh api repos/clice-io/xclang/actions/runs/<run>/artifacts
    -q '.artifacts[] | [.name, .expires_at] | @tsv'`). Past that, a repack
    cannot be made: a full rebuild it is.
-4. **Check the draft**: 17 assets (six toolchains, six libclang, two ASan
+4. **Check the draft**: its commit (`gh release view <version> --json
+   targetCommitish`) is `bazel: the module of <version>` on exp/<version>,
+   which the release stage committed on the run's commit, with its times,
+   and pushed: packages/bazel names the release and its digests, so the
+   tag and main name it too (a git_override of either downloads its
+   archives; checks.yml's bazel-version job fails while main names an
+   older one); a branch that moved during the run stops the stage. 17 assets (six toolchains, six libclang, two ASan
    libclang, option tables, profdata, SHA256SUMS), and every job of the
    run green: test (smoke and libclang on every host, the programs they
    build for other targets run there, repack's comparison), bazel, cmake,
@@ -125,13 +133,14 @@ the release run tests them with the new archives.
    A repack's begin: "A repack of <previous>: the compiler and runtimes
    are <previous>'s, the same bytes, from its build run <link to the full
    run>", then what of the packaging differs (the repack jobs' summaries).
-6. **Publish** (ask first; it creates the tag at the draft's commit). Every
-   release's title is its version alone:
+6. **Publish** (ask first; it creates the tag at the draft's commit, the
+   module's of step 4). Every release's title is its version alone:
    ```sh
    gh release edit <version> -R clice-io/xclang --title <version> \
      --notes-file notes.md --draft=false --latest
    ```
-   Then fast-forward main to `exp/<version>` (ask before pushing).
+   Then fast-forward main to `exp/<version>` (ask before pushing): main
+   takes the module of the release with it.
    Publishing starts published.yml, which does the rest; watch it:
    test-bazel.yml with the release's archives, then the tag's module
    (`xclang-bazel-<version>.tar.gz`) to bazel.clice.io through
