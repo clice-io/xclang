@@ -290,9 +290,12 @@ if(NOT EXISTS "${_xclang_install}/.xclang-runtimes")
             string(APPEND cache "set(LIBCXXABI_USE_LLVM_UNWINDER OFF CACHE BOOL \"\")\n")
             if(_xclang_llvm_sanitizers)
                 # The libraries look for the sanitizers' runtimes next to the
-                # builtins, which clang does not report there.
+                # builtins, which clang does not report there. They are cached
+                # by the compiler's target, which a macOS host's build has
+                # not: the toolchain file gives it CMAKE_OSX_ARCHITECTURES.
                 file(GLOB builtins "${XCLANG_ROOT}/lib/clang/*/lib/darwin/libclang_rt.osx.a")
                 string(APPEND cache "set(COMPILER_RT_LIBRARY_builtins_${_xclang_triple} \"${builtins}\" CACHE FILEPATH \"\")\n")
+                string(APPEND cache "set(COMPILER_RT_LIBRARY_builtins_ \"${builtins}\" CACHE FILEPATH \"\")\n")
             endif()
         else()
             string(APPEND cache "set(LLVM_ENABLE_RUNTIMES \"libunwind;libcxxabi;libcxx\" CACHE STRING \"\")\n")

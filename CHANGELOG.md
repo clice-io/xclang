@@ -17,7 +17,8 @@ the [patches](docs/en/reference/patches.md) of its tag.
 - The CMake package's `XCLANG_SANITIZER=memory` stops the configure for a
   target other than glibc's, instead of failing in the runtimes' build;
   and `XCLANG_RUNTIMES=source` works with the toolchain file of a checkout
-  of xclang (`XCLANG_ROOT`) too.
+  of xclang (`XCLANG_ROOT`) too, and with `XCLANG_SANITIZER=address` or
+  `thread` on a macOS host, where the runtimes' configure stopped.
 - `xclang_debug_symbols` (CMake) makes a macOS target's dSYM with
   dsymutil's classic DWARF linker, whose DWARF 5 line tables Apple's
   `atos` reads (the parallel one's crash it), and with the names of the
