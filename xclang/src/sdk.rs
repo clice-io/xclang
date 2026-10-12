@@ -9,10 +9,12 @@
 //! The SDK directory is <toolchain>/sdk, or --sdk-dir / $XCLANG_SDK_DIR for
 //! a toolchain installed where its user cannot write. Each SDK records
 //! what it was fetched from in .xclang-sdk.json, written last: a directory
-//! without it is incomplete. The SDK in use, the last fetched or the one
-//! `sdk use` names, is a link with the vendor's name (a junction on
-//! Windows), the fixed path the toolchain's config files read: a Windows
-//! SDK holds config files for the MSVC targets of each of its
+//! without it is incomplete. A fetch of an SDK there already keeps the old
+//! one aside until the new one is whole (replace), and a Windows SDK keeps
+//! its architectures, as its name has none. The SDK in use, the last
+//! fetched or the one `sdk use` names, is a link with the vendor's name (a
+//! junction on Windows), the fixed path the toolchain's config files read:
+//! a Windows SDK holds config files for the MSVC targets of each of its
 //! architectures, which name it (windows::write_configs), and the
 //! toolchain's bin/<triple>-sdk.cfg include them, or say there is none
 //! (windows::select_configs): its MSVC targets' config files then load
@@ -82,7 +84,8 @@ pub fn main(a: &mut Args) -> Result<()> {
         ["path", vendor] => {
             a.allow(&selection)?;
             let vendor = Vendor::parse(vendor)?;
-            let dir = sdk_dir(a)?.join(choose(a, &table, vendor)?.name());
+            let choice = choose(a, &table, vendor)?;
+            let dir = sdk_dir(a)?.join(choice.name());
             let Some(record) = read_record(&dir) else {
                 bail!(
                     "{} is not fetched: xclang sdk fetch {} --accept-license",
@@ -90,15 +93,18 @@ pub fn main(a: &mut Args) -> Result<()> {
                     vendor.name()
                 )
             };
-            if let Some(arch) = a.value("arch") {
-                for x in arch.split(',') {
-                    if !record.archs.iter().any(|r| r == x) {
-                        bail!(
-                            "{} has no {x}: fetch it again with --arch {arch}",
-                            dir.display()
-                        );
-                    }
-                }
+            // A fetch adds the architectures it is given to those the SDK
+            // has: the advice names them all.
+            if a.value("arch").is_some()
+                && let Choice::Windows { archs, .. } = &choice
+                && let Some(x) = archs.iter().find(|x| !record.archs.contains(x))
+            {
+                let all = arch_set(record.archs.iter().chain(archs).map(String::as_str));
+                bail!(
+                    "{} has no {x}: fetch it again with --arch {}",
+                    dir.display(),
+                    all.join(",")
+                );
             }
             println!("{}", dir.display());
             Ok(())
@@ -114,6 +120,8 @@ pub fn main(a: &mut Args) -> Result<()> {
             }
             select(a, &root)?;
             links::remove_tree(&dir).context(dir.display())?;
+            // And what an interrupted fetch of it left aside.
+            links::remove_tree(&aside(&dir)).context(aside(&dir).display())?;
             eprintln!("removed {}", dir.display());
             Ok(())
         }
@@ -262,13 +270,12 @@ fn choose<'a>(a: &Args, table: &'a Table, vendor: Vendor) -> Result<Choice<'a>> 
             )?;
             let msvc_want = msvc_given.or(preset.msvc.as_deref());
             let msvc = pick(w.msvc.keys(), msvc_want, "MSVC")?;
-            let archs: Vec<String> = a
+            let given: Vec<&str> = a
                 .value("arch")
                 .unwrap_or("x86_64,aarch64")
                 .split(',')
-                .map(String::from)
                 .collect();
-            for arch in &archs {
+            for arch in &given {
                 if ms_arch(arch).is_none() {
                     bail!("unknown architecture {arch}: x86_64, aarch64 or x86");
                 }
@@ -283,11 +290,22 @@ fn choose<'a>(a: &Args, table: &'a Table, vendor: Vendor) -> Result<Choice<'a>> 
             Ok(Choice::Windows {
                 msvc,
                 sdk,
-                archs,
+                archs: arch_set(given),
                 preset,
             })
         }
     }
+}
+
+/// The architectures given, each once (so that a package downloads once), in
+/// the table's order: x86_64, aarch64, x86.
+fn arch_set<'a>(given: impl IntoIterator<Item = &'a str>) -> Vec<String> {
+    let given: Vec<&str> = given.into_iter().collect();
+    table::MS_ARCH
+        .iter()
+        .filter(|(a, _)| given.contains(a))
+        .map(|(a, _)| String::from(*a))
+        .collect()
 }
 
 /// A package of the SDK the options select, and the name fetch gives it
@@ -382,12 +400,32 @@ fn fetch(a: &Args, table: &Table, vendor: Vendor) -> Result<()> {
         );
         std::process::exit(1);
     }
-    let choice = choose(a, table, vendor)?;
+    let mut choice = choose(a, table, vendor)?;
     let root = sdk_dir(a)?;
     fs::create_dir_all(&root).context(root.display())?;
     let root = links::canonical(&root)?;
     let name = choice.name();
     let dir = root.join(&name);
+    recover(&dir)?;
+    // The directory's name has no architectures: a fetch of a Windows SDK
+    // there already adds to those it has, rather than drop them.
+    let had: Vec<String> = match (&choice, read_record(&dir)) {
+        (Choice::Windows { msvc, sdk, .. }, Some(r))
+            if r.msvc.as_ref() == Some(msvc) && r.sdk.as_ref() == Some(sdk) =>
+        {
+            let (m, s) = (
+                table.windows.msvc.get(msvc).unwrap(),
+                table.windows.sdk.get(sdk).unwrap(),
+            );
+            let mut had = r.archs;
+            had.retain(|x| m.arch(x).is_some() && s.arch(x).is_some());
+            had
+        }
+        _ => vec![],
+    };
+    if let Choice::Windows { archs, .. } = &mut choice {
+        *archs = arch_set(archs.iter().chain(&had).map(String::as_str));
+    }
     // Downloads go to --cache and stay there, or next to the SDK for now.
     let (cache, keep) = match a.value("cache") {
         Some(c) => (PathBuf::from(c), true),
@@ -410,7 +448,7 @@ fn fetch(a: &Args, table: &Table, vendor: Vendor) -> Result<()> {
         );
     }
     let start = Instant::now();
-    let record = match &choice {
+    match &choice {
         Choice::Macos {
             version, package, ..
         } => {
@@ -445,22 +483,24 @@ fn fetch(a: &Args, table: &Table, vendor: Vendor) -> Result<()> {
                 start.elapsed().as_secs_f64()
             );
             let how = Links::parse(a.value("links"))?;
-            fresh_dir(&dir)?;
-            macos::unpack(&file, &dir, how)?;
-            Record {
-                kind: "macos".into(),
-                version: Some(version.clone()),
-                msvc: None,
-                sdk: None,
-                toolset: None,
-                sdk_directory: None,
-                archs: vec![],
-                packages: vec![Package {
-                    url: package.url.clone(),
-                    size: package.size,
-                    sha256: package.sha256.clone(),
-                }],
-            }
+            replace(&dir, || {
+                macos::unpack(&file, &dir, how)?;
+                let record = Record {
+                    kind: "macos".into(),
+                    version: Some(version.clone()),
+                    msvc: None,
+                    sdk: None,
+                    toolset: None,
+                    sdk_directory: None,
+                    archs: vec![],
+                    packages: vec![Package {
+                        url: package.url.clone(),
+                        size: package.size,
+                        sha256: package.sha256.clone(),
+                    }],
+                };
+                write_record(&dir, &record)
+            })?;
         }
         Choice::Windows {
             msvc, sdk, archs, ..
@@ -469,7 +509,11 @@ fn fetch(a: &Args, table: &Table, vendor: Vendor) -> Result<()> {
                 bail!("--links and --pkg are for macos");
             }
             let m = table.windows.msvc.get(msvc).unwrap();
-            eprintln!("MSVC {msvc} ({}), Windows SDK {sdk}", m.manifest);
+            let listed = archs.join(", ");
+            eprintln!(
+                "MSVC {msvc} ({}), Windows SDK {sdk}, for {listed}",
+                m.manifest
+            );
             let packages = downloads(table, &choice);
             let files = crate::parallel(&packages, 4, |d| {
                 let file = cache.join(&d.file);
@@ -488,28 +532,25 @@ fn fetch(a: &Args, table: &Table, vendor: Vendor) -> Result<()> {
                 mb(total),
                 start.elapsed().as_secs_f64()
             );
-            fresh_dir(&dir)?;
-            let archs_ref: Vec<&str> = archs.iter().map(String::as_str).collect();
-            let unpacked = windows::unpack(&files, &dir, &archs_ref)?;
-            let what = format!("MSVC {msvc} and the Windows SDK {sdk}");
-            windows::write_configs(&dir, archs, &unpacked, &what)?;
-            Record {
-                kind: "windows".into(),
-                version: None,
-                msvc: Some(msvc.clone()),
-                sdk: Some(sdk.clone()),
-                toolset: Some(unpacked.toolset),
-                sdk_directory: Some(unpacked.sdk_version),
-                archs: archs.clone(),
-                packages: packages.into_iter().map(|d| d.package).collect(),
-            }
+            replace(&dir, || {
+                let archs_ref: Vec<&str> = archs.iter().map(String::as_str).collect();
+                let unpacked = windows::unpack(&files, &dir, &archs_ref)?;
+                let what = format!("MSVC {msvc} and the Windows SDK {sdk}");
+                windows::write_configs(&dir, archs, &unpacked, &what)?;
+                let record = Record {
+                    kind: "windows".into(),
+                    version: None,
+                    msvc: Some(msvc.clone()),
+                    sdk: Some(sdk.clone()),
+                    toolset: Some(unpacked.toolset),
+                    sdk_directory: Some(unpacked.sdk_version),
+                    archs: archs.clone(),
+                    packages: packages.into_iter().map(|d| d.package).collect(),
+                };
+                write_record(&dir, &record)
+            })?;
         }
-    };
-    fs::write(
-        dir.join(RECORD),
-        serde_json::to_string_pretty(&record)? + "\n",
-    )
-    .context(dir.display())?;
+    }
     if !keep {
         links::remove_tree(&cache).context(cache.display())?;
     }
@@ -537,11 +578,76 @@ fn fetch(a: &Args, table: &Table, vendor: Vendor) -> Result<()> {
     Ok(())
 }
 
-/// An empty directory at dir, whatever was there.
-fn fresh_dir(dir: &Path) -> Result<()> {
+/// Unpack an SDK into dir, made empty, with `unpack`, which writes its
+/// record last. What was there waits aside meanwhile and is put back if
+/// unpack fails (a full disk; on Windows a file a program holds), so that
+/// an SDK in use stays usable; an interrupted fetch leaves that to the next
+/// (recover). The SDK unpacks where it stays, not elsewhere to be moved:
+/// the junctions of a macOS SDK on Windows hold absolute paths.
+fn replace(dir: &Path, unpack: impl FnOnce() -> Result<()>) -> Result<()> {
+    let old = aside(dir);
+    let kept = fs::symlink_metadata(dir).is_ok();
+    if kept && let Err(e) = fs::rename(dir, &old) {
+        bail!(
+            "{}: cannot move it aside to fetch it again ({e}), so nothing was changed; \
+             is a program using it?",
+            dir.display()
+        );
+    }
+    let result = fs::create_dir_all(dir)
+        .context(dir.display())
+        .and_then(|()| unpack());
+    match result {
+        Ok(()) => {
+            if let Err(e) = links::remove_tree(&old) {
+                eprintln!("{}: {e}; the next fetch removes it", old.display());
+            }
+            Ok(())
+        }
+        Err(e) if kept => {
+            let back = links::remove_tree(dir).and_then(|()| fs::rename(&old, dir));
+            if let Err(b) = back {
+                bail!(
+                    "{e}; {} could not be put back ({b}), which the next fetch does",
+                    dir.display()
+                );
+            }
+            eprintln!("{} is as it was", dir.display());
+            Err(e)
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// Where replace keeps what was at dir: <root>/.<name>.old.
+fn aside(dir: &Path) -> PathBuf {
+    let name = dir.file_name().unwrap_or_default().to_string_lossy();
+    dir.with_file_name(format!(".{name}.old"))
+}
+
+/// What an interrupted fetch left aside: put back if the SDK at dir is
+/// incomplete or gone, else removed.
+fn recover(dir: &Path) -> Result<()> {
+    let old = aside(dir);
+    if fs::symlink_metadata(&old).is_err() {
+        return Ok(());
+    }
+    if read_record(dir).is_some() {
+        return links::remove_tree(&old).context(old.display());
+    }
     links::remove_tree(dir).context(dir.display())?;
-    fs::create_dir_all(dir).context(dir.display())?;
+    fs::rename(&old, dir).context(dir.display())?;
+    eprintln!(
+        "{}: put back as it was before an interrupted fetch",
+        dir.display()
+    );
     Ok(())
+}
+
+/// The record of the SDK at dir, written last: a directory with it is whole.
+fn write_record(dir: &Path, record: &Record) -> Result<()> {
+    let text = serde_json::to_string_pretty(record)? + "\n";
+    fs::write(dir.join(RECORD), text).context(dir.display())
 }
 
 fn list(table: &Table, vendor: Option<Vendor>, root: Option<&Path>) -> Result<()> {
@@ -672,4 +778,47 @@ fn list_vendor(table: &Table, vendor: Vendor) -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn archs() {
+        assert_eq!(arch_set(["x86", "x86_64", "x86"]), ["x86_64", "x86"]);
+        assert_eq!(arch_set(["aarch64", "x86_64"]), ["x86_64", "aarch64"]);
+    }
+
+    #[test]
+    fn replaces() {
+        let root = std::env::temp_dir().join(format!("xclang-replace-{}", std::process::id()));
+        let dir = root.join("windows-msvc14.44-sdk10.0.26100");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("old"), "").unwrap();
+        // A failure puts back what was there.
+        let failed = replace(&dir, || {
+            fs::write(dir.join("new"), "")?;
+            bail!("disk full")
+        });
+        assert!(failed.is_err_and(|e| e.0.starts_with("disk full")));
+        assert!(dir.join("old").exists() && !dir.join("new").exists());
+        assert!(!aside(&dir).exists());
+        // Else the new one stays alone.
+        replace(&dir, || Ok(fs::write(dir.join("new"), "")?)).unwrap();
+        assert!(dir.join("new").exists() && !dir.join("old").exists());
+        assert!(!aside(&dir).exists());
+        // An interrupted fetch: what it left aside comes back while the SDK
+        // is incomplete,
+        fs::rename(&dir, aside(&dir)).unwrap();
+        fs::create_dir(&dir).unwrap();
+        recover(&dir).unwrap();
+        assert!(dir.join("new").exists() && !aside(&dir).exists());
+        // and goes once it is whole.
+        fs::create_dir(aside(&dir)).unwrap();
+        fs::write(dir.join(RECORD), r#"{"kind": "windows", "packages": []}"#).unwrap();
+        recover(&dir).unwrap();
+        assert!(dir.join("new").exists() && !aside(&dir).exists());
+        fs::remove_dir_all(&root).unwrap();
+    }
 }

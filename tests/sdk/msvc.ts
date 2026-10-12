@@ -163,6 +163,8 @@ const latest = fetch([]);
 const older = fetch(["--preset", "windows-2022", "--arch", "x86_64"]);
 const inUse = () => /^\s+(\S+)\s.*\(in use\)$/m.exec(xclang(["sdk", "list", "windows"]).out)?.[1];
 check(inUse() === older, `sdk list: ${older} in use after its fetch`);
+/// sdk use, and sdk list shows it in use.
+const useSdk = (name: string) => check(xclang(["sdk", "use", name]).status === 0 && inUse() === name, `sdk use ${name}`);
 /// The config files read the SDK in use through bin/<triple>-sdk.cfg and
 /// bin/<triple>-clang-cl-sdk.cfg, for the architectures it has, which the
 /// xclang command writes since 23.1.2.9. checks.yml tests this checkout's
@@ -174,6 +176,9 @@ const reads = (a: string) => ["", "-clang-cl"].every((cl) => fs.readFileSync(pat
   .split(/\r?\n/).includes(`@../sdk/windows/${a}-pc-windows-msvc${cl}.cfg`));
 const follows = (ok: boolean, what: string) => selects ? check(ok, what) : console.log(`SKIP ${what}: the tree's xclang is older`);
 follows(reads("x86_64") && !reads("aarch64"), `${older} in use: the x64 config files read it, the arm64 ones none`);
+/// The default preset's in use again, for every program but cpp-2022.
+useSdk(latest);
+follows(reads("x86_64") && reads("aarch64"), `sdk use ${latest}: the config files read it`);
 
 /// 3. Programs, built for both targets, and what they import.
 const int128 = write("int128.c", `#include <stdio.h>
@@ -320,13 +325,11 @@ for (const a of ["x86_64", "aarch64"]) {
     const dll = "clang_rt.asan_dynamic-x86_64.dll";
     fs.copyFileSync(path.join(common.resourceDir(tree), "lib", "windows", dll), path.join(dir, dll));
   }
-  /// The older SDK, in use for a moment: x64 only, as fetched.
+  /// The older SDK, in use for this program only: x64 only, as fetched.
   if (a === "x86_64") {
-    xclang(["sdk", "use", older]);
+    useSdk(older);
     build("cpp-2022", "clang++", ["-std=c++23", "-O2", cpp], cppOut, "hybrid");
-    xclang(["sdk", "use", latest]);
-    check(inUse() === latest, `sdk use ${latest}`);
-    follows(reads("x86_64") && reads("aarch64"), `sdk use ${latest}: the config files read it`);
+    useSdk(latest);
   }
   writePrograms(dir, programs);
   summary.push(`- ${triple}: ${programs.length} programs`);

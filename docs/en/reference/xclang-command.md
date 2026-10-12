@@ -14,8 +14,8 @@ its targets.
 xclang sdk list [macos|windows]
 xclang sdk fetch macos --accept-license [--preset P] [--version V]
 xclang sdk fetch windows --accept-license [--preset P] [--msvc-version V] [--sdk-version V] [--arch x86_64,aarch64,x86]
-xclang sdk path macos|windows [the options of fetch]
-xclang sdk packages macos|windows [the options of fetch] [--json]
+xclang sdk path macos|windows [the selection options of fetch]
+xclang sdk packages macos|windows [the selection options of fetch] [--json]
 xclang sdk use <name>
 xclang sdk remove <name>
 xclang target list
@@ -40,17 +40,25 @@ unpacks the SDK into a directory of its own:
 | command or option | |
 |---|---|
 | `--accept-license` | without it, fetch prints the vendor's license terms and stops |
-| `sdk path` | prints the directory that fetch, with the same options, fetches to: `-isysroot "$(xclang sdk path macos)"` |
-| `sdk packages` | prints what fetch, with the same options, downloads: each package's sha256, size and URL, or with `--json` `{"name": <the SDK's directory>, "packages": [{"url", "size", "sha256", "file"}]}`. A build system downloads them itself, under the names `file`, into a directory that `fetch --cache` then takes them from; the Bazel module does ([Bazel](../integrations/bazel.md#vendor-sdks)) |
+| `sdk path` | prints the directory that fetch, given the same selection options (`--preset`, `--version`, `--msvc-version`, `--sdk-version`, `--arch`), fetches to: `-isysroot "$(xclang sdk path macos)"`. With `--arch`, it fails if the SDK there lacks one of those architectures |
+| `sdk packages` | prints what fetch, given the same selection options, downloads for an SDK not fetched yet: each package's sha256, size and URL, or with `--json` `{"name": <the SDK's directory>, "packages": [{"url", "size", "sha256", "file"}]}`. A build system downloads them itself, under the names `file`, into a directory that `fetch --cache` then takes them from; the Bazel module does ([Bazel](../integrations/bazel.md#vendor-sdks)) |
 | `--cache <dir>` | fetch keeps its downloads in the directory, and takes from it those already there, by their sha256 |
 | `sdk list` | the presets and versions xclang knows, the defaults marked, the fetched SDKs, and those in use; `.xclang-sdk.json`, written last, records what an SDK was fetched from, and a directory without it is listed as incomplete |
 | `sdk use <name>` | makes a fetched SDK the one in use (below) |
 | `sdk remove <name>` | removes a fetched SDK, and its link if it is in use |
 | `--preset <image>` | the SDK versions of a GitHub runner image or label (`windows-2022`, `macos-15`); by default `windows-latest` and `macos-latest` |
 | `--version`, `--sdk-version`, `--msvc-version` | a version, whole or in part (`15`, `10.0.26100`, `14.44`), in place of the preset's; the newest that matches is taken |
+| `--arch <archs>` | the architectures of a Windows SDK, of `x86_64`, `aarch64` and `x86`; by default `x86_64,aarch64`. Fetched again, an SDK keeps the architectures it has: `--arch x86` adds x86 |
 | `--sdk-dir <dir>` | another directory for SDKs, for a toolchain installed read-only |
 | `--links <how>` | how fetch makes the macOS SDK's links: `junction`, junctions and hard links, the default on Windows; `symlink`, symbolic links, the default elsewhere; or `copy` |
 | `--root <dir>` | the toolchain the command acts on; by default the one it is in |
+
+Fetching an SDK that is there already unpacks it anew, and keeps the old
+one aside, as `.<name>.old`, until the new one is whole. If the fetch
+fails, the old one is put back, and stays usable. An interrupted fetch
+leaves that to the next one. The disk needs room for both meanwhile. If
+the old one cannot be moved aside, as on Windows while a program has one
+of its files open, the fetch stops, and the SDK stays as it was.
 
 ### The SDK in Use
 
@@ -74,6 +82,12 @@ macOS targets' config files name `sdk/macos` as their `-isysroot`
 hosts they use Xcode's SDK, and a fetched one takes `-isysroot`. An SDK
 fetched with `--sdk-dir` is outside the toolchain, where its config files
 do not look.
+
+On Windows, a junction holds an absolute path. When the toolchain
+directory moves, `xclang sdk use <name>` points `sdk/windows` or
+`sdk/macos` to the SDK at its new place again. A macOS SDK fetched with
+junctions, the default on Windows, has more of them inside: fetch it
+again after the move, or fetch it with `--links copy`, which makes none.
 
 ### Versions
 

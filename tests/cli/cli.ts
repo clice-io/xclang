@@ -2,12 +2,13 @@
 /// the tree's host:
 ///
 ///   node tests/cli/cli.ts --tree <xclang> --out <dir>
-///       sdk list; both SDKs fetched from the vendors into the tree; C, C++
+///       sdk list; both SDKs fetched from the vendors into the tree (the
+///       Windows SDK for x64, then for arm64, which adds to it); C, C++
 ///       and Objective-C programs cross-compiled against them for arm64 and
 ///       x86_64 macOS and for x64 and arm64 Windows (MSVC ABI), into
 ///       <dir>/<target>/cli-<host> (programs only: nothing of an SDK), which
 ///       tests/lib/on-target.ts runs on a machine of each target; target
-///       list, add and remove against a test index
+///       list, add and remove against a test index, and without one
 ///
 /// The programs and what they check are the SDK probe's (tests/sdk).
 
@@ -74,19 +75,34 @@ const release = /^release: (\S+)$/m.exec(version)?.[1] ?? "unknown";
 const list = xclang(["sdk", "list"]).out;
 check(/\(default\)/.test(list) && /14\.44\.17\.14/.test(list) && /26\.5/.test(list), "sdk list shows presets and versions");
 
-/// 2. The SDKs, from the vendors.
+/// 2. The SDKs, from the vendors. The Windows SDK for x64, then for arm64,
+/// which adds to it (its directory's name has no architectures): the
+/// second fetch downloads arm64's packages only, the others in --cache.
 const refused = xclang(["sdk", "fetch", "macos"], 1);
 check(/Apple/.test(refused.err), "sdk fetch without --accept-license shows the license");
 const sdks: Record<string, string> = {};
-for (const vendor of ["macos", "windows"]) {
+const cache = fs.mkdtempSync(path.join(os.tmpdir(), "xclang-cli-downloads-"));
+for (const [vendor, args] of [
+  ["macos", []],
+  ["windows", ["--arch", "x86_64", "--cache", cache]],
+  ["windows", ["--arch", "aarch64", "--cache", cache]],
+] as const) {
   const start = Date.now();
-  xclang(["sdk", "fetch", vendor, "--accept-license"]);
+  xclang(["sdk", "fetch", vendor, "--accept-license", ...args]);
   const seconds = ((Date.now() - start) / 1000).toFixed(0);
   sdks[vendor] = xclang(["sdk", "path", vendor]).out.trim();
-  summary.push(`- ${vendor} SDK: fetched and unpacked in ${seconds} s into ${sdks[vendor]}`);
+  summary.push(`- ${vendor} SDK${args.length ? ` for ${args[1]}` : ""}: fetched and unpacked in ${seconds} s into ${sdks[vendor]}`);
 }
+fs.rmSync(cache, { recursive: true, force: true });
 check(fs.existsSync(path.join(sdks.macos!, "SDKSettings.json")), "the macOS SDK has SDKSettings.json");
 check(fs.existsSync(path.join(sdks.windows!, "VC", "Tools", "MSVC")), "the /winsysroot has VC/Tools/MSVC");
+{
+  const record = JSON.parse(fs.readFileSync(path.join(sdks.windows!, ".xclang-sdk.json"), "utf8"));
+  const aside = path.join(path.dirname(sdks.windows!), `.${path.basename(sdks.windows!)}.old`);
+  check(JSON.stringify(record.archs) === JSON.stringify(["x86_64", "aarch64"]) &&
+    xclang(["sdk", "path", "windows", "--arch", "x86_64,aarch64"]).status === 0 && !fs.existsSync(aside),
+    `sdk fetch windows --arch aarch64 adds to the SDK's x86_64: ${record.archs}`);
+}
 check(/macos-26\.5/.test(xclang(["sdk", "list", "macos"]).out), "sdk list shows the fetched SDK");
 /// The MSVC targets' config files read the SDK in use through
 /// bin/<triple>-sdk.cfg, which fetch wrote: clang takes its headers, also
@@ -222,6 +238,16 @@ check(JSON.stringify(listTree()) === JSON.stringify(before), "the toolchain is a
 if (release !== "unknown") {
   fs.writeFileSync(indexFile, JSON.stringify(index("0.0.0.0")));
   xclang(["target", "add", triple, ...i], 1);
+}
+/// Without --index: the index of the toolchain's release on GitHub, which
+/// no release publishes yet (docs/en/design/roadmap.md#target-archives). A
+/// built-in target needs none.
+check(/built into/.test(xclang(["target", "add", "x86_64-w64-mingw32"]).err), "target add of a built-in target needs no index");
+if (release !== "unknown") {
+  const listed = xclang(["target", "list"]);
+  check(/x86_64-w64-mingw32\s+tier 1/.test(listed.out) && /publishes no target archives/.test(listed.err),
+    "target list without an index lists the built-in targets, and says none is published");
+  check(/publishes no target archives/.test(xclang(["target", "add", triple], 1).err), "target add without an index says none is published");
 }
 summary.push("- target list, add, remove: against a test index");
 

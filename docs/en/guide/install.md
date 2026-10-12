@@ -91,8 +91,11 @@ from `releases/download/$v`. `hello.cpp` is the one of the
 [quick start](quick-start.md). Put
 `xclang/bin` in `PATH`, or name the programs by their path. A Windows
 archive holds no symbolic links, so it unpacks without extra rights
-([launchers](../design/windows.md#the-launchers)). The other assets of a
-release, such as libclang, are listed in
+([launchers](../design/windows.md#the-launchers)). The vendor SDKs that
+`xclang sdk fetch` adds to it on Windows are reached through junctions,
+which hold absolute paths: once they are fetched, a toolchain that moves
+needs [its links made again](../reference/xclang-command.md#the-sdk-in-use).
+The other assets of a release, such as libclang, are listed in
 [releases](../reference/releases.md#assets).
 
 ## CMake FetchContent

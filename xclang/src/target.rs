@@ -15,9 +15,13 @@
 //! links: the target's directory, its compiler-rt in lib/clang/<major>/lib,
 //! its config files in bin/. What a target added is recorded in
 //! <toolchain>/lib/xclang/targets/<target>.json, which `remove` reads.
+//!
+//! No release publishes target archives yet
+//! (docs/en/design/roadmap.md#target-archives): its index is not found, and
+//! `list` and `add` say so.
 
 use std::fs::{self, File};
-use std::io::BufReader;
+use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -94,8 +98,26 @@ pub fn main(a: &mut Args) -> Result<()> {
         Some("add") if words.len() > 1 => {
             a.allow(&["index", "force"])?;
             let t = toolchain()?;
-            let (location, index) = load_index(&t, a.value("index"))?;
+            // A built-in target needs no index.
+            let mut wanted = vec![];
             for target in &words[1..] {
+                if built_in(target) {
+                    eprintln!("{target} is built into every toolchain");
+                } else {
+                    wanted.push(target.as_str());
+                }
+            }
+            if wanted.is_empty() {
+                return Ok(());
+            }
+            let Some((location, index)) = load_index(&t, a.value("index"))? else {
+                bail!(
+                    "cannot add {}: {}; xclang target list shows the built-in targets",
+                    wanted.join(" "),
+                    unpublished(&t)
+                )
+            };
+            for target in wanted {
                 add(&t, &location, &index, target, a.flag("force"))?;
             }
             Ok(())
@@ -132,12 +154,28 @@ fn installed(t: &Toolchain, target: &str) -> Option<Installed> {
     serde_json::from_slice(&fs::read(records(t).join(format!("{target}.json"))).ok()?).ok()
 }
 
-/// --index, $XCLANG_TARGET_INDEX, or the index of the toolchain's release.
-fn load_index(t: &Toolchain, given: Option<&str>) -> Result<(String, Index)> {
-    let location = match given
+fn built_in(target: &str) -> bool {
+    BUILT_IN.iter().any(|(b, _)| *b == target)
+}
+
+/// What a release without target archives says: no release publishes them
+/// yet.
+fn unpublished(t: &Toolchain) -> String {
+    format!(
+        "xclang {} publishes no target archives (planned: \
+         https://docs.clice.io/xclang/design/roadmap#target-archives)",
+        t.release().unwrap_or("?")
+    )
+}
+
+/// --index, $XCLANG_TARGET_INDEX, or the index of the toolchain's release;
+/// None if that release has none (GitHub answers 404).
+fn load_index(t: &Toolchain, given: Option<&str>) -> Result<Option<(String, Index)>> {
+    let given = given
         .map(String::from)
-        .or_else(|| std::env::var("XCLANG_TARGET_INDEX").ok())
-    {
+        .or_else(|| std::env::var("XCLANG_TARGET_INDEX").ok());
+    let on_github = given.is_none();
+    let location = match given {
         Some(l) => l,
         None => match t.release() {
             Some(v) => format!(
@@ -146,7 +184,22 @@ fn load_index(t: &Toolchain, given: Option<&str>) -> Result<(String, Index)> {
             None => bail!("the toolchain's release is unknown: name the target index with --index"),
         },
     };
-    let index: Index = serde_json::from_slice(&http::get(&location)?).context(&location)?;
+    let data = if on_github {
+        let response = match http::agent().get(location.as_str()).call() {
+            Err(ureq::Error::StatusCode(404)) => return Ok(None),
+            r => r.context(&location)?,
+        };
+        let mut data = vec![];
+        response
+            .into_body()
+            .into_reader()
+            .read_to_end(&mut data)
+            .context(&location)?;
+        data
+    } else {
+        http::get(&location)?
+    };
+    let index: Index = serde_json::from_slice(&data).context(&location)?;
     if index.schema > SCHEMA {
         bail!(
             "{location}: index schema {}, newer than this program reads ({SCHEMA})",
@@ -159,7 +212,7 @@ fn load_index(t: &Toolchain, given: Option<&str>) -> Result<(String, Index)> {
             index.version
         );
     }
-    Ok((location, index))
+    Ok(Some((location, index)))
 }
 
 fn list(t: &Toolchain, given: Option<&str>) -> Result<()> {
@@ -186,7 +239,7 @@ fn list(t: &Toolchain, given: Option<&str>) -> Result<()> {
         .unwrap_or_default();
     added.sort();
     match load_index(t, given) {
-        Ok((location, index)) => {
+        Ok(Some((location, index))) => {
             println!("From the index of xclang {} ({location}):", index.version);
             for (target, e) in index.targets.iter() {
                 let state = match installed(t, target) {
@@ -208,6 +261,7 @@ fn list(t: &Toolchain, given: Option<&str>) -> Result<()> {
             }
             added.retain(|a| !index.targets.contains(a));
         }
+        Ok(None) => eprintln!("{}", unpublished(t)),
         Err(e) => eprintln!("no index: {e}"),
     }
     if !added.is_empty() {
@@ -220,10 +274,6 @@ fn list(t: &Toolchain, given: Option<&str>) -> Result<()> {
 }
 
 fn add(t: &Toolchain, location: &str, index: &Index, target: &str, force: bool) -> Result<()> {
-    if BUILT_IN.iter().any(|(b, _)| *b == target) {
-        eprintln!("{target} is built into every toolchain");
-        return Ok(());
-    }
     let Some(e) = index.targets.get(target) else {
         let known: Vec<&str> = index.targets.keys().collect();
         bail!(
@@ -320,7 +370,7 @@ fn unpack(t: &Toolchain, file: &Path, force: bool) -> Result<Vec<String>> {
 }
 
 fn remove(t: &Toolchain, target: &str) -> Result<()> {
-    if BUILT_IN.iter().any(|(b, _)| *b == target) {
+    if built_in(target) {
         bail!("{target} is built into the toolchain, not added");
     }
     let Some(i) = installed(t, target) else {

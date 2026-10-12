@@ -148,9 +148,10 @@ xclang: fetches what the toolchain does not carry.
       the MSVC runtime and STL and the Windows SDK, from Microsoft, as a
       /winsysroot, which the toolchain's MSVC targets then use:
       clang++ --target=x86_64-pc-windows-msvc, clang-cl
-  xclang sdk path macos|windows [the options of fetch]
-      where the SDK fetch would fetch is
-  xclang sdk packages macos|windows [the options of fetch] [--json]
+  xclang sdk path macos|windows [the selection options of fetch]
+      where the SDK fetch would fetch is; the selection options are
+      --preset, --version, --msvc-version, --sdk-version and --arch
+  xclang sdk packages macos|windows [the selection options of fetch] [--json]
       what fetch would download, for a build system that downloads them
       itself (the Bazel module) and has fetch take them from --cache
   xclang sdk use <name>
@@ -175,7 +176,8 @@ Options:
   --version V        (macOS) the SDK version, whole or in part (26, 15.5)
   --msvc-version V   (Windows) MSVC's version, whole or in part (14.44)
   --sdk-version V    (Windows) the Windows SDK's version (10.0.26100)
-  --arch A,...       (Windows) x86_64, aarch64, x86; default x86_64,aarch64
+  --arch A,...       (Windows) x86_64, aarch64, x86; default x86_64,aarch64;
+                     fetching an SDK again keeps the ones it has
   --cache DIR        keep downloads in DIR (and take them from there)
   --links L          (macOS) symlink, junction or copy; default junction on
                      Windows, symlink elsewhere
