@@ -171,7 +171,8 @@ const useSdk = (name: string) => check(xclang(["sdk", "use", name]).status === 0
 /// config files in the latest release, whose command may be older: they
 /// then read no SDK, and on Windows clang takes Visual Studio.
 const version = /^xclang (\d+)\.(\d+)\.(\d+)\.(\d+)$/m.exec(xclang(["--version"]).out)?.slice(1).map(Number);
-const selects = !version || version.reduce((a, n) => a * 1000 + n, 0) >= [23, 1, 2, 9].reduce((a, n) => a * 1000 + n, 0);
+const command = (release: number[]) => !version || version.reduce((a, n) => a * 1000 + n, 0) >= release.reduce((a, n) => a * 1000 + n, 0);
+const selects = command([23, 1, 2, 9]);
 const reads = (a: string) => ["", "-clang-cl"].every((cl) => fs.readFileSync(path.join(tree, "bin", `${a}-pc-windows-msvc${cl}-sdk.cfg`), "utf8")
   .split(/\r?\n/).includes(`@../sdk/windows/${a}-pc-windows-msvc${cl}.cfg`));
 const follows = (ok: boolean, what: string) => selects ? check(ok, what) : console.log(`SKIP ${what}: the tree's xclang is older`);
@@ -302,9 +303,10 @@ for (const a of ["x86_64", "aarch64"]) {
   build("int128", "clang", ["-O2", int128], "int128 ", "hybrid");
   build("int128-cl", "clang-cl", ["/O2", "--", int128], "int128 ", "hybrid");
   // Libraries as Windows code names them, in mixed case: every
-  // architecture's (xclang/src/windows.rs fix_case).
-  build("win32", "clang", ["-O2", path.join(sources, "win32.c"), "-luser32", "-ladvapi32", "-lKernel32", "-lIphlpapi"],
-    "thread: 42", "hybrid");
+  // architecture's, from a command of 23.1.2.12 or later (xclang/src/windows.rs
+  // fix_case), whose fetch links them in each architecture's directory.
+  const mixed = command([23, 1, 2, 12]) ? ["-lKernel32", "-lIphlpapi"] : [];
+  build("win32", "clang", ["-O2", path.join(sources, "win32.c"), "-luser32", "-ladvapi32", ...mixed], "thread: 42", "hybrid");
   build("ubsan", "clang", ["-fsanitize=undefined", "-O1", ubsan], "signed integer overflow", null);
   build("profile", "clang", ["-fprofile-instr-generate", "-O1", profile], "profile ", "hybrid", { profile: true });
   if (a === "x86_64") {
