@@ -426,6 +426,11 @@ function sameFile(a: string, b: string): boolean {
 /// The directories of headers that targets share (shareHeaders).
 const SHARED_HEADERS = ["libc++/include/c++/v1", "mingw-w64/include"];
 
+/// libc++abi's headers, which libc++'s install puts with its own: of every
+/// target but the MSVC ones, whose libc++ is on vcruntime's ABI and has no
+/// __cxa_demangle for a <cxxabi.h> to declare (shareHeaders).
+const LIBCXXABI_HEADERS = ["cxxabi.h", "__cxxabi_config.h"];
+
 /// The directory of a target's own libc++ headers: its __config_site.
 export function libcxxTargetDir(tree: string, t: Target): string {
   return path.join(tree, "libc++", "include", normalized(t), "c++", "v1");
@@ -438,7 +443,9 @@ export function libcxxTargetDir(tree: string, t: Target): string {
 ///   libc++/include/<target>/c++/v1/   a target's __config_site, and any
 ///                                     other of its libc++ headers that
 ///                                     differs; <target> is clang's
-///                                     spelling (normalized())
+///                                     spelling (normalized()); and
+///                                     libc++abi's headers, of the targets
+///                                     that have libc++abi
 ///   mingw-w64/include/                mingw-w64's headers, of both
 ///                                     Windows targets
 ///
@@ -450,7 +457,8 @@ export function libcxxTargetDir(tree: string, t: Target): string {
 /// builds install them, <target>[/usr]/include/c++/v1 and a MinGW
 /// target's include; a header of a target that differs from the one
 /// already shared stays the target's own. A tree laid out so already is
-/// left as it is.
+/// left as it is, but for libc++abi's headers, which a tree of before
+/// 23.1.2.12 shares with the MSVC targets.
 export function shareHeaders(tree: string): void {
   /// Move from's files into shared, or into own those that differ from
   /// shared's (null: leave them in from); then remove from's empty
@@ -483,6 +491,15 @@ export function shareHeaders(tree: string): void {
     if (fs.existsSync(cxx) && fs.readdirSync(cxx).length === 0) fs.rmdirSync(cxx);
     if (t.os === "mingw") move(include, path.join(tree, ...SHARED_HEADERS[1]!.split("/")), null);
     else if (fs.existsSync(include) && fs.readdirSync(include).length === 0) fs.rmdirSync(include);
+  }
+  for (const name of LIBCXXABI_HEADERS) {
+    const shared = path.join(tree, ...SHARED_HEADERS[0]!.split("/"), name);
+    if (!fs.existsSync(shared)) continue;
+    for (const t of TARGETS) {
+      const own = libcxxTargetDir(tree, t);
+      if (fs.existsSync(path.join(own, "__config_site"))) fs.copyFileSync(shared, path.join(own, name));
+    }
+    fs.rmSync(shared);
   }
 }
 

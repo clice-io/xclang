@@ -3,7 +3,8 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 # The C++ runtimes built from source (--@xclang//runtimes:source), as
 # tests/bazel/runtimes.ts builds these once per variant and runs them: what
 # the program says of its libc++ (namespace, hardening mode, exceptions),
-# libc++'s own code writing a stream, a read past a vector's end, a use of
+# libc++'s own code writing a stream, libc++abi's demangler by its header
+# <cxxabi.h>, a read past a vector's end, a use of
 # uninitialized memory inside libc++; and import std of the variant.
 cc_binary(
     name = "variant",

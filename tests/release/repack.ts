@@ -5,12 +5,14 @@
 ///   node tests/release/repack.ts --previous <dir> --dist <dir>
 ///
 /// Every archive of <dist> has its counterpart in <previous>, the version
-/// in the name aside. Each pair is read as a stream (xz | tar, nothing
+/// in the name aside, and every one of <previous> its counterpart in
+/// <dist>. Each pair is read as a stream (xz | tar, nothing
 /// unpacked), and every member compared: its kind, mode, link target and
 /// the sha256 of its bytes. Only what toolchain/package.ts writes from the
 /// checkout may differ: the config files, the CMake package, the xclang
-/// command, the license notices and the runtimes' sources (libc++/src,
-/// from the pinned LLVM source and patches/). Any other file that differs, comes or
+/// command, the license notices, the runtimes' sources (libc++/src,
+/// from the pinned LLVM source and patches/) and where libc++abi's headers
+/// are (common.shareHeaders). Any other file that differs, comes or
 /// goes fails the check; the programs, libraries and headers are the
 /// earlier release's, byte for byte. The members that differ are listed,
 /// also in the job summary.
@@ -34,6 +36,8 @@ const PACKAGING = [
   /^share\/licenses(\/|$)/,
   /^LICENSE$/,
   /^libc\+\+\/src(\/|$)/,
+  // libc++abi's headers, the MSVC targets' no longer (common.shareHeaders).
+  /^libc\+\+\/include\/([^/]+\/)?c\+\+\/v1\/(cxxabi\.h|__cxxabi_config\.h)$/,
 ];
 
 /// xclang-<version>-<host>.tar.xz and the like, keyed by the name without
@@ -155,6 +159,9 @@ const dist = archives(values.dist);
 if (!dist.size) common.fail(`no archives in ${values.dist}`);
 const lines: string[] = [];
 let unexpected = 0;
+for (const [key, file] of [...previous].sort()) {
+  if (!dist.has(key)) common.fail(`${path.basename(file)} has no counterpart in ${values.dist}`);
+}
 for (const [key, file] of [...dist].sort()) {
   const before = previous.get(key);
   if (!before) common.fail(`${path.basename(file)} has no counterpart in ${values.previous}`);

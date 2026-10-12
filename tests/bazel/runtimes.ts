@@ -133,7 +133,7 @@ for (const v of variants) {
   if (!built) continue;
   const r = run(built.variant);
   expect(`${v.name}: variant`, r.status === 0 &&
-    r.output.includes(`namespace ${v.namespace} hardening ${v.mode} exceptions ${v.exceptions}\nstream: 42 3.5`) &&
+    r.output.includes(`namespace ${v.namespace} hardening ${v.mode} exceptions ${v.exceptions}\nstream: 42 3.5\ndemangled: f()`) &&
     !r.output.includes("Sanitizer"), r.output);
   const s = run(built.std);
   expect(`${v.name}: import std`, s.status === 0 && s.output.includes("3 elements"), s.output);

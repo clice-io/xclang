@@ -514,6 +514,16 @@ for (const a of ["x86_64", "aarch64"]) {
   }
   for (const file of files) if (!fs.existsSync(file)) failures.push(`missing ${file}`);
 }
+/// libc++abi's <cxxabi.h> for the targets that have libc++abi, and not for
+/// the MSVC targets, whose libc++ is on vcruntime's ABI: a program that
+/// finds it there calls an __cxa_demangle no library has.
+const cxxabi = write("cxxabi.cpp", "#if __has_include(<cxxabi.h>)\n#error cxxabi.h\n#endif\n");
+const abi: [string, boolean][] = [[native, true]];
+if (msvcLibcxx) abi.push(["x86_64-pc-windows-msvc", false], ["aarch64-pc-windows-msvc", false]);
+for (const [t, found] of abi) {
+  const result = spawnSync(tool("clang++"), [`--target=${t}`, "-fsyntax-only", cxxabi], { encoding: "utf8", cwd: work });
+  if ((result.status !== 0) !== found) failures.push(`<cxxabi.h> ${found ? "not " : ""}found for ${t}: ${result.stderr}`);
+}
 /// Visual Studio through its Setup API (patches/0004), with none of a
 /// Developer Command Prompt's variables, on a Windows host that has it.
 const vswhere = path.join(process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)", "Microsoft Visual Studio", "Installer", "vswhere.exe");

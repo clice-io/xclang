@@ -313,7 +313,9 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
         opt_compile_flags = ["-O2", "-DNDEBUG", "-ffunction-sections", "-fdata-sections"],
         opt_link_flags = opt_link_flags,
         runtime_include = select({source_build: ":runtime_include", "//conditions:default": None}) if runtimes else None,
-        runtime_include_dirs = [root + "/libc++/include/c++/v1"],
+        # libc++'s headers, then the target's own for libc++abi's (from
+        # 23.1.2.12), whose __config_site the variant's comes before.
+        runtime_include_dirs = [root + "/libc++/include/c++/v1", "%s/libc++/include/%s/c++/v1" % (root, t.cfg)],
         runtime_libraries = select({source_build: [":runtime_libraries"], "//conditions:default": []}) if runtimes else [],
         # macOS unwinds with the system's libunwind.
         runtime_link_flags = ["-nostdlib++"] + ([] if t.os == "macos" else ["--unwindlib=none"]),

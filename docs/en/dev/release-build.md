@@ -98,9 +98,10 @@ A **repack** runs `package`, the tests and `release` only, with
 release: the same compiler, runtimes, libclang and profile, with the
 packaging of the checkout ([releasing](releasing.md#full-rebuild-or-repack)).
 Its input `repack-of` adds to the `test` stage the comparison of each
-host's archives with that release's, file by file: only the config files,
-the CMake package, the `xclang` command, the license notices and the
-runtimes' sources (`libc++/src`) may differ. `repack-of` can also name a
+host's archives with that release's, file by file, both ways: only the
+config files, the CMake package, the `xclang` command, the license
+notices, the runtimes' sources (`libc++/src`) and where libc++abi's
+headers are may differ, and no archive may be missing. `repack-of` can also name a
 run of the same revision instead of a release: a full rebuild with that run's profile (`profile-run`) must then
 give its archives again, but for the Windows hosts' `llvm.exe` until the
 bootstrap has patch 0017

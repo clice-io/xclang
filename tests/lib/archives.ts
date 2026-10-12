@@ -6,8 +6,9 @@
 ///       they are released
 ///   node tests/lib/archives.ts --host <triple> --out <dir> --release <tag|latest>
 ///       a published release's, downloaded from GitHub and checked against
-///       its SHA256SUMS, with this checkout's config files and CMake package
-///       in the toolchain, and the runtimes' sources if it has none (before
+///       its SHA256SUMS, with this checkout's config files, CMake package
+///       and layout of the shared headers (common.shareHeaders) in the
+///       toolchain, and the runtimes' sources if it has none (before
 ///       23.1.2.11): what a repack of the release would ship
 ///       (toolchain/package.ts writes the same), so that a change to them is
 ///       tested before any build
@@ -75,10 +76,11 @@ for (const f of fs.readdirSync(dist).filter(mine).sort()) common.run(tar, ["-xf"
 const tree = path.join(out, "xclang");
 if (!fs.existsSync(path.join(tree, "bin"))) common.fail(`no toolchain in ${out}`);
 if (values.release) {
+  common.shareHeaders(tree);
   common.writeConfigs(tree, host.os);
   common.writeCMakePackage(path.join(tree, "lib", "cmake", "xclang"), version);
   if (!fs.existsSync(path.join(tree, "libc++", "src"))) await runtimesSources(path.join(tree, "libc++", "src"));
-  console.log(`${tree}: ${version}, with this checkout's config files, CMake package and runtimes' sources`);
+  console.log(`${tree}: ${version}, with this checkout's config files, CMake package, shared headers and runtimes' sources`);
 }
 
 const slash = (p: string) => p.replaceAll("\\", "/");
