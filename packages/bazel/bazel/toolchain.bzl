@@ -16,7 +16,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc/toolchains:cc_toolchain.bzl", "cc_toolchain")
 load("@xclang_unix_config//cc/private/toolchain:unix_cc_toolchain_config.bzl", "cc_toolchain_config")
 load(":hosts.bzl", "MACOS_MIN", "TARGETS", "sdk_repository")
-load(":runtimes.bzl", "xclang_runtimes")
+load(":runtimes.bzl", "xclang_runtimes", "xclang_runtimes_check")
 load(":unsupported.bzl", "xclang_unsupported_toolchain")
 
 def xclang_host_toolchains(host, clang_version, root, absolute_root, xcode_sdk = None):
@@ -151,13 +151,24 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
     sdk_compiler_files = [Label("@%s//:compiler_files" % sdk)] if sdk else []
     sdk_linker_files = [Label("@%s//:linker_files" % sdk)] if sdk else []
 
+    # What of //runtimes and the sanitizer features the target cannot build
+    # fails the toolchain's analysis, saying why: the runtimes from source
+    # on an MSVC target, their options without them, and MemorySanitizer
+    # without them or on another target than the glibc ones.
+    xclang_runtimes_check(
+        name = name + "_check",
+        msan = t.libc == "glibc",
+        msvc = msvc,
+        target = target,
+    )
+
     native.filegroup(
         name = name + "_bin",
         srcs = native.glob(["bin/**"]) + dsym_link,
     )
     native.filegroup(
         name = name + "_compiler_files",
-        srcs = [name + "_bin", config, scanner] + native.glob([system_config], allow_empty = True) +
+        srcs = [name + "_bin", name + "_check", config, scanner] + native.glob([system_config], allow_empty = True) +
                native.glob([resource + "/include/**"]) +
                native.glob([target + "/" + p for p in t.headers] + shared_headers, allow_empty = True) +
                # libc++'s ASan build: none in releases before 23.1.2.5.
@@ -166,7 +177,7 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
     )
     native.filegroup(
         name = name + "_linker_files",
-        srcs = [name + "_bin", config] + native.glob([system_config], allow_empty = True) +
+        srcs = [name + "_bin", name + "_check", config] + native.glob([system_config], allow_empty = True) +
                native.glob([resource + "/lib/" + t.runtime + "/**"]) +
                # The MSVC targets' directory: none before libc++ for them.
                native.glob([target + "/" + p for p in t.libraries], allow_empty = msvc) +

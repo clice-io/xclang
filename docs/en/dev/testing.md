@@ -162,7 +162,8 @@ runtime. That is the
 Ninja 1.11, and with the newest of both:
 
 1. `find_package(xclang)` found by `PATH`, with
-   `CMAKE_CXX_COMPILER=clang++`.
+   `CMAKE_CXX_COMPILER=clang++`. On macOS, Apple's `atos` reads the dSYM
+   that `xclang_debug_symbols` made of a DWARF 5 program.
 2. Every other target the host builds for, through the toolchain file and
    `XCLANG_TARGET`. The programs run where the machine can run them: a
    Linux host's musl target is no cross build there, and its tests check
@@ -173,14 +174,17 @@ Ninja 1.11, and with the newest of both:
    module's code from the cache, and the program is the same.
 5. **The runtimes from source**, with a toolchain that has their sources
    (the archives action adds this checkout's to a release before them):
-   `tests/cmake/runtimes` once per variant, through the toolchain file.
+   `tests/cmake/runtimes` once per variant, through the toolchain file,
+   and once through this checkout's, with `XCLANG_ROOT`.
    With no options they are the prebuilt runtimes again: the same
    `__config_site` and module sources, and for Linux and MinGW the same
    code. A hardening mode traps on a read past a vector's end; an ABI
    namespace and ABI macros of its own, without exceptions and RTTI, name
    the code of `import std` in the program; on Linux x64, MemorySanitizer
    reports a use of uninitialized memory inside libc++ and nothing of what
-   libc++ itself writes, and libc++ of ThinLTO is bitcode. From Linux x64
+   libc++ itself writes, ThreadSanitizer reports a data race, and libc++
+   of ThinLTO is bitcode; on Linux x64 and arm64 macOS, AddressSanitizer
+   reports a container-overflow through libc++. From Linux x64
    (to Linux arm64 and both MinGW targets) and arm64 macOS (to x86_64
    macOS), with the newest CMake, the hardening variant's programs run on a
    machine of the target (on-target.yml).
@@ -189,10 +193,18 @@ Ninja 1.11, and with the newest of both:
    Linux (where the runner has it) and the SDK's libc++ on macOS, run; a
    musl target without `CMAKE_SYSROOT` is refused. Microsoft's STL is
    `tests/sdk/msvc.ts`'s.
+7. **The build's sanitizers with the prebuilt runtimes**
+   (`XCLANG_SANITIZER`): `tests/cmake/runtimes` for the host's target, on
+   the Linux and macOS hosts, reports ASan's container-overflow through
+   the ASan libc++, UBSan's signed overflow, ThreadSanitizer's data race
+   and LeakSanitizer's leak; a Linux host's musl target, UBSan's.
+   MemorySanitizer is refused, saying why, without the runtimes from
+   source, and for the MinGW, musl and (on macOS) macOS targets.
 
 `tests/cmake` covers a C++ module of partitions, `xclang::std` with
 `std.compat`, `xclang_add_std` with `-fno-exceptions`, and
-`xclang_debug_symbols`.
+`xclang_debug_symbols`: a GSYM, and the functions identical code folding
+merged in it.
 
 ## Bazel Module
 
@@ -247,7 +259,12 @@ has their sources, once per variant: with no options, the prebuilt
 `__config_site` again; a hardening mode that traps; an ABI namespace and
 ABI macros without exceptions and RTTI, which the code of `import std` is
 named with; on Linux x64, `--features=msan` reporting inside libc++ and not
-on what it writes, and `--features=thin_lto`. From Linux x64 and arm64
+on what it writes, `--features=tsan` reporting a data race and
+`--features=thin_lto`; on Linux x64 and arm64 macOS, `--features=asan`
+reporting a container-overflow through libc++. What the module refuses
+stops the build, saying why: the runtimes' options without
+`--@xclang//runtimes:source`, `msan` without it and for a MinGW target,
+and on macOS the platform's C++ library with it. From Linux x64 and arm64
 macOS, the hardening variant for other targets runs on their machines.
 `packages/bazel/runtimes.ts check` (by hand) says whether
 `runtimes_sources.bzl` is still what LLVM's CMake build compiles.
@@ -268,7 +285,8 @@ container-overflow of the ASan libc++ on Windows. `//platform:stdlib`
 with `--@xclang//bazel:stdlib=platform` builds with Microsoft's STL for
 the MSVC targets and with the SDK's `libc++.1.dylib` for the macOS ones,
 and runs on their machines; the cross jobs check that the other targets
-refuse it, saying why.
+refuse it, saying why. The MSVC targets refuse the runtimes from source,
+also with the platform's C++ library, and their options.
 
 examples.yml builds `examples/bazel` from bazel.clice.io on every host, and
 for another target.
@@ -340,8 +358,9 @@ release's, from Linux x64, macOS arm64 and Windows x64 hosts. On each, `tests/sd
   `-fms-runtime-lib=dll` import UCRT and the VC runtime's DLLs; all-static, `/MTd` and
   `-fms-runtime-lib=static_dbg` import neither; none imports a debug DLL;
 - builds `tests/cmake` for both targets through the toolchain file, with
-  libc++ and with `XCLANG_STDLIB=platform`, and from Linux kotatsu and its
-  tests for x64.
+  libc++ and with `XCLANG_STDLIB=platform`, `tests/cmake/runtimes` for
+  x64 with `XCLANG_SANITIZER=address`, whose container-overflow the
+  Windows runner sees, and from Linux kotatsu and its tests for x64.
 
 The programs of every host then run on windows-2025 and windows-11-arm,
 and kotatsu's tests in its source tree. Only programs leave a job, never

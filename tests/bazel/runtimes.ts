@@ -10,8 +10,14 @@
 /// namespace and ABI macros of libc++'s own, without exceptions and RTTI.
 /// Linux x64 adds MemorySanitizer (--features=msan), which reports a use
 /// of uninitialized memory inside libc++ and nothing of what libc++ itself
-/// writes, and a program of ThinLTO (--features=thin_lto) on them, which
-/// are not. With --programs
+/// writes, ThreadSanitizer (--features=tsan), which reports a data race,
+/// and a program of ThinLTO (--features=thin_lto) on them, which are not;
+/// Linux x64 and arm64 macOS, AddressSanitizer (--features=asan), whose
+/// container-overflow only an instrumented libc++ reports. What the module
+/// cannot build is refused, saying why: the options without
+/// --@xclang//runtimes:source, MemorySanitizer without it and for a target
+/// that has none, and on macOS the platform's C++ library with it. With
+/// --programs
 /// <dir>, the hardening variant for other targets too (from Linux x64:
 /// Linux arm64 and both MinGW targets; from arm64 macOS: x86_64 macOS),
 /// whose programs tests/lib/on-target.ts runs on machines of those targets.
@@ -39,6 +45,16 @@ const flags = [
   "--@xclang//runtimes:source",
   ...(values["disk-cache"] ? [`--disk_cache=${path.resolve(values["disk-cache"])}`] : []),
 ];
+
+/// A build the module refuses: it fails, and says why.
+function refused(name: string, args: string[], why: RegExp): void {
+  const startup = windows ? ["--output_user_root=C:/b", "--windows_enable_symlinks"] : [];
+  const all = ["build", `--repo_env=XCLANG_ROOT=${tree}`, ...args, "//runtimes:variant"];
+  console.log(`+ bazel ${all.join(" ")}`);
+  const result = spawnSync("bazel", [...startup, ...all], { cwd: workspace, encoding: "utf8", shell: windows, maxBuffer: 1 << 28 });
+  expect(`${name}: refused`, result.status !== 0 && why.test(`${result.stdout}${result.stderr}`),
+    `exit ${result.status}, no ${why} in its output:\n${(result.stderr ?? "").slice(-2000)}`);
+}
 
 function bazel(args: string[], capture = false): string | undefined {
   const startup = windows ? ["--output_user_root=C:/b", "--windows_enable_symlinks"] : [];
@@ -102,7 +118,11 @@ const variants: { name: string; flags: string[]; namespace: string; mode: number
     ? [
       { name: "msan", flags: ["--features=msan", "-c", "dbg"], namespace: "__1", mode: 2, exceptions: 1 },
       { name: "lto", flags: ["--features=thin_lto", "-c", "opt"], namespace: "__1", mode: 2, exceptions: 1 },
+      { name: "tsan", flags: ["--features=tsan"], namespace: "__1", mode: 2, exceptions: 1 },
     ]
+    : []),
+  ...(native === "x86_64-unknown-linux-gnu" || native === "aarch64-apple-darwin"
+    ? [{ name: "asan", flags: ["--features=asan"], namespace: "__1", mode: 2, exceptions: 1 }]
     : []),
 ];
 
@@ -123,6 +143,16 @@ for (const v of variants) {
   if (v.mode !== 2) {
     const oob = run(built.variant, ["oob"]);
     expect(`${v.name}: a read past the end traps`, trapped(oob), `${oob.status} ${oob.signal}: ${oob.output}`);
+  }
+  /// What the build's sanitizer reports, through the instrumented libc++.
+  const reports: Record<string, [string, RegExp]> = {
+    asan: ["overflow", /AddressSanitizer: container-overflow/],
+    tsan: ["race", /ThreadSanitizer: data race/],
+  };
+  if (reports[v.name]) {
+    const [argument, report] = reports[v.name]!;
+    const r = run(built.variant, [argument]);
+    expect(`${v.name}: variant ${argument} reported`, report.test(r.output), r.output);
   }
   if (v.name === "msan") {
     const report = run(built.variant, ["uninitialized"], { MSAN_SYMBOLIZER_PATH: path.join(tree, "bin", "llvm-symbolizer") });
@@ -153,6 +183,20 @@ function findConfigSite(outputPath: string): string[] {
     }
   }
   return found;
+}
+
+/// What the module refuses, before it builds anything.
+console.log("\n=== refused");
+refused("hardening without the runtimes from source", ["--@xclang//runtimes:hardening=fast"],
+  /--@xclang\/\/runtimes:hardening is for the runtimes built from source/);
+refused("msan without the runtimes from source", ["--features=msan"], native.endsWith("-linux-gnu")
+  ? /--features=msan needs every library instrumented/
+  : /MemorySanitizer is for the Linux targets \(glibc\)/);
+refused("msan for MinGW", ["--@xclang//runtimes:source", "--features=msan", "--platforms=@xclang//platforms:x86_64-w64-mingw32"],
+  /MemorySanitizer is for the Linux targets \(glibc\), x86_64 and aarch64, not x86_64-w64-mingw32/);
+if (native.endsWith("-apple-darwin")) {
+  refused("the platform's C++ library with the runtimes from source",
+    ["--@xclang//runtimes:source", "--@xclang//bazel:stdlib=platform"], /not with --@xclang\/\/runtimes:source/);
 }
 
 /// The hardening variant for other targets, run on their machines.

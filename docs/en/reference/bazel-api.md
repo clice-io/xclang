@@ -59,7 +59,7 @@ Windows unless it names one of those.
 | feature | default | |
 |---|---|---|
 | `asan`, `tsan`, `ubsan`, `lsan` | off | sanitizers, for the whole build (`--features=asan`); `asan` compiles and links with the ASan libc++, or with the runtimes from source instrumented by it. None for the MinGW targets; for the musl targets `ubsan`; for the MSVC targets `ubsan`, and `asan` for x64 |
-| `msan` | off | MemorySanitizer, for the whole build, with the runtimes from source (`--@xclang//runtimes:source`), which then include its runtime; Linux targets (glibc). Since 23.1.2.11 |
+| `msan` | off | MemorySanitizer, for the whole build, with the runtimes from source (`--@xclang//runtimes:source`), which then include its runtime; Linux targets (glibc). Refused without them, and for the other targets. Since 23.1.2.11 |
 | `cpp_modules` | off | C++20 modules: `module_interfaces` of a `cc_library`/`cc_binary`, scanned by clang-scan-deps; needs `--experimental_cpp_modules` |
 | `gc_sections` | Linux targets: on in `opt`; Windows targets: off | lld's `--gc-sections`, lld-link's `/opt:ref` for the MSVC targets ([why not for Windows](../design/windows.md#gc-sections-and-static-initializers)) |
 | `thinlto_cache` | on | the linker's ThinLTO cache, with flags only when `XCLANG_THINLTO_CACHE` names a directory |
@@ -91,7 +91,7 @@ Since 23.1.2.11. Flags of the whole build, in `@xclang//runtimes`
 
 | flag | default | |
 |---|---|---|
-| `--@xclang//runtimes:source` | `false` | libc++ (with libc++abi), libc++experimental and libunwind built from the toolchain's `libc++/src` for the target platform, with the build's features and `--copt`, and every compile and link against them in place of the prebuilt ones. Not for the MSVC targets |
+| `--@xclang//runtimes:source` | `false` | libc++ (with libc++abi), libc++experimental and libunwind built from the toolchain's `libc++/src` for the target platform, with the build's features and `--copt`, and every compile and link against them in place of the prebuilt ones. Refused for the MSVC targets |
 | `--@xclang//runtimes:hardening` | `none` | libc++'s hardening mode: `none`, `fast`, `extensive`, `debug` |
 | `--@xclang//runtimes:abi_version` | `1` | libc++'s ABI version, `1` or `2` |
 | `--@xclang//runtimes:abi_namespace` | `__<version>` | libc++'s inline namespace, `__<name>` |
@@ -105,6 +105,11 @@ configuration of their own, the build's with `@xclang//runtimes:building`
 set, whose toolchain is the same without them. The build's sanitizer
 features instrument libc++ and libc++abi, not libunwind or
 MemorySanitizer's runtime. No runtime is compiled with ThinLTO.
+
+What the module cannot build stops the build at once, saying why: the
+runtimes from source, or any of the flags beside it, for an MSVC target;
+those flags without `--@xclang//runtimes:source`; `msan` without it, or
+for a target other than glibc's.
 
 ## Targets and Rules
 

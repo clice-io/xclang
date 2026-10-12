@@ -120,6 +120,50 @@ _unsupported = rule(
     attrs = {"message": attr.string(mandatory = True)},
 )
 
+# The options of the runtimes from source but //runtimes:source, with their
+# defaults: the prebuilt runtimes' (runtimes/BUILD.bazel).
+_OPTIONS = {
+    "abi_defines": [],
+    "abi_namespace": "",
+    "abi_version": "1",
+    "exceptions": True,
+    "hardening": "none",
+    "rtti": True,
+}
+
+def _check_impl(ctx):
+    setting = lambda name: getattr(ctx.attr, "_" + name)[BuildSettingInfo].value
+    source = setting("source")
+    options = [name for name, default in _OPTIONS.items() if setting(name) != default]
+    if ctx.attr.msvc and source:
+        fail(("xclang: --@xclang//runtimes:source is not available for the MSVC targets yet (%s): they build " +
+              "against the prebuilt libc++") % ctx.attr.target)
+    if options and not source:
+        fail("xclang: --@xclang//runtimes:%s is for the runtimes built from source: --@xclang//runtimes:source%s" %
+             (options[0], ", which the MSVC targets do not have yet" if ctx.attr.msvc else ""))
+    if "msan" in ctx.features:
+        if not ctx.attr.msan:
+            fail("xclang: MemorySanitizer is for the Linux targets (glibc), x86_64 and aarch64, not %s" % ctx.attr.target)
+        if not source:
+            fail("xclang: --features=msan needs every library instrumented, libc++ too, and MemorySanitizer's " +
+                 "runtime, which the toolchain has not: the runtimes built from source, --@xclang//runtimes:source")
+    return [DefaultInfo()]
+
+xclang_runtimes_check = rule(
+    implementation = _check_impl,
+    attrs = dict(
+        [("_" + name, attr.label(default = Label("//runtimes:" + name))) for name in ["source"] + list(_OPTIONS)],
+        msan = attr.bool(doc = "The target has MemorySanitizer, with the runtimes from source."),
+        msvc = attr.bool(doc = "An MSVC target, which has no runtimes from source yet."),
+        target = attr.string(mandatory = True),
+    ),
+    doc = """Fails the analysis of a toolchain (bazel/toolchain.bzl) for target with
+what of //runtimes and the sanitizer features it cannot build: the runtimes
+from source or their options on an MSVC target, their options without them,
+and MemorySanitizer without them or on a target that has none (as the CMake
+package refuses them).""",
+)
+
 def xclang_runtimes(root):
     """The runtimes from source in a host's repository: runtime_include (the
     variant's __config_site), runtime_libraries and runtime_msan_files, built in

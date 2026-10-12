@@ -17,7 +17,8 @@
 ///       //asan:overflow with --features=asan, whose report on-target.ts
 ///       checks; for the MSVC and macOS targets, //platform:stdlib with
 ///       --@xclang//bazel:stdlib=platform, the platform's C++ library, which
-///       the other targets refuse
+///       the other targets refuse; for the MSVC targets, the runtimes from
+///       source and their options refused
 ///   node tests/bazel/cross.ts registry <module> <ws>
 ///       <ws>: the latest version of a module of the clice registry
 ///       (bazel.clice.io), from its source archive, on this checkout's
@@ -265,6 +266,19 @@ function collect(workspace: string, target: string, out: string, args: string[])
       common.fail(`bazel ${args.join(" ")}: not refused for ${target}`);
     }
     console.log(`ok: ${stdlib} refused for ${target}`);
+  }
+  /// The MSVC targets have no runtimes from source yet: refused, saying
+  /// why, with the platform's C++ library too, and so are their options.
+  if (target.endsWith("-pc-windows-msvc")) {
+    for (const extra of [["--@xclang//runtimes:source"], ["--@xclang//runtimes:source", stdlib], ["--@xclang//runtimes:hardening=fast"]]) {
+      const args = ["build", platform, ...options, ...extra, "//c:all"];
+      const result = spawnSync("bazel", [...(windows ? ["--output_user_root=C:/b", "--windows_enable_symlinks"] : []), ...args],
+        { cwd: workspace, encoding: "utf8", shell: windows, maxBuffer: 1 << 28 });
+      if (result.status === 0 || !/the MSVC targets do not have yet|not available for the MSVC targets/.test(result.stderr ?? "")) {
+        common.fail(`bazel ${args.join(" ")}: not refused for ${target}`);
+      }
+      console.log(`ok: ${extra.join(" ")} refused for ${target}`);
+    }
   }
   writePrograms(out, programs);
   console.log(`${out}: ${tests.length} tests of ${workspace} for ${target}`);
