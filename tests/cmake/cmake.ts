@@ -26,8 +26,10 @@
 ///    tests/cmake/runtimes for this host's target once per variant, through
 ///    the toolchain file. With no options they are the prebuilt runtimes
 ///    again: the same __config_site, and for Linux and MinGW the same
-///    objects, the compiler's name in .comment aside. Linux x64 adds
-///    MemorySanitizer and libc++ with ThinLTO. With --programs <dir>, the
+///    objects, the compiler's name in .comment aside. Once through this
+///    checkout's toolchain file, with XCLANG_ROOT. Linux x64 adds
+///    MemorySanitizer, ThreadSanitizer and libc++ with ThinLTO; Linux x64
+///    and arm64 macOS, AddressSanitizer. With --programs <dir>, the
 ///    hardening variant for other targets too (from Linux x64: Linux arm64
 ///    and both MinGW targets; from arm64 macOS: x86_64 macOS), whose
 ///    programs tests/lib/on-target.ts runs on machines of those targets.
@@ -37,6 +39,12 @@
 ///    libstdc++ on Linux (where the host has it) and the SDK's libc++ on
 ///    macOS, run; a musl target without CMAKE_SYSROOT is refused. (Windows:
 ///    tests/sdk/msvc.ts, with Microsoft's STL.)
+/// 7. The build's sanitizers (XCLANG_SANITIZER) with the prebuilt runtimes:
+///    tests/cmake/runtimes for this host's target, reporting what each
+///    finds, on Linux and macOS (ASan with the ASan libc++, UBSan, TSan,
+///    LSan), and UBSan for a Linux host's musl target. MemorySanitizer is
+///    refused without the runtimes from source, and for the targets that
+///    have none.
 ///
 /// A tree whose lib/cmake/xclang is not the checkout's (releases before the
 /// package, or before a change of it) gets the checkout's.
@@ -215,14 +223,23 @@ if (fs.existsSync(sources)) {
     ["abi", ["-DXCLANG_LIBCXX_ABI_NAMESPACE=__xclang",
       "-DXCLANG_LIBCXX_ABI_DEFINES=_LIBCPP_ABI_BOUNDED_ITERATORS;_LIBCPP_ABI_BOUNDED_ITERATORS_IN_STRING",
       "-DXCLANG_RUNTIMES_EXCEPTIONS=OFF", "-DXCLANG_RUNTIMES_RTTI=OFF", "-DCMAKE_CXX_FLAGS=-fno-exceptions -fno-rtti"]],
+    /// The toolchain file of this checkout, outside the tree (XCLANG_ROOT),
+    /// whose CMake caches are toolchain/cmake/caches.
+    ["checkout", [`-DXCLANG_ROOT=${tree}`, "-DXCLANG_LIBCXX_HARDENING=fast"]],
     ...(linuxX64 ? [
       ["msan", ["-DXCLANG_SANITIZER=memory", "-DCMAKE_BUILD_TYPE=RelWithDebInfo"]],
       ["lto", ["-DXCLANG_RUNTIMES_FLAGS=-flto=thin", "-DCMAKE_CXX_FLAGS=-flto=thin"]],
+      ["tsan", ["-DXCLANG_SANITIZER=thread"]],
     ] as [string, string[]][] : []),
+    /// ASan (and UBSan) through the variant's instrumented libc++.
+    ...(linuxX64 || native.triple === "aarch64-apple-darwin"
+      ? [["asan", ["-DXCLANG_SANITIZER=address;undefined"]]] as [string, string[]][]
+      : []),
   ];
   for (const [variant, args] of variants) {
     const name = `runtimes-${variant}`;
-    if (!build(name, [`--toolchain=${toolchain}`, "-DXCLANG_RUNTIMES=source", ...args], process.env, true, project)) continue;
+    const file = variant === "checkout" ? path.join(common.ROOT, "packages", "cmake", "toolchain.cmake") : toolchain;
+    if (!build(name, [`--toolchain=${file}`, "-DXCLANG_RUNTIMES=source", ...args], process.env, true, project)) continue;
     const installs = fs.readdirSync(path.join(work, name, "xclang-runtimes"), { withFileTypes: true })
       .filter((e) => e.isDirectory()).map((e) => path.join(work, name, "xclang-runtimes", e.name, "install"));
     if (installs.length !== 1) {
@@ -274,6 +291,42 @@ if (since("23.1.2.11")) {
   }
 } else {
   console.log(`\n${tree}: a release before the platform's C++ library (23.1.2.11)`);
+}
+
+/// 7. The build's sanitizers (XCLANG_SANITIZER) with the prebuilt runtimes:
+/// tests/cmake/runtimes for this host's target, whose program reports what
+/// each finds, on the Linux and macOS hosts: ASan with the ASan libc++ (its
+/// container-overflow) and UBSan, TSan, LSan; UBSan for the musl target of a
+/// Linux host's architecture. MemorySanitizer refused, saying why: without
+/// the runtimes from source, and on a MinGW, musl or (on macOS) macOS target.
+{
+  const project = path.join(source, "runtimes");
+  if (native.os === "linux" || native.os === "darwin") {
+    for (const [name, list] of [["address", "address;undefined"], ["thread", "thread"], ["leak", "leak"]]) {
+      build(`sanitizer-${name}`, [`--toolchain=${toolchain}`, `-DXCLANG_SANITIZER=${list}`], process.env, true, project);
+    }
+  }
+  const musl = `${native.arch}-unknown-linux-musl`;
+  if (native.os === "linux" && fs.existsSync(path.join(tree, musl))) {
+    build("sanitizer-musl", [`--toolchain=${toolchain}`, `-DXCLANG_TARGET=${musl}`, "-DXCLANG_SANITIZER=undefined"],
+      process.env, true, project);
+  }
+  const refused = (name: string, args: string[], why: RegExp): void => {
+    const all = ["-G", "Ninja", "-S", project, "-B", path.join(work, name), `--toolchain=${toolchain}`, ...args];
+    const result = spawnSync("cmake", all, { encoding: "utf8" });
+    if (result.status === 0 || !why.test(result.stdout + result.stderr)) {
+      failures.push(`${name}: cmake ${all.join(" ")} was not refused with ${why}`);
+    } else {
+      console.log(`ok: ${name} refused`);
+    }
+  };
+  if (native.os === "linux") refused("msan-prebuilt", ["-DXCLANG_SANITIZER=memory"], /XCLANG_RUNTIMES=source/);
+  const without = [`${native.arch}-w64-mingw32`, ...(fs.existsSync(path.join(tree, musl)) ? [musl] : []),
+    ...(native.os === "darwin" ? [native.triple] : [])];
+  for (const triple of without) {
+    refused(`msan-${triple}`, [`-DXCLANG_TARGET=${triple}`, "-DXCLANG_RUNTIMES=source", "-DXCLANG_SANITIZER=memory"],
+      /MemorySanitizer is for the Linux targets \(glibc\)/);
+  }
 }
 
 if (failures.length) common.fail(`${failures.length} builds failed:\n  ${failures.join("\n  ")}`);

@@ -17,7 +17,8 @@
 /// information, ThinLTO, UBSan, the profile runtime, and for x64 ASan and
 /// libFuzzer; the DLLs each program imports checked here. tests/cmake for
 /// both targets through the CMake package, with libc++ and with the STL
-/// (XCLANG_STDLIB=platform); with --kotatsu, kotatsu's tests for x64. Programs
+/// (XCLANG_STDLIB=platform), and for x64 a program of tests/cmake/runtimes
+/// with XCLANG_SANITIZER=address; with --kotatsu, kotatsu's tests for x64. Programs
 /// built for this machine run here too.
 ///
 /// A toolchain before 23.1.2.10 has no libc++ for the MSVC targets
@@ -358,6 +359,26 @@ for (const a of ["x86_64", "aarch64"]) {
     }
     if (libcxx) check(!/argument unused during compilation: '-stdlib=/.test(build!.out), `${what}: -stdlib= used everywhere`);
     if (native && a === "x86_64") check(run("ctest", ["--test-dir", dir, "--output-on-failure"]).status === 0, `${what}: its tests`);
+  }
+}
+
+/// The build's sanitizers with the package's prebuilt runtimes,
+/// XCLANG_SANITIZER=address for x64: the ASan libc++, whose headers name its
+/// library, and its container-overflow, reported on Windows (the program
+/// beside ASan's DLL).
+if (libcxx) {
+  const dir = path.join(work, "cmake-asan");
+  const what = "tests/cmake/runtimes for x86_64-pc-windows-msvc with XCLANG_SANITIZER=address";
+  const ok = run("cmake", ["-G", "Ninja", "-S", path.join(common.ROOT, "tests", "cmake", "runtimes"), "-B", dir,
+    "-DCMAKE_BUILD_TYPE=Release", `--toolchain=${toolchain}`, "-DXCLANG_TARGET=x86_64-pc-windows-msvc",
+    "-DXCLANG_SANITIZER=address"]).status === 0 && run("cmake", ["--build", dir, "--target", "variant"]).status === 0;
+  check(ok, what);
+  if (ok) {
+    const x64 = programsDir(out, "x86_64-pc-windows-msvc", "msvc");
+    const programs: Program[] = JSON.parse(fs.readFileSync(path.join(x64, "programs.json"), "utf8"));
+    fs.copyFileSync(path.join(dir, "variant.exe"), path.join(x64, "variant-asan.exe"));
+    programs.push({ file: "variant-asan.exe", args: ["overflow"], expect: "container-overflow", fails: true });
+    writePrograms(x64, programs);
   }
 }
 

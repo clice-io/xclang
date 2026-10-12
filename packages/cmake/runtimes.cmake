@@ -83,6 +83,10 @@ list(JOIN _xclang_sanitizers "," _xclang_fsanitize)
 set(_xclang_memory OFF)
 if(memory IN_LIST _xclang_sanitizers)
     set(_xclang_memory ON)
+    if(NOT _xclang_target_os STREQUAL "linux")
+        message(FATAL_ERROR "xclang: MemorySanitizer is for the Linux targets (glibc), x86_64 and aarch64, "
+            "not ${_xclang_triple}")
+    endif()
     if(NOT XCLANG_RUNTIMES STREQUAL "source")
         message(FATAL_ERROR "xclang: MemorySanitizer needs every library instrumented, libc++ too, "
             "and compiler-rt's runtime of it, which the toolchain has not: XCLANG_RUNTIMES=source")
@@ -157,6 +161,26 @@ set(_xclang_version "")
 if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/xclang-config-version.cmake")
     file(SHA256 "${CMAKE_CURRENT_LIST_DIR}/xclang-config-version.cmake" _xclang_version)
 endif()
+# The CMake caches of xclang's own builds of the runtimes, which the variant
+# is built with: beside this file in a toolchain's lib/cmake/xclang, and in
+# a checkout of xclang (this file in packages/cmake, the toolchain file used
+# with XCLANG_ROOT) those they are made from. Their contents are part of the
+# variant.
+if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/runtimes-cxx.cmake")
+    set(_xclang_cxx_cache "${CMAKE_CURRENT_LIST_DIR}/runtimes-cxx.cmake")
+    set(_xclang_compiler_rt_cache "${CMAKE_CURRENT_LIST_DIR}/runtimes-compiler-rt.cmake")
+else()
+    get_filename_component(_xclang_caches "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/caches" ABSOLUTE)
+    set(_xclang_cxx_cache "${_xclang_caches}/cxx.cmake")
+    set(_xclang_compiler_rt_cache "${_xclang_caches}/compiler-rt.cmake")
+endif()
+foreach(_xclang_cache IN ITEMS "${_xclang_cxx_cache}" "${_xclang_compiler_rt_cache}")
+    if(NOT EXISTS "${_xclang_cache}")
+        message(FATAL_ERROR "xclang: no ${_xclang_cache}, the CMake cache the runtimes from source are built with")
+    endif()
+    file(SHA256 "${_xclang_cache}" _xclang_hash)
+    string(APPEND _xclang_version "\n${_xclang_hash}")
+endforeach()
 # The SDK of a macOS target from another host is the toolchain file's; on
 # macOS, CMake before 4.0 picks one after the toolchain file, so a build's
 # first configure would have none and its later ones and try_compile's
@@ -255,7 +279,7 @@ if(NOT EXISTS "${_xclang_install}/.xclang-runtimes")
             string(APPEND cache "set(SANITIZER_CXX_ABI libc++ CACHE STRING \"\")\n")
             string(APPEND cache "set(SANITIZER_USE_STATIC_CXX_ABI ON CACHE BOOL \"\")\n")
             string(APPEND cache "set(COMPILER_RT_USE_BUILTINS_LIBRARY ON CACHE BOOL \"\")\n")
-            string(APPEND cache "include(\"${CMAKE_CURRENT_LIST_DIR}/runtimes-compiler-rt.cmake\")\n")
+            string(APPEND cache "include(\"${_xclang_compiler_rt_cache}\")\n")
             _xclang_build(compiler-rt "${cache}")
         endif()
 
@@ -327,7 +351,7 @@ if(NOT EXISTS "${_xclang_install}/.xclang-runtimes")
         endif()
         string(APPEND cache "set(CMAKE_EXE_LINKER_FLAGS \"${link}\" CACHE STRING \"\")\n")
         # Last: the settings above come first and stand.
-        string(APPEND cache "include(\"${CMAKE_CURRENT_LIST_DIR}/runtimes-cxx.cmake\")\n")
+        string(APPEND cache "include(\"${_xclang_cxx_cache}\")\n")
         _xclang_build(runtimes "${cache}")
         file(WRITE "${_xclang_dir}/variant.txt" "${_xclang_variant}\n")
         file(WRITE "${_xclang_install}/.xclang-runtimes" "")

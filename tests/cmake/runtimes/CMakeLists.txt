@@ -1,6 +1,7 @@
 # The C++ runtimes built from source (XCLANG_RUNTIMES=source,
 # packages/cmake/runtimes.cmake), as tests/cmake/cmake.ts builds this
-# project once per variant: its tests follow the variant's options.
+# project once per variant: its tests follow the variant's options. Also
+# the build's sanitizers (XCLANG_SANITIZER) with the prebuilt runtimes.
 cmake_minimum_required(VERSION 3.28)
 project(xclang_runtimes_tests LANGUAGES CXX)
 enable_testing()
@@ -52,10 +53,28 @@ if(NOT hardening STREQUAL "none")
         -P "${CMAKE_CURRENT_SOURCE_DIR}/trap.cmake")
 endif()
 
+# The sanitizers of the build (XCLANG_SANITIZER, with the prebuilt runtimes
+# or with those from source): what each reports in the program. A
+# container-overflow only through a libc++ instrumented with ASan, the
+# prebuilt ASan libc++ or the variant.
+string(REPLACE "," ";" sanitizers "${XCLANG_SANITIZER}")
+set(reports
+    address overflow "AddressSanitizer: container-overflow"
+    undefined signed "runtime error: signed integer overflow"
+    thread race "ThreadSanitizer: data race"
+    leak leak "LeakSanitizer: detected memory leaks")
+while(reports)
+    list(POP_FRONT reports sanitizer argument report)
+    if(sanitizer IN_LIST sanitizers)
+        add_test(NAME ${sanitizer}_report COMMAND variant ${argument})
+        set_tests_properties(${sanitizer}_report PROPERTIES PASS_REGULAR_EXPRESSION "${report}")
+    endif()
+endwhile()
+
 # MemorySanitizer: nothing to report of what libc++ itself writes (it is
 # instrumented), and a use of uninitialized memory inside libc++, reported
 # (in istream's sentry, which the library's code is).
-if(memory IN_LIST XCLANG_SANITIZER)
+if(memory IN_LIST sanitizers)
     set(symbolizer "MSAN_SYMBOLIZER_PATH=${XCLANG_ROOT}/bin/llvm-symbolizer")
     add_test(NAME msan_clean COMMAND variant)
     set_tests_properties(msan_clean PROPERTIES ENVIRONMENT "${symbolizer}"
