@@ -60,9 +60,10 @@ misses the cache, and does not get the outputs of the old one.
 **Bazel's disk and repository caches, and the ThinLTO cache.** clice's CI
 ([native-test.yml](https://github.com/clice-io/clice/blob/main/.github/workflows/native-test.yml))
 restores them on every run, and saves them only on `main`, once per merge.
-Pull requests then do not churn the cache space of the repository:
+Pull requests then do not churn the cache space of the repository. For a
+matrix of targets and build types:
 
-<!-- not run: clice's CI, linked above, runs it -->
+<!-- excerpt: .github/workflows/examples.yml -->
 ```yaml
 - uses: actions/cache/restore@v6
   with:
@@ -73,9 +74,10 @@ Pull requests then do not churn the cache space of the repository:
     key: bazel-${{ matrix.target }}-${{ matrix.build_type }}-${{ github.sha }}
     restore-keys: |
       bazel-${{ matrix.target }}-${{ matrix.build_type }}-
-# ... the build, with in user.bazelrc:
-#   common --disk_cache=<temp>/bazel-disk
-#   common --repository_cache=<temp>/bazel-repo
+- name: Build
+  run: >-
+    bazel build -c ${{ matrix.build_type }} --platforms=@xclang//platforms:${{ matrix.target }}
+    "--disk_cache=${{ runner.temp }}/bazel-disk" "--repository_cache=${{ runner.temp }}/bazel-repo" //...
 - uses: actions/cache/save@v6
   if: github.ref == 'refs/heads/main'
   with:
@@ -95,7 +97,7 @@ needs.
 **The ThinLTO cache alone**, for CMake, or for a project without the disk
 cache: key it on the xclang release, as the step above finds it.
 
-<!-- not run: xclang's examples keep no ThinLTO cache between runs -->
+<!-- excerpt: .github/workflows/examples.yml -->
 ```yaml
 - uses: actions/cache@v6
   with:

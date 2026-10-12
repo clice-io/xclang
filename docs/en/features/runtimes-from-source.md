@@ -60,12 +60,64 @@ it, by the same toolchain file.
 
 ### Bazel
 
-The flags of the whole build are in `@xclang//runtimes`, and the
-sanitizers are the features they always were:
+The example is
+[examples/runtimes](https://github.com/clice-io/xclang/tree/main/examples/runtimes),
+a test of the C++ library, on a module of 23.1.2.11 or later:
 
-<!-- not run: the Bazel examples have no tests for `bazel test`, and take a module older than 23.1.2.11; tests/bazel/runtimes.ts builds the same variants (test-bazel.yml) -->
+<!-- file: examples/runtimes/BUILD.bazel -->
+```python
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+cc_test(
+    name = "words_test",
+    srcs = ["words_test.cpp"],
+)
+```
+
+::: details words_test.cpp and MODULE.bazel
+
+<!-- file: examples/runtimes/words_test.cpp -->
+```cpp
+#include <cstdio>
+#include <map>
+#include <sstream>
+#include <string>
+
+int main() {
+    std::istringstream text("the runtimes from source are the runtimes of the build");
+    std::map<std::string, int> counts;
+    for (std::string word; text >> word;) ++counts[word];
+    std::string report;
+    for (const auto& [word, n] : counts) report += word + " " + std::to_string(n) + "\n";
+    // MemorySanitizer checks what printf reads: libc++ wrote it, so libc++
+    // must be instrumented too.
+    std::printf("%s", report.c_str());
+    return counts["runtimes"] == 2 ? 0 : 1;
+}
+```
+
+<!-- file: examples/runtimes/MODULE.bazel -->
+```python
+module(name = "runtimes")
+
+bazel_dep(name = "rules_cc", version = "0.2.25")
+bazel_dep(name = "xclang", version = "23.1.2.11")
+```
+
+:::
+
+The flags of the whole build are in `@xclang//runtimes`:
+
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 bazel build --@xclang//runtimes:source --@xclang//runtimes:hardening=fast //...
+```
+
+The sanitizers are the features they always were, MemorySanitizer for the
+Linux targets:
+
+<!-- excerpt: .github/workflows/examples.yml -->
+```sh
 bazel test --@xclang//runtimes:source --features=msan //...
 ```
 

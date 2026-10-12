@@ -22,7 +22,7 @@ The project is
 module(name = "hello")
 
 bazel_dep(name = "rules_cc", version = "0.2.25")
-bazel_dep(name = "xclang", version = "23.1.2.8")
+bazel_dep(name = "xclang", version = "23.1.2.11")
 ```
 
 The version is the oldest release the project takes: Bazel uses the newest
@@ -140,7 +140,7 @@ xclang.windows_sdk(accept_license = True)
 xclang.macos_sdk(accept_license = True)
 ```
 
-<!-- not run: test-bazel.yml's sdk jobs build tests/bazel for these platforms, the license accepted as above -->
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 bazel build --platforms=@xclang//platforms:x86_64-pc-windows-msvc //:hello
 bazel build --platforms=@xclang//platforms:aarch64-apple-darwin //:hello
@@ -362,7 +362,7 @@ Editors and language servers, such as clice and clangd, read
 bazel_dep(name = "compdb", version = "0.1.0", dev_dependency = True)
 ```
 
-<!-- not run: compdb's own CI, in the registry, runs it on the six hosts -->
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 bazel run @compdb//:refresh
 bazel run @compdb//:refresh -- //:hello

@@ -67,6 +67,13 @@ jobs:
         run: |
           pixi install
           pixi run clang++ --version
+      # docs/en/guide/quick-start.md: the repository as a user gets it.
+      - name: Clone
+        working-directory: ${{ runner.temp }}
+        run: |
+          git clone --depth 1 https://github.com/clice-io/xclang
+          cd xclang/examples/quickstart
+          ls pixi.toml hello.cpp
       - name: Programs for every target
         run: |
           pixi run clang++ -O2 hello.cpp -o hello
@@ -450,6 +457,32 @@ jobs:
           dir=$RUNNER_TEMP/programs/aarch64-unknown-linux-gnu/bazel-${{ matrix.host }}
           mkdir -p "$dir" && cp bazel-bin/hello "$dir/" && cp ../cmake/expected.txt "$dir/"
           bazel shutdown
+      # docs/en/integrations/bazel.md, "Generate compile_commands.json":
+      # compdb from the clice registry, a dev dependency as the page adds it.
+      - name: compile_commands.json
+        run: |
+          echo 'bazel_dep(name = "compdb", version = "0.1.0", dev_dependency = True)' >> MODULE.bazel
+          bazel run @compdb//:refresh
+          bazel run @compdb//:refresh -- //:hello
+          grep 'main\.cpp' compile_commands.json
+          git checkout MODULE.bazel
+          bazel shutdown
+      # docs/en/features/runtimes-from-source.md: libc++ compiled by Bazel,
+      # hardened, and with MemorySanitizer on Linux, where the test runs.
+      - name: Runtimes from source
+        working-directory: examples/runtimes
+        run: |
+          bazel build --@xclang//runtimes:source --@xclang//runtimes:hardening=fast //...
+          bazel run --@xclang//runtimes:source --@xclang//runtimes:hardening=fast //:words_test
+      - name: Runtimes from source, MemorySanitizer
+        if: runner.os == 'Linux'
+        working-directory: examples/runtimes
+        run: |
+          bazel test --@xclang//runtimes:source --features=msan //...
+          grep -x 'runtimes 2' bazel-testlogs/words_test/test.log
+      - name: Stop Bazel
+        working-directory: examples/runtimes
+        run: bazel shutdown
       # docs/en/features/modules.md.
       - name: Modules
         working-directory: examples/modules
@@ -511,6 +544,57 @@ jobs:
           path: ${{ runner.temp }}/programs
           if-no-files-found: error
 
+  # docs/en/integrations/ci.md, "Keep Caches between Runs": Bazel's disk
+  # and repository caches and the ThinLTO cache, restored on every run and
+  # saved on main, around a build of examples/libclang, whose .bazelrc
+  # names the ThinLTO cache.
+  bazel-cache:
+    name: bazel-cache (${{ matrix.target }}, ${{ matrix.build_type }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-gnu, build_type: opt, os: ubuntu-24.04 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: examples/libclang
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm install -g @bazel/bazelisk
+      - uses: actions/cache/restore@v6
+        with:
+          path: |
+            ${{ runner.temp }}/bazel-disk
+            ${{ runner.temp }}/bazel-repo
+            ${{ runner.os == 'Windows' && 'C:/xclang-thinlto' || '/var/tmp/xclang-thinlto' }}
+          key: bazel-${{ matrix.target }}-${{ matrix.build_type }}-${{ github.sha }}
+          restore-keys: |
+            bazel-${{ matrix.target }}-${{ matrix.build_type }}-
+      - name: Build
+        run: >-
+          bazel build -c ${{ matrix.build_type }} --platforms=@xclang//platforms:${{ matrix.target }}
+          "--disk_cache=${{ runner.temp }}/bazel-disk" "--repository_cache=${{ runner.temp }}/bazel-repo" //...
+      - uses: actions/cache/save@v6
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: |
+            ${{ runner.temp }}/bazel-disk
+            ${{ runner.temp }}/bazel-repo
+            ${{ runner.os == 'Windows' && 'C:/xclang-thinlto' || '/var/tmp/xclang-thinlto' }}
+          key: bazel-${{ matrix.target }}-${{ matrix.build_type }}-${{ github.sha }}
+      - name: What the caches hold
+        run: |
+          du -sh "$RUNNER_TEMP/bazel-disk" "$RUNNER_TEMP/bazel-repo" /var/tmp/xclang-thinlto | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$(ls /var/tmp/xclang-thinlto | grep -c llvmcache-)" -gt 0
+
   # The feature pages' examples with pixi: docs/en/features/modules.md,
   # sanitizers.md, debugging.md, libclang.md and thinlto-cache.md, by hand
   # and with CMake.
@@ -543,6 +627,21 @@ jobs:
         with:
           pixi-version: v0.71.1
           run-install: false
+      # docs/en/integrations/ci.md, "Keep Caches between Runs": the ThinLTO
+      # cache of the libclang tool's links (below), kept per release; on
+      # Linux x64, whose step reports how long its links take.
+      - name: The latest release
+        id: xclang
+        shell: bash
+        run: |
+          curl -sSfLO https://github.com/clice-io/xclang/releases/latest/download/SHA256SUMS
+          echo "version=$(sed -n 's/^[0-9a-f]*  llvm-option-inc-\(.*\)\.tar\.xz$/\1/p' SHA256SUMS)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: ${{ runner.os == 'Windows' && 'C:/xclang-thinlto' || '/var/tmp/xclang-thinlto' }}
+          key: thinlto-${{ runner.os }}-${{ runner.arch }}-xclang-${{ steps.xclang.outputs.version }}-${{ github.sha }}
+          restore-keys: thinlto-${{ runner.os }}-${{ runner.arch }}-xclang-${{ steps.xclang.outputs.version }}-
+        if: matrix.host == 'x86_64-unknown-linux-gnu'
       - name: Modules
         working-directory: examples/modules
         run: |
@@ -605,6 +704,23 @@ jobs:
           cat build-asan.txt
           test "$status" = "$asan_exit"
           grep 'ERROR: AddressSanitizer: container-overflow' build-asan.txt
+      # docs/en/features/sanitizers.md, "musl Targets": UBSan in a static
+      # program, from every host, run on Linux x64.
+      - name: UBSan, musl
+        working-directory: examples/sanitizers
+        run: |
+          pixi install
+          export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
+          clang++ --target=x86_64-unknown-linux-musl -fsanitize=undefined -O1 ubsan.cpp -o ubsan
+          dir=$RUNNER_TEMP/programs/x86_64-unknown-linux-gnu/ubsan-musl-${{ matrix.host }}
+          mkdir -p "$dir" && cp ubsan "$dir/"
+          echo '[{"file": "ubsan", "expect": "ubsan.cpp:7:7: runtime error: signed integer overflow"}]' > "$dir/programs.json"
+          if [[ "${{ matrix.host }}" == x86_64-unknown-linux-gnu ]]; then
+            ./ubsan > ubsan.txt 2>&1
+            cat ubsan.txt
+            grep 'ubsan.cpp:7:7: runtime error: signed integer overflow' ubsan.txt
+            grep -x -- -2147483648 ubsan.txt
+          fi
       # docs/en/integrations/cmake.md, "Use the System's C++ Library", in a
       # project without import std, which GCC's libstdc++ before 15 and the
       # macOS SDK's libc++ lack. A Windows host's own target is MinGW, whose
@@ -673,7 +789,7 @@ jobs:
           grep -E '^clang version 23\.' tool.txt
           grep -x 'tokens 9 zlib 1 zstd 1' tool.txt
           entries=$(ls /var/tmp/xclang-thinlto | grep -c llvmcache-)
-          echo "CMake, ThinLTO cache: $entries entries" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "CMake, ThinLTO cache: $entries entries, $(du -sh /var/tmp/xclang-thinlto | cut -f1)" | tee -a "$GITHUB_STEP_SUMMARY"
           test "$entries" -gt 0
       - name: libclang and the ThinLTO cache
         if: matrix.host != 'x86_64-unknown-linux-gnu'
@@ -871,6 +987,21 @@ jobs:
           llvm-readobj --needed-libs hello-msvc-x64.exe hello-cl.exe hello-cl-arm64.exe | tee needed.txt
           grep -i 'api-ms-win-crt' needed.txt
           if grep -iE 'vcruntime|msvcp' needed.txt; then echo "::error::a program loads the VC runtime's DLLs"; exit 1; fi
+      # docs/en/features/sanitizers.md, "MSVC Targets": ASan with the ASan
+      # libc++, and UBSan, run on Windows; ASan's DLL, the toolchain's, goes
+      # along.
+      - name: Sanitizers, MSVC targets
+        working-directory: examples/sanitizers
+        run: |
+          clang++ --target=x86_64-pc-windows-msvc -fsanitize=address -isystem "$XCLANG/x86_64-pc-windows-msvc/lib/asan/include" \
+              -g -O1 overflow.cpp -o overflow.exe
+          clang++ --target=aarch64-pc-windows-msvc -fsanitize=undefined -O1 ubsan.cpp -o ubsan.exe
+          dir=$RUNNER_TEMP/programs/x86_64-pc-windows-msvc/asan-${{ matrix.host }}
+          mkdir -p "$dir" && cp overflow.exe "$(clang++ -print-resource-dir)/lib/windows/clang_rt.asan_dynamic-x86_64.dll" "$dir/"
+          echo '[{"file": "overflow.exe", "fails": true, "expect": "ERROR: AddressSanitizer: container-overflow"}]' > "$dir/programs.json"
+          dir=$RUNNER_TEMP/programs/aarch64-pc-windows-msvc/ubsan-${{ matrix.host }}
+          mkdir -p "$dir" && cp ubsan.exe "$dir/"
+          echo '[{"file": "ubsan.exe", "expect": "ubsan.cpp:7:7: runtime error: signed integer overflow"}]' > "$dir/programs.json"
       # docs/en/integrations/clang.md, "The System's C++ Library": GCC's
       # libstdc++ on Linux, the SDK's libc++ on macOS, Microsoft's STL for
       # MSVC. A Windows host's own target is MinGW, whose libstdc++ needs a
@@ -916,6 +1047,35 @@ jobs:
           llvm-readobj --needed-libs target/x86_64-pc-windows-msvc/release/hello.exe | tee needed.txt
           grep -i 'api-ms-win-crt' needed.txt
           if grep -iE 'vcruntime|msvcp' needed.txt; then echo "::error::hello.exe loads the VC runtime's DLLs"; exit 1; fi
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm install -g @bazel/bazelisk
+      - name: Bazel's startup options (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cat > "$USERPROFILE/.bazelrc" <<'EOF'
+          startup --output_user_root=C:/b
+          startup --windows_enable_symlinks
+          EOF
+      # docs/en/integrations/bazel.md, "Build for MSVC, and for macOS
+      # Anywhere": the licenses accepted in MODULE.bazel as the page has
+      # it, and the SDKs fetched by the module into Bazel's own directories.
+      - name: Bazel, MSVC and macOS targets
+        working-directory: examples/bazel
+        run: |
+          cat >> MODULE.bazel <<'EOF'
+
+          xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
+          xclang.windows_sdk(accept_license = True)
+          xclang.macos_sdk(accept_license = True)
+          EOF
+          bazel build --platforms=@xclang//platforms:x86_64-pc-windows-msvc //:hello
+          bazel build --platforms=@xclang//platforms:aarch64-apple-darwin //:hello
+          cp bazel-bin/hello.exe bazel-bin/hello "$RUNNER_TEMP/"
+          llvm-readobj --file-headers "$RUNNER_TEMP/hello.exe" "$RUNNER_TEMP/hello" | grep -E '^(Format|Arch):'
+          git checkout MODULE.bazel
+          bazel shutdown
       - name: Programs to run on their targets
         if: ${{ !cancelled() }}
         working-directory: examples
@@ -936,6 +1096,8 @@ jobs:
           stage aarch64-apple-darwin cmake cmake/build-macos/hello cmake/expected.txt
           stage aarch64-apple-darwin cargo cargo/target/aarch64-apple-darwin/release/hello cargo/expected.txt
           stage x86_64-pc-windows-msvc cargo cargo/target/x86_64-pc-windows-msvc/release/hello.exe cargo/expected.txt
+          stage x86_64-pc-windows-msvc bazel "$RUNNER_TEMP/hello.exe" cmake/expected.txt
+          stage aarch64-apple-darwin bazel "$RUNNER_TEMP/hello" cmake/expected.txt
           find "$RUNNER_TEMP/programs" -type f | sort
       # What the steps before a failure built still runs on its target.
       - uses: actions/upload-artifact@v7

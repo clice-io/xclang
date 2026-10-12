@@ -131,7 +131,7 @@ Then depend on xclang in `MODULE.bazel`:
 
 <!-- excerpt: examples/bazel/MODULE.bazel -->
 ```python
-bazel_dep(name = "xclang", version = "23.1.2.8")
+bazel_dep(name = "xclang", version = "23.1.2.11")
 ```
 
 The version is the oldest release the project takes: Bazel uses the

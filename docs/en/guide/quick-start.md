@@ -17,7 +17,7 @@ another target.
 
 The files are in the `examples/` directory of the repository:
 
-<!-- not run: CI checks out the repository instead -->
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 git clone --depth 1 https://github.com/clice-io/xclang
 cd xclang/examples/quickstart

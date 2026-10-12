@@ -254,12 +254,33 @@ clang names their libraries itself, with `-fsanitize=`, from
   `stl_asan.lib`, which `xclang sdk fetch` does not fetch.
 - arm64 Windows has no ASan or libFuzzer in LLVM 23.
 
-<!-- not run: needs a vendor SDK the user accepts the license of; test-sdk.yml runs these, through tests/sdk/msvc.ts, and their programs on Windows -->
+`ubsan.cpp`, in the same directory, overflows a signed integer:
+
+<!-- file: examples/sanitizers/ubsan.cpp -->
+```cpp
+#include <climits>
+#include <cstdio>
+
+int main(int argc, char**) {
+    int n = INT_MAX;
+    // A signed overflow: UBSan reports it, and the program goes on.
+    n += argc;
+    std::printf("%d\n", n);
+}
+```
+
+With the Windows SDK fetched, on any host:
+
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 clang++ --target=x86_64-pc-windows-msvc -fsanitize=address -isystem "$XCLANG/x86_64-pc-windows-msvc/lib/asan/include" \
-    -g -O1 asan.cpp -o asan.exe
-clang --target=aarch64-pc-windows-msvc -fsanitize=undefined -O1 ubsan.c -o ubsan.exe
+    -g -O1 overflow.cpp -o overflow.exe
+clang++ --target=aarch64-pc-windows-msvc -fsanitize=undefined -O1 ubsan.cpp -o ubsan.exe
 ```
+
+`overflow.exe`, with the ASan DLL next to it, reports the
+container-overflow; `ubsan.exe` reports
+`runtime error: signed integer overflow` and prints `-2147483648`.
 
 ## musl Targets
 
@@ -277,10 +298,12 @@ Build for the glibc target of the same architecture to use them; a
 dynamically linked musl variant that has them is
 [considered](../design/roadmap.md#musl-sanitizers).
 
-<!-- not run: tests/toolchain/smoke.ts builds the same and runs it on Linux -->
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 clang++ --target=x86_64-unknown-linux-musl -fsanitize=undefined -O1 ubsan.cpp -o ubsan
 ```
+
+`ubsan` is static, and runs on any Linux x64 machine.
 
 ## MemorySanitizer
 
