@@ -96,12 +96,11 @@ jobs:
           if grep -iE 'libstdc\+\+|libc\+\+|libgcc|libunwind|winpthread' needed.txt; then
             echo "::error::a program loads a C++ runtime"; exit 1
           fi
-      # docs/en/guide/cross-compiling.md: static programs with musl, which
-      # releases before 23.1.2.10 lack, run where they are built.
+      # docs/en/guide/cross-compiling.md: static programs with musl, run
+      # where they are built.
       - name: Static programs with musl
         if: runner.os == 'Linux'
         run: |
-          [[ -d .pixi/envs/default/opt/xclang/x86_64-unknown-linux-musl ]] || { echo "::notice::no musl targets"; exit 0; }
           pixi run clang++ -O2 --target=x86_64-unknown-linux-musl hello.cpp -o hello-static-x64
           pixi run clang++ -O2 --target=aarch64-unknown-linux-musl hello.cpp -o hello-static-arm64
           pixi run llvm-readelf --program-headers hello-static-x64
@@ -882,12 +881,11 @@ jobs:
             fi
           done
           if [[ "$RUNNER_OS" == Windows ]]; then target/x86_64-pc-windows-gnullvm/release/hello.exe | tr -d '\r' | diff expected.txt -; fi
-      # Rust's musl targets against xclang's musl, which releases before
-      # 23.1.2.10 lack: static programs, run on Linux.
+      # Rust's musl targets against xclang's musl: static programs, run on
+      # Linux.
       - name: Linux, musl
         run: |
           export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
-          [[ -d .pixi/envs/default/opt/xclang/x86_64-unknown-linux-musl ]] || { echo "::notice::no musl targets"; exit 0; }
           xclang cargo build --release --target x86_64-unknown-linux-musl
           llvm-readelf --program-headers --dynamic target/x86_64-unknown-linux-musl/release/hello | tee headers.txt
           if grep -E 'INTERP|NEEDED' headers.txt; then echo "::error::hello for musl loads a library"; exit 1; fi
