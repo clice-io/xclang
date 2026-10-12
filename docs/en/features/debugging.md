@@ -205,10 +205,12 @@ So xclang makes the dSYM from the link's objects. The link keeps the LTO
 objects (`-object_path_lto <dir>`). In Bazel, dsymutil runs right after it
 in the same action, and then the objects go. In CMake, they stay in
 `<target>.lto` of the build directory, and dsymutil runs after the link.
-Bazel's link also keeps, in the debug map, the names of the functions that
+The link also keeps, in the debug map, the names of the functions that
 identical code folding merged (`--keep-icf-stabs`). A crash in a folded
 function then names one of them, and `--merged-functions` can list them
-all.
+all. dsymutil runs with its classic DWARF linker: the parallel one, LLVM
+23's default, writes DWARF 5 line tables (those of programs for macOS 15
+and later) that Apple's `atos` crashes on.
 
 `-object_path_lto` is also what the clang driver passes when it compiles and
 links in one command. It exposed an lld bug, which

@@ -32,4 +32,18 @@ if(CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
 else()
     add_test(NAME hello_cpp_gsym COMMAND "${XCLANG_GSYMUTIL}" "$<TARGET_FILE_DIR:hello_cpp>/hello_cpp.gsym")
     set_tests_properties(hello_cpp_gsym PROPERTIES PASS_REGULAR_EXPRESSION "hello\\.cpp:[0-9]")
+
+    # Linked with identical code folding: twin_a and twin_b, merged, both in
+    # the GSYM (--merged-functions), on macOS through the dSYM, whose debug
+    # map keeps the folded one (--keep-icf-stabs). On macOS in DWARF 5,
+    # whose line tables dsymutil's parallel linker writes so that atos
+    # crashes (tests/cmake/cmake.ts reads it with atos).
+    add_executable(hello_icf icf.cpp)
+    target_compile_options(hello_icf PRIVATE -g -ffunction-sections $<$<PLATFORM_ID:Darwin>:-gdwarf-5>)
+    target_link_options(hello_icf PRIVATE -Wl,--icf=all)
+    xclang_debug_symbols(hello_icf GSYM_ARGS --merged-functions)
+    foreach(twin twin_a twin_b)
+        add_test(NAME hello_icf_${twin} COMMAND "${XCLANG_GSYMUTIL}" "$<TARGET_FILE_DIR:hello_icf>/hello_icf.gsym")
+        set_tests_properties(hello_icf_${twin} PROPERTIES PASS_REGULAR_EXPRESSION "${twin}")
+    endforeach()
 endif()

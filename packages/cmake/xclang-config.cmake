@@ -243,7 +243,12 @@ if(NOT COMMAND xclang_add_std)
     # <file>.gsym, from the program's DWARF; for a macOS target, from its
     # <file>.dSYM, made first by dsymutil from the objects the debug map
     # points into: the link keeps ThinLTO's in <target>.lto for it, as
-    # clang keeps them when it compiles and links in one command.
+    # clang keeps them when it compiles and links in one command, and the
+    # functions identical code folding merged keep their entries in the
+    # debug map (--keep-icf-stabs), so the dSYM has their names too.
+    # dsymutil's classic DWARF linker: the parallel one, LLVM 23's default,
+    # writes DWARF 5's line tables (for macOS 15 and later) that atos
+    # crashes on. (The Bazel module's dSYM link does the same.)
     function(xclang_debug_symbols target)
         # MSVC targets have CodeView, in the PDB the link writes.
         if(CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
@@ -258,9 +263,10 @@ if(NOT COMMAND xclang_add_std)
         if(APPLE)
             set(_lto "${CMAKE_CURRENT_BINARY_DIR}/${target}.lto")
             file(MAKE_DIRECTORY "${_lto}")
-            target_link_options(${target} PRIVATE "LINKER:-object_path_lto,${_lto}")
+            target_link_options(${target} PRIVATE "LINKER:-object_path_lto,${_lto}" "LINKER:--keep-icf-stabs")
             add_custom_command(TARGET ${target} POST_BUILD
-                COMMAND "${_bin}/dsymutil${_exe}" "$<TARGET_FILE:${target}>" -o "$<TARGET_FILE:${target}>.dSYM"
+                COMMAND "${_bin}/dsymutil${_exe}" --linker classic "$<TARGET_FILE:${target}>"
+                    -o "$<TARGET_FILE:${target}>.dSYM"
                 VERBATIM)
             set(_input "$<TARGET_FILE:${target}>.dSYM/Contents/Resources/DWARF/$<TARGET_FILE_NAME:${target}>")
         endif()

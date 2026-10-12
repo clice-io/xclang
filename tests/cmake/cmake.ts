@@ -7,7 +7,8 @@
 ///
 /// 1. xclang's bin/ in PATH, as pixi has it, and CMAKE_CXX_COMPILER=clang++:
 ///    find_package(xclang) by PATH. With --libclang, tests/libclang too,
-///    on find_package(Clang).
+///    on find_package(Clang). On macOS, Apple's atos reads the dSYM that
+///    xclang_debug_symbols made of a DWARF 5 program.
 /// 2. Every other target this host builds for, through the toolchain file
 ///    and XCLANG_TARGET; run where this machine runs them (x86_64 macOS on
 ///    arm64, through Rosetta; musl's static programs on Linux of their
@@ -123,6 +124,20 @@ build("path", [
   "-DCMAKE_CXX_COMPILER=clang++",
   ...(values.libclang ? ["-DXCLANG_TEST_LIBCLANG=ON", `-DCMAKE_PREFIX_PATH=${path.resolve(values.libclang)}`] : []),
 ], pathEnv);
+
+/// On macOS, Apple's atos reads the dSYM of hello_icf, in DWARF 5: main at
+/// its line of icf.cpp, where the line tables of dsymutil's parallel linker
+/// crash it (xclang_debug_symbols runs the classic one).
+if (native.os === "darwin" && !failures.some((f) => f.startsWith("path:"))) {
+  const program = path.join(work, "path", "hello", "hello_icf");
+  const address = /^([0-9a-f]+) T _main$/m.exec(spawnSync(path.join(tree, "bin", "llvm-nm"), [program], { encoding: "utf8" }).stdout)?.[1];
+  const dwarf = path.join(`${program}.dSYM`, "Contents", "Resources", "DWARF", "hello_icf");
+  const atos = address
+    ? spawnSync("atos", ["-o", dwarf, "-arch", native.arch === "aarch64" ? "arm64" : "x86_64", `0x${address}`], { encoding: "utf8" })
+    : undefined;
+  console.log(`atos: ${atos ? `${atos.stdout.trim()} ${atos.stderr.trim()} (${atos.signal ?? atos.status})` : "no main in hello_icf"}`);
+  if (!atos || atos.status !== 0 || !/icf\.cpp:\d/.test(atos.stdout)) failures.push("path: atos on hello_icf.dSYM");
+}
 
 /// 2. The other targets: macOS ones only on macOS (the SDK); arm64 macOS
 /// runs x86_64 programs through Rosetta, Linux the static programs of musl
