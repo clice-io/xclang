@@ -8,6 +8,26 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+- **Bazel: what the module cannot build stops the build at once**, saying
+  why: `--@xclang//runtimes:source` and the flags beside it for the MSVC
+  targets, which built against the prebuilt libc++ instead; those flags
+  without `--@xclang//runtimes:source`, which did nothing; and
+  `--features=msan` without the runtimes from source, or for a target
+  other than glibc's, which failed in the link.
+- The CMake package's `XCLANG_SANITIZER=memory` stops the configure for a
+  target other than glibc's, instead of failing in the runtimes' build;
+  and `XCLANG_RUNTIMES=source` works with the toolchain file of a checkout
+  of xclang (`XCLANG_ROOT`) too.
+- `xclang_debug_symbols` (CMake) makes a macOS target's dSYM with
+  dsymutil's classic DWARF linker, whose DWARF 5 line tables Apple's
+  `atos` reads (the parallel one's crash it), and with the names of the
+  functions identical code folding merged, as the Bazel module does.
+- A `git_override` of a release's tag, or of `main`, downloads that
+  release's archives, the latest's for `main`: `packages/bazel` names it.
+  Tag 23.1.2.11's names 23.1.2.8, whose archives lack what its rules use
+  for the musl targets, the runtimes from source and the platform's C++
+  library.
+
 ## [23.1.2.11](https://github.com/clice-io/xclang/releases/tag/23.1.2.11) — 2026-10-11
 
 Built by 23.1.2.6.
