@@ -55,7 +55,7 @@ them:
 - **Config files.** clang makes the directory of a config file absolute, and
   that path reaches the dependency files. The module writes each target's
   config file again with paths relative to the execution root
-  (`external/xclang_<host>/...`), and passes
+  (`external/<repository>/...`, the host archive's repository), and passes
   `--no-default-config --config=<file>`.
 - **clang's own paths**: `-no-canonical-prefixes`.
 - **Debug information**: `-ffile-compilation-dir=.`; on macOS
@@ -103,7 +103,7 @@ changes:
 - Windows names for MinGW and MSVC programs and shared libraries (`.exe`,
   `.dll`);
 - for the MSVC targets, lld-link's spellings, no PIC, and features for the
-  PDB, the C runtimes and Microsoft's STL;
+  PDB and the C runtimes;
 - static linking by default (below);
 - headers of other repositories as system headers (`-isystem`), whose
   warnings are not the build's;

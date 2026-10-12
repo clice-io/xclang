@@ -191,7 +191,9 @@ clang++ main.o math.o math-ops.o std.o -o shapes
 The first line finds the source of the `std` module. The module manifest of
 libc++ lists it as the `source-path` of the module `std`. Add
 `--target=<target>` to every line, the manifest included, to build for
-another target.
+another target. clang reports no manifest for the MSVC targets: their
+source is `$XCLANG/<target>/share/libc++/v1/std.cppm`
+([layout](../reference/layout.md)).
 
 ## Options
 
@@ -262,6 +264,11 @@ checkout.
   Bazel 9.
 - CMake builds modules only with the Ninja and Ninja Multi-Config
   generators.
+- With the platform's C++ library (`-DXCLANG_STDLIB=platform`,
+  `--@xclang//bazel:stdlib=platform`), `std` is the STL's for the MSVC
+  targets, and the platform library's where it has a module manifest
+  (GCC 15's libstdc++); the macOS SDK's libc++ has none
+  ([CMake](../integrations/cmake.md#use-the-system-s-c-library)).
 
 ## See Also
 

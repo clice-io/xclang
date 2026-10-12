@@ -16,7 +16,7 @@ Ninja Multi-Config generator, with Ninja 1.11 or later.
 | `xclang-config-version.cmake` | the release, for `find_package(xclang 23.1)` (toolchain archives only) |
 | `toolchain.cmake` | the toolchain directory as the toolchain of a build, for the host or `XCLANG_TARGET` |
 | `runtimes.cmake` | included by `toolchain.cmake`: the runtimes built from source, and the build's sanitizers (since 23.1.2.11) |
-| `runtimes-cxx.cmake`, `runtimes-compiler-rt.cmake` | the CMake caches of xclang's own builds of libc++ and compiler-rt, which `runtimes.cmake` builds with |
+| `runtimes-cxx.cmake`, `runtimes-compiler-rt.cmake` | the CMake caches of xclang's own builds of libc++ and compiler-rt, which `runtimes.cmake` builds with (toolchain archives only) |
 | `xclang.cmake` | in `packages/cmake/` only: included before `project()` from a FetchContent checkout, it downloads the toolchain |
 
 ## `find_package(xclang)`
@@ -47,15 +47,15 @@ cmake -G Ninja -B build --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake [-D
 
 | variable | |
 |---|---|
-| `XCLANG_TARGET` | `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`, `x86_64-w64-mingw32`, `aarch64-w64-mingw32`, `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-pc-windows-msvc` or `aarch64-pc-windows-msvc`; the host's by default. The MSVC targets, and the macOS targets on Linux and Windows hosts, build with the SDK that the toolchain's `xclang` fetched. The musl targets, from 23.1.2.10 on, are no cross build on a Linux host of their architecture, which runs their static programs (`try_run`, tests) |
+| `XCLANG_TARGET` | `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`, `x86_64-w64-mingw32`, `aarch64-w64-mingw32`, `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-pc-windows-msvc` or `aarch64-pc-windows-msvc`; the host's by default. The MSVC targets, and the macOS targets on Linux and Windows hosts, build with the SDK that the toolchain's `xclang` fetched; the MSVC targets on a Windows host without it with the installed Visual Studio. The musl targets, from 23.1.2.10 on, are no cross build on a Linux host of their architecture, which runs their static programs (`try_run`, tests) |
 | `XCLANG_ROOT` | the toolchain directory, when the file is used from outside one |
-| `XCLANG_STDLIB` | `libc++`, the default: xclang's libc++, and its sysroot. `platform`: the platform's C++ library, `-stdlib=platform` in the flags of every language ([the system's C++ library](../integrations/cmake.md#use-the-system-s-c-library)); no `CMAKE_SYSROOT` of the toolchain's for Linux targets, and one of the user's required for the musl and MinGW targets; `xclang::std` the platform library's |
+| `XCLANG_STDLIB` | `libc++`, the default: xclang's libc++, and its sysroot. `platform`: the platform's C++ library, `-stdlib=platform` in the flags of every language ([the system's C++ library](../integrations/cmake.md#use-the-system-s-c-library)); no `CMAKE_SYSROOT` of the toolchain's for Linux targets, and one of the user's required for the musl and MinGW targets; `xclang::std` the platform library's where it has a module manifest (GCC 15's libstdc++), and `find_package(xclang)` fails where it has none. Not with `XCLANG_RUNTIMES=source` |
 | `XCLANG_RUNTIMES`, `XCLANG_SANITIZER`, ... | the runtimes built from source and the build's sanitizers ([below](#runtimes-from-source)) |
 
 It sets the C, C++ and ASM compilers, and the binary tools, to those of the
 toolchain directory: `llvm-ar`, `llvm-ranlib`, `llvm-nm`, `llvm-objcopy`,
 `llvm-objdump`, `llvm-readelf`, `llvm-strip`, `llvm-addr2line`,
-`llvm-dlltool`; for Windows targets `llvm-windres` as the RC compiler; for
+`llvm-dlltool`; for MinGW targets `llvm-windres` as the RC compiler; for
 macOS targets the Objective-C compilers (clang and clang++),
 `llvm-libtool-darwin`, `llvm-lipo` and `llvm-install-name-tool` (Apple's
 `libtool` cannot read the bitcode of a newer LLVM).
@@ -94,7 +94,7 @@ variables ([runtimes from source](../features/runtimes-from-source.md)):
 | variable | |
 |---|---|
 | `XCLANG_RUNTIMES` | `prebuilt`, the default: the toolchain's runtimes. `source`: libc++ (with libc++abi), libc++experimental and libunwind built from the toolchain's `libc++/src` for the target, with the options below, at the first configure that asks for the variant; every compile and link of the build is against them in place of the prebuilt ones, `try_compile`'s too. Not for the MSVC targets |
-| `XCLANG_SANITIZER` | a list of `address`, `memory`, `thread`, `undefined`, `leak`: `-fsanitize=` on every compile and link of the build, and runtimes that suit it. With the prebuilt runtimes, `address` adds the ASan libc++ where the target has one, and `memory` stops the configure; with `source`, the runtimes are built with the sanitizers (`LLVM_USE_SANITIZER`), and `memory` builds compiler-rt's MemorySanitizer runtime too, linked into executables |
+| `XCLANG_SANITIZER` | a list of `address`, `memory`, `thread`, `undefined`, `leak`: `-fsanitize=` on every compile and link of the build, and runtimes that suit it. With the prebuilt runtimes, `address` adds the ASan libc++ where the target has one, and `memory` stops the configure; with `source`, the runtimes are built with the sanitizers (`LLVM_USE_SANITIZER`), and `memory` builds compiler-rt's MemorySanitizer runtime too, linked into executables; `memory` for the glibc Linux targets |
 | `XCLANG_LIBCXX_HARDENING` | `none`, `fast`, `extensive` or `debug`: libc++'s hardening mode (`LIBCXX_HARDENING_MODE`), of the library and the default of its headers |
 | `XCLANG_LIBCXX_ABI_VERSION` | `1` or `2` (`LIBCXX_ABI_VERSION`) |
 | `XCLANG_LIBCXX_ABI_NAMESPACE` | libc++'s inline namespace, `__<name>` (`LIBCXX_ABI_NAMESPACE`) |

@@ -127,8 +127,9 @@ library constraint, Linux gets glibc and Windows MinGW;
 
 ## Build for MSVC, and for macOS Anywhere
 
-The MSVC targets build against Microsoft's CRT, STL and Windows SDK, and
-the macOS targets on Linux and Windows hosts against Apple's macOS SDK.
+The MSVC targets build against Microsoft's CRT and Windows SDK, with
+xclang's libc++ (Microsoft's STL with `--@xclang//bazel:stdlib=platform`),
+and the macOS targets on Linux and Windows hosts against Apple's macOS SDK.
 Neither may be redistributed. The module fetches them from the vendor once
 the root module accepts the vendor's license, with a tag of its extension
 in `MODULE.bazel`:
@@ -230,15 +231,17 @@ file built with other language options than its importer's. So put
 The sanitizers are features of the whole build: `--features=asan`,
 `tsan`, `ubsan` or `lsan`. `asan` compiles and links with the ASan libc++
 ([sanitizers](../features/sanitizers.md#bazel)). The MinGW targets have no
-sanitizers. The MSVC targets have `ubsan`, and x64 also has `asan`. ASan's
+sanitizers, and the musl targets only `ubsan`. The MSVC targets have
+`ubsan`, and x64 also has `asan`. ASan's
 runtime there is a DLL, which a program finds beside itself or on `PATH`
 ([MSVC targets](../features/sanitizers.md#msvc-targets)).
 
 With `--@xclang//runtimes:source`, libc++, libc++abi and libunwind are
 built from the toolchain's sources, instrumented by the build's sanitizer
-features, and `msan` works too, for the Linux targets
+features, and `msan` works too, for the glibc Linux targets
 ([runtimes from source](../features/runtimes-from-source.md#bazel)); the
-same flag takes libc++'s hardening and ABI options. Since 23.1.2.11.
+same flag takes libc++'s hardening and ABI options. Since 23.1.2.11, and
+not for the MSVC targets.
 
 ## Debug in gdb, lldb and VS Code
 
@@ -421,6 +424,8 @@ Another target's libclang comes from the release.
 |---|---|
 | [Fetched targets](../design/roadmap.md#fetched-targets-in-build-systems) in the module | Planned |
 | [Sanitizer features for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
+| [ASan, TSan and LSan for musl targets](../design/roadmap.md#musl-sanitizers) | Considered |
+| [Runtimes from source for the MSVC targets](../design/roadmap.md#runtimes-msvc) | Planned |
 
 ## Known Limitations
 

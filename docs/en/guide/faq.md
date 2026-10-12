@@ -30,7 +30,8 @@ Bazel, or vcpkg with xclang's toolchain file chain-loaded. A C++ library
 built with GCC's libstdc++ (a distribution's Qt or Boost) or with MSVC's
 STL has another ABI than xclang's libc++. C libraries are not affected.
 Or build with the C++ library they were built with, `-stdlib=platform`:
-GCC's libstdc++ on Linux, Microsoft's STL for the MSVC targets
+GCC's libstdc++ on Linux, the SDK's `libc++.1.dylib` for macOS,
+Microsoft's STL for the MSVC targets
 ([the system's C++ library](../integrations/clang.md#the-system-s-c-library)).
 
 ### "version `GLIBC_2.34' not found" on an older machine
@@ -45,7 +46,8 @@ for.
 
 ### `-static-pie` fails, or `-pg` does not link
 
-Use `-static`, and `-pg` with `-no-pie`. glibc 2.17 has no `rcrt1.o`, so no
+Use `-static` (a musl target takes `-static-pie`), and `-pg` with
+`-no-pie`. glibc 2.17 has no `rcrt1.o`, so no
 `-static-pie`, and its `gcrt1.o` is not position-independent
 ([compatibility](../reference/compatibility.md#known-limitations)).
 
@@ -108,8 +110,10 @@ module leaves it off for Windows
 
 Compile and link every library of the program with the ASan libc++:
 `-isystem $asan/include` and `-nostdlib++ $asan/libc++.a`. The program
-links the normal, uninstrumented `libc++.a`. Bazel's `--features=asan` does
-it ([sanitizers](../features/sanitizers.md#plain-clang)).
+links the normal, uninstrumented `libc++.a`. Bazel's `--features=asan`
+does it, and so does the CMake toolchain file's
+`-DXCLANG_SANITIZER=address`
+([sanitizers](../features/sanitizers.md#plain-clang)).
 
 ### gdb or lldb does not find the sources of a Bazel build
 

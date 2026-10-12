@@ -2,7 +2,9 @@
 
 What an unpacked toolchain archive holds: the toolchain directory, `$XCLANG`
 in these docs. Every host archive holds every sysroot; the archives differ
-only in the programs of `bin/`. Why it is laid out this way is in
+only in `bin/` (its programs, and the config files of the macOS and MSVC
+targets, which depend on the host) and in the license notices of what the
+programs link. Why it is laid out this way is in
 [toolchain structure](../design/toolchain.md).
 
 ```
@@ -15,9 +17,12 @@ xclang/
                            llvm-strings, FileCheck), the xclang command,
                            and <target>.cfg for every spelling of every
                            target, with <target>-system.cfg beside it for
-                           the platform's C++ library (-stdlib=platform);
-                           <target>-sdk.cfg, the SDK in use of an MSVC
-                           target, which the xclang command writes
+                           the platform's C++ library (-stdlib=platform),
+                           and their clang-cl files, <target>-clang-cl.cfg
+                           and <target>-clang-cl-system.cfg;
+                           <target>-sdk.cfg and <target>-clang-cl-sdk.cfg,
+                           the SDK in use of an MSVC target, which the
+                           xclang command writes
   lib/clang/<major>/       clang's resource headers, compiler-rt's headers,
                            and compiler-rt for every target; for the MSVC
                            targets libc++ too
@@ -37,6 +42,7 @@ xclang/
   sdk/                     not in the archive: the vendor SDKs that the
                            xclang command fetches, and sdk/windows,
                            sdk/macos, those in use
+  LICENSE                  xclang's license
 ```
 
 The MSVC targets have no sysroot: their C library is the fetched SDK's.
@@ -129,8 +135,9 @@ glibc, the glibc targets' kernel headers and NSS are those of CentOS 7, as
 conda-forge's sysroot packages repackage them: the README names those
 packages, CentOS's source RPMs and the upstream releases. musl and the
 musl targets' kernel headers are built from musl's release and kernel.org's. The libclang archives carry `xclang`,
-`llvm-project`, `zlib` and `zstd` (and `mingw-w64` on Windows hosts), the
-option tables `xclang` and `llvm-project`.
+`llvm-project`, `zlib` and `zstd` (no `zlib` on macOS hosts, whose system
+has it, and `mingw-w64` on Windows hosts), the option tables `xclang` and
+`llvm-project`.
 
 ## Without Links
 

@@ -20,7 +20,8 @@ cannot be:
 - **LTO of libc++ with the program** (CMake).
 
 The prebuilt runtimes stay the default. Runtimes from source are in every
-release since 23.1.2.11, whose toolchains carry the sources.
+release since 23.1.2.11, whose toolchains carry the sources, for every
+target but the MSVC ones.
 
 ## Usage
 

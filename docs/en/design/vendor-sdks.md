@@ -11,7 +11,10 @@ vendor's license. The command for that is `xclang sdk fetch`, which every
 toolchain archive carries
 ([the xclang command](../reference/xclang-command.md)). The targets that
 need it are the MSVC targets, and the macOS targets on Linux and Windows
-hosts; on macOS hosts, the macOS targets use the installed Xcode's SDK.
+hosts; on macOS hosts, the macOS targets use the installed Xcode's SDK,
+and on a Windows host with no SDK fetched, the MSVC targets use the
+installed Visual Studio, as upstream clang does
+([Windows](windows.md#msvc-targets)).
 The SDK in use is a link in the toolchain's `sdk/`, so config files name a
 fixed path while versions change
 ([the SDK in use](../reference/xclang-command.md#the-sdk-in-use)). In

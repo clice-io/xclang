@@ -16,7 +16,9 @@ one copy of libc++ in every shared library. The vendor SDKs are Xcode's,
 for the macOS targets on macOS hosts, which xclang does not pin, and the
 ones the user fetches from the vendors with the `xclang` command, pinned
 by version and sha256: Microsoft's for the MSVC targets, Apple's for the
-macOS targets on Linux and Windows hosts.
+macOS targets on Linux and Windows hosts. On a Windows host with no SDK
+fetched, the MSVC targets take the installed Visual Studio, which xclang
+does not pin either.
 
 ## What a Program Loads
 
@@ -222,3 +224,6 @@ Every target keeps the same rule, also those not yet supported
   an input from outside the toolchain, and xclang does not pin it. On
   Linux and Windows hosts, the SDK the user fetches is pinned by version
   and sha256 ([macOS](macos.md#the-sdk-on-linux-and-windows-hosts)).
+- **Visual Studio.** On a Windows host with no fetched SDK, the MSVC
+  targets build against the installed Visual Studio, which xclang does not
+  pin; a fetched SDK takes its place ([Windows](windows.md#msvc-targets)).

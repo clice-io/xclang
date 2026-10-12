@@ -1,7 +1,8 @@
 # Quick Start
 
-From one machine, you build a program for every target, then a CMake
-project with `import std`, for the host and for another target.
+From one machine, you build a program for Linux, Windows and macOS
+targets, then a CMake project with `import std`, for the host and for
+another target.
 
 ## Prerequisites
 
@@ -44,7 +45,7 @@ pixi install
 `pixi run` and `pixi shell` put xclang's `bin/` first in `PATH`. Other
 ways to get xclang are in [installation](install.md).
 
-## 2. Build a Program for Every Target
+## 2. Build a Program for Other Targets
 
 `hello.cpp` throws and catches an exception, which needs the C++ runtime:
 
@@ -63,7 +64,8 @@ int main() {
 }
 ```
 
-Build it for this machine, and for each Linux and Windows target:
+Build it for this machine, and for the glibc Linux and the MinGW Windows
+targets:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -88,7 +90,9 @@ No sysroot to install, no `--sysroot`, no `-L`. For each `--target`, clang
 reads the config file of that target in xclang's `bin/`, which names its
 sysroot and runtimes ([cross-compiling](cross-compiling.md)). On a Windows
 host, the first command writes `hello.exe`, because a MinGW link adds
-`.exe` to a name without one.
+`.exe` to a name without one. The musl targets, for static Linux programs,
+the MSVC targets, and macOS from Linux and Windows hosts are in
+[cross-compiling](cross-compiling.md).
 
 ## 3. Check What the Programs Need
 

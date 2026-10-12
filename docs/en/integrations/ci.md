@@ -117,7 +117,8 @@ your ccache version does first
 
 ## Build on One Runner, Run on Another
 
-A Linux runner builds for every Linux and Windows target. The programs and
+A Linux runner builds for every Linux and MinGW target, and with the
+vendor SDKs for the MSVC and macOS ones. The programs and
 tests then run on a runner of their target, with nothing installed there:
 they need nothing but the OS. One job builds the program of the
 [quick start](../guide/quick-start.md), in `examples/quickstart`, for
@@ -171,14 +172,19 @@ target:
 |---|---|
 | `x86_64-unknown-linux-gnu` | `ubuntu-24.04` |
 | `aarch64-unknown-linux-gnu` | `ubuntu-24.04-arm` |
+| `x86_64-unknown-linux-musl` | `ubuntu-24.04` |
+| `aarch64-unknown-linux-musl` | `ubuntu-24.04-arm` |
 | `x86_64-w64-mingw32` | `windows-2025` |
 | `aarch64-w64-mingw32` | `windows-11-arm` |
+| `x86_64-pc-windows-msvc` | `windows-2025` |
+| `aarch64-pc-windows-msvc` | `windows-11-arm` |
 | `aarch64-apple-darwin` | `macos-15` |
 | `x86_64-apple-darwin` | `macos-15-intel` |
 
-macOS targets build on Linux and Windows runners too, with the SDK the
-`xclang` command fetches
-([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)), and
+The MSVC targets build on every runner, and the macOS targets on Linux
+and Windows runners too, with the SDK the `xclang` command fetches
+([MSVC targets](clang.md#msvc-targets),
+[macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)), and
 in Bazel with the SDK the module fetches
 ([Bazel](bazel.md#build-for-msvc-and-for-macos-anywhere)). x86_64 macOS
 programs also run on arm64 runners through Rosetta, and x86_64 Windows

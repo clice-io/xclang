@@ -69,7 +69,8 @@ needs. Why and how: [macOS](../design/macos.md#the-sdk-on-linux-and-windows-host
 
 `x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc` build from every
 host against Microsoft's CRT and Windows SDK, which the user fetches from
-Microsoft with the `xclang` command, with libc++ as on every other target,
+Microsoft with the `xclang` command (on a Windows host without it, the
+installed Visual Studio), with libc++ as on every other target,
 or Microsoft's STL with `-stdlib=platform`
 ([MSVC targets](../integrations/clang.md#msvc-targets)).
 
@@ -81,7 +82,7 @@ or Microsoft's STL with `-stdlib=platform`
   ([Bazel](../integrations/bazel.md#build-for-another-target)).
 - Meson, Make and others: the compiler with `--target`
   ([Make and Meson](../integrations/clang.md)).
-- cargo: xclang as the C compiler and linker of a Rust target
+- cargo: `xclang cargo build --target` with a Rust target
   ([Rust and Cargo](../integrations/cargo.md)).
 
 ## Run the Result

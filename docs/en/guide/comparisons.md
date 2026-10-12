@@ -9,7 +9,7 @@ the documentation of each project, linked. Corrections are welcome as
 
 | | what it is | targets out of the box | sysroots and SDKs | C++ runtime in programs | Linux programs run on | build systems | compiler built with PGO |
 |---|---|---|---|---|---|---|---|
-| **xclang** | clang, lld and eight targets' runtimes, prebuilt | Linux x64/arm64 (glibc, musl), Windows x64/arm64 (MinGW, MSVC), macOS x64/arm64 | bundled; Apple's and Microsoft's SDKs fetched by the user from the vendor, or Xcode's | libc++, static; for MSVC targets, Microsoft's STL by choice | glibc 2.17+, or none (musl, static) | CMake package, Bazel module, conda | yes, PGO + ThinLTO, every host |
+| **xclang** | clang, lld and eight targets' runtimes, prebuilt | Linux x64/arm64 (glibc, musl), Windows x64/arm64 (MinGW, MSVC), macOS x64/arm64 | bundled; Apple's and Microsoft's SDKs fetched by the user from the vendor, or Xcode's | libc++, static; the platform's C++ library by choice | glibc 2.17+, or none (musl, static) | CMake package, Bazel module, `xclang cargo`, conda | yes, PGO + ThinLTO, every host |
 | **zig cc** 0.17 | Zig's driver around its clang | dozens: glibc, musl, MinGW, macOS, BSDs, WASI | libc sources and stubs bundled, built on first use | libc++, static | any glibc version chosen per target; 2.31 by default | `zig build`; `CC="zig cc"` | not stated |
 | **cargo-zigbuild** | zig cc as cargo's linker | Linux, macOS, as its README lists | through zig; macOS SDK from the user | through zig | glibc version chosen per target | cargo | as zig |
 | **cross-rs** | cargo in Docker images with GCC cross toolchains | most of Rust's Linux, Windows and other targets | per-target images; Apple and MSVC images built by the user | libstdc++ | 2.31; 2.17 in `:centos` images | cargo | no; GCC |
@@ -55,9 +55,10 @@ work. It differs from xclang in how it gets there:
   ([#24831](https://github.com/ziglang/zig/issues/24831)). It ships no
   ASan runtime ([#11403](https://github.com/ziglang/zig/issues/11403)),
   and its `windows-msvc` target uses an installed Visual Studio. xclang has
-  ASan, TSan, LSan, UBSan and libFuzzer for Linux and macOS, and its MSVC
-  targets build from every host against an SDK the user fetches, with
-  UBSan, and ASan and libFuzzer for x64.
+  ASan, TSan, LSan, UBSan and libFuzzer for its glibc Linux and macOS
+  targets, MemorySanitizer with the runtimes built from source, and its
+  MSVC targets build from every host against an SDK the user fetches,
+  with UBSan, and ASan and libFuzzer for x64.
 - **Integration.** zig cc is a drop-in `CC`. xclang adds a CMake package
   with `import std`, a Bazel module, and libclang.
 
@@ -122,7 +123,7 @@ ThinLTO on Linux and macOS (`clang/cmake/caches/Release.cmake`), and with
 PGO but no LTO on Windows. They carry no sysroot for another target, so a
 cross build needs one from elsewhere. An archive is 0.9 to 2 GB.
 
-xclang 23.1.2.1 was built by them. xclang's archives are 89 to 97 MB,
+xclang 23.1.2.1 was built by them. xclang's archives are 92 to 101 MB,
 carry eight targets, and run on glibc 2.17. On compile speed they are close
 on Linux and macOS ([PGO](../design/pgo.md#what-it-buys) has the numbers).
 

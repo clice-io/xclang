@@ -13,8 +13,8 @@ conda, Bazel and CMake sort versions, and says which LLVM it is.
 Nothing published is ever replaced. A fix to a release, even one that only
 rebuilds it, is the next revision, and the workflow that drafts a release
 refuses a version that exists. So a version, and the sha256 of each of its
-archives, means one thing forever. Pinning by digest relies on that, in
-the `versions.bzl` of the Bazel module and in the CMake download.
+archives, means one thing forever. Pinning by digest relies on that, as
+in the `versions.bzl` of the Bazel module.
 
 A fix of the packaging alone, such as the Bazel module, the CMake package
 or the config files, is a repack: the next revision, whose compiler and
@@ -34,11 +34,11 @@ Every channel has the release under its version, and a way to the newest:
 Every [GitHub release](https://github.com/clice-io/xclang/releases) has the
 same 17 assets:
 
-| asset | | size (23.1.2.8) |
+| asset | | size (23.1.2.11) |
 |---|---|---|
-| `xclang-<version>-<host>.tar.xz` | the toolchain, one per host, every target in each | 86 to 94 MB |
+| `xclang-<version>-<host>.tar.xz` | the toolchain, one per host, every target in each | 92 to 101 MB |
 | `libclang-<version>-<host>.tar.xz` | the static libraries and headers of clang and LLVM, one per host ([libclang](../features/libclang.md)) | 258 to 272 MB |
-| `libclang-<version>-<host>-asan.tar.xz` | their ASan build, for Linux x64 and macOS arm64 | 189, 209 MB |
+| `libclang-<version>-<host>-asan.tar.xz` | their ASan build, for Linux x64 and macOS arm64 | 190, 209 MB |
 | `llvm-option-inc-<version>.tar.xz` | the option tables of clang, lld, llvm-lib and llvm-dlltool | 185 KB |
 | `xclang-<version>.profdata` | the PGO profile the release was built with | 52 MB |
 | `SHA256SUMS` | the sha256 of every other asset | |

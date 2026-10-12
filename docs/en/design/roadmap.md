@@ -20,8 +20,8 @@ date. What each release changed is in the
 xclang's vision is what rustup, cross-rs and cargo-zigbuild do for Rust,
 for clang: one compiler for every target.
 
-- The common targets come with the toolchain, as the six and the musl
-  targets do today.
+- The common targets come with the toolchain, as the eight of every
+  archive do today.
 - Every other target is an archive of its own, fetched when a build needs
   it: its sysroot, its prebuilt runtimes and its config file.
 - Vendor SDKs that no one may redistribute (Apple's, Microsoft's) are
@@ -30,9 +30,9 @@ for clang: one compiler for every target.
 - Runtimes can also be built from source on demand, for options the
   prebuilt ones lack.
 
-Today, the first, the third and the fourth are in a release: the six
-targets, the musl targets since 23.1.2.10, since 23.1.2.7 Microsoft's and
-Apple's SDKs, which the user fetches with the
+Today, the first, the third and the fourth are in a release: the eight
+targets of every archive (the musl ones since 23.1.2.10), since 23.1.2.7
+Microsoft's and Apple's SDKs, which the user fetches with the
 [`xclang` command](#xclang-command), and since 23.1.2.11 the runtimes from
 source, for every target but the MSVC ones. The rest is planned, in
 research or considered, item by item, in the tables below.
@@ -104,9 +104,9 @@ What sets these targets apart:
   them, and so does the Bazel module since 23.1.2.10
   ([below](#macos-any-host-bazel)).
 - **musl.** Static programs that take nothing from the system they run on,
-  in every archive since 23.1.2.10, as the six are: musl built by xclang,
-  libc++ and every runtime linked in, UBSan the only sanitizer, as the
-  others need dynamic linking
+  in every archive since 23.1.2.10, as the glibc, MinGW and macOS targets
+  are: musl built by xclang, libc++ and every runtime linked in, UBSan the
+  only sanitizer, as the others need dynamic linking
   ([targets](../reference/targets.md#musl-targets)). CMake, Bazel and cargo
   build them.
 - **A newer glibc.** The same targets for programs that need what glibc
@@ -216,15 +216,16 @@ planned.
 
 The prebuilt runtimes stay the default.
 
-Rust and cargo work with xclang in every release as a recipe of
-environment variables ([Rust and Cargo](../integrations/cargo.md)).
-`xclang cargo`, since 23.1.2.11, sets them and runs cargo, as
-cargo-zigbuild does: the linker is `xclang` itself, which hands clang or lld-link what
-each target needs. Making `libgcc_s.a` a linker script,
-`INPUT(-lunwind)`, instead of an empty archive is considered: Rust's Linux
-targets then link without `-l:libunwind.a`, by hand too. A test with 23.1.2.5's
-arm64 sysroot linked Rust, and C++ programs and shared libraries that name
-`-lgcc_s`.
+`xclang cargo`, since 23.1.2.11, sets cargo's variables of each target and
+runs cargo ([Rust and Cargo](../integrations/cargo.md)), as
+cargo-zigbuild does: the linker is `xclang` itself, which hands clang or
+lld-link what each target needs. With older releases, the same variables
+are a recipe set by hand
+([without xclang cargo](../integrations/cargo.md#without-xclang-cargo)).
+Making `libgcc_s.a` a linker script, `INPUT(-lunwind)`, instead of an
+empty archive is considered: Rust's Linux targets then link without
+`-l:libunwind.a`, by hand too. A test with 23.1.2.5's arm64 sysroot linked
+Rust, and C++ programs and shared libraries that name `-lgcc_s`.
 
 **Sanitizers for musl targets** beyond UBSan need dynamic linking: ASan,
 TSan and LSan find the C library's functions they intercept through
@@ -252,7 +253,7 @@ Windows, so no libclang is built with the MSVC ABI.
 
 | item | status |
 |---|---|
-| <a id="pgo-training"></a>A PGO training that covers Objective-C, clang-cl, Mach-O links and clang-tidy's checks | Planned |
+| <a id="pgo-training"></a>A PGO training that covers Objective-C, clang-cl, Mach-O links and libclang's clang-tidy checks | Planned |
 | <a id="bolt"></a>BOLT for the Linux hosts' clang and lld, on top of PGO and ThinLTO | In research |
 
 The training is widened between releases, not while one is pending
@@ -314,9 +315,11 @@ stubs, which xclang carries as patch 0009 since 23.1.2.6.
 
 | item | status |
 |---|---|
-| <a id="zh-docs"></a>The docs in Chinese | Planned |
+| <a id="zh-docs"></a>The docs in Chinese | Not planned |
 
-The docs are in English only for now. The README has a Chinese version.
+The docs are in English. The README has a Chinese version, kept in step
+with the English one; a translation of every page would be more to keep
+in step than it gives.
 
 ## Open Questions
 

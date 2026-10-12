@@ -243,7 +243,8 @@ kotatsu, built from Linux by xclang's CI, changed its `<BaseTsd.h>` for
 this.
 
 The MSVC CRT, STL and Windows SDK that `xclang sdk fetch windows` lays
-out on Linux do get case links, 3.6k of them. Microsoft's own headers and
+out on a case-sensitive file system (Linux, as a rule) do get case links,
+3.6k of them. Microsoft's own headers and
 libraries use mixed spellings.
 
 ## Visual Studio from a MinGW-Built Clang
@@ -258,6 +259,28 @@ wrong headers.
 [Patch 0004](../reference/patches.md) enables the lookup on MinGW. It was
 sent upstream as llvm/llvm-project#226794.
 
+## compiler-rt Before Visual Studio's
+
+On a Windows host with no fetched SDK, clang gave lld-link Visual Studio's
+library directory before xclang's compiler-rt, and Visual Studio has its
+own `clang_rt.*.lib` there (Microsoft's builds, for its own clang), which
+took the place of xclang's: on windows-2025 (Visual Studio 18, MSVC
+14.51), `__int128` division, UBSan and libFuzzer did not link.
+[Patch 0012](../reference/patches.md), since 23.1.2.10, puts compiler-rt
+first.
+
+## The Same Bytes from Every Link
+
+PE files carry a link timestamp, which xclang's links leave out, so small
+programs link to the same bytes every time. A large PGO-built one did not
+always, until 23.1.2.10: clice's 600 MB `clice.exe`, linked six times by
+lld with ThinLTO from the same inputs, came out in three different
+layouts. lld-link recorded the place the call graph profile gives each
+function under the function's name, and local functions of the same name
+in several objects all took the place of one of them, which one depending
+on where lld-link's memory happened to put them.
+[Patch 0017](../reference/patches.md) takes the first.
+
 ## Not Yet Supported
 
 | | status |
@@ -267,6 +290,7 @@ sent upstream as llvm/llvm-project#226794.
 | [Windows x86 (MinGW)](roadmap.md#windows-x86-mingw) | Considered |
 | [Windows arm64ec](roadmap.md#arm64ec) | Considered |
 | [Sanitizers for MinGW targets](roadmap.md#mingw-sanitizers) | Considered |
+| [Runtimes from source for the MSVC targets](roadmap.md#runtimes-msvc) | Planned |
 
 A MinGW variant on msvcrt, for Windows before 10, is
 [not planned](roadmap.md#msvcrt).
@@ -278,21 +302,3 @@ A MinGW variant on msvcrt, for Windows before 10, is
   (`--experimental_use_windows_sandbox`). An action can then read files it
   did not declare, and nothing notices. The Linux and macOS builds of the
   same targets enforce the declarations.
-- **PGO-built programs were not always the same bytes**, until
-  23.1.2.10. PE files carry a link timestamp, and Bazel links pass
-  `--no-insert-timestamp`, so small programs linked to the same bytes
-  every time; a large PGO-built one did not always: clice's 600 MB
-  `clice.exe`, linked six times by lld with ThinLTO from the same inputs,
-  came out in three different layouts. lld-link records the place the
-  call graph profile gives each function under the function's name, and
-  local functions of the same name in several objects all took the place
-  of one of them, which one depending on where lld-link's memory happened
-  to put them. [Patch 0017](../reference/patches.md) takes the first.
-- **Visual Studio's compiler-rt came first without an SDK**, until
-  23.1.2.10. On a Windows host with no fetched SDK, clang gave lld-link
-  Visual Studio's library directory before xclang's compiler-rt, and
-  Visual Studio has its own `clang_rt.*.lib` there (Microsoft's builds,
-  for its own clang), which took the place of xclang's: on windows-2025
-  (Visual Studio 18, MSVC 14.51), `__int128` division, UBSan and
-  libFuzzer did not link. [Patch 0012](../reference/patches.md) puts
-  compiler-rt first.

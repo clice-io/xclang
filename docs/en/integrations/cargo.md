@@ -127,10 +127,10 @@ The `*-windows-gnu` targets link libgcc and msvcrt instead, and
 | `x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc` | the same, [MSVC targets](#the-msvc-abi) | any host | Supported |
 
 `xclang cargo` builds for these, and refuses another target. CI builds the
-example, a crate of C, C++ (exceptions, `std::format`), a CMake project
-and bindgen's bindings, and the `xclang` command itself for each of them,
-from Linux, macOS and Windows hosts, and runs the programs on a machine of
-their target ([testing](../dev/testing.md#the-xclang-command)).
+example and a crate of C, C++ (exceptions, `std::format`), a CMake project
+and bindgen's bindings for each of them, from Linux, macOS and Windows
+hosts, and from Linux the `xclang` command itself, and runs the programs
+on a machine of their target ([testing](../dev/testing.md#the-xclang-command)).
 
 ## What xclang cargo Sets
 

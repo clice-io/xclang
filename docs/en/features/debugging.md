@@ -5,12 +5,14 @@ turn the addresses of a crash into functions and lines later. xclang makes
 them with its own tools, for every target: `llvm-gsymutil`, `dsymutil`,
 `llvm-symbolizer` and `llvm-dwarfdump` are in every toolchain directory.
 
-- **GSYM**, for every target: functions, inlining and line tables by
-  address, made from the DWARF by `llvm-gsymutil --convert`. It is about a
-  tenth of the size of the DWARF, and fast to look up. It is what a crash
-  reporter needs, and nothing more.
+- **GSYM**, for every target but the MSVC ones: functions, inlining and
+  line tables by address, made from the DWARF by `llvm-gsymutil --convert`.
+  It is about a tenth of the size of the DWARF, and fast to look up. It is
+  what a crash reporter needs, and nothing more.
 - **dSYM**, for macOS targets: the bundle that Apple's tools and lldb
   read, made by `dsymutil`.
+- **PDB**, for the MSVC targets: the CodeView that their link writes,
+  which llvm-gsymutil does not read.
 
 ## Usage
 
@@ -139,6 +141,7 @@ bazel run @xclang//bazel:llvm-gsymutil -- "$PWD/bazel-bin/tool.gsym"
 |---|---|---|
 | GSYM | `xclang_debug_symbols(<program>)` | `xclang_debug_symbols(name, binary)` |
 | dSYM, macOS targets | made by `xclang_debug_symbols` | `features = ["generate_dsym_file"]`, or `--apple_generate_dsym` |
+| PDB, MSVC targets | written by a link with `-g`; `xclang_debug_symbols` does nothing | `generate_pdb_file`, on with `-c dbg`; `xclang_debug_symbols` gives it |
 | extra llvm-gsymutil options | `GSYM_ARGS <option>...` | `gsymutil_args = [...]` |
 | llvm-gsymutil's warnings | `<program>.gsym.log` | output group `gsym_log` |
 | debug information | `-g` | the same, in `copts` |
@@ -151,8 +154,9 @@ code folding merged.
 - **Bazel builds have relative paths in debug information** (below), so a
   program is the same bytes from every sandbox and every checkout.
 - **The dSYM comes from the link**, with the objects of ThinLTO (below).
-- **The GSYM comes from the dSYM** on macOS, and from the program
-  elsewhere. llvm-gsymutil runs on the host, also for another target.
+- **The GSYM comes from the dSYM** on macOS, and from the program for
+  the Linux and MinGW targets. llvm-gsymutil runs on the host, also for
+  another target. The MSVC targets have their PDB instead.
 - **The strip for a shipped binary depends on the object format** (below).
 
 ### Paths in Debug Information
@@ -176,8 +180,9 @@ execution root:
   as a module's `foo.cppm` and `foo.cpp`, are both `libfoo.a(foo.o)`, and
   dsymutil, which tells archive members apart by name and time (0 in
   Bazel), would read the first for both.
-- Windows links have `-Wl,--no-insert-timestamp`, so a PE program has no
-  link time.
+- MinGW links have `-Wl,--no-insert-timestamp` and MSVC links
+  `-Wl,/Brepro`, so a PE program has no link time. An MSVC program's PDB
+  names its sources relative to the execution root.
 - clang names its own paths relatively (`-no-canonical-prefixes`).
 
 A debugger then needs one mapping, from `.` to the `bazel-<workspace>` link
@@ -196,12 +201,14 @@ made after the link then misses every function that went through LTO.
 clice's nightly macOS symbols had no line of libclang until this was
 found.
 
-So xclang makes the dSYM in the link. The link keeps the LTO objects
-(`-object_path_lto <dir>`), dsymutil runs right after it in the same
-action, and then the objects go. The link also keeps, in the debug map,
-the names of the functions that identical code folding merged
-(`--keep-icf-stabs`). A crash in a folded function then names one of them,
-and `--merged-functions` can list them all.
+So xclang makes the dSYM from the link's objects. The link keeps the LTO
+objects (`-object_path_lto <dir>`). In Bazel, dsymutil runs right after it
+in the same action, and then the objects go. In CMake, they stay in
+`<target>.lto` of the build directory, and dsymutil runs after the link.
+Bazel's link also keeps, in the debug map, the names of the functions that
+identical code folding merged (`--keep-icf-stabs`). A crash in a folded
+function then names one of them, and `--merged-functions` can list them
+all.
 
 `-object_path_lto` is also what the clang driver passes when it compiles and
 links in one command. It exposed an lld bug, which

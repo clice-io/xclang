@@ -1,7 +1,8 @@
 # Sanitizers
 
-For the Linux and macOS targets, compiler-rt carries AddressSanitizer
-(ASan), ThreadSanitizer (TSan), LeakSanitizer, UBSan and libFuzzer. Those
+For the glibc Linux targets and the macOS targets, compiler-rt carries
+AddressSanitizer (ASan), ThreadSanitizer (TSan), LeakSanitizer, UBSan and
+libFuzzer. Those
 targets also carry an ASan build of libc++, the *ASan libc++*, which ASan
 programs link. The MSVC targets carry UBSan, and for x64 ASan and
 libFuzzer ([below](#msvc-targets)); the musl targets UBSan
@@ -113,7 +114,10 @@ cmake --build build-asan
 
 `./build-asan/overflow` reports the container-overflow. `xclang::std`
 picks up `CMAKE_CXX_FLAGS`, so in a project with `import std` the module
-matches.
+matches. With xclang's toolchain file, `-DXCLANG_SANITIZER=address` does
+the same for the whole build, and `thread`, `undefined` and `leak` give
+their `-fsanitize=`
+([CMake API](../reference/cmake-api.md#runtimes-from-source)).
 
 ### Bazel
 
@@ -173,6 +177,7 @@ end with the exit code of the program.
 | UBSan | `-fsanitize=undefined` | `--features=ubsan` |
 | LeakSanitizer | `-fsanitize=leak` | `--features=lsan` |
 | libFuzzer | `-fsanitize=fuzzer` | |
+| MemorySanitizer | the runtimes from source, `XCLANG_RUNTIMES=source` with `XCLANG_SANITIZER=memory` ([below](#memorysanitizer)) | `--@xclang//runtimes:source --features=msan` |
 | the ASan libc++ | compile: `-isystem $asan/include`; link: `-nostdlib++ $asan/libc++.a` | part of `asan` |
 
 ## Behavior
@@ -187,9 +192,11 @@ end with the exit code of the program.
 - **On macOS, the runtimes are dylibs**, such as
   `libclang_rt.asan_osx_dynamic.dylib`. A program loads them from the
   resource directory of the toolchain, or from its own directory. An ASan
-  build is for testing, not for shipping, so this is the one exception to
-  [hermeticity](../design/hermeticity.md#known-limitations). In Bazel, the
-  sanitizer features link the absolute path of the toolchain as an rpath.
+  build is for testing, not for shipping, so this is an exception to
+  [hermeticity](../design/hermeticity.md#known-limitations), as the ASan
+  DLL of the MSVC targets is. In Bazel on macOS hosts, the sanitizer
+  features link the absolute path of the toolchain as an rpath; a program
+  built on another host finds the dylibs in its own directory.
 - **libclang has an ASan build too**, for Linux x64 and macOS arm64 hosts.
   It is built against the ASan libc++
   ([libclang](libclang.md#the-asan-build)).
@@ -279,8 +286,8 @@ clang++ --target=x86_64-unknown-linux-musl -fsanitize=undefined -O1 ubsan.cpp -o
 
 MemorySanitizer needs every library instrumented, libc++ too, and
 compiler-rt's runtime of it, which the toolchain does not carry. Since
-23.1.2.11, the runtimes built from source give it both, for the Linux
-targets ([runtimes from source](runtimes-from-source.md)):
+23.1.2.11, the runtimes built from source give it both, for the glibc
+Linux targets, x64 and arm64 ([runtimes from source](runtimes-from-source.md)):
 `XCLANG_RUNTIMES=source` with `XCLANG_SANITIZER=memory` in CMake,
 `--@xclang//runtimes:source` with `--features=msan` in Bazel.
 ThreadSanitizer and AddressSanitizer report through runtimes from source

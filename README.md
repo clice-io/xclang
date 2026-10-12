@@ -7,9 +7,11 @@ Rust do it: one compiler for every target. Today every toolchain carries eight
 targets, prebuilt, and cross-compiling to them is a `--target` flag.
 Its `xclang` command fetches the vendor SDKs that cannot be redistributed,
 Microsoft's and Apple's, for the MSVC targets and for macOS targets on
-Linux and Windows hosts. Where it is going: more targets, fetched when a
-build needs them, and runtimes built from source on demand. None of that
-is in a release yet; the
+Linux and Windows hosts, and runs cargo for xclang's targets with no cargo
+config. The CMake package and the Bazel module build for all of them, and
+can build the C++ runtimes from source for the options the prebuilt ones
+lack (not yet for the MSVC targets). Where it is going: more targets,
+fetched when a build needs them. That is in no release yet; the
 [roadmap](https://docs.clice.io/xclang/design/roadmap) gives each item's
 status.
 
@@ -32,10 +34,10 @@ compiler-rt built for that exact target.
 ## Targets
 
 Every host toolchain (Linux, Windows and macOS, x64 and arm64) carries the
-six common targets: Linux x64 and arm64 with glibc 2.17, Windows x64 and
-arm64 with MinGW-w64 (UCRT), and macOS arm64 and x64, with Xcode's SDK on
-macOS hosts. Since 23.1.2.10, also the **musl targets**, Linux x64 and
-arm64: static programs that take nothing from the system they run on
+same eight targets: Linux x64 and arm64 with glibc 2.17, Windows x64 and
+arm64 with MinGW-w64 (UCRT), macOS arm64 and x64, with Xcode's SDK on
+macOS hosts, and the **musl targets**, Linux x64 and arm64: static programs
+that take nothing from the system they run on
 ([musl targets](https://docs.clice.io/xclang/reference/targets#musl-targets)).
 
 With the SDKs the user fetches with the toolchain's `xclang` command
@@ -43,10 +45,18 @@ With the SDKs the user fetches with the toolchain's `xclang` command
 
 - **MSVC-ABI targets**, Windows x64 and arm64 against Microsoft's CRT
   and Windows SDK, from every host, with libc++ (since 23.1.2.10) or
-  Microsoft's STL
+  Microsoft's STL; on a Windows host with no SDK fetched, with the
+  installed Visual Studio
   ([MSVC targets](https://docs.clice.io/xclang/integrations/clang#msvc-targets)).
 - **macOS targets from Linux and Windows**, with Apple's SDK
   ([macOS](https://docs.clice.io/xclang/design/macos#the-sdk-on-linux-and-windows-hosts)).
+
+Since 23.1.2.11, `-stdlib=platform` builds for any of these targets with
+the platform's C++ library in place of xclang's libc++, for C++ interfaces
+to libraries built with it: libstdc++ on Linux, the SDK's libc++ for macOS,
+Microsoft's STL for MSVC, and for musl and MinGW the libstdc++ of a
+`--sysroot`
+([the system's C++ library](https://docs.clice.io/xclang/integrations/clang#the-system-s-c-library)).
 
 Not supported yet, each with its status in the roadmap:
 
@@ -67,16 +77,17 @@ that run wherever they are copied:
   macOS, the OS's DLLs on Windows, UCRT included (Windows 10 and later).
   Everything else, libc++, libc++abi, libunwind and the builtins among them,
   is linked statically. At build time the only inputs from outside the
-  toolchain are the vendor SDKs: the installed Xcode's on macOS hosts, and
-  those the user fetches with the `xclang` command. Sanitizer runtimes are
-  the exception
+  toolchain are the vendor SDKs: the installed Xcode's on macOS hosts,
+  Visual Studio on a Windows host with no SDK fetched, and those the user
+  fetches with the `xclang` command. Sanitizer runtimes are the exception,
+  and `-stdlib=platform` leaves the rule on purpose
   ([hermeticity](https://docs.clice.io/xclang/design/hermeticity)).
 - **Every piece is usable on its own.** The sysroots and runtimes are plain
   directories laid out the way clang's drivers expect.
 - **Fast.** clang and lld are built with PGO and ThinLTO, and linked
   statically against xclang's own libc++ on every host.
-- **Small.** clang, lld and most tools are one program, `llvm`, 89 to
-  97 MB an archive.
+- **Small.** clang, lld and most tools are one program, `llvm`, 92 to
+  101 MB an archive.
 - **For tools on clang** too: each release has the libclang it was built
   from and the option tables.
 
@@ -126,13 +137,19 @@ target_link_libraries(app PRIVATE xclang::std)
 Bazel, from the clice registry [bazel.clice.io](https://bazel.clice.io):
 
 ```starlark
-bazel_dep(name = "xclang", version = "23.1.2.8")  # or newer
+bazel_dep(name = "xclang", version = "23.1.2.11")  # or newer
 ```
 
-and, from 23.1.2.6 on, another target is a platform:
+and another target is a platform:
 
 ```sh
 bazel build --platforms=@xclang//platforms:x86_64-w64-mingw32 //...
+```
+
+Cargo, since 23.1.2.11, with no cargo config:
+
+```sh
+xclang cargo build --target x86_64-pc-windows-gnullvm
 ```
 
 ## Documentation
@@ -156,6 +173,7 @@ At [docs.clice.io/xclang](https://docs.clice.io/xclang), from
   [CI](https://docs.clice.io/xclang/integrations/ci)
 - Features: [Modules](https://docs.clice.io/xclang/features/modules),
   [Sanitizers](https://docs.clice.io/xclang/features/sanitizers),
+  [Runtimes from Source](https://docs.clice.io/xclang/features/runtimes-from-source),
   [Debugging](https://docs.clice.io/xclang/features/debugging),
   [libclang](https://docs.clice.io/xclang/features/libclang),
   [ThinLTO Cache](https://docs.clice.io/xclang/features/thinlto-cache)

@@ -31,7 +31,7 @@ What a program loads at run time is in
 | Ninja | 1.11 or later | what CMake requires to build C++20 modules; only the Ninja generators build them for these targets |
 | Bazel | 9, with rules_cc 0.2.25 | the toolchains are rules_cc 0.2.25's; C++20 modules need `--experimental_cpp_modules` |
 | Xcode | any whose SDK ld64.lld reads; Xcode 27 needs 23.1.2.6 or later | the macOS 27 SDK lists `arm64e.x1`, which ld64.lld reads with [patch 0009](patches.md) |
-| Rust | the `*-windows-gnullvm` targets for Windows, not `*-windows-gnu` | their std links libunwind and UCRT, as the MinGW sysroots have them ([Rust and Cargo](../integrations/cargo.md)) |
+| Rust | for MinGW the `*-windows-gnullvm` targets, not `*-windows-gnu`; the `*-pc-windows-msvc` targets with the Windows SDK | the gnullvm targets' std links libunwind and UCRT, as the MinGW sysroots have them ([Rust and Cargo](../integrations/cargo.md)) |
 
 Since 23.1.2.7, clang and clang-cl build for `*-pc-windows-msvc` against
 the SDK the `xclang` command fetches, not an installed Visual Studio
@@ -49,6 +49,8 @@ always.
 | | status |
 |---|---|
 | [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
+| [ASan, TSan, LSan and libFuzzer for musl targets](../design/roadmap.md#musl-sanitizers) | Considered |
+| [Runtimes from source for the MSVC targets](../design/roadmap.md#runtimes-msvc) | Planned |
 
 ## Known Limitations
 

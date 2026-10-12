@@ -202,6 +202,6 @@ What this run adds, with the same build without its profile:
 | | status |
 |---|---|
 | [BOLT](roadmap.md#bolt), which LLVM's Linux x64 release uses on top of PGO | In research |
-| [A training on more of the toolchain's work](roadmap.md#pgo-training): Objective-C, clang-cl, Mach-O links, clang-tidy's checks | Planned |
+| [A training on more of the toolchain's work](roadmap.md#pgo-training): Objective-C, clang-cl, Mach-O links, libclang's clang-tidy checks | Planned |
 
 The training is widened between releases, not while one is pending.

@@ -4,7 +4,7 @@ layout: home
 hero:
   name: xclang
   text: Cross-Compiling with Clang
-  tagline: "Six targets in every archive: Linux, Windows and macOS, each on x64 and arm64. Programs that need nothing but the OS."
+  tagline: "Eight targets in every archive: Linux (glibc and musl), Windows and macOS, each on x64 and arm64. Programs that need nothing but the OS."
   actions:
     - theme: brand
       text: What is xclang?
@@ -45,7 +45,7 @@ features:
     details: arm64 and x64 macOS programs from Linux and Windows too, with Apple's SDK fetched from Apple by the xclang command.
     link: ./guide/cross-compiling#macos-from-linux-or-windows
   - title: The xclang Command
-    details: Fetches Apple's and Microsoft's SDKs from the vendor, by a pinned version and digest.
+    details: Fetches Apple's and Microsoft's SDKs from the vendor, by a pinned version and digest, and runs cargo for xclang's targets with no cargo config.
     link: ./reference/xclang-command
 ---
 
@@ -60,7 +60,7 @@ needs it. None of the items below is in a release. The
 
 **Target archives**
 
-Targets beyond the six, each an archive that `xclang target add` fetches
+Targets beyond the eight, each an archive that `xclang target add` fetches
 ([roadmap](./design/roadmap.md#target-archives)).
 
 <!-- END CAPABILITY -->

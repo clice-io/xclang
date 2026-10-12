@@ -20,7 +20,8 @@ this page is the same, for people. What each patch does is in
 - **A README** in the patch's directory: what goes wrong and who hit it,
   what the patch does, `Upstream:` (the issue, the PR, their state),
   `From:`, and `Checked:` (how it was verified, with run ids).
-- **Numbers are never reused**: 0005, dropped in 23.1.2.5, stays gone.
+- **Numbers are never reused**: 0005 (dropped in 23.1.2.5) and 0015
+  (dropped in 23.1.2.11) stay gone.
 - `*.patch` files are `-text` in `.gitattributes`: git does not convert
   their line endings, and an editor must not either.
 
@@ -50,9 +51,13 @@ this page is the same, for people. What each patch does is in
 3. Version-specific code: `grep -rn "23\b\|23\.1"` over the TypeScript,
    Starlark, CMake and workflow files, and read each hit (tests/libclang/libclang.ts,
    the benchmark's compilers, renamed CMake options, the option tables'
-   paths, toolchain/pgo/remap.txt, the Bazel module's library list).
-4. The bootstrap: the previous xclang release, unless a major version
-   needs a newer compiler; then LLVM's own release build, as for 23.1.2.1.
+   paths, toolchain/pgo/remap.txt, the Bazel module's library list), and
+   the runtimes' sources: the directories `toolchain/runtimes-src.ts`
+   takes, and the Bazel module's `runtimes_sources.bzl`, made again with
+   `packages/bazel/runtimes.ts` (`collect`, `write`, `check`).
+4. The bootstrap: the xclang release pinned in `toolchain/common.ts`,
+   unless a major version needs a newer compiler; then LLVM's own release
+   build, as for 23.1.2.1.
 5. A full release.yml run on `exp/<llvm version>`; the training and the smoke
    tests are where a new version breaks most.
 6. The first release of the new version is `<version>.1`

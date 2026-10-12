@@ -29,8 +29,8 @@ GitHub-hosted runner.
 | `aarch64-w64-mingw32` | `aarch64-w64-windows-gnu`, `aarch64-pc-windows-gnu` | mingw-w64 with UCRT | Windows 10 or later | every host |
 | `aarch64-apple-darwin` | `arm64-apple-darwin`, `arm64-apple-macos`, `aarch64-apple-macosx`, ... | the SDK's libSystem | macOS 13.0 or later | macOS hosts; Linux and Windows hosts with the SDK `xclang` fetches |
 | `x86_64-apple-darwin` | `x86_64-apple-macos`, `x86_64-apple-macosx` | the SDK's libSystem | macOS 13.0 or later | macOS hosts; Linux and Windows hosts with the SDK `xclang` fetches |
-| `x86_64-pc-windows-msvc` | `x86_64-unknown-windows-msvc` | Microsoft's CRT, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches |
-| `aarch64-pc-windows-msvc` | `aarch64-unknown-windows-msvc` | Microsoft's CRT, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches |
+| `x86_64-pc-windows-msvc` | `x86_64-unknown-windows-msvc` | Microsoft's CRT, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches; Windows hosts also with Visual Studio |
+| `aarch64-pc-windows-msvc` | `aarch64-unknown-windows-msvc` | Microsoft's CRT, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches; Windows hosts also with Visual Studio |
 | `x86_64-unknown-linux-musl` | `x86_64-pc-linux-musl`, `x86_64-linux-musl` | musl 1.2.6, linked statically | any Linux x64 | every host, from 23.1.2.10 on |
 | `aarch64-unknown-linux-musl` | `aarch64-pc-linux-musl`, `aarch64-linux-musl` | musl 1.2.6, linked statically | any Linux arm64 | every host, from 23.1.2.10 on |
 
@@ -56,6 +56,7 @@ static, need no glibc, and run on the Linux x64 and arm64 runners
 | compiler-rt builtins, profile | Supported | Supported | Supported | Supported | Supported |
 | ASan, TSan, LSan, UBSan, libFuzzer | Supported | UBSan only | Considered | Supported | Supported: UBSan; ASan and libFuzzer for x64 |
 | ASan libc++ | Supported | none | Considered | Supported | Supported, x64 |
+| [runtimes from source](../features/runtimes-from-source.md) | Supported, with MemorySanitizer | Supported | Supported | Supported | Planned |
 | linker | ld.lld | ld.lld | ld.lld (MinGW driver) | ld64.lld; `-fuse-ld=ld` for Apple's, without LTO | lld-link |
 
 Sanitizers for the MinGW targets are
@@ -110,6 +111,8 @@ run on a runner of their target, with no emulator
 | | status |
 |---|---|
 | [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
+| [ASan, TSan, LSan and libFuzzer for musl targets](../design/roadmap.md#musl-sanitizers) | Considered |
+| [Runtimes from source for the MSVC targets](../design/roadmap.md#runtimes-msvc) | Planned |
 
 Every other target, with its planned tier and its status, is in the
 [roadmap](../design/roadmap.md#targets).

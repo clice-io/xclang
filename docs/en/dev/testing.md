@@ -14,7 +14,7 @@ here instead of naming tests.
   `tests/libclang/libclang.ts`), the CMake package (`tests/cmake/cmake.ts`),
   the Bazel module (`tests/bazel`), the MSVC targets and the macOS targets
   from Linux and Windows hosts (`tests/sdk/msvc.ts`, `tests/sdk/macos.ts`),
-  the command (`tests/cli/cli.ts`) and the examples. docs.yml checks the
+  the command (`tests/cli/cli.ts`, `tests/cli/cargo.ts`) and the examples. docs.yml checks the
   docs and the scripts' types on every push.
 - **Before a release**, release.yml tests each host's archives on a
   machine of that host, and the same checks run with them. The programs
@@ -45,7 +45,7 @@ rest are called by them, by release.yml, or started by hand.
 | docs.yml | every push and pull request, by itself | | | | `tests/docs/docs.ts` and the types (`npm run check`); on `main`, then publishing to docs.clice.io |
 | test-archives.yml | `tests/toolchain`, `tests/libclang`, `toolchain/config` | stage `test` | | | `tests/toolchain/smoke.ts` and `tests/libclang/libclang.ts` on a machine of each host; the programs the smoke test builds for other targets run on those (on-target.yml); with `repack-of`, `tests/release/repack.ts`: each host's archives against those of the release repacked (or of an earlier run of the same revision, which a full rebuild must give again), file by file, only the packaging's files differ |
 | test-cmake.yml | `packages/cmake`, `tests/cmake`, `tests/libclang`, `toolchain/runtimes-src.ts`, `toolchain/cmake/caches` | stage `cmake` | the tag fetched from GitHub | | `tests/cmake/cmake.ts`: the package by `PATH`, through the toolchain file, from FetchContent, and with the runtimes from source; their programs for other targets run there (on-target.yml) |
-| test-bazel.yml | `packages/bazel`, `tests/bazel`, `toolchain/runtimes-src.ts` | stage `bazel`: `tests/bazel` and the runtimes from source | ✓ | ✓ | `tests/bazel` with the module, `tests/bazel/bazel.ts`, the runtimes from source (`tests/bazel/runtimes.ts`), and cross builds run on the target (`tests/bazel/cross.ts`) |
+| test-bazel.yml | `packages/bazel`, `tests/bazel`, `toolchain/runtimes-src.ts` | stage `bazel`: `tests/bazel` (with the musl targets), the runtimes from source, and the vendor SDKs' targets with the archives' `xclang` | ✓ | ✓ | `tests/bazel` with the module, `tests/bazel/bazel.ts`, the runtimes from source (`tests/bazel/runtimes.ts`), and cross builds run on the target (`tests/bazel/cross.ts`) |
 | test-sdk.yml | `tests/sdk`, `toolchain/config`, `packages/cmake` | stage `sdk`; needs `cli`, as the archives' `xclang` fetches the SDKs | | | the MSVC targets (`tests/sdk/msvc.ts`) and the macOS targets from Linux and Windows hosts (`tests/sdk/macos.ts`); their programs on Windows and Macs |
 | cli.yml | `xclang`, `tests/cli`, `tests/sdk` | the build, for stage `package`; stage `cli` | | ✓ | the `xclang` command: rustfmt, clippy, unit tests, `tests/cli/cli.ts`, `tests/cli/cargo.ts` |
 | examples.yml | `examples` | | once conda.clice.io has the release and `latest` names it | ✓ | the commands and `examples/` of the docs, as written; the programs for other targets on their runners |
@@ -86,10 +86,16 @@ How the stages fit together is in the [build pipeline](release-build.md).
 - The checks each [LLVM patch](../reference/patches.md) was made against.
   For example, `--no-default-config --target=<arch>-pc-windows-msvc` finds
   Visual Studio on the Windows runners (patch 0004).
-- The MSVC targets: their compiler-rt is there. Without a fetched SDK,
+- The MSVC targets: their compiler-rt and libc++ are there. Without a fetched SDK,
   freestanding compiles work with clang and clang-cl; on Windows a program
   builds with Visual Studio and runs, elsewhere one that includes
   `<stdio.h>` stops.
+- The platform's C++ library: `-stdlib=platform` (and `-stdlib=libstdc++`)
+  selects every target's `<triple>-system.cfg`, for each spelling, and
+  clang-cl's `/clang:-stdlib=platform` its own; a C compile takes the
+  option without a word. Natively, a C++ program builds with the
+  platform's library and runs: GCC's libstdc++ on Linux, where the runner
+  has it, the SDK's libc++ on macOS, Visual Studio's STL on Windows.
 - ASan, TSan and libFuzzer on Linux and macOS hosts. An overflow within
   the capacity of a `std::string` is reported, and a program that shares
   the `std::filesystem` instantiations of `libc++.a` gets no false report
@@ -126,7 +132,8 @@ runtime. That is the
 - `tests/toolchain/smoke.ts` and `tests/cmake/cmake.ts` build for every target on every
   host. A Linux host runs the musl programs of its architecture itself.
 - Every workflow that builds for another target runs the programs on a
-  runner of that target, with nothing installed there (on-target.yml,
+  runner of that target (test-cmake.yml only those of the runtimes from
+  source), with nothing installed there (on-target.yml,
   `tests/lib/on-target.ts`). The smoke test does it for every release
   candidate: what each host builds for a target it cannot run.
 - test-bazel.yml builds `tests/bazel` on every host for every other target
@@ -177,6 +184,11 @@ Ninja 1.11, and with the newest of both:
    (to Linux arm64 and both MinGW targets) and arm64 macOS (to x86_64
    macOS), with the newest CMake, the hardening variant's programs run on a
    machine of the target (on-target.yml).
+6. **The platform's C++ library** (`XCLANG_STDLIB=platform`):
+   `tests/cmake/platform` for the host's target, with GCC's libstdc++ on
+   Linux (where the runner has it) and the SDK's libc++ on macOS, run; a
+   musl target without `CMAKE_SYSROOT` is refused. Microsoft's STL is
+   `tests/sdk/msvc.ts`'s.
 
 `tests/cmake` covers a C++ module of partitions, `xclang::std` with
 `std.compat`, `xclang_add_std` with `-fno-exceptions`, and
@@ -252,8 +264,11 @@ execution root, and no path of the output base (checked where it was
 built: Microsoft's PDBs take part in it); a macOS one's dSYM, made in the
 link on Linux and Windows too, gives its UUIDs and main's line on the Mac.
 An x64 MSVC program built with `--features=asan` reports the
-container-overflow of the ASan libc++ on Windows, with a toolchain that
-has libc++ for the MSVC targets (a release's run until 23.1.2.10 is out).
+container-overflow of the ASan libc++ on Windows. `//platform:stdlib`
+with `--@xclang//bazel:stdlib=platform` builds with Microsoft's STL for
+the MSVC targets and with the SDK's `libc++.1.dylib` for the macOS ones,
+and runs on their machines; the cross jobs check that the other targets
+refuse it, saying why.
 
 examples.yml builds `examples/bazel` from bazel.clice.io on every host, and
 for another target.
@@ -298,7 +313,7 @@ macOS, Xcode's for the macOS targets):
   `RUSTFLAGS` of its own; from Linux also `xclang/` itself;
 - checks what each program loads, and runs them all on a machine of their
   target; the host's target, and on Linux musl's, with `cargo run` and
-  `cargo test` too;
+  `cargo test` too, and the host's target with `XCLANG_STDLIB=platform`;
 - checks the errors: a `*-windows-gnu` target, a target xclang lacks, and
   on Linux and Windows a macOS target without the SDK.
 
@@ -315,16 +330,18 @@ release's, from Linux x64, macOS arm64 and Windows x64 hosts. On each, `tests/sd
   windows-2022's for x64, and switches between them with `sdk use`; the
   config files read the SDK in use for the architectures it has, and none
   after `sdk remove`;
-- builds, for x64 and arm64, C and C++ (exceptions, threads,
-  `<filesystem>`, `<format>`) with clang, clang++ and clang-cl, `__int128`
+- builds, for x64 and arm64, C, and C++ (exceptions, threads,
+  `<filesystem>`, `<format>`) with libc++ and with Microsoft's STL
+  (`-stdlib=platform`), with clang, clang++ and clang-cl, `__int128`
   division, a Win32 program, ThinLTO, debug information, UBSan, the profile
   runtime, and for x64 ASan with the static and the DLL CRT and libFuzzer;
 - checks the DLLs each program imports: the hybrid CRT imports UCRT's API
   sets and no `vcruntime140.dll` or `msvcp140.dll`; `/MD` and
-  `-fms-runtime-lib=dll` import both; all-static, `/MTd` and
+  `-fms-runtime-lib=dll` import UCRT and the VC runtime's DLLs; all-static, `/MTd` and
   `-fms-runtime-lib=static_dbg` import neither; none imports a debug DLL;
-- builds `tests/cmake` for both targets through the toolchain file, and
-  from Linux kotatsu and its tests for x64.
+- builds `tests/cmake` for both targets through the toolchain file, with
+  libc++ and with `XCLANG_STDLIB=platform`, and from Linux kotatsu and its
+  tests for x64.
 
 The programs of every host then run on windows-2025 and windows-11-arm,
 and kotatsu's tests in its source tree. Only programs leave a job, never
@@ -376,9 +393,19 @@ checks what the page says it prints:
 - **libclang and the ThinLTO cache**, on every host: the tool on the
   release archive of libclang with CMake, and on `@libclang` with Bazel. The
   job records the link times and the entries of the cache.
-- **Cargo**, from Linux x64 and macOS arm64: Rust programs with C code for
-  Windows x64 and arm64 and for Linux arm64, run on their targets. The
-  Windows programs load no runtime DLL.
+- **Runtimes from source**, on every host: CMake with
+  `-DXCLANG_RUNTIMES=source` and a hardening mode; on Linux,
+  MemorySanitizer.
+- **The system's C++ library**, on Linux and macOS hosts: CMake with
+  `-DXCLANG_STDLIB=platform`, and in the `sdk` job clang with
+  `-stdlib=platform` for the host and for x64 MSVC; the programs load
+  `libstdc++.so.6`, the system's `libc++.1.dylib`, or UCRT and no VC
+  runtime DLL.
+- **Cargo**, from Linux x64, Windows x64 and macOS arm64: `xclang cargo`
+  for Windows x64 and arm64, whose programs load no runtime DLL, and for
+  x64 musl, and for the host's target with `XCLANG_STDLIB=platform`; from
+  Linux and macOS, Linux arm64 without `xclang cargo`. The programs run on
+  their targets.
 
 ## The Docs
 
@@ -407,8 +434,8 @@ Some claims were checked once, by hand, and are not part of a workflow:
   and the same file every run with `--num-threads=1`
   ([debugging](../features/debugging.md#known-limitations)).
 - lld linked clice's 600 MB `clice.exe` with ThinLTO six times from the same
-  inputs, in three layouts
-  ([Windows](../design/windows.md#known-limitations)).
+  inputs, in three layouts, before patch 0017
+  ([Windows](../design/windows.md#the-same-bytes-from-every-link)).
 
 ## Speed
 

@@ -1,7 +1,7 @@
 # The xclang Command
 
 `xclang` fetches what the toolchain does not carry: the vendor SDKs that
-cannot be redistributed, and targets beyond the six every toolchain has.
+cannot be redistributed, and targets beyond the eight every toolchain has.
 Every toolchain archive carries it, as `bin/xclang` (`xclang.exe` on
 Windows), since 23.1.2.7. Why SDKs are fetched and not shipped is in
 [vendor SDKs](../design/vendor-sdks.md). No release publishes target
@@ -43,13 +43,14 @@ unpacks the SDK into a directory of its own:
 | `sdk path` | prints the directory that fetch, with the same options, fetches to: `-isysroot "$(xclang sdk path macos)"` |
 | `sdk packages` | prints what fetch, with the same options, downloads: each package's sha256, size and URL, or with `--json` `{"name": <the SDK's directory>, "packages": [{"url", "size", "sha256", "file"}]}`. A build system downloads them itself, under the names `file`, into a directory that `fetch --cache` then takes them from; the Bazel module does ([Bazel](../integrations/bazel.md#vendor-sdks)) |
 | `--cache <dir>` | fetch keeps its downloads in the directory, and takes from it those already there, by their sha256 |
-| `sdk list` | the fetched SDKs, and those in use; `.xclang-sdk.json`, written last, records what an SDK was fetched from, and a directory without it is listed as incomplete |
+| `sdk list` | the presets and versions xclang knows, the defaults marked, the fetched SDKs, and those in use; `.xclang-sdk.json`, written last, records what an SDK was fetched from, and a directory without it is listed as incomplete |
 | `sdk use <name>` | makes a fetched SDK the one in use (below) |
 | `sdk remove <name>` | removes a fetched SDK, and its link if it is in use |
 | `--preset <image>` | the SDK versions of a GitHub runner image or label (`windows-2022`, `macos-15`); by default `windows-latest` and `macos-latest` |
 | `--version`, `--sdk-version`, `--msvc-version` | a version, whole or in part (`15`, `10.0.26100`, `14.44`), in place of the preset's; the newest that matches is taken |
 | `--sdk-dir <dir>` | another directory for SDKs, for a toolchain installed read-only |
-| `--links copy` | on Windows, copy instead of making junctions and hard links |
+| `--links <how>` | how fetch makes the macOS SDK's links: `junction`, junctions and hard links, the default on Windows; `symlink`, symbolic links, the default elsewhere; or `copy` |
+| `--root <dir>` | the toolchain the command acts on; by default the one it is in |
 
 ### The SDK in Use
 
@@ -174,10 +175,12 @@ Mozilla's roots.
 
 | variable | |
 |---|---|
+| `XCLANG_ROOT` | the toolchain, as `--root` |
 | `XCLANG_SDK_DIR` | another directory for SDKs, as `--sdk-dir` |
 | `XCLANG_JOBS` | how many threads unpack; one per CPU by default |
 | `XCLANG_TARGET_INDEX` | another target index, as `--index` |
 | `XCLANG_CACHE_DIR` | where `xclang cargo` keeps its linkers and CMake toolchain files; by default `xclang` in the user's cache directory |
+| `XCLANG_STDLIB` | `platform`: `xclang cargo` builds C++ with the platform's C++ library ([Rust and Cargo](../integrations/cargo.md#the-system-s-c-library)) |
 | `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`, `NO_PROXY` | honoured |
 | `SSL_CERT_FILE` | a CA file, read on Linux |
 

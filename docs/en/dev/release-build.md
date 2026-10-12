@@ -11,8 +11,9 @@ steps for cutting one are in [releasing](releasing.md).
    musl targets' sysroot is built from source too: musl's release with the
    patches of `toolchain/musl`, and the UAPI headers of a kernel.org
    release. The
-   compiler-rt of the MSVC targets is built with clang-cl against a
-   Windows SDK fetched in the job by `xclang`; only the libraries leave it.
+   libc++ (with x64's ASan libc++) and compiler-rt of the MSVC targets are
+   built with clang-cl against a Windows SDK fetched in the job by
+   `xclang`; only the libraries leave it.
 2. **Instrumented compiler.** The bootstrap clang builds a clang and lld
    with frontend instrumentation, on Linux x64.
 3. **Training.** The instrumented toolchain compiles a fixed training set
@@ -27,7 +28,8 @@ steps for cutting one are in [releasing](releasing.md).
    sorted, with the commit's time and no owner; xz in blocks of a fixed
    size, whatever its number of threads). They are tested on a machine of
    that host, and the Bazel module and the CMake package are tested with
-   them ([testing](testing.md)).
+   them ([testing](testing.md)). Each toolchain also gets the runtimes'
+   sources, patched, in `libc++/src`.
 6. **Release.** A draft release with every archive, the profile and
    `SHA256SUMS`. Publishing it, by hand, creates the tag.
 
@@ -97,9 +99,9 @@ release: the same compiler, runtimes, libclang and profile, with the
 packaging of the checkout ([releasing](releasing.md#full-rebuild-or-repack)).
 Its input `repack-of` adds to the `test` stage the comparison of each
 host's archives with that release's, file by file: only the config files,
-the CMake package, the `xclang` command and the license notices may
-differ. `repack-of` can also name a run of the same revision instead of a
-release: a full rebuild with that run's profile (`profile-run`) must then
+the CMake package, the `xclang` command, the license notices and the
+runtimes' sources (`libc++/src`) may differ. `repack-of` can also name a
+run of the same revision instead of a release: a full rebuild with that run's profile (`profile-run`) must then
 give its archives again, but for the Windows hosts' `llvm.exe` until the
 bootstrap has patch 0017
 ([reproducible builds](../design/roadmap.md#reproducible-builds)).
@@ -141,12 +143,12 @@ macOS. It checks what each binary loads at run time:
 
 | host | size | loads at run time |
 |---|---|---|
-| x86_64-unknown-linux-gnu | 3.1 MB | libc, libdl, libpthread, librt; glibc 2.16 |
-| aarch64-unknown-linux-gnu | 2.7 MB | libc, libdl, libpthread; glibc 2.17 |
-| x86_64-w64-mingw32 | 2.8 MB | kernel32, ntdll, advapi32, ws2_32, bcrypt, bcryptprimitives, crypt32, UCRT (`api-ms-win-crt-*`) |
-| aarch64-w64-mingw32 | 2.4 MB | the same |
-| aarch64-apple-darwin | 2.6 MB | libSystem, libiconv, Security, CoreFoundation; macOS 13.0 |
-| x86_64-apple-darwin | 2.9 MB | the same |
+| x86_64-unknown-linux-gnu | 3.2 MB | libc, libdl, libpthread, librt; glibc 2.16 |
+| aarch64-unknown-linux-gnu | 2.8 MB | libc, libdl, libpthread; glibc 2.17 |
+| x86_64-w64-mingw32 | 3.0 MB | kernel32, ntdll, advapi32, ws2_32, bcrypt, bcryptprimitives, crypt32, `api-ms-win-core-synch-l1-2-0`, UCRT (`api-ms-win-crt-*`) |
+| aarch64-w64-mingw32 | 2.5 MB | the same |
+| aarch64-apple-darwin | 2.7 MB | libSystem, libiconv, Security, CoreFoundation; macOS 13.0 |
+| x86_64-apple-darwin | 3.0 MB | the same |
 
 cli.yml builds the binaries and tests each on a machine of its host
 ([testing](testing.md#the-xclang-command)). `release.yml` with `cli` builds the
@@ -158,8 +160,10 @@ Each dependency is there for a reason:
 - ureq for HTTP, with rustls and ring. ring rather than aws-lc-rs, because
   it needs nothing but a C compiler to build, no CMake or NASM.
 - rustls-platform-verifier for the trust store of the system, with
-  webpki-roots as the fallback.
-- flate2 for the deflate of zip and the zlib of xar.
+  webpki-roots as the fallback; on Linux, rustls-native-certs, to see
+  whether the system has CA certificates at all.
+- flate2 for the deflate of zip, the zlib of xar and the gzip of Apple's
+  catalogs.
 - liblzma for xz; cargo's C compiler builds its C sources.
 - tar; serde and serde_json for the version table and the index; lexopt
   for the command line.

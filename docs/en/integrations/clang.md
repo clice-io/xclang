@@ -20,6 +20,9 @@ clang++ -O2 --target=x86_64-w64-mingw32 hello.cpp -o hello-windows-x64.exe
 clang++ -O2 --target=aarch64-w64-mingw32 hello.cpp -o hello-windows-arm64.exe
 ```
 
+`--target=x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl`
+build static programs
+([musl targets](../reference/targets.md#musl-targets)).
 On macOS hosts, `--target=aarch64-apple-darwin` and
 `--target=x86_64-apple-darwin` build against Xcode's SDK, found by `xcrun`
 or given with `-isysroot`. On Linux and Windows hosts they build against
@@ -211,9 +214,13 @@ meson compile -C build-aarch64-w64-mingw32
 
 ## Turn On libc++ Hardening
 
-libc++ is built with the hardening mode `none`. The mode is a macro of each
-translation unit, so a build opts in on its own command line. A debug build,
-for example, passes `-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG`.
+The prebuilt libc++ is built with the hardening mode `none`. The mode is a
+macro of each translation unit, so a build opts in on its own command line.
+A debug build, for example, passes
+`-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG`. For the checks
+inside the library too, the CMake package and the Bazel module build the
+runtimes from source with a hardening mode
+([runtimes from source](../features/runtimes-from-source.md)).
 
 ## See Also
 

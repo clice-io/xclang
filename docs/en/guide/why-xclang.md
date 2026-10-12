@@ -84,8 +84,10 @@ makes the relinks of tools built on it take seconds.
 
 ## Correctness Tools
 
-ASan, TSan, LSan, UBSan and libFuzzer work for Linux and macOS targets;
-UBSan for the MSVC targets, and ASan and libFuzzer for x64 ones. An
+ASan, TSan, LSan, UBSan and libFuzzer work for the glibc Linux and macOS
+targets, and MemorySanitizer for Linux with the
+[runtimes built from source](../features/runtimes-from-source.md); UBSan
+for the musl and MSVC targets, and ASan and libFuzzer for x64 MSVC. An
 ASan program against an uninstrumented libc++ reports container overflows
 that are not there. So xclang ships an ASan build of libc++, which ASan
 programs link. Debug information holds wherever the build ran, and the

@@ -191,7 +191,9 @@ xclang_resource_dir(name = "resource_dir")
 - **Build for another target with its libclang.** In Bazel, `@libclang`
   follows the target platform, and a build for another target downloads
   only that target's archive. In CMake, point `CMAKE_PREFIX_PATH` at the
-  archive of the target host.
+  archive of the target host. There is a libclang for each of the six
+  hosts, and none for the musl and MSVC targets: in Bazel, what depends on
+  `@libclang` is incompatible with them.
 
 ## What the Archive Contains
 

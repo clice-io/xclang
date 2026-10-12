@@ -79,7 +79,8 @@ cmake --build build-aarch64-w64-mingw32
 
 - Linux and MinGW targets build on every host. So do the
   [MSVC targets](#build-for-msvc-targets), with the Windows SDK that the
-  toolchain's `xclang` fetched, and the macOS targets: with Xcode's SDK on
+  toolchain's `xclang` fetched (or, on a Windows host, the installed Visual
+  Studio), and the macOS targets: with Xcode's SDK on
   macOS hosts ([why](../design/macos.md#the-sdk-is-xcode-s)), and with the
   fetched SDK on [Linux and Windows hosts](#build-for-macos-from-linux-or-windows).
   On a macOS host, the other macOS architecture is
@@ -102,8 +103,9 @@ cmake --build build-aarch64-w64-mingw32
 `x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc` build with the
 Windows SDK that the toolchain's `xclang` fetched,
 `$XCLANG/bin/xclang sdk fetch windows --accept-license`
-([MSVC targets](clang.md#msvc-targets)). Without it, the toolchain file
-stops and says how to fetch it:
+([MSVC targets](clang.md#msvc-targets)). On a Windows host without it,
+clang finds the installed Visual Studio; on Linux and macOS hosts, the
+toolchain file stops and says how to fetch it:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -288,8 +290,11 @@ libc++abi and libunwind from the toolchain's sources at the first
 configure, with options the prebuilt ones lack: MemorySanitizer
 (`-DXCLANG_SANITIZER=memory`), libc++'s hardening modes, ABI options, no
 exceptions. The whole build, `xclang::std` included, is then against
-them. Since 23.1.2.11
+them. Since 23.1.2.11, and not for the MSVC targets
 ([runtimes from source](../features/runtimes-from-source.md#cmake)).
+With the prebuilt runtimes, `-DXCLANG_SANITIZER=address` gives the whole
+build ASan and the prebuilt ASan libc++
+([sanitizers](../features/sanitizers.md#cmake)).
 
 ## Ship Debug Symbols
 
@@ -343,7 +348,8 @@ subdirectories ([the ThinLTO cache](../features/thinlto-cache.md)).
 | | status |
 |---|---|
 | [Relative paths in debug information](../design/roadmap.md#cmake-relative-paths), as Bazel builds have | Planned |
-| [Fetched targets](../design/roadmap.md#fetched-targets-in-build-systems) beyond the six | Planned |
+| [Fetched targets](../design/roadmap.md#fetched-targets-in-build-systems) beyond those of the toolchain | Planned |
+| [Runtimes from source for the MSVC targets](../design/roadmap.md#runtimes-msvc) | Planned |
 
 ## Known Limitations
 

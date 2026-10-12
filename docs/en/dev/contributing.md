@@ -10,7 +10,8 @@ docs. Most of them are checked on CI, not on a laptop.
 ```
 toolchain/         the build pipeline, TypeScript run by Node 24:
                    bootstrap.ts, runtimes.ts (with sysroot.ts),
-                   toolchain.ts, package.ts, licenses.ts, fetch.ts;
+                   toolchain.ts, package.ts, licenses.ts, fetch.ts,
+                   runtimes-src.ts (the runtimes' sources, libc++/src);
                    common.ts, what every script shares (versions,
                    pinned sources, targets)
   cmake/           caches/, what each LLVM build is: runtimes, the host
@@ -28,9 +29,10 @@ xclang/            the xclang command, in Rust; its SDK version table,
                    sdk-versions.json; build.ts builds it
 patches/           changes to LLVM, a directory and a README each
 packages/          what xclang's users build with (packages/README.md):
-  bazel/           the Bazel module; bazel.ts makes its registry archive
+  bazel/           the Bazel module; bazel.ts makes its registry archive,
+                   runtimes.ts its runtimes_sources.bzl
   cmake/           the CMake package (find_package, toolchain file,
-                   FetchContent download)
+                   FetchContent download, the runtimes from source)
   conda/           the activation scripts of the conda packages; conda.ts
                    makes the packages
 tests/             one directory per thing tested, its script beside its
@@ -38,7 +40,8 @@ tests/             one directory per thing tested, its script beside its
   toolchain/       smoke.ts, a host's toolchain archive on its host
   libclang/        libclang.ts and a tool on libclang
   cmake/           cmake.ts and a project on the CMake package
-  bazel/           bazel.ts and cross.ts, and a workspace on the module
+  bazel/           bazel.ts, cross.ts and runtimes.ts, and a workspace on
+                   the module
   sdk/             msvc.ts and macos.ts, the targets of the vendor SDKs
   cli/             cli.ts and cargo.ts, the xclang command; crate/, a
                    crate of C, C++, CMake and bindgen for xclang cargo
@@ -114,7 +117,8 @@ touches. What each test covers is in [testing](testing.md).
 | the config files | `tests/toolchain/smoke.ts`, `tests/sdk` (test-archives.yml, test-sdk.yml, on a push) |
 | libclang | `tests/libclang/libclang.ts` |
 | the CMake package | `tests/cmake` (test-cmake.yml) |
-| the Bazel module | `tests/bazel`, `tests/bazel/bazel.ts`, `tests/bazel/cross.ts` (test-bazel.yml) |
+| the Bazel module | `tests/bazel`, `tests/bazel/bazel.ts`, `tests/bazel/cross.ts`, `tests/bazel/runtimes.ts` (test-bazel.yml) |
+| the runtimes from source | `tests/cmake/cmake.ts` (`tests/cmake/runtimes`), `tests/bazel/runtimes.ts` (test-cmake.yml, test-bazel.yml) |
 | the MSVC and macOS targets | `tests/sdk/msvc.ts`, `tests/sdk/macos.ts` (test-sdk.yml) |
 | the xclang command | `tests/cli/cli.ts`, `tests/cli/cargo.ts` (cli.yml) |
 | the commands of the docs, `examples/` | examples.yml |

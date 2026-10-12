@@ -13,7 +13,7 @@ clang++ --target=aarch64-w64-mingw32 hello.cpp -o hello.exe
 ```
 
 The compiler is stock LLVM, with a few [patches](../reference/patches.md)
-on their way upstream, built with PGO and ThinLTO for six hosts. The six
+on their way upstream, built with PGO and ThinLTO for six hosts. Eight
 common targets come with the toolchain, and its `xclang` command fetches
 the vendor SDKs that no one may redistribute. xclang's vision goes
 further: more targets, fetched when a build needs them. None of that is in
@@ -23,22 +23,31 @@ item's status.
 ## What Is in It
 
 - **clang and lld**, and the LLVM binary tools, as one program (`llvm`),
-  linked statically against xclang's own libc++. An archive is 86 to
-  94 MB.
-- **Six targets in every archive**: Linux x64 and arm64 (glibc 2.17),
-  Windows x64 and arm64 (MinGW-w64 with UCRT), macOS arm64 and x64. The
+  linked statically against xclang's own libc++. An archive is 92 to
+  101 MB.
+- **Eight targets in every archive**: Linux x64 and arm64 (glibc 2.17,
+  and musl 1.2.6 for static programs), Windows x64 and arm64 (MinGW-w64
+  with UCRT), macOS arm64 and x64. The
   macOS targets use Apple's SDK: Xcode's on macOS hosts, and on Linux and
   Windows hosts the one the `xclang` command fetches from Apple. Each
   target has its sysroot, libc++, libc++abi, libunwind and compiler-rt,
   prebuilt, and a config file that points clang at them.
 - **The MSVC targets**, Windows x64 and arm64 with Microsoft's CRT and
   xclang's libc++ (or Microsoft's STL), from every host, against the SDK
-  that the `xclang` command fetches from Microsoft
+  that the `xclang` command fetches from Microsoft, or on a Windows host
+  the installed Visual Studio
   ([MSVC targets](../integrations/clang.md#msvc-targets)).
+- **The `xclang` command**, in every archive: it fetches the vendor SDKs,
+  and `xclang cargo` builds Rust for xclang's targets with no cargo config
+  ([Rust and Cargo](../integrations/cargo.md)).
 - **Programs that run where they are copied.** Everything but the OS's own
   libraries is linked in ([hermeticity](../design/hermeticity.md)).
 - **A CMake package and a Bazel module**: the toolchain for the host or
   any target, and `import std` built for the build.
+- **The runtimes' sources**, which the CMake package and the Bazel module
+  build for MemorySanitizer and for libc++'s hardening and ABI options,
+  for every target but the MSVC ones
+  ([runtimes from source](../features/runtimes-from-source.md)).
 - **libclang**: the static libraries the clang of the release was linked
   from, for tools built on clang ([libclang](../features/libclang.md)).
 
@@ -84,7 +93,7 @@ other toolchains serve these:
 These follow from what xclang is. Where they do not fit, another
 toolchain is the better one.
 
-- **C++ libraries from another toolchain do not link.** xclang's C++
+- **C++ libraries from another toolchain need its C++ library.** xclang's C++
   library is libc++, linked into every program. A library built with GCC's
   libstdc++ (a distribution's Qt or Boost) or with MSVC's STL has another
   ABI. Build C++ dependencies with xclang for the target, through CMake,

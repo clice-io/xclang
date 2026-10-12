@@ -163,8 +163,9 @@ build. Its programs run in the tests, on an x86_64 Mac.
 
 ASan, TSan, LSan, UBSan and libFuzzer work as on Linux, and so does the
 ASan libc++. Their runtimes are dylibs on macOS, loaded from the toolchain
-or from the directory of the program. That is the one exception to
-[hermeticity](hermeticity.md#known-limitations), for test builds.
+or from the directory of the program. That is an exception to
+[hermeticity](hermeticity.md#known-limitations), for test builds, as the
+ASan DLL of the MSVC targets is.
 
 ## Not Yet Supported
 

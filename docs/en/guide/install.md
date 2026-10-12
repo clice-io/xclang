@@ -54,8 +54,8 @@ xclang is not a compiler for building conda-forge packages
 ## Archives
 
 Every [GitHub release](https://github.com/clice-io/xclang/releases) has
-the toolchain for each host, `xclang-<version>-<host>.tar.xz`, 86 to
-94 MB. It unpacks anywhere, and is used from there: the toolchain
+the toolchain for each host, `xclang-<version>-<host>.tar.xz`, 92 to
+101 MB. It unpacks anywhere, and is used from there: the toolchain
 directory is `xclang/`. The `SHA256SUMS` of the newest release names its
 archives, and so its version. On Linux:
 

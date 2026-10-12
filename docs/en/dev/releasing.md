@@ -21,10 +21,11 @@ A release whose changes are all in what the `package` stage reads from
 the checkout is a **repack**: the config files (`toolchain/config/`), the
 CMake package (`packages/cmake`), the Bazel module (`packages/bazel`,
 which the archives do not hold), the `xclang` command (`xclang/`), the
-license notices and `toolchain/package.ts`. It reuses the compiler,
-runtimes, libclang and profile of the run that built the previous
-release, the same bytes, and takes about half an hour instead of three
-hours. Anything built into those, such as a patch, a pinned source, the
+license notices, the runtimes' sources (`libc++/src`, from
+`toolchain/runtimes-src.ts`) and `toolchain/package.ts`. It reuses the
+compiler, runtimes, libclang and profile of the run that built the
+previous release, the same bytes, and takes about half an hour instead of
+three hours. Anything built into those, such as a patch, a pinned source, the
 runtimes, the CMake caches or the training, needs a full rebuild. A fix
 of the conda packages alone is no release, but the next conda build
 number of the same one.
