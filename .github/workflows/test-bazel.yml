@@ -79,8 +79,8 @@ jobs:
         with:
           node-version: 24
       - run: npm install -g @bazel/bazelisk
-      # A tag's tree names the release before it: the digests are known only
-      # once its archives are.
+      # The release's digests, which a tree before its own draft's commit
+      # (main before a release's, tags before 23.1.2.12) does not name.
       - name: Release digests
         if: ${{ !inputs.dist-run }}
         env:

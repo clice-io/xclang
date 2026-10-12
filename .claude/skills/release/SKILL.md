@@ -126,7 +126,11 @@ the release run tests them with the new archives.
    x64 and arm64 and on both Macs), cli. Every toolchain archive has
    `bin/xclang` (`bin/xclang.exe`), and `xclang --version` names the
    release. Sizes vs the previous release (`gh release view <prev> --json
-   assets`).
+   assets`). A draft that is deleted leaves its module's commit on the
+   branch, naming a release that does not exist (the bazel stage of a run
+   from there downloads its option tables): reset the branch to the commit
+   before it (`git push -f origin <commit>:exp/<version>`) before running
+   again.
 5. **Notes.** Write them as the earlier releases' are (`gh release view
    23.1.2.4 -R clice-io/xclang`): what it was built by, then what changed
    for users; take the items from the release's section of CHANGELOG.md.

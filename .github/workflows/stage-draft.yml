@@ -56,6 +56,14 @@ jobs:
             echo "::error::release $version exists; a rebuild gets the next revision"
             exit 1
           fi
+          # The archives of this version only: never another run's under
+          # this one's name.
+          for f in dist/*; do
+            if [[ "$f" != *"-$version-"* && "$f" != *"-$version.tar.xz" ]]; then
+              echo "::error::$f is not an archive of $version"
+              exit 1
+            fi
+          done
           cp profile/profile.profdata "dist/xclang-$version.profdata"
           (cd dist && sha256sum * > SHA256SUMS)
           cat dist/SHA256SUMS | tee -a "$GITHUB_STEP_SUMMARY"

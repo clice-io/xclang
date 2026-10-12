@@ -111,9 +111,12 @@ jobs:
       runtimes-run: ${{ github.run_id }}
       instrumented-run: ${{ needs.instrumented.result == 'success' && github.run_id || inputs.reuse-run }}
 
+  # A stage of `stages` that did not succeed (skipped when one before it
+  # failed) stops the stages after it, which would otherwise take the
+  # artifacts of reuse-run, or none, in its place.
   toolchain:
     needs: [runtimes, train]
-    if: ${{ !cancelled() && contains(inputs.stages, 'toolchain') && !contains(needs.*.result, 'failure') }}
+    if: ${{ !cancelled() && contains(inputs.stages, 'toolchain') && !contains(needs.*.result, 'failure') && (needs.train.result == 'success' || !contains(inputs.stages, 'train')) }}
     strategy:
       fail-fast: false
       matrix:
@@ -146,7 +149,7 @@ jobs:
 
   package:
     needs: [runtimes, toolchain, asan, cli]
-    if: ${{ !cancelled() && contains(inputs.stages, 'package') && !contains(needs.*.result, 'failure') }}
+    if: ${{ !cancelled() && contains(inputs.stages, 'package') && !contains(needs.*.result, 'failure') && (needs.toolchain.result == 'success' || !contains(inputs.stages, 'toolchain')) && (needs.asan.result == 'success' || !contains(inputs.stages, 'asan')) }}
     strategy:
       fail-fast: false
       matrix:
@@ -161,7 +164,7 @@ jobs:
 
   test:
     needs: package
-    if: ${{ !cancelled() && contains(inputs.stages, 'test') && needs.package.result != 'failure' }}
+    if: ${{ !cancelled() && contains(inputs.stages, 'test') && (needs.package.result == 'success' || !contains(inputs.stages, 'package')) }}
     uses: ./.github/workflows/test-archives.yml
     with:
       hosts: ${{ inputs.hosts }}
@@ -170,35 +173,35 @@ jobs:
 
   bazel:
     needs: package
-    if: ${{ !cancelled() && contains(inputs.stages, 'bazel') && needs.package.result != 'failure' }}
+    if: ${{ !cancelled() && contains(inputs.stages, 'bazel') && (needs.package.result == 'success' || !contains(inputs.stages, 'package')) }}
     uses: ./.github/workflows/test-bazel.yml
     with:
       dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
 
   cmake:
     needs: package
-    if: ${{ !cancelled() && contains(inputs.stages, 'cmake') && needs.package.result != 'failure' }}
+    if: ${{ !cancelled() && contains(inputs.stages, 'cmake') && (needs.package.result == 'success' || !contains(inputs.stages, 'package')) }}
     uses: ./.github/workflows/test-cmake.yml
     with:
       dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
 
   sdk:
     needs: package
-    if: ${{ !cancelled() && contains(inputs.stages, 'sdk') && needs.package.result != 'failure' }}
+    if: ${{ !cancelled() && contains(inputs.stages, 'sdk') && (needs.package.result == 'success' || !contains(inputs.stages, 'package')) }}
     uses: ./.github/workflows/test-sdk.yml
     with:
       dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
 
   cli-test:
     needs: package
-    if: ${{ !cancelled() && contains(inputs.stages, 'cli') && needs.package.result != 'failure' }}
+    if: ${{ !cancelled() && contains(inputs.stages, 'cli') && (needs.package.result == 'success' || !contains(inputs.stages, 'package')) }}
     uses: ./.github/workflows/cli.yml
     with:
       dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
 
   release:
     needs: [train, package, test, bazel, cmake, sdk, cli-test]
-    if: ${{ !cancelled() && contains(inputs.stages, 'release') && !contains(needs.*.result, 'failure') }}
+    if: ${{ !cancelled() && contains(inputs.stages, 'release') && !contains(needs.*.result, 'failure') && (needs.package.result == 'success' || !contains(inputs.stages, 'package')) && (needs.train.result == 'success' || !contains(inputs.stages, 'train')) }}
     permissions:
       contents: write
       actions: read

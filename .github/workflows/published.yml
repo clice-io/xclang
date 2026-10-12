@@ -110,9 +110,11 @@ jobs:
           archives: dist/xclang-bazel-*.tar.gz
           token: ${{ secrets.UPLOAD_BAZEL }}
 
-  # Forward only: a release is never older than the one before it.
+  # Forward only: a release is never older than the one before it. Not
+  # after a failed test of the module either, which skips bazel-registry
+  # and is no failure of it.
   latest:
-    needs: [release, cmake, conda, bazel-registry]
+    needs: [release, bazel, cmake, conda, bazel-registry]
     if: ${{ !cancelled() && needs.release.outputs.publish == 'true' && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-24.04
     permissions:

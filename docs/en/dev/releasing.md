@@ -69,7 +69,9 @@ number of the same one.
    and `MODULE.bazel` name the release and its digests, so its tag, and
    `main` after it, download its archives through `git_override`.
    checks.yml fails while the module names an older release than the
-   latest.
+   latest. A draft that is deleted leaves that commit on the branch,
+   naming a release that does not exist: the branch goes back to the
+   commit before it before another run.
 5. **Notes**: what it was built by, then what changed for users, from the
    release's section of CHANGELOG.md. A repack's say that the compiler and
    runtimes are the previous release's, the same bytes.

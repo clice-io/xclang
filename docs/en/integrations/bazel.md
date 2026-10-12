@@ -383,8 +383,9 @@ of the registry tests it on the six hosts.
 
 A commit of this repository works through `git_override`. The module is
 the `packages/bazel` directory, and the `packages/bazel/bazel/versions.bzl`
-of the commit names the release it downloads: a tag's its own, and
-`main`'s the latest:
+of the commit names the release it downloads: a tag's its own (from
+23.1.2.12 on; earlier tags name an earlier release), and `main`'s the
+latest:
 
 ```python
 bazel_dep(name = "xclang", version = "23.1.2.8")
