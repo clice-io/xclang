@@ -218,7 +218,7 @@ if (values.programs) {
     fs.copyFileSync(built.variant, path.join(out, `variant${suffix}`));
     fs.copyFileSync(built.std, path.join(out, `variant_std${suffix}`));
     const programs: Program[] = [
-      { file: `variant${suffix}`, output: "namespace __1 hardening 4 exceptions 1\nstream: 42 3.5" },
+      { file: `variant${suffix}`, output: "namespace __1 hardening 4 exceptions 1\nstream: 42 3.5\ndemangled: f()" },
       { file: `variant${suffix}`, name: "variant oob, a trap", args: ["oob"], trap: true },
       { file: `variant_std${suffix}`, expect: "3 elements" },
     ];
