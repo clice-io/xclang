@@ -28,6 +28,50 @@ the [patches](docs/en/reference/patches.md) of its tag.
   Tag 23.1.2.11's names 23.1.2.8, whose archives lack what its rules use
   for the musl targets, the runtimes from source and the platform's C++
   library.
+- **The MSVC targets no longer see libc++abi's `<cxxabi.h>`**, which
+  their libc++, on vcruntime's ABI, has no library for: code that uses
+  `abi::__cxa_demangle` where the header is (Boost's `core::demangle`,
+  fmt) compiled and failed to link. libc++abi's headers are each other
+  target's own now (`libc++/include/<target>/c++/v1`).
+- **CMake**: the download of `xclang.cmake` checks the server's
+  certificate, which CMake before 3.31 does not by default, and
+  `SHA256SUMS` came the same way. `XCLANG_STDLIB=platform` takes effect
+  with a `CMAKE_CXX_FLAGS` given and on a re-configure. The toolchain file
+  works for projects of an old `cmake_minimum_required`, or none, which
+  stopped in it. A build directory refuses another `XCLANG_TARGET`, which
+  CMake applied half of, and another xclang release asks for a new build
+  directory or `cmake --fresh`, before downloading it, instead of naming a
+  foreign toolchain file. `CMAKE_FIND_ROOT_PATH` given for the MSVC and
+  macOS targets is kept. `xclang_debug_symbols` links with Apple's linker
+  (`-fuse-ld=ld`) again. With the runtimes from source,
+  `XCLANG_SANITIZER=undefined,address` builds libc++ with its ASan
+  annotations and `address,leak` builds at all,
+  `XCLANG_RUNTIMES_EXCEPTIONS` and `XCLANG_RUNTIMES_RTTI` take any of
+  CMake's false values, not only `OFF`, and relative paths name one
+  variant.
+- **Bazel**: `--@xclang//bazel:stdlib=platform` and the flags of
+  `//runtimes` are the target's build's, not the tools' it runs: a C++
+  tool built from source failed to build for an MSVC or macOS target with
+  the platform's library, and to link with
+  `--@xclang//runtimes:exceptions=false`. With the runtimes from source, C
+  compiles get no C++ include options, which `-Werror` failed on. A macOS
+  target on a Mac links against the Xcode SDK its compiles use.
+- **`xclang cargo`** leaves `build.rustflags` of the cargo config in
+  effect for the MSVC targets, whose `CARGO_TARGET_<T>_RUSTFLAGS` shut
+  them out; reads `--config <file>` and cargo's `[env]` (`XCLANG_STDLIB`
+  there reached only the linker); and links `-lgcc_eh` (Rust's std with
+  `+crt-static` on Linux) with libunwind.
+- **`xclang sdk fetch`** of a Windows SDK there already keeps the
+  architectures it had, and an SDK fetched again stays usable until the
+  new one is whole: a failed unpack left the MSVC targets without their
+  config files. On Linux and macOS, the arm64 MSVC target links libraries
+  named in mixed case (`Kernel32.lib`), which only x64 found.
+  `xclang target list` says that no release publishes target archives
+  yet, instead of an HTTP error.
+- Docs: Bazel tries toolchains in the order of the `bazel_dep`s (rules_cc's
+  and apple_support's detection off), `supports_dynamic_linker` is for the
+  Linux targets, and a distribution's mingw-w64 is a sysroot of links, as
+  `--sysroot=/usr` added the Linux machine's headers.
 
 ## [23.1.2.11](https://github.com/clice-io/xclang/releases/tag/23.1.2.11) — 2026-10-11
 
