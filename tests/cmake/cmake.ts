@@ -105,8 +105,10 @@ common.run("ninja", ["--version"]);
 const installed = path.join(tree, "lib", "cmake", "xclang");
 const fresh = path.join(work, "package");
 common.writeCMakePackage(fresh, version);
+/// A file's text with LF lines: a Windows checkout's are CRLF.
+const text = (file: string) => fs.readFileSync(file, "utf8").replaceAll("\r\n", "\n");
 const differ = fs.readdirSync(fresh).filter((f) => !fs.existsSync(path.join(installed, f)) ||
-  !fs.readFileSync(path.join(installed, f)).equals(fs.readFileSync(path.join(fresh, f))));
+  text(path.join(installed, f)) !== text(path.join(fresh, f)));
 if (differ.length) {
   if (values.url && fs.existsSync(values.url)) {
     common.fail(`${installed} is not the checkout's package (${differ.join(", ")}), which a run's archive carries`);
