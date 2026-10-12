@@ -269,7 +269,7 @@ The training is widened between releases, not while one is pending
 | <a id="reproducible-archives"></a>Reproducible release archives | Supported |
 | <a id="reproducible-builds"></a>Reproducible toolchain builds: a rebuild of a revision on its profile is the same bytes (the Windows hosts' `llvm.exe` once the bootstrap has patch 0017) | Supported |
 | <a id="license-notices"></a>Third-party license notices in the archives | Supported |
-| <a id="slsa"></a>SLSA provenance attestations | Considered |
+| <a id="slsa"></a>SLSA provenance attestations | Planned |
 
 - **CMake builds** write the build tree's absolute paths into debug
   information. Bazel builds already use paths relative to the execution
@@ -281,6 +281,8 @@ The training is widened between releases, not while one is pending
 - **Immutable releases** keep an archive and its `SHA256SUMS` from being
   replaced together
   ([releases](../reference/releases.md#checking-a-download)).
+- **SLSA provenance**: for each archive of a release, an attestation of
+  the commit and the workflow run that built it, which a user can verify.
 - **Reproducible archives**, since 23.1.2.7: sorted entries, the commit's
   time and no owner in the `.tar.xz` files, xz in fixed blocks whatever
   its threads; each host's archives are made twice, on two machines, and

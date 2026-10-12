@@ -128,7 +128,7 @@ FetchContent or the Bazel registry.
 | [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
 | [Relative debug paths in CMake builds](../design/roadmap.md#cmake-relative-paths) | Planned |
 | [Immutable releases](../design/roadmap.md#immutable-releases) | Planned |
-| [SLSA provenance](../design/roadmap.md#slsa) | Considered |
+| [SLSA provenance](../design/roadmap.md#slsa) | Planned |
 | [BOLT](../design/roadmap.md#bolt) | In research |
 | [A wider PGO training](../design/roadmap.md#pgo-training) | Planned |
 

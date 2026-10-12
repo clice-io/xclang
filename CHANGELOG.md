@@ -63,6 +63,8 @@ Built by 23.1.2.6.
 - **0018** added: a `-stdlib=` of another library than libc++ selects the
   target's `<triple>-system.cfg`. **0015** dropped: 0018 replaces its
   `-stdlib=platform` for the MSVC targets.
+- The xclang command's sources are in `xclang/`, after the command, no
+  longer in `cli/`.
 
 ## [23.1.2.10](https://github.com/clice-io/xclang/releases/tag/23.1.2.10) — 2026-10-09
 
