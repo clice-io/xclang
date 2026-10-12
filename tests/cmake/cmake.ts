@@ -35,19 +35,27 @@
 ///    programs tests/lib/on-target.ts runs on machines of those targets.
 /// 6. The platform's C++ library (XCLANG_STDLIB=platform), with a compiler
 ///    that selects bin/<triple>-system.cfg for it (patches/0018, 23.1.2.11
-///    and later): tests/cmake/platform for this host's target, with GCC's
-///    libstdc++ on Linux (where the host has it) and the SDK's libc++ on
-///    macOS, run; a musl target without CMAKE_SYSROOT is refused. (Windows:
-///    tests/sdk/msvc.ts, with Microsoft's STL.)
+///    and later): tests/cmake/platform for this host's target, with a
+///    CMAKE_CXX_FLAGS of its own, with GCC's libstdc++ on Linux (where the
+///    host has it) and the SDK's libc++ on macOS (its headers' version, not
+///    the toolchain's, and /usr/lib/libc++.1.dylib loaded), run; a musl
+///    target without CMAKE_SYSROOT is refused. (Windows: tests/sdk/msvc.ts,
+///    with Microsoft's STL.)
 /// 7. The build's sanitizers (XCLANG_SANITIZER) with the prebuilt runtimes:
 ///    tests/cmake/runtimes for this host's target, reporting what each
 ///    finds, on Linux and macOS (ASan with the ASan libc++, UBSan, TSan,
 ///    LSan), and UBSan for a Linux host's musl target. MemorySanitizer is
 ///    refused without the runtimes from source, and for the targets that
 ///    have none.
+/// 8. tests/cmake/policies, a project of CMake 3.2's policies (on CMake 4,
+///    which refuses those, 3.5's), through the toolchain file, which keeps
+///    its own; its build directory configured again for another target is
+///    refused.
 ///
 /// A tree whose lib/cmake/xclang is not the checkout's (releases before the
-/// package, or before a change of it) gets the checkout's.
+/// package, or before a change of it) gets the checkout's; with --url a
+/// directory, a run's archives (tests/lib/archives.ts --dist), not the
+/// checkout's package fails: the archive carries it.
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -97,10 +105,13 @@ common.run("ninja", ["--version"]);
 const installed = path.join(tree, "lib", "cmake", "xclang");
 const fresh = path.join(work, "package");
 common.writeCMakePackage(fresh, version);
-const same = fs.readdirSync(fresh).every((f) => fs.existsSync(path.join(installed, f)) &&
-  fs.readFileSync(path.join(installed, f)).equals(fs.readFileSync(path.join(fresh, f))));
-if (!same) {
-  console.log(`${installed} is not the checkout's package: replaced`);
+const differ = fs.readdirSync(fresh).filter((f) => !fs.existsSync(path.join(installed, f)) ||
+  !fs.readFileSync(path.join(installed, f)).equals(fs.readFileSync(path.join(fresh, f))));
+if (differ.length) {
+  if (values.url && fs.existsSync(values.url)) {
+    common.fail(`${installed} is not the checkout's package (${differ.join(", ")}), which a run's archive carries`);
+  }
+  console.log(`${installed} is not the checkout's package (${differ.join(", ")}): replaced`);
   common.writeCMakePackage(installed, version);
 }
 
@@ -119,7 +130,7 @@ function build(name: string, args: string[], env: NodeJS.ProcessEnv = process.en
       return false;
     }
   }
-  if (run && spawnSync("ctest", ["--test-dir", dir, "--output-on-failure"], { stdio: "inherit", env }).status !== 0) {
+  if (run && spawnSync("ctest", ["--test-dir", dir, "--output-on-failure", "--no-tests=error"], { stdio: "inherit", env }).status !== 0) {
     failures.push(`${name}: ctest`);
   }
   return true;
@@ -220,9 +231,10 @@ if (fs.existsSync(sources)) {
   const variants: [string, string[]][] = [
     ["default", []],
     ["hardening", ["-DXCLANG_LIBCXX_HARDENING=fast"]],
+    /// Its booleans in other spellings CMake takes.
     ["abi", ["-DXCLANG_LIBCXX_ABI_NAMESPACE=__xclang",
       "-DXCLANG_LIBCXX_ABI_DEFINES=_LIBCPP_ABI_BOUNDED_ITERATORS;_LIBCPP_ABI_BOUNDED_ITERATORS_IN_STRING",
-      "-DXCLANG_RUNTIMES_EXCEPTIONS=OFF", "-DXCLANG_RUNTIMES_RTTI=OFF", "-DCMAKE_CXX_FLAGS=-fno-exceptions -fno-rtti"]],
+      "-DXCLANG_RUNTIMES_EXCEPTIONS=off", "-DXCLANG_RUNTIMES_RTTI=NO", "-DCMAKE_CXX_FLAGS=-fno-exceptions -fno-rtti"]],
     /// The toolchain file of this checkout, outside the tree (XCLANG_ROOT),
     /// whose CMake caches are toolchain/cmake/caches.
     ["checkout", [`-DXCLANG_ROOT=${tree}`, "-DXCLANG_LIBCXX_HARDENING=fast"]],
@@ -231,9 +243,10 @@ if (fs.existsSync(sources)) {
       ["lto", ["-DXCLANG_RUNTIMES_FLAGS=-flto=thin", "-DCMAKE_CXX_FLAGS=-flto=thin"]],
       ["tsan", ["-DXCLANG_SANITIZER=thread"]],
     ] as [string, string[]][] : []),
-    /// ASan (and UBSan) through the variant's instrumented libc++.
+    /// ASan (and UBSan) through the variant's instrumented libc++, address
+    /// named last: its annotations whatever the order.
     ...(linuxX64 || native.triple === "aarch64-apple-darwin"
-      ? [["asan", ["-DXCLANG_SANITIZER=address;undefined"]]] as [string, string[]][]
+      ? [["asan", ["-DXCLANG_SANITIZER=undefined,address"]]] as [string, string[]][]
       : []),
   ];
   for (const [variant, args] of variants) {
@@ -247,6 +260,14 @@ if (fs.existsSync(sources)) {
       continue;
     }
     if (variant === "default") failures.push(...samePrebuilt(native, installs[0]!).map((f) => `${name}: ${f}`));
+    /// libc++ and libc++abi built without exceptions and RTTI: the CMake
+    /// cache of the variant's build says so.
+    if (variant === "abi") {
+      const cache = fs.readFileSync(path.join(path.dirname(installs[0]!), "runtimes.cmake"), "utf8");
+      for (const option of ["LIBCXX_ENABLE_EXCEPTIONS", "LIBCXXABI_ENABLE_EXCEPTIONS", "LIBCXX_ENABLE_RTTI"]) {
+        if (!cache.includes(`set(${option} OFF `)) failures.push(`${name}: no ${option} OFF in the variant's CMake cache`);
+      }
+    }
     /// libc++ of ThinLTO: bitcode, which the program's link compiled.
     if (variant === "lto" && !isBitcode(path.join(installs[0]!, "lib", "libc++.a"))) failures.push(`${name}: libc++.a holds no bitcode`);
   }
@@ -274,12 +295,22 @@ if (fs.existsSync(sources)) {
   console.log(`\n${tree} has no runtimes' sources: no runtimes from source`);
 }
 
-/// 6. The platform's C++ library.
+/// 6. The platform's C++ library, with a CMAKE_CXX_FLAGS given, which
+/// leaves the toolchain file's -stdlib=platform (an option, not a flag):
+/// libstdc++ on Linux; on macOS the SDK's libc++, by its headers, whose
+/// version is not the toolchain's LLVM's (<major>xxxx), and its library,
+/// the system's.
 if (since("23.1.2.11")) {
   const project = path.join(source, "platform");
-  const expect = native.os === "linux" ? "^libstdc\\+\\+ thrown" : native.os === "darwin" ? "^libc\\+\\+ [0-9]+ thrown" : undefined;
-  if (expect && (native.os !== "linux" || fs.existsSync("/usr/include/c++"))) {
-    build("platform", [`--toolchain=${toolchain}`, "-DXCLANG_STDLIB=platform", `-DXCLANG_TEST_EXPECT=${expect}`], process.env, true, project);
+  const [a, b] = [...version.split(".")[0]!];
+  const expect = native.os === "linux" ? "^libstdc\\+\\+ thrown"
+    : native.os === "darwin" ? `^libc\\+\\+ ([^${a}][0-9]|${a}[^${b}])[0-9][0-9][0-9][0-9] thrown` : undefined;
+  if (expect && (native.os !== "linux" || fs.existsSync("/usr/include/c++")) &&
+    build("platform", [`--toolchain=${toolchain}`, "-DXCLANG_STDLIB=platform", "-DCMAKE_CXX_FLAGS=-O1",
+      `-DXCLANG_TEST_EXPECT=${expect}`], process.env, true, project) && native.os === "darwin") {
+    const dylibs = spawnSync(path.join(tree, "bin", "llvm-objdump"), ["--macho", "--dylibs-used", path.join(work, "platform", "platform")],
+      { encoding: "utf8" }).stdout;
+    if (!dylibs.includes("/usr/lib/libc++.1.dylib")) failures.push(`platform: loads no /usr/lib/libc++.1.dylib: ${dylibs}`);
   }
   if (native.os === "linux") {
     const args = ["-G", "Ninja", "-S", project, "-B", path.join(work, "platform-musl"), `--toolchain=${toolchain}`,
@@ -326,6 +357,26 @@ if (since("23.1.2.11")) {
   for (const triple of without) {
     refused(`msan-${triple}`, [`-DXCLANG_TARGET=${triple}`, "-DXCLANG_RUNTIMES=source", "-DXCLANG_SANITIZER=memory"],
       /MemorySanitizer is for the Linux targets \(glibc\)/);
+  }
+}
+
+/// 8. A project of old policies, through the toolchain file: CMake 3.2's,
+/// whose if() has no IN_LIST, and on CMake 4, which refuses those, 3.5's
+/// (CMAKE_POLICY_VERSION_MINIMUM, which CMake 3 ignores). Its build
+/// directory configured again for another target is refused: CMake keeps
+/// the first one's.
+{
+  const project = path.join(source, "policies");
+  const env = { ...process.env, CMAKE_POLICY_VERSION_MINIMUM: "3.5" };
+  if (build("policies", [`--toolchain=${toolchain}`], env, true, project)) {
+    const other = native.os === "mingw" ? `${native.arch}-unknown-linux-gnu` : `${native.arch}-w64-mingw32`;
+    const args = ["-S", project, "-B", path.join(work, "policies"), `-DXCLANG_TARGET=${other}`];
+    const result = spawnSync("cmake", args, { encoding: "utf8", env });
+    if (result.status === 0 || !/configured\s+for[\s\S]*cmake\s+--fresh/.test(result.stdout + result.stderr)) {
+      failures.push(`policies: cmake ${args.join(" ")} was not refused for another target`);
+    } else {
+      console.log("ok: another target refused in a configured build directory");
+    }
   }
 }
 

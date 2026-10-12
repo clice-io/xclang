@@ -62,8 +62,12 @@ if(NOT CXX IN_LIST _xclang_languages)
     return()
 endif()
 
-get_filename_component(XCLANG_ROOT "${CMAKE_CXX_COMPILER}" DIRECTORY)
-get_filename_component(XCLANG_ROOT "${XCLANG_ROOT}/.." ABSOLUTE)
+# The toolchain file's, as the runtimes from source are named after it; else
+# the compiler's.
+if(NOT XCLANG_ROOT)
+    get_filename_component(XCLANG_ROOT "${CMAKE_CXX_COMPILER}" DIRECTORY)
+    get_filename_component(XCLANG_ROOT "${XCLANG_ROOT}/.." ABSOLUTE)
+endif()
 
 # libc++'s module manifest of the target, from the compiler: the sources of
 # std and std.compat, and the directory they include from. For an MSVC
@@ -85,10 +89,15 @@ if(XCLANG_RUNTIMES STREQUAL "source")
     set_property(GLOBAL PROPERTY XCLANG_STD_MANIFEST "${XCLANG_RUNTIMES_INSTALL}/lib/libc++.modules.json")
 endif()
 get_property(_xclang_manifest GLOBAL PROPERTY XCLANG_STD_MANIFEST)
-# The last -stdlib= of the flags: libc++, the config files', unless one
-# selects the platform's (patches/0018).
+# The -stdlib= of the compiles: -stdlib=platform with XCLANG_STDLIB=platform
+# of the toolchain file, an option after the flags; else the last -stdlib=
+# of the flags, libc++, the config files', unless one selects the
+# platform's (patches/0018).
 string(REGEX MATCHALL "-stdlib=[^ ]*" _xclang_stdlib " -stdlib=libc++ ${CMAKE_CXX_FLAGS}")
 list(GET _xclang_stdlib -1 _xclang_stdlib)
+if(XCLANG_STDLIB STREQUAL "platform")
+    set(_xclang_stdlib -stdlib=platform)
+endif()
 if(NOT _xclang_manifest AND CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
     if(CMAKE_CXX_COMPILER_ARCHITECTURE_ID MATCHES "^(ARM64|aarch64)$")
         set(_xclang_arch aarch64)
@@ -123,14 +132,23 @@ if(NOT _xclang_manifest AND CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
     endif()
     set_property(GLOBAL PROPERTY XCLANG_STD_MANIFEST "${_xclang_manifest}")
 elseif(NOT _xclang_manifest)
+    # As the build compiles: its target, and its sysroot, where the
+    # platform's C++ library of a musl or MinGW target is (CMAKE_SYSROOT),
+    # and a macOS target's SDK.
     set(_xclang_args "${_xclang_stdlib}")
     if(CMAKE_CXX_COMPILER_TARGET)
         list(APPEND _xclang_args "--target=${CMAKE_CXX_COMPILER_TARGET}")
+    endif()
+    if(CMAKE_SYSROOT)
+        list(APPEND _xclang_args "--sysroot=${CMAKE_SYSROOT}")
     endif()
     if(APPLE)
         foreach(_xclang_arch IN LISTS CMAKE_OSX_ARCHITECTURES)
             list(APPEND _xclang_args -arch "${_xclang_arch}")
         endforeach()
+        if(IS_DIRECTORY "${CMAKE_OSX_SYSROOT}")
+            list(APPEND _xclang_args -isysroot "${CMAKE_OSX_SYSROOT}")
+        endif()
     endif()
     execute_process(
         COMMAND "${CMAKE_CXX_COMPILER}" ${_xclang_args} -print-library-module-manifest-path
@@ -245,7 +263,8 @@ if(NOT COMMAND xclang_add_std)
     # points into: the link keeps ThinLTO's in <target>.lto for it, as
     # clang keeps them when it compiles and links in one command, and the
     # functions identical code folding merged keep their entries in the
-    # debug map (--keep-icf-stabs), so the dSYM has their names too.
+    # debug map (ld64.lld's --keep-icf-stabs), so the dSYM has their names
+    # too.
     # dsymutil's classic DWARF linker: the parallel one, LLVM 23's default,
     # writes DWARF 5's line tables (for macOS 15 and later) that atos
     # crashes on. (The Bazel module's dSYM link does the same.)
@@ -263,7 +282,21 @@ if(NOT COMMAND xclang_add_std)
         if(APPLE)
             set(_lto "${CMAKE_CURRENT_BINARY_DIR}/${target}.lto")
             file(MAKE_DIRECTORY "${_lto}")
-            target_link_options(${target} PRIVATE "LINKER:-object_path_lto,${_lto}" "LINKER:--keep-icf-stabs")
+            target_link_options(${target} PRIVATE "LINKER:-object_path_lto,${_lto}")
+            # --keep-icf-stabs is ld64.lld's, the config files' linker, which
+            # Apple's ld refuses: not when the link's flags (as they are
+            # here) or its LINKER_TYPE name another linker, -fuse-ld=ld.
+            get_target_property(_kind ${target} TYPE)
+            string(REGEX REPLACE "^EXECUTABLE$" "EXE" _kind "${_kind}")
+            string(REGEX REPLACE "_LIBRARY$" "" _kind "${_kind}")
+            get_target_property(_options ${target} LINK_OPTIONS)
+            string(REGEX MATCHALL "(-fuse-ld=|--ld-path=)[^ ;]*" _linkers
+                "-fuse-ld=lld ${CMAKE_${_kind}_LINKER_FLAGS} ${_options}")
+            list(GET _linkers -1 _linker)
+            get_target_property(_linker_type ${target} LINKER_TYPE)
+            if(_linker MATCHES "lld$" AND (NOT _linker_type OR _linker_type MATCHES "^(DEFAULT|LLD)$"))
+                target_link_options(${target} PRIVATE "LINKER:--keep-icf-stabs")
+            endif()
             add_custom_command(TARGET ${target} POST_BUILD
                 COMMAND "${_bin}/dsymutil${_exe}" --linker classic "$<TARGET_FILE:${target}>"
                     -o "$<TARGET_FILE:${target}>.dSYM"

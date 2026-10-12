@@ -97,6 +97,9 @@ cmake --build build-aarch64-w64-mingw32
 - `xclang::std` is built for the target too.
 - Tests built for another target run on a machine of that target, not on
   the host.
+- A build directory keeps the target of its first configure, as CMake
+  does. Another `XCLANG_TARGET` later stops the configure: use a new build
+  directory, or configure this one again with `cmake --fresh`.
 
 ## Build for MSVC Targets
 
@@ -265,7 +268,7 @@ Before putting ccache in front of the compiler, read
 place of xclang's libc++, for C++ interfaces to libraries built with it:
 GCC's libstdc++ on Linux, Microsoft's STL for the MSVC targets, the SDK's
 libc++ for macOS ([the system's C++ library](clang.md#the-system-s-c-library)).
-The toolchain file adds `-stdlib=platform` to the flags of every language:
+The toolchain file adds `-stdlib=platform` to every compile and link:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -338,6 +341,11 @@ subdirectories ([the ThinLTO cache](../features/thinlto-cache.md)).
 - **A toolchain file is already set**: `xclang.cmake` stops if the build
   has one, such as vcpkg's. Chain-load xclang's from vcpkg instead, with
   `VCPKG_CHAINLOAD_TOOLCHAIN_FILE`.
+- **Configured with another xclang**: a build directory keeps the
+  toolchain of its first configure. When `latest` moves to a new release,
+  or `XCLANG_VERSION`, `XCLANG_ROOT` or `XCLANG_CACHE_DIR` changes,
+  `xclang.cmake` stops before downloading anything. Use a new build
+  directory, or configure this one again with `cmake --fresh`.
 - **A library is not found for another target**: CMake searches the
   sysroot only. Build the library for the target, and name it with
   `<Package>_DIR`.

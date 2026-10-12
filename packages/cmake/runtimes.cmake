@@ -1,6 +1,7 @@
 # The C++ runtimes of the build and its sanitizers, for toolchain.cmake,
-# which includes this file with XCLANG_ROOT, _xclang_triple (the target),
-# _xclang_target_os and _xclang_target_arch set:
+# which includes this file with its policies, XCLANG_ROOT, _xclang_triple
+# (the target), _xclang_target_os and _xclang_target_arch set, and
+# _xclang_add defined:
 #
 #   XCLANG_RUNTIMES   prebuilt: the toolchain's libc++, libc++abi and
 #                     libunwind (the default); source: those built from the
@@ -27,16 +28,18 @@
 #                               (LIBCXX_ABI_NAMESPACE)
 #   XCLANG_LIBCXX_ABI_DEFINES   a list of libc++'s ABI macros, such as
 #                               _LIBCPP_ABI_BOUNDED_ITERATORS (LIBCXX_ABI_DEFINES)
-#   XCLANG_RUNTIMES_EXCEPTIONS  OFF: libc++ and libc++abi without exceptions
-#   XCLANG_RUNTIMES_RTTI        OFF: libc++ without RTTI (and without
-#                               exceptions)
+#   XCLANG_RUNTIMES_EXCEPTIONS  OFF (a CMake boolean): libc++ and libc++abi
+#                               without exceptions
+#   XCLANG_RUNTIMES_RTTI        OFF (a CMake boolean): libc++ without RTTI
+#                               (and without exceptions)
 #   XCLANG_RUNTIMES_FLAGS       more compile options of libc++ and libc++abi,
 #                               such as -flto=thin, which links their code
 #                               with the program's
 #   XCLANG_RUNTIMES_CMAKE_ARGS  more arguments of the runtimes' CMake build
 #                               (LLVM's runtimes/), -D<var>=<value> each
 #   XCLANG_RUNTIMES_DIR         where the variants are built, a directory each;
-#                               ${CMAKE_BINARY_DIR}/xclang-runtimes by default
+#                               ${CMAKE_BINARY_DIR}/xclang-runtimes by default,
+#                               and a relative one is in CMAKE_BINARY_DIR
 #
 # A variant is built as toolchain/runtimes.ts builds the prebuilt runtimes,
 # with the same CMake cache (runtimes-cxx.cmake), by this toolchain file
@@ -66,19 +69,35 @@ if(NOT XCLANG_RUNTIMES STREQUAL "source")
     endforeach()
 endif()
 
-# XCLANG_SANITIZER, as -fsanitize= takes it and as LLVM_USE_SANITIZER does.
+# XCLANG_SANITIZER, as -fsanitize= takes it; for the runtimes from source,
+# as LLVM_USE_SANITIZER does: a value LLVM's build takes, from the
+# sanitizers named, not their order (libc++ records ASan, which its
+# annotations need, only when Address comes first). LeakSanitizer
+# instruments nothing, and ASan has it; beside MemorySanitizer or
+# ThreadSanitizer, the runtimes go without UBSan, which the build's own
+# code keeps.
 string(REPLACE "," ";" _xclang_sanitizers "${XCLANG_SANITIZER}")
-set(_xclang_llvm_sanitizers "")
 set(_xclang_names address memory thread undefined leak)
 foreach(_xclang_sanitizer IN LISTS _xclang_sanitizers)
-    list(FIND _xclang_names "${_xclang_sanitizer}" _xclang_index)
-    if(_xclang_index LESS 0)
+    if(NOT _xclang_sanitizer IN_LIST _xclang_names)
         message(FATAL_ERROR "xclang: XCLANG_SANITIZER names ${_xclang_sanitizer}, none of ${_xclang_names}")
     endif()
-    set(_xclang_llvm Address Memory Thread Undefined Leaks)
-    list(GET _xclang_llvm ${_xclang_index} _xclang_llvm)
-    list(APPEND _xclang_llvm_sanitizers "${_xclang_llvm}")
 endforeach()
+set(_xclang_llvm_sanitizers "")
+if(address IN_LIST _xclang_sanitizers)
+    set(_xclang_llvm_sanitizers Address)
+    if(undefined IN_LIST _xclang_sanitizers)
+        list(APPEND _xclang_llvm_sanitizers Undefined)
+    endif()
+elseif(memory IN_LIST _xclang_sanitizers)
+    set(_xclang_llvm_sanitizers Memory)
+elseif(thread IN_LIST _xclang_sanitizers)
+    set(_xclang_llvm_sanitizers Thread)
+elseif(undefined IN_LIST _xclang_sanitizers)
+    set(_xclang_llvm_sanitizers Undefined)
+elseif(leak IN_LIST _xclang_sanitizers)
+    set(_xclang_llvm_sanitizers Leaks)
+endif()
 list(JOIN _xclang_sanitizers "," _xclang_fsanitize)
 set(_xclang_memory OFF)
 if(memory IN_LIST _xclang_sanitizers)
@@ -92,21 +111,6 @@ if(memory IN_LIST _xclang_sanitizers)
             "and compiler-rt's runtime of it, which the toolchain has not: XCLANG_RUNTIMES=source")
     endif()
 endif()
-
-# Options of the directory, and of try_compile projects, which read this file
-# again: added once each.
-function(_xclang_add kind)
-    get_directory_property(present ${kind}_OPTIONS)
-    foreach(option IN LISTS ARGN)
-        if(NOT option IN_LIST present)
-            if(kind STREQUAL "COMPILE")
-                add_compile_options("${option}")
-            else()
-                add_link_options("${option}")
-            endif()
-        endif()
-    endforeach()
-endfunction()
 
 # What the target names its directories after: clang's spelling.
 if(_xclang_target_os STREQUAL "mingw")
@@ -146,17 +150,33 @@ if(NOT EXISTS "${_xclang_sources}/runtimes/CMakeLists.txt")
     message(FATAL_ERROR "xclang: no runtimes' sources in ${_xclang_sources}: XCLANG_RUNTIMES=source needs a "
         "toolchain that has them, 23.1.2.11 or later")
 endif()
-if(XCLANG_RUNTIMES_RTTI STREQUAL "OFF" AND NOT XCLANG_RUNTIMES_EXCEPTIONS STREQUAL "OFF")
+# XCLANG_RUNTIMES_EXCEPTIONS and XCLANG_RUNTIMES_RTTI are CMake booleans;
+# the variant has them as OFF, or as nothing for on, the default.
+foreach(_xclang_option EXCEPTIONS RTTI)
+    set(_xclang_value "${XCLANG_RUNTIMES_${_xclang_option}}")
+    string(TOUPPER "${_xclang_value}" _xclang_upper)
+    if(NOT _xclang_upper MATCHES "^(1|ON|YES|TRUE|Y|0|OFF|NO|FALSE|N)?$")
+        message(FATAL_ERROR "xclang: XCLANG_RUNTIMES_${_xclang_option} is ${_xclang_value}, neither ON nor OFF")
+    endif()
+    if(_xclang_upper MATCHES "^(0|OFF|NO|FALSE|N)$")
+        set(_xclang_runtimes_${_xclang_option} OFF)
+    else()
+        set(_xclang_runtimes_${_xclang_option} "")
+    endif()
+endforeach()
+if(_xclang_runtimes_RTTI STREQUAL "OFF" AND NOT _xclang_runtimes_EXCEPTIONS STREQUAL "OFF")
     message(FATAL_ERROR "xclang: XCLANG_RUNTIMES_RTTI=OFF needs XCLANG_RUNTIMES_EXCEPTIONS=OFF, as libc++ does")
 endif()
 
 # The variant: its directory is named after a digest of what it is built
 # from and with. The first configure of a build sets XCLANG_RUNTIMES_DIR
-# for its try_compile projects, whose binary directory is another.
+# for its try_compile projects, whose binary directory is another: an
+# absolute one.
 if(NOT XCLANG_RUNTIMES_DIR)
     set(XCLANG_RUNTIMES_DIR "${CMAKE_BINARY_DIR}/xclang-runtimes")
 endif()
 file(TO_CMAKE_PATH "${XCLANG_RUNTIMES_DIR}" XCLANG_RUNTIMES_DIR)
+get_filename_component(XCLANG_RUNTIMES_DIR "${XCLANG_RUNTIMES_DIR}" ABSOLUTE BASE_DIR "${CMAKE_BINARY_DIR}")
 set(_xclang_version "")
 if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/xclang-config-version.cmake")
     file(SHA256 "${CMAKE_CURRENT_LIST_DIR}/xclang-config-version.cmake" _xclang_version)
@@ -190,7 +210,9 @@ if(NOT CMAKE_HOST_APPLE)
     string(APPEND _xclang_variant "\n${CMAKE_OSX_SYSROOT}")
 endif()
 foreach(_xclang_option IN LISTS _xclang_runtimes_options)
-    if(NOT _xclang_option STREQUAL "XCLANG_RUNTIMES_DIR")
+    if(_xclang_option MATCHES "^XCLANG_RUNTIMES_(EXCEPTIONS|RTTI)$")
+        string(APPEND _xclang_variant "\n${_xclang_option}=${_xclang_runtimes_${CMAKE_MATCH_1}}")
+    elseif(NOT _xclang_option STREQUAL "XCLANG_RUNTIMES_DIR")
         string(APPEND _xclang_variant "\n${_xclang_option}=${${_xclang_option}}")
     endif()
 endforeach()
@@ -335,11 +357,11 @@ if(NOT EXISTS "${_xclang_install}/.xclang-runtimes")
                 string(APPEND cache "set(${theirs} \"${XCLANG_LIBCXX_${ours}}\" CACHE STRING \"\")\n")
             endif()
         endforeach()
-        if(XCLANG_RUNTIMES_EXCEPTIONS STREQUAL "OFF")
+        if(_xclang_runtimes_EXCEPTIONS STREQUAL "OFF")
             string(APPEND cache "set(LIBCXX_ENABLE_EXCEPTIONS OFF CACHE BOOL \"\")\n")
             string(APPEND cache "set(LIBCXXABI_ENABLE_EXCEPTIONS OFF CACHE BOOL \"\")\n")
         endif()
-        if(XCLANG_RUNTIMES_RTTI STREQUAL "OFF")
+        if(_xclang_runtimes_RTTI STREQUAL "OFF")
             string(APPEND cache "set(LIBCXX_ENABLE_RTTI OFF CACHE BOOL \"\")\n")
         endif()
         # On libc++ and libc++abi, not on libunwind: with -flto, its code in

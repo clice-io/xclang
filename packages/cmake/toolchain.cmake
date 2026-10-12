@@ -28,11 +28,12 @@
 #                   Windows SDK the toolchain's xclang fetched (xclang sdk
 #                   fetch windows), with clang and clang++ (not clang-cl),
 #                   the hybrid CRT (CMAKE_MSVC_RUNTIME_LIBRARY is
-#                   MultiThreaded unless set) and libc++.
+#                   MultiThreaded unless set) and libc++. A build directory
+#                   keeps the target of its first configure.
 #   XCLANG_STDLIB   libc++ (the default): the toolchain's libc++, and its
 #                   sysroot; platform: the platform's C++ library, for C++
 #                   interfaces to libraries built with it: -stdlib=platform
-#                   in the flags of every language, which selects the
+#                   on every compile and link, which selects the
 #                   target's bin/<triple>-system.cfg (patches/0018). That is
 #                   GCC's libstdc++ of this Linux, of a distribution's cross
 #                   packages or of the CMAKE_SYSROOT given (which the musl and
@@ -48,10 +49,23 @@
 #                   thread, undefined or leak, with C++ runtimes that suit
 #                   them (runtimes.cmake)
 
+# The policies this file is written for, not those of the project, which
+# may set old ones or none (if() without IN_LIST): up to its end, with
+# runtimes.cmake.
+if(CMAKE_VERSION VERSION_LESS 3.28)
+    message(FATAL_ERROR "xclang needs CMake 3.28 or later")
+endif()
+cmake_policy(PUSH)
+cmake_policy(VERSION 3.28...4.3)
+
 if(NOT XCLANG_ROOT)
     get_filename_component(XCLANG_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
 endif()
+# Absolute (a relative one is the build directory's) and without ../, once:
+# try_compile projects get it as it is here, and the runtimes from source
+# are named after it.
 file(TO_CMAKE_PATH "${XCLANG_ROOT}" XCLANG_ROOT)
+get_filename_component(XCLANG_ROOT "${XCLANG_ROOT}" ABSOLUTE BASE_DIR "${CMAKE_BINARY_DIR}")
 if(NOT EXISTS "${XCLANG_ROOT}/bin/x86_64-unknown-linux-gnu.cfg")
     message(FATAL_ERROR "xclang: no toolchain at ${XCLANG_ROOT}; set XCLANG_ROOT to an unpacked xclang")
 endif()
@@ -101,6 +115,41 @@ if(XCLANG_TARGET)
     endif()
 endif()
 
+# The target's triple, as its directory in the tree is named.
+if(XCLANG_TARGET)
+    set(_xclang_triple "${XCLANG_TARGET}")
+elseif(_xclang_host_os STREQUAL "darwin")
+    set(_xclang_triple "${_xclang_host_arch}-apple-darwin")
+elseif(_xclang_host_os STREQUAL "mingw")
+    set(_xclang_triple "${_xclang_host_arch}-w64-mingw32")
+else()
+    set(_xclang_triple "${_xclang_host_arch}-unknown-linux-gnu")
+endif()
+# CMake keeps what it learns of the target at the first configure of a
+# build directory (CMakeSystem.cmake, the CMAKE_OSX_ARCHITECTURES cache
+# entry): another target later would be half applied. The end of this file
+# records the target; try_compile projects, whose caches are their own,
+# record theirs.
+if(DEFINED CACHE{_XCLANG_TARGET} AND NOT "$CACHE{_XCLANG_TARGET}" STREQUAL _xclang_triple)
+    message(FATAL_ERROR "xclang: this build directory is configured for $CACHE{_XCLANG_TARGET}, which CMake keeps: "
+        "for ${_xclang_triple}, configure a new build directory, or this one again with cmake --fresh")
+endif()
+
+# Options of the directory, and of try_compile projects, which read this file
+# again: added once each.
+function(_xclang_add kind)
+    get_directory_property(present ${kind}_OPTIONS)
+    foreach(option IN LISTS ARGN)
+        if(NOT option IN_LIST present)
+            if(kind STREQUAL "COMPILE")
+                add_compile_options("${option}")
+            else()
+                add_link_options("${option}")
+            endif()
+        endif()
+    endforeach()
+endfunction()
+
 if(NOT XCLANG_STDLIB)
     set(XCLANG_STDLIB libc++)
 endif()
@@ -109,11 +158,13 @@ if(NOT XCLANG_STDLIB MATCHES "^(libc\\+\\+|platform)$")
 endif()
 if(XCLANG_STDLIB STREQUAL "platform")
     # The platform's C++ library: -stdlib=platform on every compile and
-    # link, C's too, as it selects the sysroot of Linux, musl and MinGW
-    # targets as well (patches/0018).
-    foreach(_xclang_lang C CXX ASM OBJC OBJCXX)
-        string(APPEND CMAKE_${_xclang_lang}_FLAGS_INIT " -stdlib=platform")
-    endforeach()
+    # link but resources', C's too, as it selects the sysroot of Linux,
+    # musl and MinGW targets as well (patches/0018). Options, not flags:
+    # those only initialize the cache, at the first configure, and not
+    # when CMAKE_<LANG>_FLAGS is given.
+    set(_xclang_languages C,CXX,ASM,OBJC,OBJCXX)
+    _xclang_add(COMPILE "$<$<COMPILE_LANGUAGE:${_xclang_languages}>:-stdlib=platform>")
+    _xclang_add(LINK "$<$<LINK_LANGUAGE:${_xclang_languages}>:-stdlib=platform>")
     if(_xclang_target_os MATCHES "^(musl|mingw)$" AND NOT CMAKE_SYSROOT)
         message(FATAL_ERROR "xclang: XCLANG_STDLIB=platform takes the C++ library of a ${_xclang_target_os} target "
             "from a sysroot that has one (an Alpine root, MSYS2's ucrt64), which the toolchain has not: set CMAKE_SYSROOT")
@@ -169,11 +220,7 @@ if(_xclang_target_os STREQUAL "msvc")
     # take no ucrt.lib, which the config files' hybrid CRT names in every
     # object: only an option of the link itself comes before the objects'.
     set(_xclang_crt "$<GENEX_EVAL:$<TARGET_PROPERTY:MSVC_RUNTIME_LIBRARY>>")
-    set(_xclang_option "$<$<OR:$<STREQUAL:${_xclang_crt},MultiThreadedDebug>,$<STREQUAL:${_xclang_crt},MultiThreadedDebugDLL>>:-Wl,/nodefaultlib:ucrt.lib>")
-    get_directory_property(_xclang_options LINK_OPTIONS)
-    if(NOT _xclang_option IN_LIST _xclang_options)
-        add_link_options("${_xclang_option}")
-    endif()
+    _xclang_add(LINK "$<$<OR:$<STREQUAL:${_xclang_crt},MultiThreadedDebug>,$<STREQUAL:${_xclang_crt},MultiThreadedDebugDLL>>:-Wl,/nodefaultlib:ucrt.lib>")
 endif()
 
 if(_xclang_target_os STREQUAL "darwin")
@@ -209,8 +256,11 @@ if(_xclang_target_os STREQUAL "darwin")
         foreach(_xclang_lang C CXX ASM OBJC OBJCXX)
             set(CMAKE_${_xclang_lang}_COMPILER_TARGET "${XCLANG_TARGET}")
         endforeach()
-        # What the build links is looked for in the SDK, not on this machine.
-        set(CMAKE_FIND_ROOT_PATH "${CMAKE_OSX_SYSROOT}")
+        # What the build links is looked for in the SDK (and the roots
+        # given), not on this machine.
+        if(NOT CMAKE_OSX_SYSROOT IN_LIST CMAKE_FIND_ROOT_PATH)
+            list(APPEND CMAKE_FIND_ROOT_PATH "${CMAKE_OSX_SYSROOT}")
+        endif()
         set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
         set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
         set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
@@ -252,13 +302,13 @@ elseif(NOT _xclang_target_os STREQUAL _xclang_host_os OR NOT _xclang_target_arch
     if(_xclang_target_os STREQUAL "mingw")
         set(CMAKE_RC_FLAGS_INIT "--target=${XCLANG_TARGET}")
     endif()
-    # The sysroot the config file names (for MSVC targets, the SDK): what
-    # the build links is looked for there, not on this machine. With the
-    # platform's C++ library, a Linux or MinGW target's is the CMAKE_SYSROOT
-    # given, or none.
+    # The sysroot the config file names (for MSVC targets, the SDK, beside
+    # the roots given): what the build links is looked for there, not on
+    # this machine. With the platform's C++ library, a Linux or MinGW
+    # target's is the CMAKE_SYSROOT given, or none.
     if(_xclang_target_os STREQUAL "msvc")
-        if(EXISTS "${XCLANG_ROOT}/sdk/windows")
-            set(CMAKE_FIND_ROOT_PATH "${XCLANG_ROOT}/sdk/windows")
+        if(EXISTS "${XCLANG_ROOT}/sdk/windows" AND NOT "${XCLANG_ROOT}/sdk/windows" IN_LIST CMAKE_FIND_ROOT_PATH)
+            list(APPEND CMAKE_FIND_ROOT_PATH "${XCLANG_ROOT}/sdk/windows")
         endif()
     elseif(XCLANG_STDLIB STREQUAL "libc++")
         set(CMAKE_SYSROOT "${XCLANG_ROOT}/${XCLANG_TARGET}")
@@ -269,18 +319,13 @@ elseif(NOT _xclang_target_os STREQUAL _xclang_host_os OR NOT _xclang_target_arch
     set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 endif()
 
-# The target's triple, as its directory in the tree is named.
-if(XCLANG_TARGET)
-    set(_xclang_triple "${XCLANG_TARGET}")
-elseif(_xclang_host_os STREQUAL "darwin")
-    set(_xclang_triple "${_xclang_host_arch}-apple-darwin")
-elseif(_xclang_host_os STREQUAL "mingw")
-    set(_xclang_triple "${_xclang_host_arch}-w64-mingw32")
-else()
-    set(_xclang_triple "${_xclang_host_arch}-unknown-linux-gnu")
-endif()
 include("${CMAKE_CURRENT_LIST_DIR}/runtimes.cmake")
 
 # find_package(xclang): this file's package, also where packages are looked
 # for in the sysroot only.
 set(xclang_DIR "${CMAKE_CURRENT_LIST_DIR}")
+
+# The target of the build directory, once this file has gone through
+# (CMakeSystem.cmake is written after it).
+set(_XCLANG_TARGET "${_xclang_triple}" CACHE INTERNAL "")
+cmake_policy(POP)
