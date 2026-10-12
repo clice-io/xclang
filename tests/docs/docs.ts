@@ -110,8 +110,10 @@ function excerptOf(block: string[], file: string[]): boolean {
   return false;
 }
 
-/// Command blocks: what a reader runs, which CI must run as written.
-const COMMANDS = new Set(["sh", "bash", "console", "powershell", "pwsh", "yaml", "yml"]);
+/// Command blocks: what a reader runs, which CI must run as written. An
+/// excerpt of one is of a workflow's steps or of examples/, never of a page.
+const COMMANDS = new Set(["sh", "bash", "shell", "zsh", "console", "powershell", "pwsh", "ps1", "cmd", "bat", "yaml", "yml"]);
+const RUN = /^(\.github\/workflows\/|examples\/)/;
 
 let blocks = 0;
 let excerpts = 0;
@@ -149,10 +151,13 @@ for (const page of pages) {
     const [kind, name] = [marker[1]!, marker[2]!];
     let j = i + 1;
     while (j < lines.length && lines[j]!.trim() === "") j++;
-    const block = /^(\s*)(`{3,}|~{3,})/.exec(lines[j] ?? "");
+    const block = /^(\s*)(`{3,}|~{3,})(\S*)/.exec(lines[j] ?? "");
     if (!block) {
       failures.push(`${where}: no code block after the marker`);
       continue;
+    }
+    if (kind === "excerpt" && COMMANDS.has(block[3]!.toLowerCase()) && !RUN.test(name)) {
+      failures.push(`${where}: a ${block[3]} block is an excerpt of ${name}, which no workflow runs`);
     }
     /// The block's lines, without the indentation of its fence (a block in
     /// a list item).

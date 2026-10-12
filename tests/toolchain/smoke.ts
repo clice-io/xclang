@@ -118,11 +118,13 @@ for (const file of programs) {
   }
 }
 
-/// The musl targets, in the archives that carry them (23.1.2.10 and later).
-/// For archives without, a machine of the target has nothing to run, which an
-/// empty list says (tests/lib/on-target.ts).
+/// The musl targets, in the archives that carry them: every one of 23.1.2.10
+/// and later, where a missing target fails. For archives before, a machine of
+/// the target has nothing to run, which an empty list says
+/// (tests/lib/on-target.ts).
 const MUSL = ["x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl"];
 const musl = MUSL.filter((t) => fs.existsSync(path.join(tree, t)));
+if (since("23.1.2.10")) for (const t of MUSL) if (!musl.includes(t)) failures.push(`the archive has no ${t}`);
 if (values.out && !musl.length) for (const t of MUSL) writePrograms(programsDir(path.resolve(values.out), t, "smoke"), []);
 
 /// The headers that targets share are in the archive once

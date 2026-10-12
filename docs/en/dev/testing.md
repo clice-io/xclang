@@ -55,7 +55,8 @@ rest are called by them, by release.yml, or started by hand.
 | stage-package.yml | | stage `package` | | | each host's archives made again on another machine, in another directory, with other file times, umask 077 and three xz threads (the first has four): the same bytes |
 
 A change to on-target.yml, to the archives action
-(`.github/actions/archives`) or to `tests/lib` runs every workflow of
+(`.github/actions/archives`), to `tests/lib` or to `toolchain/common.ts`
+(which writes the config files and the CMake package) runs every workflow of
 checks.yml. A newer push to a branch or pull request cancels the checks
 still running for the one before, but on `main`. A pull request from a
 branch of this repository is tested by the push of that branch.

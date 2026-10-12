@@ -113,8 +113,8 @@ jobs:
           MSYS_NO_PATHCONV=1 bazel "${startup[@]}" run $REPO_ENV --disk_cache="$RUNNER_TEMP/disk" @xclang//bazel:llvm-gsymutil -- "$gsym" | grep '"main"'
       # The musl targets from every host: tests/bazel's tests built, and on
       # Linux of their architecture run, as static programs. Not the
-      # packages of shared libraries, debuggers and libclang (no musl build),
-      # and only with archives that carry them (23.1.2.10 and later).
+      # packages of shared libraries, debuggers and libclang (no musl build);
+      # every archive has them (23.1.2.10 and later).
       - name: musl
         working-directory: tests/bazel
         run: |
@@ -122,8 +122,8 @@ jobs:
           external="$(bazel "${startup[@]}" info output_base $REPO_ENV)/external"
           for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl; do
             if ! ls -d "$external"/*+xclang_${{ matrix.host }}/$target > /dev/null 2>&1; then
-              echo "::notice::the archives of ${{ matrix.host }} have no $target"
-              continue
+              echo "::error::the archives of ${{ matrix.host }} have no $target"
+              exit 1
             fi
             command=build; [[ "$RUNNER_OS" == Linux && "$target" == "$(uname -m)-unknown-linux-musl" ]] && command=test
             bazel "${startup[@]}" $command --platforms=@xclang//platforms:$target //c/... //cpp/... //modules/... //options/... \

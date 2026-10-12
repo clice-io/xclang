@@ -20,7 +20,7 @@ name: checks
 #   examples.yml        examples
 #
 # A change to one of these workflows, to on-target.yml, to the archives
-# action or to tests/lib runs what uses it. The release's own pipeline
+# action, to tests/lib or to toolchain/common.ts runs what uses it. The release's own pipeline
 # (release.yml) is not among them: its stages build for hours.
 #
 # Every push also checks that the Bazel module names the latest release, or
@@ -70,7 +70,9 @@ jobs:
             BASE=$(git merge-base origin/main HEAD)
           fi
           git diff --name-only "$BASE" HEAD | tee changed.txt
-          shared='^(tests/lib/|\.github/workflows/(checks|on-target)\.yml|\.github/actions/archives/)'
+          # toolchain/common.ts writes the config files, the shared headers
+          # and the CMake package into the release's tree (tests/lib).
+          shared='^(tests/lib/|toolchain/common\.ts|\.github/workflows/(checks|on-target)\.yml|\.github/actions/archives/)'
           area() {  # <name> <regex>
             if grep -qE "$2|$shared" changed.txt; then echo "$1=true"; else echo "$1=false"; fi | tee -a "$GITHUB_OUTPUT"
           }
