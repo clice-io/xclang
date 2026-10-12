@@ -3,7 +3,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#if __has_include(<cxxabi.h>)
 #include <cxxabi.h>
+#endif
 #include <sstream>
 #include <string>
 #include <thread>
@@ -24,11 +26,14 @@ int main(int argc, char** argv) {
   std::ostringstream out;
   out << 42 << ' ' << 3.5;
   std::printf("stream: %s\n", out.str().c_str());
-  // libc++abi's demangler, by its header.
+  // libc++abi's demangler, by its header (not the MSVC targets', whose
+  // libc++ is on vcruntime's ABI).
+#if __has_include(<cxxabi.h>)
   int status = 0;
   char* name = abi::__cxa_demangle("_Z1fv", nullptr, nullptr, &status);
   std::printf("demangled: %s\n", status == 0 ? name : "?");
   std::free(name);
+#endif
   std::fflush(stdout);
   const char* mode = argc > 1 ? argv[1] : "";
   if (std::strcmp(mode, "oob") == 0) {
