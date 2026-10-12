@@ -421,11 +421,11 @@ pub fn fix_case(includes: &[PathBuf], libs: &[PathBuf]) -> Result<usize> {
             }
         }
     }
+    // In every directory of libraries that has one: each architecture's
+    // are searched apart.
     for name in KNOWN_LIBS {
         for d in libs {
-            if s.resolve(d, &[name])? {
-                break;
-            }
+            s.resolve(d, &[name])?;
         }
     }
     for h in &headers {
@@ -447,9 +447,7 @@ pub fn fix_case(includes: &[PathBuf], libs: &[PathBuf]) -> Result<usize> {
                 format!("{lib}.lib")
             };
             for d in libs {
-                if s.resolve(d, &[&lib])? {
-                    break;
-                }
+                s.resolve(d, &[&lib])?;
             }
         }
     }
@@ -612,9 +610,11 @@ mod tests {
     fn links_case() {
         let dir = std::env::temp_dir().join(format!("xclang-case-{}", std::process::id()));
         let inc = dir.join("include");
-        let lib = dir.join("lib");
+        // Two architectures' libraries, each linked.
+        let (lib, arm64) = (dir.join("lib"), dir.join("lib-arm64"));
         fs::create_dir_all(&inc).unwrap();
         fs::create_dir_all(&lib).unwrap();
+        fs::create_dir_all(&arm64).unwrap();
         fs::write(
             inc.join("Windows.h"),
             "#include <winbase.h>\n#pragma comment(lib, \"Kernel32\")\n",
@@ -622,12 +622,14 @@ mod tests {
         .unwrap();
         fs::write(inc.join("WinBase.h"), "").unwrap();
         fs::write(lib.join("kernel32.Lib"), "").unwrap();
-        fix_case(std::slice::from_ref(&inc), std::slice::from_ref(&lib)).unwrap();
+        fs::write(arm64.join("kernel32.Lib"), "").unwrap();
+        fix_case(std::slice::from_ref(&inc), &[lib.clone(), arm64.clone()]).unwrap();
         for p in [
             inc.join("windows.h"),
             inc.join("winbase.h"),
             lib.join("KERNEL32.lib"),
             lib.join("Kernel32.lib"),
+            arm64.join("Kernel32.lib"),
         ] {
             assert!(p.exists(), "{}", p.display());
         }

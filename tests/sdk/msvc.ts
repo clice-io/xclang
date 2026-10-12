@@ -301,7 +301,10 @@ for (const a of ["x86_64", "aarch64"]) {
   check(mddBuilt && mddDlls.includes("ucrtbased.dll") && /vcruntime\d+d\.dll/.test(mddDlls), `${triple}: cpp-mdd links with the DLL debug CRT`);
   build("int128", "clang", ["-O2", int128], "int128 ", "hybrid");
   build("int128-cl", "clang-cl", ["/O2", "--", int128], "int128 ", "hybrid");
-  build("win32", "clang", ["-O2", path.join(sources, "win32.c"), "-luser32", "-ladvapi32"], "thread: 42", "hybrid");
+  // Libraries as Windows code names them, in mixed case: every
+  // architecture's (xclang/src/windows.rs fix_case).
+  build("win32", "clang", ["-O2", path.join(sources, "win32.c"), "-luser32", "-ladvapi32", "-lKernel32", "-lIphlpapi"],
+    "thread: 42", "hybrid");
   build("ubsan", "clang", ["-fsanitize=undefined", "-O1", ubsan], "signed integer overflow", null);
   build("profile", "clang", ["-fprofile-instr-generate", "-O1", profile], "profile ", "hybrid", { profile: true });
   if (a === "x86_64") {
