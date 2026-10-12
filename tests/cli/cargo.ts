@@ -9,7 +9,10 @@
 ///   tests/cli/crate    C, C++ (exceptions, std::format, libc++), a CMake
 ///                      project (the cmake crate) and bindgen's bindings,
 ///                      whose layout of a struct must be C's for the target;
-///                      with RUSTFLAGS of the user's, which must reach rustc
+///                      with rustflags of the user's, which must reach rustc:
+///                      RUSTFLAGS, and for the MSVC targets, whose
+///                      CARGO_TARGET_<T>_RUSTFLAGS xclang cargo sets,
+///                      build.rustflags (CARGO_BUILD_RUSTFLAGS)
 ///   xclang/            the command itself (ring, liblzma), from Linux x64
 ///
 /// The host's target runs here, with cargo run and cargo test, and so does
@@ -81,7 +84,8 @@ for (const vendor of vendors) {
   if (spawnSync(tool("xclang"), ["sdk", "path", vendor]).status !== 0) xclang(["sdk", "fetch", vendor, "--accept-license"]);
 }
 
-interface Crate { name: string; dir: string; program: string; env?: NodeJS.ProcessEnv; output?: string; args?: string[]; expect?: string }
+/// A crate to build; msvc, its environment for the MSVC targets in place of env.
+interface Crate { name: string; dir: string; program: string; env?: NodeJS.ProcessEnv; msvc?: NodeJS.ProcessEnv; output?: string; args?: string[]; expect?: string }
 /// A crate's expected.txt, without the carriage returns of a Windows checkout.
 const expected = (dir: string) => fs.readFileSync(path.join(dir, "expected.txt"), "utf8").replaceAll("\r", "");
 /// A program's output as on-target.ts compares it: without its last newlines.
@@ -90,9 +94,13 @@ const crates: Crate[] = [
   { name: "example", dir: path.join(repo, "examples", "cargo"), program: "hello", output: expected(path.join(repo, "examples", "cargo")) },
   {
     name: "probe", dir: path.join(repo, "tests", "cli", "crate"), program: "probe",
-    env: { RUSTFLAGS: "--cfg xclang_probe" }, output: expected(path.join(repo, "tests", "cli", "crate")),
+    env: { RUSTFLAGS: "--cfg xclang_probe" }, msvc: { CARGO_BUILD_RUSTFLAGS: "--cfg xclang_probe" },
+    output: expected(path.join(repo, "tests", "cli", "crate")),
   },
 ];
+/// The environment a crate builds for a target in.
+const environment = (c: Crate, rust: string): NodeJS.ProcessEnv =>
+  ({ ...process.env, ...(rust.endsWith("-msvc") && c.msvc ? c.msvc : c.env) });
 /// The command itself, without its LTO: as many C files, in less time.
 if (machine === "x86_64-unknown-linux-gnu") {
   crates.push({
@@ -106,7 +114,7 @@ for (const [rust, triple] of targets) {
   const dest = programsDir(out, triple, "cargo");
   const programs: Program[] = [];
   for (const c of crates) {
-    const env = { ...process.env, ...c.env };
+    const env = environment(c, rust);
     const start = Date.now();
     if (!xclang(["cargo", "build", "--release", "--locked", "--target", rust], { cwd: c.dir, env }).ok) continue;
     const seconds = ((Date.now() - start) / 1000).toFixed(0);
@@ -188,7 +196,7 @@ const own = targets.map(([rust]) => rust).filter((rust) =>
       : machine === "aarch64-apple-darwin" ? rust === "aarch64-apple-darwin" : false);
 const probe = crates[1]!;
 for (const rust of own) {
-  const env = { ...process.env, ...probe.env };
+  const env = environment(probe, rust);
   const r = xclang(["cargo", "run", "--release", "--locked", "--target", rust], { cwd: probe.dir, env });
   check(r.out === probe.output, `cargo run --target ${rust} prints ${JSON.stringify(probe.output)}`);
   xclang(["cargo", "test", "--release", "--locked", "--target", rust], { cwd: probe.dir, env });

@@ -137,7 +137,11 @@ on a machine of their target ([testing](../dev/testing.md#the-xclang-command)).
 `xclang cargo` sets cargo's variables of each target in the environment
 of cargo, which it then runs. A variable the environment has already is
 left as it is, and the project's or the user's cargo config, and
-`RUSTFLAGS`, stay in effect.
+`RUSTFLAGS`, stay in effect. So does a variable of the configs' `[env]`,
+which cargo gives build scripts and rustc where the environment lacks it.
+`xclang cargo` reads `[env]` (of the config files and `--config`) for
+`XCLANG_STDLIB` too, and for what a variable had that it joins its value
+to (`BINDGEN_EXTRA_CLANG_ARGS`, `CFLAGS`).
 
 | variable | |
 |---|---|
@@ -145,9 +149,9 @@ left as it is, and the project's or the user's cargo config, and
 | `CC_<target>`, `CXX_<target>`, `AR_<target>`, `RANLIB_<target>` | the toolchain's `clang`, `clang++`, `llvm-ar` (`llvm-lib` for MSVC) and `llvm-ranlib`. The `cc` crate passes them a `--target` of its own, whose config file has the sysroot and the runtimes |
 | `CXXSTDLIB_<target>` | `c++`: the `cc` crate links libc++ for C++ code, not libstdc++ (`stdc++` with `XCLANG_STDLIB=platform` for Linux and MinGW, [below](#the-system-s-c-library)) |
 | `CMAKE_TOOLCHAIN_FILE_<target>` | a file in xclang's cache that includes the toolchain's `lib/cmake/xclang/toolchain.cmake` for the target ([CMake](cmake.md)): the `cmake` crate's builds |
-| `CMAKE_GENERATOR_<target>` | MSVC targets, and every target on Windows: Ninja (off Windows, Unix Makefiles without Ninja), where the `cmake` crate would take Visual Studio's generator |
+| `CMAKE_GENERATOR_<target>` | On Windows, every target: Ninja, if it is in `PATH`. Without it nothing is set, and the `cmake` crate takes Visual Studio's generator, which compiles with `cl.exe`, not xclang: on Windows, the `cmake` crate builds with xclang only with Ninja. Off Windows, MSVC targets: Ninja, or Unix Makefiles without it, where the `cmake` crate would take Visual Studio's generator |
 | `BINDGEN_EXTRA_CLANG_ARGS_<target>` | `--target` and the header directories of the toolchain's clang for the target, for the libclang bindgen loads, the system's or another (`LIBCLANG_PATH`); followed by what the variable had |
-| `CARGO_TARGET_<TARGET>_RUSTFLAGS` | MSVC targets: `-Ctarget-feature=+crt-static`, joined to the configs' rustflags, so that build scripts see the static VC runtime |
+| `CARGO_TARGET_<TARGET>_RUSTFLAGS` | MSVC targets: `-Ctarget-feature=+crt-static`, so that build scripts see the static VC runtime, after what the variable had; nothing when the flags name `crt-static`. cargo takes a target's rustflags from the first of `RUSTFLAGS`, the target's (this variable, joined to the configs' `target.<target>.rustflags` and `target.'cfg(...)'.rustflags`) and `build.rustflags`. When no config has rustflags of the target (a `cfg(...)` table's count, whether it matches or not), the variable starts with `build.rustflags`, the configs' and `CARGO_BUILD_RUSTFLAGS`, which cargo would no longer take |
 | `MACOSX_DEPLOYMENT_TARGET` | macOS targets: 13.0, that of the toolchain's libc++ |
 | `SDKROOT` | macOS targets, on Linux and Windows hosts: the fetched SDK in use |
 | `PATH` | the toolchain's `bin/` first, for build scripts that run `clang` (ring, for arm64 Windows) |
@@ -155,10 +159,10 @@ left as it is, and the project's or the user's cargo config, and
 The linker passes rustc's arguments on, but for what rustc links of its
 own that xclang has in its place:
 
-- **Linux**: `-lgcc_s`, the unwinder Rust's std names, becomes
-  `-l:libunwind.a`, as xclang's `libgcc_s.a` is an empty stub; the
-  `-B` to rustc's `gcc-ld`, which makes clang link with rustc's rust-lld
-  on x86_64, is dropped.
+- **Linux**: `-lgcc_s`, the unwinder Rust's std names (`-lgcc_eh` with
+  `+crt-static`), becomes `-l:libunwind.a`, as xclang's `libgcc_s.a` and
+  `libgcc_eh.a` are empty stubs; the `-B` to rustc's `gcc-ld`, which
+  makes clang link with rustc's rust-lld on x86_64, is dropped.
 - **musl**: rustc's own musl and startup files (`-Clink-self-contained`)
   are dropped, so that the program links xclang's musl, whose headers
   the crates' C code was compiled with.
@@ -172,11 +176,12 @@ standard library with `rustup target add`, and names the
 build nothing (`metadata`, `tree`, `clean`, ...) it checks nothing.
 
 The targets are those of `--target`, else of `build.target` (in
-`--config`, `CARGO_BUILD_TARGET` or cargo's config files), else the
-host's. xclang's cache is `$XCLANG_CACHE_DIR`, or `xclang` in the user's
-cache directory (`~/.cache`, `~/Library/Caches`, `%LOCALAPPDATA%`): the
-linkers, which are symbolic links to `xclang` (on Windows hard links, or
-copies), and the CMake toolchain files, per toolchain.
+`--config`, a value or a file, `CARGO_BUILD_TARGET` or cargo's config
+files), else the host's. xclang's cache is `$XCLANG_CACHE_DIR`, or
+`xclang` in the user's cache directory (`~/.cache`, `~/Library/Caches`,
+`%LOCALAPPDATA%`): the linkers, which are symbolic links to `xclang` (on
+Windows hard links, or copies), and the CMake toolchain files, per
+toolchain.
 
 ## The System's C++ Library
 
@@ -190,9 +195,10 @@ XCLANG_STDLIB=platform xclang cargo build --release
 ```
 
 - `-stdlib=platform` follows what the `cc` crate takes of
-  `CFLAGS_<target>` and `CXXFLAGS_<target>` (or `TARGET_CFLAGS`, `CFLAGS`,
-  ...), and the linker passes it to clang, for every target but MSVC,
-  whose objects name the STL's libraries themselves.
+  `CFLAGS_<target>` and `CXXFLAGS_<target>` (or `TARGET_CFLAGS`, for the
+  host's target `HOST_CFLAGS`, then `CFLAGS`, ...), and the linker passes
+  it to clang, for every target but MSVC, whose objects name the STL's
+  libraries themselves.
 - `CXXSTDLIB_<target>` is `stdc++` for the Linux and MinGW targets, whose
   libstdc++ is the host's or that of a `--sysroot` the flags give.
 - On Linux, `-lgcc_s` stays: the program loads the machine's

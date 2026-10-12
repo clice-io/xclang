@@ -1,5 +1,5 @@
 //! C, C++, a CMake project and bindgen's bindings, built for a target by
-//! `xclang cargo` (tests/cli/cargo.ts), with RUSTFLAGS of the user's.
+//! `xclang cargo` (tests/cli/cargo.ts), with rustflags of the user's.
 
 use std::ffi::{CStr, c_char, c_int};
 
@@ -25,7 +25,7 @@ fn text(f: unsafe extern "C" fn(*mut c_char, c_int) -> c_int) -> String {
 /// What the program prints, or what is wrong.
 fn probe() -> Result<String, String> {
     if !cfg!(xclang_probe) {
-        return Err("RUSTFLAGS did not reach rustc".into());
+        return Err("the user's rustflags (--cfg xclang_probe) did not reach rustc".into());
     }
     let (rust, c) = (size_of::<probe>(), unsafe { probe_size() });
     if rust != c {

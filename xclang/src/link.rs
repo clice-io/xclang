@@ -4,9 +4,11 @@
 //! MSVC targets its lld-link with the Windows SDK in use, after changing
 //! what rustc gives them for a C runtime and an unwinder of its own:
 //!
-//!   Linux     -lgcc_s, the shared unwinder rustc names, is libunwind.a:
-//!             xclang's libgcc_s.a is an empty stub; -B<rustc's gcc-ld>, which
-//!             makes clang run rustc's rust-lld on x86_64, goes
+//!   Linux     -lgcc_s, the shared unwinder rustc names, and -lgcc_eh, the
+//!             static one it names with +crt-static, are libunwind.a:
+//!             xclang's libgcc_s.a and libgcc_eh.a are empty stubs;
+//!             -B<rustc's gcc-ld>, which makes clang run rustc's rust-lld on
+//!             x86_64, goes
 //!   musl      rustc's own musl startup files and -L to its musl
 //!             (-Clink-self-contained) go, and -nostartfiles with them:
 //!             clang links xclang's musl, which the crates' C code was
@@ -17,7 +19,7 @@
 //!   MinGW, macOS  nothing but --target
 //!
 //! With XCLANG_STDLIB=platform (cargo.rs), clang links with -stdlib=platform
-//! too, the platform's C++ library and, for Linux, its libgcc_s.
+//! too, the platform's C++ library and, for Linux, its libgcc_s (libgcc_eh).
 //!
 //! rustc gives the options in a response file, @<dir>/linker-arguments,
 //! when the command line would be too long; that file is read, and its
@@ -36,7 +38,7 @@ use crate::{Context, Result};
 /// Link for t, with rustc's arguments.
 pub fn main(t: &Target, args: Vec<OsString>) -> Result<()> {
     let root = Toolchain::find(None)?.root;
-    let platform = crate::cargo::platform_stdlib()?;
+    let platform = crate::cargo::platform_stdlib(env::var_os("XCLANG_STDLIB").as_deref())?;
     let bin = root.join("bin");
     let tool = |name: &str| bin.join(format!("{name}{}", env::consts::EXE_SUFFIX));
     let mut file = None;
@@ -101,7 +103,8 @@ pub fn main(t: &Target, args: Vec<OsString>) -> Result<()> {
 }
 
 /// rustc's arguments, changed for xclang's sysroots and runtimes; with the
-/// platform's C++ library, its sysroot, the Linux one's libgcc_s is real.
+/// platform's C++ library, its sysroot, the Linux one's libgcc_s and
+/// libgcc_eh are real.
 fn filter(kind: Kind, platform: bool, args: Vec<String>) -> Vec<String> {
     let mut out = Vec::with_capacity(args.len());
     let mut args = args.into_iter().peekable();
@@ -117,7 +120,9 @@ fn filter(kind: Kind, platform: bool, args: Vec<String>) -> Vec<String> {
     };
     while let Some(arg) = args.next() {
         match kind {
-            Kind::Linux if arg == "-lgcc_s" && !platform => out.push("-l:libunwind.a".into()),
+            Kind::Linux if (arg == "-lgcc_s" || arg == "-lgcc_eh") && !platform => {
+                out.push("-l:libunwind.a".into())
+            }
             Kind::Linux
                 if arg.starts_with("-B") && rustlib(&arg[2..]) && arg.ends_with("gcc-ld") => {}
             Kind::Linux
@@ -245,6 +250,15 @@ mod tests {
                 "-B/my/tools"
             ])
         );
+        // +crt-static: the static unwinder, a stub too.
+        let args = strings(&["-Wl,-Bstatic", "-lgcc_eh", "-lc", "-lgcc"]);
+        assert_eq!(
+            filter(Kind::Linux, false, args),
+            strings(&["-Wl,-Bstatic", "-l:libunwind.a", "-lc", "-lgcc"])
+        );
+        // The platform's, which are real.
+        let args = strings(&["-lgcc_s", "-lgcc_eh"]);
+        assert_eq!(filter(Kind::Linux, true, args.clone()), args);
     }
 
     #[test]

@@ -331,7 +331,9 @@ macOS, Xcode's for the macOS targets):
 - builds `examples/cargo`, and `tests/cli/crate`: C, C++ (exceptions,
   `std::format`), a CMake project through the `cmake` crate and bindgen's
   bindings, whose layout of a struct must be C's for the target, with
-  `RUSTFLAGS` of its own; from Linux also `xclang/` itself;
+  rustflags of its own (`RUSTFLAGS`; for the MSVC targets, whose
+  `CARGO_TARGET_<TARGET>_RUSTFLAGS` xclang cargo sets, `build.rustflags`);
+  from Linux also `xclang/` itself;
 - checks what each program loads, and runs them all on a machine of their
   target; the host's target, and on Linux musl's, with `cargo run` and
   `cargo test` too, and the host's target with `XCLANG_STDLIB=platform`;
