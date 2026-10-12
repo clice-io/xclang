@@ -48,7 +48,6 @@ always.
 
 | | status |
 |---|---|
-| [MemorySanitizer](../design/roadmap.md#msan) | Planned |
 | [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
 
 ## Known Limitations

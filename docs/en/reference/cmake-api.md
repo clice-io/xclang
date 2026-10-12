@@ -15,7 +15,7 @@ Ninja Multi-Config generator, with Ninja 1.11 or later.
 | `xclang-config.cmake` | `find_package(xclang)`: `xclang::std`, `xclang_add_std()`, `xclang_debug_symbols()`, `XCLANG_ROOT`, the ThinLTO cache |
 | `xclang-config-version.cmake` | the release, for `find_package(xclang 23.1)` (toolchain archives only) |
 | `toolchain.cmake` | the toolchain directory as the toolchain of a build, for the host or `XCLANG_TARGET` |
-| `runtimes.cmake` | included by `toolchain.cmake`: the runtimes built from source, and the build's sanitizers (from the release after 23.1.2.10) |
+| `runtimes.cmake` | included by `toolchain.cmake`: the runtimes built from source, and the build's sanitizers (since 23.1.2.11) |
 | `runtimes-cxx.cmake`, `runtimes-compiler-rt.cmake` | the CMake caches of xclang's own builds of libc++ and compiler-rt, which `runtimes.cmake` builds with |
 | `xclang.cmake` | in `packages/cmake/` only: included before `project()` from a FetchContent checkout, it downloads the toolchain |
 
@@ -88,8 +88,7 @@ the SDK as `CMAKE_FIND_ROOT_PATH`, with the modes above.
 
 ### Runtimes from Source
 
-In no release yet ([Unreleased](../design/roadmap.md#libc-on-demand)).
-`runtimes.cmake`, which the toolchain file includes, reads these
+Since 23.1.2.11. `runtimes.cmake`, which the toolchain file includes, reads these
 variables ([runtimes from source](../features/runtimes-from-source.md)):
 
 | variable | |

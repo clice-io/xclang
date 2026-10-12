@@ -123,14 +123,12 @@ FetchContent or the Bazel registry.
 | | status |
 |---|---|
 | [More Linux architectures, WebAssembly, Android, BSDs, bare metal](../design/roadmap.md#targets) | Considered |
-| [MemorySanitizer, through libc++ built on demand](../design/roadmap.md#msan) | Unreleased |
 | [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
 | [Relative debug paths in CMake builds](../design/roadmap.md#cmake-relative-paths) | Planned |
 | [Immutable releases](../design/roadmap.md#immutable-releases) | Planned |
 | [SLSA provenance](../design/roadmap.md#slsa) | Considered |
 | [BOLT](../design/roadmap.md#bolt) | In research |
 | [A wider PGO training](../design/roadmap.md#pgo-training) | Planned |
-| [`xclang cargo`](../design/roadmap.md#cargo-helper), cargo set up for xclang's targets | Unreleased |
 
 ## Known Limitations
 

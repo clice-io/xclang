@@ -79,9 +79,8 @@ reasons".
 xclang works with cargo as zig does for cargo-zigbuild, with stock clang
 and xclang's runtimes: `xclang cargo` sets cargo up for each target and
 links through `xclang` itself, as cargo-zigbuild does through its own
-program ([Rust and Cargo](../integrations/cargo.md),
-[Unreleased](../design/roadmap.md#cargo-helper)); with a release, it is a
-documented recipe. Unlike
+program, since 23.1.2.11 ([Rust and Cargo](../integrations/cargo.md));
+with an older release, it is a documented recipe. Unlike
 cross-rs, xclang needs no container, and runs natively on Windows and
 macOS hosts. It also runs no tests under emulation.
 
@@ -180,7 +179,6 @@ libclang.
 | [Android](../design/roadmap.md#android), [WebAssembly](../design/roadmap.md#wasm), [the BSDs](../design/roadmap.md#freebsd), [bare metal](../design/roadmap.md#bare-metal) | Considered | the NDK, wasi-sdk, zig cc |
 | [iOS and Apple's other devices](../design/roadmap.md#ios) | In research | Xcode |
 | [Windows 7 and XP](../design/roadmap.md#windows-7) | In research | llvm-mingw's msvcrt variant |
-| [Runtimes built from source with other options: MemorySanitizer, libc++ hardening, an ABI of one's own](../design/roadmap.md#libc-on-demand) | Unreleased | zig cc builds its runtimes on first use |
 
 ## Known Limitations
 

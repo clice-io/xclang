@@ -59,7 +59,7 @@ Windows unless it names one of those.
 | feature | default | |
 |---|---|---|
 | `asan`, `tsan`, `ubsan`, `lsan` | off | sanitizers, for the whole build (`--features=asan`); `asan` compiles and links with the ASan libc++, or with the runtimes from source instrumented by it. None for the MinGW targets; for the MSVC targets `ubsan`, and `asan` for x64 |
-| `msan` | off | MemorySanitizer, for the whole build, with the runtimes from source (`--@xclang//runtimes:source`), which then include its runtime; Linux targets (glibc). In no release yet |
+| `msan` | off | MemorySanitizer, for the whole build, with the runtimes from source (`--@xclang//runtimes:source`), which then include its runtime; Linux targets (glibc). Since 23.1.2.11 |
 | `cpp_modules` | off | C++20 modules: `module_interfaces` of a `cc_library`/`cc_binary`, scanned by clang-scan-deps; needs `--experimental_cpp_modules` |
 | `gc_sections` | Linux targets: on in `opt`; Windows targets: off | lld's `--gc-sections`, lld-link's `/opt:ref` for the MSVC targets ([why not for Windows](../design/windows.md#gc-sections-and-static-initializers)) |
 | `thinlto_cache` | on | the linker's ThinLTO cache, with flags only when `XCLANG_THINLTO_CACHE` names a directory |
@@ -86,8 +86,7 @@ A flag of the whole build:
 
 ## Runtimes from Source
 
-In no release yet ([Unreleased](../design/roadmap.md#libc-on-demand)).
-Flags of the whole build, in `@xclang//runtimes`
+Since 23.1.2.11. Flags of the whole build, in `@xclang//runtimes`
 ([runtimes from source](../features/runtimes-from-source.md)):
 
 | flag | default | |

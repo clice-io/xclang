@@ -19,9 +19,8 @@ cannot be:
 - **No exceptions, no RTTI** in libc++ and libc++abi.
 - **LTO of libc++ with the program** (CMake).
 
-The prebuilt runtimes stay the default. Runtimes from source are in no
-release yet ([Unreleased](../design/roadmap.md#libc-on-demand)); the
-toolchains of the release after 23.1.2.10 carry the sources.
+The prebuilt runtimes stay the default. Runtimes from source are in every
+release since 23.1.2.11, whose toolchains carry the sources.
 
 ## Usage
 
@@ -30,7 +29,7 @@ toolchains of the release after 23.1.2.10 carry the sources.
 The option is the toolchain file's, `XCLANG_RUNTIMES=source`, with
 libc++'s options next to it:
 
-<!-- not run: in no release yet; tests/cmake/cmake.ts builds the same variants (test-cmake.yml) -->
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 cmake -G Ninja -B build --toolchain "$XCLANG/lib/cmake/xclang/toolchain.cmake" \
     -DXCLANG_RUNTIMES=source -DXCLANG_LIBCXX_HARDENING=fast
@@ -44,7 +43,7 @@ build is against it, CMake's own checks too, and `xclang::std` is built
 from its modules. A MemorySanitizer build, which builds compiler-rt's
 runtime of it first:
 
-<!-- not run: in no release yet; tests/cmake/cmake.ts builds the same on Linux x64 (test-cmake.yml) -->
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 cmake -G Ninja -B build-msan --toolchain "$XCLANG/lib/cmake/xclang/toolchain.cmake" \
     -DXCLANG_RUNTIMES=source -DXCLANG_SANITIZER=memory -DCMAKE_BUILD_TYPE=RelWithDebInfo
@@ -63,7 +62,7 @@ it, by the same toolchain file.
 The flags of the whole build are in `@xclang//runtimes`, and the
 sanitizers are the features they always were:
 
-<!-- not run: in no release yet; tests/bazel/runtimes.ts builds the same variants (test-bazel.yml) -->
+<!-- not run: the Bazel examples have no tests for `bazel test`, and take a module older than 23.1.2.11; tests/bazel/runtimes.ts builds the same variants (test-bazel.yml) -->
 ```sh
 bazel build --@xclang//runtimes:source --@xclang//runtimes:hardening=fast //...
 bazel test --@xclang//runtimes:source --features=msan //...

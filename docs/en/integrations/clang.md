@@ -47,7 +47,7 @@ library, such as a distribution's Qt or Boost, or a library built with
 MSVC, needs that C++ library too. `-stdlib=platform` selects it on every
 target; clang-cl takes `/clang:-stdlib=platform`:
 
-<!-- not run: in no release yet; tests/toolchain/smoke.ts builds the same on Linux, macOS and Windows, tests/sdk/msvc.ts with the Windows SDK -->
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 clang++ -O2 -stdlib=platform hello.cpp -o hello
 clang++ -O2 -stdlib=platform --target=x86_64-pc-windows-msvc hello.cpp -o hello.exe

@@ -238,8 +238,7 @@ With `--@xclang//runtimes:source`, libc++, libc++abi and libunwind are
 built from the toolchain's sources, instrumented by the build's sanitizer
 features, and `msan` works too, for the Linux targets
 ([runtimes from source](../features/runtimes-from-source.md#bazel)); the
-same flag takes libc++'s hardening and ABI options. It is in no release
-yet.
+same flag takes libc++'s hardening and ABI options. Since 23.1.2.11.
 
 ## Debug in gdb, lldb and VS Code
 

@@ -9,8 +9,7 @@ go through xclang's clang and lld, with its sysroots and static runtimes.
 The program then needs nothing but the OS
 ([hermeticity](../design/hermeticity.md)).
 
-`xclang cargo` is in no release yet
-([Unreleased](../design/roadmap.md#cargo-helper)). With a release, set
+`xclang cargo` is in every release since 23.1.2.11. With an older one, set
 cargo up by hand: [without xclang cargo](#without-xclang-cargo).
 
 ## Prerequisites
@@ -185,7 +184,7 @@ copies), and the CMake toolchain files, per toolchain.
 C++ library in place of xclang's libc++, for C++ interfaces to libraries
 built with it ([the system's C++ library](clang.md#the-system-s-c-library)):
 
-<!-- not run: in no release yet; tests/cli/cargo.ts builds the same for the host's target on Linux, macOS and Windows (MSVC) -->
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 XCLANG_STDLIB=platform xclang cargo build --release
 ```
@@ -312,6 +311,5 @@ without `--target`, with the flags in `RUSTFLAGS`.
 
 | | status |
 |---|---|
-| [`xclang cargo`](../design/roadmap.md#cargo-helper) | Unreleased |
 | [Rust targets for other Linux architectures](../design/roadmap.md#linux-architectures) | Considered |
 | [`libgcc_s.a` as a linker script](../design/roadmap.md#libgcc-s-script), so Linux targets need no `-l:libunwind.a` | Considered |

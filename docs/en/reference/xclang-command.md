@@ -6,9 +6,9 @@ Every toolchain archive carries it, as `bin/xclang` (`xclang.exe` on
 Windows), since 23.1.2.7. Why SDKs are fetched and not shipped is in
 [vendor SDKs](../design/vendor-sdks.md). No release publishes target
 archives yet, so `xclang target add` has nothing to add; target archives
-are [planned](../design/roadmap.md#target-archives). `xclang cargo` runs
-cargo with the toolchain as the C compiler and linker of its targets
-([Unreleased](../design/roadmap.md#cargo-helper)).
+are [planned](../design/roadmap.md#target-archives). `xclang cargo`, since
+23.1.2.11, runs cargo with the toolchain as the C compiler and linker of
+its targets.
 
 ```text
 xclang sdk list [macos|windows]

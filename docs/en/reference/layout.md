@@ -27,8 +27,8 @@ xclang/
                            each target's own __config_site, <target> as
                            clang spells it (x86_64-w64-windows-gnu)
   libc++/src/              the runtimes' sources, the same for every target,
-                           in llvm-project's layout, patched (below); in the
-                           releases after 23.1.2.10
+                           in llvm-project's layout, patched (below); since
+                           23.1.2.11
   mingw-w64/include/       mingw-w64's headers, the same for both Windows
                            targets
   share/licenses/          the license notices of everything in the archive
@@ -94,8 +94,8 @@ llvm-project's `runtimes/`, `cmake/`, `llvm/cmake/`, `libcxx/`,
 documentation, and the headers of LLVM's libc that libc++ includes, with
 xclang's patches of them applied. The CMake package and the Bazel module
 build the runtimes from them ([runtimes from source](../features/runtimes-from-source.md)),
-LLVM's `runtimes/` as from a checkout. They are 35 MB unpacked, in the
-releases after 23.1.2.10.
+LLVM's `runtimes/` as from a checkout. They are 35 MB unpacked, since
+23.1.2.11.
 
 ## Licenses
 

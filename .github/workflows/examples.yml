@@ -29,7 +29,8 @@ permissions:
 
 jobs:
   # docs/en/guide/quick-start.md, install.md and cross-compiling.md with
-  # pixi; docs/en/integrations/clang.md (clang, Make, Meson) and cmake.md.
+  # pixi; docs/en/integrations/clang.md (clang, Make, Meson) and cmake.md;
+  # docs/en/features/runtimes-from-source.md with CMake.
   quickstart:
     name: quickstart (${{ matrix.host }})
     strategy:
@@ -161,6 +162,30 @@ jobs:
           cmake -G Ninja -B build-aarch64-w64-mingw32 --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake \
               -DXCLANG_TARGET=aarch64-w64-mingw32
           cmake --build build-aarch64-w64-mingw32
+      # docs/en/features/runtimes-from-source.md: the runtimes built at the
+      # first configure, with libc++'s hardening, and with MemorySanitizer
+      # on Linux. Not on the Windows hosts, whose runners take the longest
+      # to build them; test-cmake.yml builds them there.
+      - name: CMake, runtimes from source
+        if: runner.os != 'Windows'
+        working-directory: examples/cmake
+        run: |
+          XCLANG=$PWD/../quickstart/.pixi/envs/default/opt/xclang
+          rm -rf build
+          cmake -G Ninja -B build --toolchain "$XCLANG/lib/cmake/xclang/toolchain.cmake" \
+              -DXCLANG_RUNTIMES=source -DXCLANG_LIBCXX_HARDENING=fast
+          cmake --build build
+          ls build/xclang-runtimes
+          ./build/hello | diff expected.txt -
+      - name: CMake, MemorySanitizer
+        if: runner.os == 'Linux'
+        working-directory: examples/cmake
+        run: |
+          XCLANG=$PWD/../quickstart/.pixi/envs/default/opt/xclang
+          cmake -G Ninja -B build-msan --toolchain "$XCLANG/lib/cmake/xclang/toolchain.cmake" \
+              -DXCLANG_RUNTIMES=source -DXCLANG_SANITIZER=memory -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          cmake --build build-msan
+          ./build-msan/hello | diff expected.txt -
       - name: Meson
         working-directory: examples/meson
         run: |
@@ -582,6 +607,21 @@ jobs:
           cat build-asan.txt
           test "$status" = "$asan_exit"
           grep 'ERROR: AddressSanitizer: container-overflow' build-asan.txt
+      # docs/en/integrations/cmake.md, "Use the System's C++ Library", in a
+      # project without import std, which GCC's libstdc++ before 15 and the
+      # macOS SDK's libc++ lack. A Windows host's own target is MinGW, whose
+      # libstdc++ needs a CMAKE_SYSROOT.
+      - name: CMake, the system's C++ library
+        if: runner.os != 'Windows'
+        working-directory: examples/sanitizers
+        run: |
+          XCLANG=$PWD/.pixi/envs/default/opt/xclang
+          cmake -G Ninja -B build-system --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake \
+              -DXCLANG_STDLIB=platform
+          cmake --build build-system
+          ./build-system/overflow | diff expected.txt -
+          "$XCLANG/bin/llvm-readobj" --needed-libs build-system/overflow | tee needed.txt
+          grep -E 'libstdc\+\+\.so\.6|/usr/lib/libc\+\+\.1\.dylib' needed.txt
       - name: Debug symbols
         working-directory: examples/debug-symbols
         run: |
@@ -684,8 +724,9 @@ jobs:
           if-no-files-found: error
 
   # docs/en/integrations/cargo.md: Rust programs for Windows and for musl
-  # with xclang cargo, and for Linux arm64 with cargo set up by hand, linked
-  # by xclang from Linux, macOS and Windows.
+  # with xclang cargo, for the host with the system's C++ library, and for
+  # Linux arm64 with cargo set up by hand, linked by xclang from Linux,
+  # macOS and Windows.
   cargo:
     name: cargo (${{ matrix.host }})
     strategy:
@@ -711,14 +752,6 @@ jobs:
           run-install: false
       - name: Install
         run: pixi install
-      # xclang cargo is in no release yet: until one carries it, this
-      # checkout's command takes the release's place.
-      - name: xclang cargo
-        run: |
-          bin=$PWD/.pixi/envs/default/opt/xclang/bin
-          "$bin/xclang" cargo version && exit 0
-          (cd ../../xclang && CARGO_PROFILE_RELEASE_LTO=false cargo build --release --locked)
-          cp ../../xclang/target/release/xclang$([[ "$RUNNER_OS" == Windows ]] && echo .exe) "$bin/"
       - name: Windows
         run: |
           export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
@@ -745,6 +778,12 @@ jobs:
           llvm-readelf --program-headers --dynamic target/x86_64-unknown-linux-musl/release/hello | tee headers.txt
           if grep -E 'INTERP|NEEDED' headers.txt; then echo "::error::hello for musl loads a library"; exit 1; fi
           if [[ "$RUNNER_OS" == Linux ]]; then target/x86_64-unknown-linux-musl/release/hello | diff expected.txt -; fi
+      # The host's own target; on Windows, MSVC with Visual Studio's STL.
+      - name: The system's C++ library
+        run: |
+          export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
+          XCLANG_STDLIB=platform xclang cargo build --release
+          target/release/hello | tr -d '\r' | diff expected.txt -
       - name: Linux arm64, without xclang cargo
         if: runner.os != 'Windows'
         run: |
@@ -834,6 +873,20 @@ jobs:
           llvm-readobj --needed-libs hello-msvc-x64.exe hello-cl.exe hello-cl-arm64.exe | tee needed.txt
           grep -i 'api-ms-win-crt' needed.txt
           if grep -iE 'vcruntime|msvcp' needed.txt; then echo "::error::a program loads the VC runtime's DLLs"; exit 1; fi
+      # docs/en/integrations/clang.md, "The System's C++ Library": GCC's
+      # libstdc++ on Linux, the SDK's libc++ on macOS, Microsoft's STL for
+      # MSVC. A Windows host's own target is MinGW, whose libstdc++ needs a
+      # --sysroot.
+      - name: The system's C++ library
+        if: runner.os != 'Windows'
+        run: |
+          clang++ -O2 -stdlib=platform hello.cpp -o hello
+          clang++ -O2 -stdlib=platform --target=x86_64-pc-windows-msvc hello.cpp -o hello.exe
+          ./hello | diff expected.txt -
+          llvm-readobj --needed-libs hello hello.exe | tee needed.txt
+          grep -E 'libstdc\+\+\.so\.6|/usr/lib/libc\+\+\.1\.dylib' needed.txt
+          grep -i 'api-ms-win-crt' needed.txt
+          if grep -iE 'vcruntime|msvcp' needed.txt; then echo "::error::hello.exe loads the VC runtime's DLLs"; exit 1; fi
       - name: macOS targets
         if: runner.os != 'macOS'
         run: |
@@ -854,13 +907,6 @@ jobs:
           cmake -G Ninja -B build-macos --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake \
               -DXCLANG_TARGET=aarch64-apple-darwin
           cmake --build build-macos
-      # xclang cargo is in no release yet: until one carries it, this
-      # checkout's command takes the release's place.
-      - name: xclang cargo
-        run: |
-          xclang cargo version && exit 0
-          (cd ../../xclang && CARGO_PROFILE_RELEASE_LTO=false cargo build --release --locked)
-          cp ../../xclang/target/release/xclang$([[ "$RUNNER_OS" == Windows ]] && echo .exe) "$XCLANG/bin/"
       - name: cargo, macOS and MSVC targets
         working-directory: examples/cargo
         run: |
@@ -885,6 +931,7 @@ jobs:
           stage x86_64-pc-windows-msvc clang quickstart/hello-msvc-x64.exe quickstart/expected.txt
           stage $cl-pc-windows-msvc clang-cl quickstart/hello-cl.exe quickstart/expected.txt
           stage aarch64-pc-windows-msvc clang-cl-arm64 quickstart/hello-cl-arm64.exe quickstart/expected.txt
+          stage x86_64-pc-windows-msvc clang-system quickstart/hello.exe quickstart/expected.txt
           stage aarch64-apple-darwin clang quickstart/hello-macos-arm64 quickstart/expected.txt
           stage x86_64-apple-darwin clang quickstart/hello-macos-x64 quickstart/expected.txt
           stage x86_64-pc-windows-msvc cmake cmake/build-msvc/hello.exe cmake/expected.txt

@@ -265,7 +265,7 @@ GCC's libstdc++ on Linux, Microsoft's STL for the MSVC targets, the SDK's
 libc++ for macOS ([the system's C++ library](clang.md#the-system-s-c-library)).
 The toolchain file adds `-stdlib=platform` to the flags of every language:
 
-<!-- not run: in no release yet; tests/cmake/cmake.ts builds the same on Linux and macOS (test-cmake.yml), tests/sdk/msvc.ts for the MSVC targets -->
+<!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 cmake -G Ninja -B build-system --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake \
     -DXCLANG_STDLIB=platform
@@ -288,7 +288,7 @@ libc++abi and libunwind from the toolchain's sources at the first
 configure, with options the prebuilt ones lack: MemorySanitizer
 (`-DXCLANG_SANITIZER=memory`), libc++'s hardening modes, ABI options, no
 exceptions. The whole build, `xclang::std` included, is then against
-them. It is in no release yet
+them. Since 23.1.2.11
 ([runtimes from source](../features/runtimes-from-source.md#cmake)).
 
 ## Ship Debug Symbols

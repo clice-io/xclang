@@ -275,18 +275,20 @@ dynamically linked musl variant that has them is
 clang++ --target=x86_64-unknown-linux-musl -fsanitize=undefined -O1 ubsan.cpp -o ubsan
 ```
 
+## MemorySanitizer
+
+MemorySanitizer needs every library instrumented, libc++ too, and
+compiler-rt's runtime of it, which the toolchain does not carry. Since
+23.1.2.11, the runtimes built from source give it both, for the Linux
+targets ([runtimes from source](runtimes-from-source.md)):
+`XCLANG_RUNTIMES=source` with `XCLANG_SANITIZER=memory` in CMake,
+`--@xclang//runtimes:source` with `--features=msan` in Bazel.
+ThreadSanitizer and AddressSanitizer report through runtimes from source
+as well, instrumented like the program.
+
 ## Not Yet Supported
 
 | | status |
 |---|---|
 | [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
 | [ASan, TSan, LSan and libFuzzer for musl targets](../design/roadmap.md#musl-sanitizers) | Considered |
-| [MemorySanitizer](../design/roadmap.md#msan) | Unreleased |
-
-MemorySanitizer needs every library instrumented, libc++ too, and
-compiler-rt's runtime of it, which the toolchain does not carry. On `main`,
-the runtimes built from source give it both, for the Linux targets
-([runtimes from source](runtimes-from-source.md)): `XCLANG_RUNTIMES=source`
-with `XCLANG_SANITIZER=memory` in CMake, `--@xclang//runtimes:source` with
-`--features=msan` in Bazel. ThreadSanitizer and AddressSanitizer report
-through runtimes from source as well, instrumented like the program.

@@ -30,11 +30,12 @@ for clang: one compiler for every target.
 - Runtimes can also be built from source on demand, for options the
   prebuilt ones lack.
 
-Today, the first and the third are in a release: the six targets, the
-musl targets since 23.1.2.10, and since 23.1.2.7 Microsoft's and Apple's
-SDKs, which the user fetches with the [`xclang` command](#xclang-command).
-The rest is planned, in research or considered, item by item, in the
-tables below.
+Today, the first, the third and the fourth are in a release: the six
+targets, the musl targets since 23.1.2.10, since 23.1.2.7 Microsoft's and
+Apple's SDKs, which the user fetches with the
+[`xclang` command](#xclang-command), and since 23.1.2.11 the runtimes from
+source, for every target but the MSVC ones. The rest is planned, in
+research or considered, item by item, in the tables below.
 
 Every target keeps the [hermeticity](hermeticity.md) rule. A program
 depends at run time only on the libraries of its OS that cannot be
@@ -171,14 +172,14 @@ its C compiler and linker. Every toolchain archive carries it, as
 
 | item | status |
 |---|---|
-| <a id="libc-on-demand"></a>libc++, libc++abi and libunwind built from source on demand | Unreleased |
-| <a id="msan"></a>MemorySanitizer, through libc++ built on demand | Unreleased |
+| <a id="libc-on-demand"></a>libc++, libc++abi and libunwind built from source on demand | Supported |
+| <a id="msan"></a>MemorySanitizer, through libc++ built on demand | Supported |
 | <a id="runtimes-msvc"></a>Runtimes from source for the MSVC targets | Planned |
 | <a id="runtimes-bazel-lto"></a>LTO of the runtimes from source with the program, in Bazel | Considered |
 | <a id="mingw-sanitizers"></a>Sanitizers for MinGW targets | Considered |
 | <a id="musl-sanitizers"></a>ASan, TSan, LSan and libFuzzer for musl targets, with a dynamically linked musl (Alpine's way) | Considered |
 | <a id="bazel-gsymutil"></a>`@xclang//bazel:llvm-gsymutil`, the toolchain's llvm-gsymutil for `bazel run` | Supported |
-| <a id="cargo-helper"></a>`xclang cargo`, cargo with the variables of xclang's targets set | Unreleased |
+| <a id="cargo-helper"></a>`xclang cargo`, cargo with the variables of xclang's targets set | Supported |
 | <a id="libgcc-s-script"></a>`libgcc_s.a` as a linker script naming libunwind, for Rust's Linux targets | Considered |
 | <a id="libcxx-msvc"></a>libc++ as the C++ library of MSVC targets | Supported |
 | <a id="openmp"></a>An OpenMP runtime | Not planned |
@@ -191,10 +192,10 @@ its C compiler and linker. Every toolchain archive carries it, as
 source inside a CMake or Bazel build, from LLVM's runtime sources of the
 release, with its [patches](../reference/patches.md), which every toolchain
 carries in `libc++/src`
-([runtimes from source](../features/runtimes-from-source.md)). On `main`,
-the CMake package's toolchain file (`XCLANG_RUNTIMES=source`) and the Bazel
-module (`--@xclang//runtimes:source`) build them for every target but the
-MSVC ones. They cover what the prebuilt runtimes cannot be:
+([runtimes from source](../features/runtimes-from-source.md)). Since
+23.1.2.11, the CMake package's toolchain file (`XCLANG_RUNTIMES=source`)
+and the Bazel module (`--@xclang//runtimes:source`) build them for every
+target but the MSVC ones. They cover what the prebuilt runtimes cannot be:
 
 - **MemorySanitizer**, which needs every library instrumented, libc++ too,
   and compiler-rt's runtime of it, built with them. ThreadSanitizer and
@@ -217,8 +218,8 @@ The prebuilt runtimes stay the default.
 
 Rust and cargo work with xclang in every release as a recipe of
 environment variables ([Rust and Cargo](../integrations/cargo.md)).
-`xclang cargo`, on `main`, sets them and runs cargo, as cargo-zigbuild
-does: the linker is `xclang` itself, which hands clang or lld-link what
+`xclang cargo`, since 23.1.2.11, sets them and runs cargo, as
+cargo-zigbuild does: the linker is `xclang` itself, which hands clang or lld-link what
 each target needs. Making `libgcc_s.a` a linker script,
 `INPUT(-lunwind)`, instead of an empty archive is considered: Rust's Linux
 targets then link without `-l:libunwind.a`, by hand too. A test with 23.1.2.5's
