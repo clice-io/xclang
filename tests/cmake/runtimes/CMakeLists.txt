@@ -66,7 +66,8 @@ set(reports
 while(reports)
     list(POP_FRONT reports sanitizer argument report)
     if(sanitizer IN_LIST sanitizers)
-        add_test(NAME ${sanitizer}_report COMMAND variant ${argument})
+        add_test(NAME ${sanitizer}_report COMMAND "${CMAKE_COMMAND}" "-DPROGRAM=$<TARGET_FILE:variant>"
+            -DARGUMENT=${argument} -P "${CMAKE_CURRENT_SOURCE_DIR}/report.cmake")
         set_tests_properties(${sanitizer}_report PROPERTIES PASS_REGULAR_EXPRESSION "${report}")
     endif()
 endwhile()

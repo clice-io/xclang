@@ -1,3 +1,4 @@
+#include <chrono>
 #include <climits>
 #include <cstdio>
 #include <cstdlib>
@@ -49,9 +50,12 @@ int main(int argc, char** argv) {
     n += argc;
     std::printf("sum %d\n", n);
   }
-  // ThreadSanitizer.
+  // ThreadSanitizer: the thread's write first, which the main thread's
+  // then races with (the other way round, TSan misses it now and then on
+  // arm64 Linux).
   if (std::strcmp(mode, "race") == 0) {
     std::thread t([] { shared++; });
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     shared++;
     t.join();
   }
