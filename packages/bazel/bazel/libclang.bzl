@@ -374,8 +374,9 @@ libclang_alias_targets({prefix}, {asan_prefix})
 def libclang_alias_targets(prefix, asan_prefix = ""):
     """The aliases of libclang_aliases' BUILD file. Libraries, headers and
     resource directory switch together, the ASan build's (bazel/BUILD.bazel's
-    <triple>-asan, the more specific setting) or not. The MSVC targets have
-    none: what depends on it is incompatible with them."""
+    <triple>-asan, the more specific setting) or not. Only the hosts have
+    one, not the musl and MSVC targets: what depends on it is incompatible
+    with them."""
     for name in LIBRARIES + _OTHERS:
         actual = {Label("//bazel:" + target): "@%s%s//:%s" % (prefix, target, name) for target in HOSTS}
         if asan_prefix:

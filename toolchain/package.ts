@@ -11,8 +11,8 @@
 ///                                and llvm-dlltool's option tables
 ///
 /// With --cli <dir>, the toolchain carries xclang's own command, bin/xclang,
-/// from <dir>/cli-<host> (xclang/build.ts); without it, as until it ships,
-/// it does not.
+/// from <dir>/cli-<host> (xclang/build.ts), as every release's since
+/// 23.1.2.7 does; without it, it does not.
 ///
 /// Every archive has share/licenses: the license files of what it holds,
 /// a README.md and an SPDX document of them (toolchain/licenses.ts).

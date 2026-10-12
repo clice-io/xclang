@@ -3,7 +3,7 @@ name: stage-runtimes
 # The runtimes of every target, built once with the bootstrap compiler:
 # one artifact runtimes-<triple> per Linux (glibc, musl) and MinGW target, one
 # runtimes-darwin for both macOS targets, one runtimes-msvc for both MSVC
-# targets (their compiler-rt). Units not in `build` are copied from the run
+# targets (their libc++ and compiler-rt). Units not in `build` are copied from the run
 # `reuse-run`, so every run carries the full set.
 
 on:
@@ -51,7 +51,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
         if: env.BUILD == 'true'
-      # The MSVC targets' compiler-rt is built against Microsoft's CRT and
+      # The MSVC targets' libc++ and compiler-rt are built against Microsoft's CRT and
       # Windows SDK, which xclang's own command fetches (windows-2022's,
       # MSVC 14.44: libraries built with it link with it and with newer
       # ones). Nothing of it leaves the job, only the libraries built.

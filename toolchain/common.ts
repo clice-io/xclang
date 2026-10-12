@@ -36,9 +36,10 @@ export const SOURCES = {
     url: `${LLVM}/llvm-project-${LLVM_VERSION}.src.tar.xz`,
     sha256: "c98bbef08a2b4c2613cd50e9aa9ae7b69b1fe6c16b2c40373bc0ab6116fdf78a",
   },
-  /// The bootstrap compiler: the previous xclang release, whose Linux x64
-  /// and macOS arm64 toolchains build the next one. (23.1.2.1 itself was
-  /// built by LLVM's own release builds, llvm-linux-x64 and llvm-macos-arm64.)
+  /// The bootstrap compiler: an xclang release, pinned and moved forward
+  /// deliberately, whose Linux x64 and macOS arm64 toolchains build the next
+  /// one. (23.1.2.1 itself was built by LLVM's own release builds,
+  /// llvm-linux-x64 and llvm-macos-arm64.)
   "bootstrap-linux": {
     url: `${XCLANG}/23.1.2.6/xclang-23.1.2.6-x86_64-unknown-linux-gnu.tar.xz`,
     sha256: "d2c2eb943fc7720851cbee4f2a0cafff24151ddc58b1e0172f2e70f4c00f5fa6",

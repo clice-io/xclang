@@ -21,7 +21,7 @@ load("//bazel:unsupported.bzl", "xclang_unsupported_toolchain")
 # Without Microsoft's SDK, a build for them fails with why.
 xclang_unsupported_toolchain(
     name = "no-windows-sdk",
-    message = ("xclang builds for the MSVC targets with Microsoft's CRT, STL and Windows SDK, which the root module " +
+    message = ("xclang builds for the MSVC targets with Microsoft's CRT and Windows SDK, which the root module " +
                "fetches with xclang.windows_sdk(accept_license = True) in its MODULE.bazel " +
                "(https://docs.clice.io/xclang/integrations/bazel#vendor-sdks)"),
 )

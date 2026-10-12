@@ -7,11 +7,13 @@ the toolchain has not.
 They are libraries of the host's repository (xclang_runtimes), built for the
 target platform in a configuration of their own, the build's with
 //runtimes:building set: the same toolchain compiles them, without them
-(bazel/toolchain.bzl), so the build's features reach them (a sanitizer's
-instrumentation, ThinLTO) but for libunwind and MemorySanitizer's runtime,
-which stay uninstrumented. Their __config_site is the target's, with the
-options of //runtimes; the build against them takes it before libc++'s other
-headers, and links their libraries in place of the prebuilt ones.
+(bazel/toolchain.bzl), so the build's sanitizer features instrument them,
+but for libunwind and MemorySanitizer's runtime, which stay uninstrumented;
+none of them is compiled to ThinLTO's bitcode (thin_lto), whose backends
+Bazel runs only for the libraries it links. Their __config_site is the
+target's, with the options of //runtimes; the build against them takes it
+before libc++'s other headers, and links their libraries in place of the
+prebuilt ones.
 """
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")

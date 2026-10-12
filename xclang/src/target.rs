@@ -1,13 +1,13 @@
-//! `xclang target`: targets beyond the six every toolchain carries, each an
+//! `xclang target`: targets beyond the eight every toolchain carries, each an
 //! archive of its own listed in the release's index (as rustup's channel
 //! manifests list components), unpacked into the toolchain.
 //!
 //! The index, xclang-targets-<version>.json, a release asset:
 //!
 //!   { "schema": 1, "version": "23.1.2.7",
-//!     "targets": { "x86_64-unknown-linux-musl": {
-//!       "description": "Linux x64, musl 1.2.5", "tier": 1, "sdk": null,
-//!       "archive": "xclang-target-23.1.2.7-x86_64-unknown-linux-musl.tar.xz",
+//!     "targets": { "riscv64-unknown-linux-gnu": {
+//!       "description": "Linux riscv64, glibc 2.31", "tier": 2, "sdk": null,
+//!       "archive": "xclang-target-23.1.2.7-riscv64-unknown-linux-gnu.tar.xz",
 //!       "sha256": "...", "size": 12345678, "unpacked": 98765432 } } }
 //!
 //! `archive` is a URL, or a name next to the index. An archive is a
