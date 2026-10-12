@@ -16,7 +16,7 @@
  
  def layering_check_features(compiler, extra_flags_per_feature, is_macos):
      if compiler != "clang":
-@@ -265,6 +272,32 @@
+@@ -265,6 +272,33 @@
      ]
      action_configs = []
  
@@ -27,9 +27,10 @@
 +    compile_flags = list(ctx.attr.compile_flags)
 +    link_flags = list(ctx.attr.link_flags)
 +    cxx_builtin_include_directories = list(ctx.attr.cxx_builtin_include_directories)
++    runtime_cxx_flags = []
 +    if ctx.file.runtime_include:
 +        for directory in [ctx.file.runtime_include.dirname] + ctx.attr.runtime_include_dirs:
-+            compile_flags += ["-stdlib++-isystem", directory]
++            runtime_cxx_flags += ["-stdlib++-isystem", directory]
 +        cxx_builtin_include_directories.append("%workspace%/" + ctx.file.runtime_include.dirname)
 +    if ctx.files.runtime_libraries:
 +        link_flags += ctx.attr.runtime_link_flags + [f.path for f in ctx.files.runtime_libraries]
@@ -49,7 +50,7 @@
      action_configs.append(action_config(
          action_name = ACTION_NAMES.cpp_link_static_library,
          tools = [
-@@ -277,6 +310,34 @@
+@@ -277,6 +311,34 @@
          implies = ["archiver_flags", "linker_param_file"],
      ))
  
@@ -84,7 +85,7 @@
      llvm_cov = ctx.attr.tool_paths.get("llvm-cov")
      if llvm_cov:
          llvm_cov_action = action_config(
-@@ -436,9 +497,9 @@
+@@ -436,9 +498,9 @@
                  actions = all_compile_actions,
                  flag_groups = ([
                      flag_group(
@@ -96,7 +97,23 @@
              ),
              flag_set(
                  actions = all_compile_actions,
-@@ -502,9 +563,9 @@
+@@ -491,6 +553,15 @@
+                     ),
+                 ] if ctx.attr.cxx_flags else []),
+             ),
++            # C++'s only: a C or assembler compile would report them unused.
++            flag_set(
++                actions = all_cpp_compile_actions,
++                flag_groups = ([
++                    flag_group(
++                        flags = runtime_cxx_flags,
++                    ),
++                ] if runtime_cxx_flags else []),
++            ),
+         ],
+     )
+ 
+@@ -502,9 +573,9 @@
                  actions = all_link_actions + lto_index_actions,
                  flag_groups = ([
                      flag_group(
@@ -108,7 +125,7 @@
              ),
              flag_set(
                  actions = all_link_actions + lto_index_actions,
-@@ -677,7 +738,9 @@
+@@ -677,7 +748,9 @@
          provides = ["profile"],
      )
  
@@ -119,7 +136,7 @@
  
      user_compile_flags_feature = feature(
          name = "user_compile_flags",
-@@ -1177,6 +1240,9 @@
+@@ -1177,6 +1250,9 @@
                  ],
              ),
          ],
@@ -129,7 +146,7 @@
      )
  
      strip_debug_symbols_feature = feature(
-@@ -1756,10 +1822,10 @@
+@@ -1756,10 +1832,10 @@
          specific_compile_flags = [
              "-fsanitize=address",
              "-fno-common",
@@ -142,7 +159,7 @@
      )
  
      lsan_feature = _sanitizer_feature(
-@@ -1770,7 +1836,7 @@
+@@ -1770,7 +1846,7 @@
          ],
          specific_link_flags = [
              "-fsanitize=leak",
@@ -151,7 +168,7 @@
      )
  
      tsan_feature = _sanitizer_feature(
-@@ -1780,7 +1846,7 @@
+@@ -1780,7 +1856,7 @@
          ],
          specific_link_flags = [
              "-fsanitize=thread",
@@ -160,7 +177,7 @@
      )
  
      ubsan_feature = _sanitizer_feature(
-@@ -1790,7 +1856,28 @@
+@@ -1790,7 +1866,28 @@
          ],
          specific_link_flags = [
              "-fsanitize=undefined",
@@ -190,7 +207,7 @@
      )
  
      # If you have Xcode + the CLT installed the version defaults can be
-@@ -1989,6 +2076,7 @@
+@@ -1989,6 +2086,7 @@
              lsan_feature,
              tsan_feature,
              ubsan_feature,
@@ -198,7 +215,7 @@
              gcc_quoting_for_param_files_feature,
              static_link_cpp_runtimes_feature,
          ] + (
-@@ -2044,6 +2132,7 @@
+@@ -2044,6 +2142,7 @@
              lsan_feature,
              tsan_feature,
              ubsan_feature,
@@ -206,7 +223,7 @@
              gcc_quoting_for_param_files_feature,
              static_link_cpp_runtimes_feature,
          ] + (
-@@ -2056,6 +2145,10 @@
+@@ -2056,6 +2155,10 @@
              default_link_flags_feature,
              user_link_flags_feature,
              default_link_libs_feature,
@@ -217,7 +234,7 @@
              includes_feature,
              include_paths_feature,
              external_include_paths_feature,
-@@ -2096,7 +2189,7 @@
+@@ -2096,7 +2199,7 @@
          features = features,
          action_configs = action_configs,
          artifact_name_patterns = artifact_name_patterns,
@@ -226,7 +243,7 @@
          toolchain_identifier = ctx.attr.toolchain_identifier,
          host_system_name = ctx.attr.host_system_name,
          target_system_name = ctx.attr.target_system_name,
-@@ -2152,6 +2245,24 @@
+@@ -2152,6 +2255,24 @@
          "opt_compile_flags": attr.string_list(),
          "opt_link_flags": attr.string_list(),
          "supports_start_end_lib": attr.bool(),

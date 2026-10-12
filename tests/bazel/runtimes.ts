@@ -4,7 +4,9 @@
 ///
 ///   node tests/bazel/runtimes.ts --tree <xclang> [--disk-cache <dir>] [--programs <dir>]
 ///
-/// tests/bazel/runtimes built once per variant for this host's target, and
+/// tests/bazel/runtimes built once per variant for this host's target, with
+/// a C program of -Werror and a C++ tool the build runs (built for the host
+/// with the prebuilt runtimes, whatever the variant), and
 /// run: with no options, the prebuilt runtimes' __config_site again; a
 /// hardening mode, which traps on a read past a vector's end; an ABI
 /// namespace and ABI macros of libc++'s own, without exceptions and RTTI.
@@ -73,9 +75,13 @@ function bazel(args: string[], capture = false): string | undefined {
   return result.stdout ?? "";
 }
 
-/// Build the programs of one variant; their files.
+/// Build the programs of one variant; their files. With them, a C program
+/// with -Werror, which no option of the C++ library may reach, and
+/// //platform:generated, whose C++ tool the build runs: the variant's
+/// options are the target's, the tool links the prebuilt runtimes.
 function build(options: string[]): { variant: string; std: string } | undefined {
-  if (bazel(["build", ...flags, ...options, "//runtimes:all"]) === undefined) return undefined;
+  const others = ["--per_file_copt=//c:.*@-Werror", "//runtimes:all", "//c:all", "//platform:generated"];
+  if (bazel(["build", ...flags, ...options, ...others]) === undefined) return undefined;
   const file = (label: string) => bazel(["cquery", ...flags, ...options, "--output=files", label], true)?.trim();
   const variant = file("//runtimes:variant");
   const std = file("//runtimes:variant_std");

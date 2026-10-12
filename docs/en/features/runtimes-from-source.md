@@ -179,6 +179,11 @@ The program's own options are its own: a build without exceptions passes
   built against the prebuilt runtimes, with another ABI namespace, ABI
   version or set of ABI macros, does not link, or breaks at run time; under
   MemorySanitizer, its code reports what it was not instrumented to see.
+- **Bazel builds them for the target's build only.** The tools a build
+  runs (`cfg = "exec"`) are built for the host with the prebuilt runtimes,
+  whatever the variant. The runtimes follow the sanitizer features of the
+  whole build (`--features=asan`), not those a single target turns on or
+  off with `features`.
 - **Bazel does not run ThinLTO on the runtimes**: `--features=thin_lto`
   links programs of ThinLTO against runtimes of native code. Bazel's ThinLTO
   backends compile the objects of the libraries it knows, and the toolchain

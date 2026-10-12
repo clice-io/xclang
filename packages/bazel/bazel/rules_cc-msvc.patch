@@ -67,7 +67,7 @@
      target_macos_and_use_libtool = not is_linux and ctx.attr._use_libtool_on_macos[BuildSettingInfo].value
      profile_correction_flags = get_profile_correction_flags(ctx)
  
-@@ -451,9 +509,10 @@
+@@ -452,9 +510,10 @@
      )
      action_configs.append(cpp20_module_codegen)
  
@@ -79,7 +79,7 @@
      )
      prefer_pic_for_opt_binaries_feature = feature(
          name = "prefer_pic_for_opt_binaries",
-@@ -593,7 +652,9 @@
+@@ -603,7 +662,9 @@
  
      fastbuild_feature = feature(name = "fastbuild")
  
@@ -90,7 +90,7 @@
  
      opt_feature = feature(name = "opt")
  
-@@ -1050,6 +1111,12 @@
+@@ -1060,6 +1121,12 @@
              ],
          )
  
@@ -103,7 +103,7 @@
      fission_support_feature = feature(
          name = "fission_support",
          flag_sets = [
-@@ -1247,7 +1314,9 @@
+@@ -1257,7 +1324,9 @@
  
      strip_debug_symbols_feature = feature(
          name = "strip_debug_symbols",
@@ -114,7 +114,7 @@
              flag_set(
                  actions = all_link_actions + lto_index_actions,
                  flag_groups = [
-@@ -1353,6 +1422,53 @@
+@@ -1363,6 +1432,53 @@
          ),
      ]
  
@@ -168,7 +168,7 @@
      libraries_to_link_feature = feature(
          name = "libraries_to_link",
          flag_sets = [
-@@ -1672,7 +1788,7 @@
+@@ -1682,7 +1798,7 @@
                  flag_groups = [
                      flag_group(
                          flags = [
@@ -177,7 +177,7 @@
                          ],
                          expand_if_available = "output_execpath",
                      ),
-@@ -1805,7 +1921,7 @@
+@@ -1815,7 +1931,7 @@
              flag_set(
                  actions = all_link_actions,
                  flag_groups = [flag_group(
@@ -186,7 +186,7 @@
                  )],
              ),
          ],
-@@ -2019,8 +2135,9 @@
+@@ -2029,8 +2145,9 @@
                  extension = _cpp_module_extension(ctx.attr.compiler),
              ),
          ]
@@ -198,7 +198,7 @@
              # executables and DLLs it links need their Windows names; static
              # libraries keep the GNU lib<name>.a naming MinGW uses as well.
              artifact_name_patterns.extend([
-@@ -2176,6 +2293,9 @@
+@@ -2186,6 +2303,9 @@
      if symbol_check:
          features.append(symbol_check)
  

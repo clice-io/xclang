@@ -5,7 +5,8 @@ load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag", "st
 # libc++abi, and libunwind, from the toolchain's libc++/src, compiled for
 # the target platform with the build's sanitizer features (--features=msan,
 # asan, tsan, ubsan; not thin_lto), linked in place of the prebuilt ones.
-# Flags of the whole build:
+# Flags of the target's build, not of the tools it runs (cfg = "exec"),
+# which link the prebuilt ones:
 #
 #   --@xclang//runtimes:source              on
 #   --@xclang//runtimes:hardening=fast      libc++'s hardening mode: none,
@@ -21,11 +22,13 @@ package(default_visibility = ["//visibility:public"])
 
 bool_flag(
     name = "source",
+    scope = "target",
     build_setting_default = False,
 )
 
 string_flag(
     name = "hardening",
+    scope = "target",
     build_setting_default = "none",
     values = [
         "none",
@@ -37,6 +40,7 @@ string_flag(
 
 string_flag(
     name = "abi_version",
+    scope = "target",
     build_setting_default = "1",
     values = [
         "1",
@@ -46,21 +50,25 @@ string_flag(
 
 string_flag(
     name = "abi_namespace",
+    scope = "target",
     build_setting_default = "",
 )
 
 string_list_flag(
     name = "abi_defines",
+    scope = "target",
     build_setting_default = [],
 )
 
 bool_flag(
     name = "exceptions",
+    scope = "target",
     build_setting_default = True,
 )
 
 bool_flag(
     name = "rtti",
+    scope = "target",
     build_setting_default = True,
 )
 
