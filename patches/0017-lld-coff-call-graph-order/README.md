@@ -26,7 +26,9 @@ order of the walk.
   compiles against 23.1.2's headers. 24 objects, each with a `static hot`
   that its `f<i>` calls (`.cg_profile`), linked 12 times by LLD 22.1.5 or
   xclang's 23.1.2 lld-link, in MinGW mode or not: 6 to 11 different
-  programs; with `/call-graph-profile-sort:no`, one. The smoke test links them 12 times
-  on every host and wants one program: it has one with the patch on all
-  six hosts (run 37897616656), where two rebuilds of the same revision
-  otherwise came out the same but for `llvm.exe` (run 37897648275).
+  programs; with `/call-graph-profile-sort:no`, one. The smoke test links
+  them 12 times on every host and wants one program: it has one with the
+  patch on all six hosts (run 37897616656), where two rebuilds of the same
+  revision otherwise came out the same but for `llvm.exe` (run 37897648275).
+  Applies to 23.1.3 with `patch -F0` after the patches before it; 23.1.3
+  changed none of its files.

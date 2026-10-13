@@ -19,8 +19,10 @@ the integrated assembler (cc1as). Without its tests.
 - From: #222099 at a331d027664962892db1192676c3a96fc0042e4c, without
   `clang/test` and `clang/unittests`, regenerated against 23.1.2.
 - Checked: applies to 23.1.2 with `patch -F0`; the patched `cc1as_main.cpp`
-  compiles against 23.1.2's headers; upstream's CI passes on #222099.
-  xclang 23.1.2.9 writes the compile time into an `x86_64-w64-mingw32`
-  object and LLVM 22.1.5 writes 0. The smoke test compiles one C file for
+  compiles against 23.1.2's headers; upstream's CI passes on #222099. xclang
+  23.1.2.9 writes the compile time into an `x86_64-w64-mingw32` object and
+  LLVM 22.1.5 writes 0. The smoke test compiles one C file for
   `x86_64-w64-mingw32` and for `x86_64-pc-windows-msvc` on every host: the
-  MinGW object's `TimeDateStamp` is 0, the MSVC one's is not.
+  MinGW object's `TimeDateStamp` is 0, the MSVC one's is not. Applies to
+  23.1.3 with `patch -F0` after the patches before it; 23.1.3 changed none
+  of its files.

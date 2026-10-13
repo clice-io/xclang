@@ -117,7 +117,7 @@ program, and has no `run_exports`.
 
 ## LLVM's Release Binaries
 
-[LLVM's releases](https://github.com/llvm/llvm-project/releases/tag/llvmorg-23.1.2)
+[LLVM's releases](https://github.com/llvm/llvm-project/releases/tag/llvmorg-23.1.3)
 are clang, lld and the runtimes for the host. They are built with PGO and
 ThinLTO on Linux and macOS (`clang/cmake/caches/Release.cmake`), and with
 PGO but no LTO on Windows. They carry no sysroot for another target, so a

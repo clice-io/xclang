@@ -33,10 +33,11 @@ replaces patches/0015, which made `-stdlib=platform` drop
 
 - Upstream: not sent. It is about configuration files that give a C++
   library; it could be proposed as configuration files per `-stdlib=`.
-- Checked: applies to 23.1.2 with `-F0` after 0001 to 0017, without 0015.
-  A clang 23.1.2 built with it, in a 23.1.2.10 tree with `-system.cfg`
-  files added, built and ran programs with `-stdlib=platform` against
-  GCC's libstdc++ (Linux), linked `/usr/lib/libc++.1.dylib` (macOS, the
-  fetched SDK) and Microsoft's STL (MSVC, the fetched SDK, clang and
-  clang-cl); `config-file-stdlib.c` and the config-file, cl-options and
-  stdlibxx-isystem driver tests pass.
+- Checked: applies to 23.1.2 with `-F0` after 0001 to 0017, without 0015. A
+  clang 23.1.2 built with it, in a 23.1.2.10 tree with `-system.cfg` files
+  added, built and ran programs with `-stdlib=platform` against GCC's
+  libstdc++ (Linux), linked `/usr/lib/libc++.1.dylib` (macOS, the fetched
+  SDK) and Microsoft's STL (MSVC, the fetched SDK, clang and clang-cl);
+  `config-file-stdlib.c` and the config-file, cl-options and
+  stdlibxx-isystem driver tests pass. Applies to 23.1.3 with `patch -F0`
+  after the patches before it; 23.1.3 changed none of its files.

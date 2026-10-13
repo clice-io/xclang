@@ -307,11 +307,10 @@ The training is widened between releases, not while one is pending
 
 | item | status |
 |---|---|
-| <a id="llvm-releases"></a>LLVM 23.1.3 and 24.x, each as it is released | Planned |
+| <a id="llvm-releases"></a>LLVM 24.x, and every 23.1 release still to come, each as it is released | Planned |
 
 Each LLVM release is built with the [patches](../reference/patches.md)
-checked against it. 23.1.3 has the fix for the macOS 27 SDK's `arm64e.x1`
-stubs, which xclang carries as patch 0009 since 23.1.2.6.
+checked against it; LLVM 23.1.3, in 23.1.3.1, took over two of them.
 
 ## Documentation
 

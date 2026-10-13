@@ -18,6 +18,7 @@ the SDK's in the link. A user's `-L` stays after them.
 
 - Upstream: not reported.
 - Checked: applies to 23.1.2 with `patch -F0`; the patched `MSVC.cpp`
-  compiles against 23.1.2's headers. The smoke test links and runs a
-  program dividing `__int128`s, and one with `-fsanitize=undefined`, for
-  the MSVC target on Windows hosts without a fetched SDK.
+  compiles against 23.1.2's headers. The smoke test links and runs a program
+  dividing `__int128`s, and one with `-fsanitize=undefined`, for the MSVC
+  target on Windows hosts without a fetched SDK. Applies to 23.1.3 with
+  `patch -F0` after the patches before it; 23.1.3 changed none of its files.

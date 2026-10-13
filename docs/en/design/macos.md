@@ -23,9 +23,9 @@ On a macOS host, clang finds it the usual way: the last `-isysroot`, else
 When Xcode 27 shipped the macOS 27 SDK, its `.tbd` stubs listed a new
 architecture, `arm64e.x1`, that the TextAPI of LLVM 23.1.2 did not know.
 ld64.lld rejected the stubs of libSystem and every framework, and no program
-linked against the newest SDK. xclang carries LLVM's fix, which release/23.x
-backported for 23.1.3, as [patch 0009](../reference/patches.md) from
-23.1.2.6 on.
+linked against the newest SDK. xclang carried LLVM's fix as patch 0009
+from 23.1.2.6 on, until LLVM 23.1.3, which has it, in 23.1.3.1
+([patches](../reference/patches.md)).
 
 ## The SDK on Linux and Windows Hosts
 

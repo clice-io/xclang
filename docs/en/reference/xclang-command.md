@@ -103,7 +103,7 @@ version the vendors offer:
 
 With no version given, the preset's is taken, the macOS 27 SDK too: the
 releases that carry the command link against it
-([patch 0009](patches.md)).
+([macOS](../design/macos.md#the-sdk-is-xcode-s)).
 
 ### What Is Fetched
 

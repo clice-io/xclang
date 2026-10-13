@@ -18,4 +18,5 @@ The patch has clang look under the usual spelling too when the vendor is
 - Checked: applies to 23.1.2 with `patch -F0`; the patched `ToolChain.cpp`
   compiles against 23.1.2's headers. The smoke test builds a C program for
   `<arch>-pc-linux-gnu` and `<arch>-pc-windows-gnu` on every host and runs
-  it where the host can.
+  it where the host can. Applies to 23.1.3 with `patch -F0` after the
+  patches before it; 23.1.3 changed none of its files.

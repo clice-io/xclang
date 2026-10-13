@@ -459,7 +459,8 @@ run(tool("dsymutil"), ["--version"]);
 }
 
 /// ld64.lld reads .tbd stubs listing arm64e.x1, as the macOS 27 SDK's do
-/// (patches/0009), on every host: a dylib linked against such a libSystem.
+/// (LLVM 23.1.3; patches/0009 before), on every host: a dylib linked against
+/// such a libSystem.
 {
   const sdk = path.join(work, "sdk-arm64e-x1");
   fs.mkdirSync(path.join(sdk, "usr", "lib"), { recursive: true });
@@ -733,7 +734,7 @@ int main(int argc, char**) {
 }
 
 /// format_to into a container after an argument of 256 code units
-/// (patches/0006): no write past libc++'s stack buffer.
+/// (LLVM 23.1.3; patches/0006 before): no write past libc++'s stack buffer.
 if (!windows) {
   const source = write("format-256.cpp", `#include <cstdio>
 #include <format>

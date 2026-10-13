@@ -8,6 +8,16 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+- **LLVM 23.1.3.** Among its fixes: an InstCombine miscompile
+  (llvm/llvm-project#226783), AArch64 and DAGCombiner codegen, Windows
+  arm64 `sret` in GlobalISel and FastISel, x86 SEH frames
+  (llvm/llvm-project#225445), lld dropping RELR relocations of late GOT
+  entries (llvm/llvm-project#211911), C++20 modules' ADL of friends
+  (llvm/llvm-project#219094) and a use-after-free in llvm-objcopy's Mach-O
+  strip (llvm/llvm-project#228607).
+- Patches: **0006** and **0009** dropped: LLVM 23.1.3 has both,
+  llvm/llvm-project#226791 and #222721.
+
 ## [23.1.2.12](https://github.com/clice-io/xclang/releases/tag/23.1.2.12) — 2026-10-12
 
 The compiler and runtimes are 23.1.2.11's.

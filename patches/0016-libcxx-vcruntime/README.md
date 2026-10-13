@@ -24,7 +24,9 @@ and repeats another, which it links in its own tests (`libcpmt.lib` or
 
 - Upstream: not reported. libc++'s own clang-cl configurations link the
   STL's library, which defines these, so its tests do not see them.
-- Checked: applies to 23.1.2 with `-F0`; libc++ for both MSVC targets has
-  no `std::nothrow` and has both handlers (llvm-nm); kotatsu's tests link
-  and run, tests/sdk/msvc.ts's `std::set_new_handler` program links and
-  runs, and tests/cmake's `import std` builds, for both MSVC targets.
+- Checked: applies to 23.1.2 with `-F0`; libc++ for both MSVC targets has no
+  `std::nothrow` and has both handlers (llvm-nm); kotatsu's tests link and
+  run, tests/sdk/msvc.ts's `std::set_new_handler` program links and runs,
+  and tests/cmake's `import std` builds, for both MSVC targets. Applies to
+  23.1.3 with `patch -F0` after the patches before it; 23.1.3 changed none
+  of its files.
