@@ -8,6 +8,10 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+## [23.1.3.1](https://github.com/clice-io/xclang/releases/tag/23.1.3.1) — 2026-10-13
+
+Built by 23.1.2.12.
+
 - **LLVM 23.1.3.** Among its fixes: an InstCombine miscompile
   (llvm/llvm-project#226783), AArch64 and DAGCombiner codegen, Windows
   arm64 `sret` in GlobalISel and FastISel, x86 SEH frames
