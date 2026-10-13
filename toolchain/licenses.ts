@@ -74,14 +74,47 @@ const LLVM_FILES = [
   "clang-tools-extra/clang-tidy/cert/LICENSE.TXT",
 ];
 
+/// Third-party code of what is built whose license is only in a comment
+/// of its source file, cut out of it into <file>.license: xxHash
+/// (BSD-2-Clause) and Unicode's UTF conversions (Unicode-DFS-2015) and
+/// character names (Unicode-DFS-2016) in LLVMSupport, OpenBSD's strlcpy of
+/// its regex engine (ISC), and the Visual Studio Setup API's declarations,
+/// which Windows hosts' programs and libclang compile (MIT). Each notice
+/// runs from the line `first` matches to the one before the line `end`
+/// matches.
+export const LLVM_NOTICES: { file: string; first: RegExp; end: RegExp }[] = [
+  { file: "llvm/lib/Support/xxhash.cpp", first: /xxHash - Extremely Fast Hash algorithm/, end: /^\s*\*\/$/ },
+  { file: "llvm/lib/Support/ConvertUTF.cpp", first: /Copyright © 1991-\d+ Unicode, Inc\./, end: /^\s*\*\/$/ },
+  { file: "llvm/lib/Support/UnicodeNameToCodepointGenerated.cpp", first: /^UNICODE, INC\. LICENSE AGREEMENT/, end: /^\*\/$/ },
+  { file: "llvm/lib/Support/regstrlcpy.c", first: /Copyright \(c\) \d+ Todd C\. Miller/, end: /^\s*\*\/$/ },
+  { file: "llvm/include/llvm/WindowsDriver/MSVCSetupApi.h", first: /^\/\/ The MIT License/, end: /^\/\/ <\/license>$/ },
+];
+
 export async function llvmProject(what: string): Promise<Component> {
+  const files = await filesOf("llvm-project", [...LLVM_FILES, ...LLVM_NOTICES.map((n) => n.file)]);
+  const notices = path.join(common.WORK, "src", "licenses", "llvm-project-notices");
+  for (const n of LLVM_NOTICES) {
+    const lines = fs.readFileSync(files[n.file]!, "utf8").split("\n");
+    delete files[n.file];
+    const first = lines.findIndex((l) => n.first.test(l));
+    const end = first < 0 ? -1 : lines.findIndex((l, i) => i > first && n.end.test(l));
+    if (end < 0) common.fail(`no license notice in llvm-project's ${n.file}: from ${n.first} to ${n.end}`);
+    /// Without the comment's markers and their indentation.
+    const text = lines.slice(first, end).map((l) => l.replace(/^\s*(\/\/|\/?\*)\s?/, "").trimEnd());
+    const indent = Math.min(...text.filter((l) => l).map((l) => l.length - l.trimStart().length));
+    const file = path.join(notices, `${n.file}.license`);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, text.map((l) => l.slice(indent)).join("\n").replace(/\n+$/, "") + "\n");
+    files[`${n.file}.license`] = file;
+  }
   return {
     name: "llvm-project",
     what,
     version: common.LLVM_VERSION,
-    license: "(Apache-2.0 WITH LLVM-exception OR NCSA) AND Spencer-94 AND (CC0-1.0 OR Apache-2.0)",
+    license: "(Apache-2.0 WITH LLVM-exception OR NCSA) AND Spencer-94 AND BSD-3-Clause AND (CC0-1.0 OR Apache-2.0) AND " +
+      "BSD-2-Clause AND Unicode-DFS-2015 AND Unicode-DFS-2016 AND ISC AND MIT",
     source: [common.SOURCES["llvm-project"].url, "with xclang's patches: patches/ of the tag"],
-    files: await filesOf("llvm-project", LLVM_FILES),
+    files,
   };
 }
 

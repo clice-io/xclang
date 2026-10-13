@@ -146,6 +146,13 @@ for (const dir of ["include", ...triples.flatMap(([t]) => [`${t}/include`, `${t}
 /// The license notices of what the archive holds (toolchain/licenses.ts).
 failures.push(...licenses.check(tree, ["xclang", "llvm-project", "zstd", "glibc", "linux", "nss", "mingw-w64",
   ...(musl.length ? ["musl"] : []), ...(fs.existsSync(tool("xclang")) ? ["rust", "rust-crates"] : [])]));
+/// With the notices that LLVM keeps only in its sources' comments.
+if (since("23.1.3.1")) {
+  for (const { file } of licenses.LLVM_NOTICES) {
+    const notice = path.join(tree, "share", "licenses", "llvm-project", `${file}.license`);
+    if (!fs.existsSync(notice)) failures.push(`no ${notice}`);
+  }
+}
 
 run(tool("FileCheck"), [write("check.txt", "CHECK: hello\nCHECK-NEXT: world\n"),
   `--input-file=${write("input.txt", "hello\nworld\n")}`]);
@@ -223,6 +230,44 @@ if (since("23.1.2.10")) {
     if (run(tool("clang"), [`--target=${spelled}`, "-O2", helloC, "-o", out]) === undefined || !runnable(t)) continue;
     const output = run(out, []);
     if (output !== undefined && !output.includes("hello c")) failures.push(`${out} printed ${JSON.stringify(output)}`);
+  }
+}
+
+/// The arm64 spellings of the aarch64 targets, Apple's and Microsoft's name
+/// of the architecture, read the target's config file, which none had
+/// before 23.1.3.1 (the compile was the host's), and the Linux and MinGW
+/// targets find compiler-rt for them (patches/0013): their programs link,
+/// and run where this machine can run them. The MSVC target's, config files
+/// only, name compiler-rt's builtins of aarch64 and their directory.
+{
+  const read = (driver: string, args: string[]) => /^Configuration file: .*[\\/]([^\\/\r\n]+?)\r?$/m
+    .exec(spawnSync(tool(driver), ["-###", ...args], { encoding: "utf8", cwd: work }).stderr ?? "")?.[1];
+  const spellings: [string, string, string][] = [
+    ["arm64-linux-gnu", "arm64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"],
+    ["arm64-pc-linux-gnu", "arm64-pc-linux-gnu", "aarch64-unknown-linux-gnu"],
+    ["arm64-w64-mingw32", "arm64-w64-windows-gnu", "aarch64-w64-mingw32"],
+    ["arm64-pc-windows-gnu", "arm64-pc-windows-gnu", "aarch64-w64-mingw32"],
+    ["arm64-pc-windows-msvc", "arm64-pc-windows-msvc", "aarch64-pc-windows-msvc"],
+    ["arm64-windows-msvc", "arm64-unknown-windows-msvc", "aarch64-pc-windows-msvc"],
+    ...musl.filter((t) => t.startsWith("aarch64-")).map((t): [string, string, string] => ["arm64-linux-musl", "arm64-unknown-linux-musl", t]),
+  ];
+  for (const [spelled, cfg, t] of spellings) {
+    const got = read("clang", [`--target=${spelled}`, "-c", helloC]);
+    if (got !== `${cfg}.cfg`) failures.push(`clang --target=${spelled} reads ${got}, not ${cfg}.cfg`);
+    if (t.endsWith("msvc") || !since("23.1.3.1")) continue;
+    const out = path.join(work, `hello-${spelled}${t.endsWith("mingw32") ? ".exe" : ""}`);
+    if (run(tool("clang"), [`--target=${spelled}`, "-O2", helloC, "-o", out]) === undefined || !runnable(t)) continue;
+    const output = run(out, []);
+    if (output !== undefined && !output.includes("hello c")) failures.push(`${out} printed ${JSON.stringify(output)}`);
+  }
+  const cl = read("clang-cl", ["--target=arm64-pc-windows-msvc", "/c", "--", helloC]);
+  if (cl !== "arm64-pc-windows-msvc-clang-cl.cfg") failures.push(`clang-cl --target=arm64-pc-windows-msvc reads ${cl}`);
+  /// -### writes a Windows path's backslashes doubled.
+  const link = (spawnSync(tool("clang"), ["--target=arm64-pc-windows-msvc", "-###", helloC, "-o", path.join(work, "hello-arm64.exe")],
+    { encoding: "utf8", cwd: work }).stderr ?? "").replace(/\\+/g, "/");
+  if (!link.includes("--dependent-lib=clang_rt.builtins-aarch64.lib") ||
+    !/lld-link.*"-libpath:[^"]*\/lib\/clang\/\d+\/lib\/windows"/.test(link)) {
+    failures.push(`clang --target=arm64-pc-windows-msvc links without compiler-rt's builtins of aarch64: ${link}`);
   }
 }
 
@@ -459,7 +504,8 @@ run(tool("dsymutil"), ["--version"]);
 }
 
 /// ld64.lld reads .tbd stubs listing arm64e.x1, as the macOS 27 SDK's do
-/// (patches/0009), on every host: a dylib linked against such a libSystem.
+/// (LLVM 23.1.3; patches/0009 before), on every host: a dylib linked against
+/// such a libSystem.
 {
   const sdk = path.join(work, "sdk-arm64e-x1");
   fs.mkdirSync(path.join(sdk, "usr", "lib"), { recursive: true });
@@ -733,7 +779,7 @@ int main(int argc, char**) {
 }
 
 /// format_to into a container after an argument of 256 code units
-/// (patches/0006): no write past libc++'s stack buffer.
+/// (LLVM 23.1.3; patches/0006 before): no write past libc++'s stack buffer.
 if (!windows) {
   const source = write("format-256.cpp", `#include <cstdio>
 #include <format>

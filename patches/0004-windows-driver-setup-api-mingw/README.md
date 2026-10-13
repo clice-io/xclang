@@ -34,11 +34,12 @@ list of Visual Studio 2010 to 2005 directories (clang's MSVC.cpp).
   releases the caller's reference; the same in MSVC builds.
 - Checked: MSVCPaths.cpp compiles without warnings for x86_64 and aarch64
   MinGW, with and without `-fms-extensions`, every `__uuidof` resolves, and
-  the seven IDs match MSVCSetupApi.h's `DECLSPEC_UUID`s. The lookup,
-  built for MinGW with xclang, found Visual Studio 18 on windows-2025 and
-  Visual Studio 2022 on windows-11-arm with no Visual Studio environment,
-  as LLVM's MSVC-built clang does, where xclang 23.1.2.2's clang found
-  Visual Studio 2010's directories. The version from #226794's head: the
-  whole series applies to 23.1.2 with `patch -F0`, and the smoke test's
-  Setup API check passes on windows-2025 and windows-11-arm (run
-  37897616656).
+  the seven IDs match MSVCSetupApi.h's `DECLSPEC_UUID`s. The lookup, built
+  for MinGW with xclang, found Visual Studio 18 on windows-2025 and Visual
+  Studio 2022 on windows-11-arm with no Visual Studio environment, as LLVM's
+  MSVC-built clang does, where xclang 23.1.2.2's clang found Visual Studio
+  2010's directories. The version from #226794's head: the whole series
+  applies to 23.1.2 with `patch -F0`, and the smoke test's Setup API check
+  passes on windows-2025 and windows-11-arm (run 37897616656). Applies to
+  23.1.3 with `patch -F0` after the patches before it; 23.1.3 changed none
+  of its files.

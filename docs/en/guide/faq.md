@@ -94,8 +94,8 @@ before 23.1.2.7 build macOS targets on macOS hosts only, with Xcode's SDK
 ### Linking against the macOS 27 SDK fails: "malformed file", "arm64e.x1"
 
 Use 23.1.2.6 or later. The SDK of Xcode 27 lists an architecture that LLVM
-23.1.2 does not know, and later releases carry the fix
-([patch 0009](../reference/patches.md)).
+23.1.2 does not know; later releases carry the fix, LLVM 23.1.3's own since
+23.1.3.1 ([macOS](../design/macos.md#the-sdk-is-xcode-s)).
 
 ### Test registrations disappear from Windows release builds
 

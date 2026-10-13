@@ -1,7 +1,7 @@
 """The C++ runtimes' translation units, as LLVM's CMake build of runtimes/
 compiles them for each target and variant: written by
 packages/bazel/runtimes.ts from the CMake package's builds of LLVM
-23.1.2's, do not edit. bazel/runtimes.bzl makes them libraries.
+23.1.3's, do not edit. bazel/runtimes.bzl makes them libraries.
 
 FLAGS: the flag lists, $(SRC) for the sources' directory and $(CXX) for libc++'s
     headers.

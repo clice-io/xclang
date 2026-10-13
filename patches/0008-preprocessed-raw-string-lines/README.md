@@ -22,6 +22,7 @@ comments.
 - Upstream: [#122070](https://github.com/llvm/llvm-project/issues/122070),
   open since January 2025, no fix.
 - Checked: the patched `PrintPreprocessedOutput.cpp` compiles against
-  23.1.2's headers. The smoke test preprocesses a CRLF file with a
-  two-line raw string, compiles the output, and runs it: the string is
-  `a\nb` and the line after it has its own number, on every host.
+  23.1.2's headers. The smoke test preprocesses a CRLF file with a two-line
+  raw string, compiles the output, and runs it: the string is `a\nb` and the
+  line after it has its own number, on every host. Applies to 23.1.3 with
+  `patch -F0` after the patches before it; 23.1.3 changed none of its files.

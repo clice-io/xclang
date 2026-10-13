@@ -267,7 +267,7 @@ The training is widened between releases, not while one is pending
 | <a id="gsym-determinism"></a>The same GSYM file on every run (`xclang_debug_symbols` passing `--num-threads=1`) | Supported |
 | <a id="immutable-releases"></a>Immutable GitHub releases | Planned |
 | <a id="reproducible-archives"></a>Reproducible release archives | Supported |
-| <a id="reproducible-builds"></a>Reproducible toolchain builds: a rebuild of a revision on its profile is the same bytes (the Windows hosts' `llvm.exe` once the bootstrap has patch 0017) | Supported |
+| <a id="reproducible-builds"></a>Reproducible toolchain builds: a rebuild of a revision on its profile is the same bytes | Supported |
 | <a id="license-notices"></a>Third-party license notices in the archives | Supported |
 | <a id="slsa"></a>SLSA provenance attestations | Planned |
 
@@ -293,10 +293,13 @@ The training is widened between releases, not while one is pending
   LLVM's release commit, not xclang's, nothing built for Windows holds a
   time, and the macOS sanitizers' dylibs hold no file times. Two such
   builds of 23.1.2.10 differed only in the Windows hosts' `llvm.exe`,
-  which the bootstrap's lld-link links: it lays out PGO-built programs
+  which the bootstrap's lld-link links: it laid out PGO-built programs
   differently from one link to the next, which
-  [patch 0017](../reference/patches.md) fixes in 23.1.2.10's own
-  lld-link, so a bootstrap of 23.1.2.10 or later makes them the same too.
+  [patch 0017](../reference/patches.md) fixes. 23.1.3.1 is built by
+  23.1.2.12, whose lld-link has it: two builds of 23.1.3.1, runs
+  [38350485630](https://github.com/clice-io/xclang/actions/runs/38350485630)
+  and [38356990210](https://github.com/clice-io/xclang/actions/runs/38356990210),
+  have every file the same, `llvm.exe` too.
   Each training gives another profile; a release is rebuilt on its own
   (`profile-run`).
 - **License notices**, since 23.1.2.7: every archive has `share/licenses`,
@@ -307,11 +310,10 @@ The training is widened between releases, not while one is pending
 
 | item | status |
 |---|---|
-| <a id="llvm-releases"></a>LLVM 23.1.3 and 24.x, each as it is released | Planned |
+| <a id="llvm-releases"></a>LLVM 24.x, and every 23.1 release still to come, each as it is released | Planned |
 
 Each LLVM release is built with the [patches](../reference/patches.md)
-checked against it. 23.1.3 has the fix for the macOS 27 SDK's `arm64e.x1`
-stubs, which xclang carries as patch 0009 since 23.1.2.6.
+checked against it; LLVM 23.1.3, in 23.1.3.1, took over two of them.
 
 ## Documentation
 

@@ -108,7 +108,7 @@ export async function runtimesSources(dest: string): Promise<void> {
   for (const file of files(stage)) if (!wanted(file)) fs.rmSync(path.join(stage, file));
   const applied = patch(stage);
   /// libc++'s own patches, which its prebuilt builds carry.
-  for (const name of ["0006-libcxx-format-buffer-full", "0016-libcxx-vcruntime"]) {
+  for (const name of ["0016-libcxx-vcruntime"]) {
     if (!applied.includes(name)) common.fail(`patches/${name} is not among the runtimes' patches: ${applied.join(", ")}`);
   }
   const libc = path.join(stage, "libc");

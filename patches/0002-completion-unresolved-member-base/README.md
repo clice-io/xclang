@@ -10,5 +10,6 @@ types itself, as clice does, still gets to complete.
 - Upstream: not submitted; clangd would see an extra, empty member-access
   context.
 - From: clice-llvm `patches/23.1.1/0002` (applies to 23.1.2 unchanged).
-- Checked: applies to 23.1.2; SemaCodeComplete.cpp compiles against
-  xclang's libclang.
+- Checked: applies to 23.1.2; SemaCodeComplete.cpp compiles against xclang's
+  libclang. Applies to 23.1.3 with `patch -F0` after the patches before it;
+  23.1.3 changed none of its files.

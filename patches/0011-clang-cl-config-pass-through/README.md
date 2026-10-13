@@ -19,6 +19,7 @@ The patch claims the options a `/clang:` passes through when the `/clang:`
 was claimed already, which only those of a config file are at that point.
 
 - Upstream: not reported.
-- Checked: applies to 23.1.2 with `-F0`; tests/toolchain/smoke.ts compiles
-  C with clang-cl and `/WX` for the MSVC targets, through their config
-  files.
+- Checked: applies to 23.1.2 with `-F0`; tests/toolchain/smoke.ts compiles C
+  with clang-cl and `/WX` for the MSVC targets, through their config files.
+  Applies to 23.1.3 with `patch -F0` after the patches before it; 23.1.3
+  changed none of its files.

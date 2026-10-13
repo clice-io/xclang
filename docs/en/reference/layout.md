@@ -122,7 +122,7 @@ The toolchain's components:
 | directory | what | license |
 |---|---|---|
 | `xclang` | xclang's config files, CMake package and `xclang` command | Apache-2.0 |
-| `llvm-project` | clang, lld, the LLVM tools, libc++, libc++abi, libunwind, compiler-rt; the files keep their paths in LLVM's source | Apache-2.0 WITH LLVM-exception, and the third-party parts' |
+| `llvm-project` | clang, lld, the LLVM tools, libc++, libc++abi, libunwind, compiler-rt; the files keep their paths in LLVM's source, and a `<file>.license` is a notice cut from that file's comment | Apache-2.0 WITH LLVM-exception, and the third-party parts': the regex engine, BLAKE3, xxHash, Unicode's conversions and data, the Visual Studio Setup API's declarations |
 | `zlib`, `zstd` | linked into the programs (macOS hosts: zstd only) | Zlib; BSD-3-Clause OR GPL-2.0-only |
 | `glibc` | the Linux targets' C library, 2.17 | LGPL-2.1-or-later |
 | `musl` | the musl targets' C library, 1.2.6, from 23.1.2.10 on | MIT, and the parts its `COPYRIGHT` names: BSD-2-Clause, BSD-3-Clause, ISC, SunPro |

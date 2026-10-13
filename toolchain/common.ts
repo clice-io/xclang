@@ -13,11 +13,11 @@ import type { ReadableStream as WebReadableStream } from "node:stream/web";
 export const ROOT = path.resolve(import.meta.dirname, "..");
 export const WORK = path.resolve(process.env.XCLANG_WORK ?? path.join(ROOT, "work"));
 
-export const LLVM_VERSION = "23.1.2";
+export const LLVM_VERSION = "23.1.3";
 /// The commit of llvmorg-<LLVM_VERSION>: the revision clang --version names,
 /// as LLVM's own release builds do (toolchain/toolchain.ts). Without it, LLVM
 /// records the commit of whatever git checkout holds the source, xclang's.
-export const LLVM_COMMIT = "85ac560262434c9ccfc0c183ec22d4138ed647fb";
+export const LLVM_COMMIT = "0d261d1ca552c95a8f007e061c787ac7132fbcbc";
 export const LLVM_MAJOR = LLVM_VERSION.split(".")[0];
 export const MINGW_VERSION = "14.0.0";
 export const MUSL_VERSION = "1.2.6";
@@ -34,19 +34,19 @@ const XCLANG = `${GH}/clice-io/xclang/releases/download`;
 export const SOURCES = {
   "llvm-project": {
     url: `${LLVM}/llvm-project-${LLVM_VERSION}.src.tar.xz`,
-    sha256: "c98bbef08a2b4c2613cd50e9aa9ae7b69b1fe6c16b2c40373bc0ab6116fdf78a",
+    sha256: "c44186a7762ed28954be72e5ff6df9808e0779d4f1bf014ecc4e7e211d31ee34",
   },
   /// The bootstrap compiler: an xclang release, pinned and moved forward
   /// deliberately, whose Linux x64 and macOS arm64 toolchains build the next
   /// one. (23.1.2.1 itself was built by LLVM's own release builds,
   /// llvm-linux-x64 and llvm-macos-arm64.)
   "bootstrap-linux": {
-    url: `${XCLANG}/23.1.2.6/xclang-23.1.2.6-x86_64-unknown-linux-gnu.tar.xz`,
-    sha256: "d2c2eb943fc7720851cbee4f2a0cafff24151ddc58b1e0172f2e70f4c00f5fa6",
+    url: `${XCLANG}/23.1.2.12/xclang-23.1.2.12-x86_64-unknown-linux-gnu.tar.xz`,
+    sha256: "11ee8b7113bc2f741e62fbe1c0c07ce371f088b792f98a76ef4a4682fc082bfe",
   },
   "bootstrap-macos": {
-    url: `${XCLANG}/23.1.2.6/xclang-23.1.2.6-aarch64-apple-darwin.tar.xz`,
-    sha256: "d9fec015c97f9b06c8e259864b891c4fc6b453bd666f9d30d425690a2d7be2e1",
+    url: `${XCLANG}/23.1.2.12/xclang-23.1.2.12-aarch64-apple-darwin.tar.xz`,
+    sha256: "189ff0fc6d56d0876d678a617fc063ff6b31f5a8bc72015246d4c13105005f47",
   },
   /// What builds xclang's own command (xclang/build.ts): a released
   /// toolchain, the C compiler and linker of every host's binary.
@@ -101,23 +101,23 @@ export const SOURCES = {
   },
   "llvm-linux-x64": {
     url: `${LLVM}/LLVM-${LLVM_VERSION}-Linux-X64.tar.zst`,
-    sha256: "6382de1c1a210ce5a5cc49d18bc8444d137742e7cbf9b19f4ae602bb1ab52534",
+    sha256: "14d2f701eb68fb799001bdea6231048f3990690fa2f406d563555ff8f744daba",
   },
   "llvm-macos-arm64": {
     url: `${LLVM}/LLVM-${LLVM_VERSION}-macOS-ARM64.tar.zst`,
-    sha256: "3da0e91b5dfe3a5ec795ad2be79b3f5e6f28c8b23edcd3847fad7742b25e0507",
+    sha256: "a3f181b1176406893c097443e21b2a54b85afeac2d10eca3b6d251e6dca32eb3",
   },
   "llvm-linux-arm64": {
     url: `${LLVM}/LLVM-${LLVM_VERSION}-Linux-ARM64.tar.zst`,
-    sha256: "143308c82f8e21707be7fdc135d5e0ddd9a46a377ca9f38befc716fd842cb59b",
+    sha256: "1154f37ec15b5654fcb8cc3a8a2352a4cc4eef44bdff7ddd47fb10ea85c82f01",
   },
   "llvm-windows-x64": {
     url: `${LLVM}/clang+llvm-${LLVM_VERSION}-x86_64-pc-windows-msvc.tar.xz`,
-    sha256: "8fb91cdc44fcbbdcf6b3ffd0a1f9859abd14a3c3aae4423c2b6d4a4f90bf0095",
+    sha256: "9ee6a2192fbb30c776415af529927f76ca6b5d1d55699bb1315f9878e610b5b8",
   },
   "llvm-windows-arm64": {
     url: `${LLVM}/clang+llvm-${LLVM_VERSION}-aarch64-pc-windows-msvc.tar.xz`,
-    sha256: "9703cceafb5a0efd6c8720c9b6d35a0d0858079cd2175229e7fa4b922f3d8822",
+    sha256: "4a42903db59f990a10c245eb32999f1e3247c37ba66de87f8f8dc2338ed9a79b",
   },
   "mingw-w64": {
     url: `${GH}/mingw-w64/mingw-w64/archive/refs/tags/v${MINGW_VERSION}.tar.gz`,
@@ -206,18 +206,21 @@ export function normalized(t: Target): string {
   return t.os === "mingw" ? `${t.arch}-w64-windows-gnu` : t.triple;
 }
 
-/// Every spelling of the triple that should reach the target's config file.
+/// Every spelling of the triple that should reach the target's config file:
+/// for aarch64 also arm64's, Apple's and Microsoft's name of it, which
+/// clang takes for every target (patches/0013 finds the runtimes of the
+/// Linux and MinGW targets for it).
 export function cfgNames(t: Target): string[] {
-  if (t.os === "mingw") return [`${t.arch}-w64-windows-gnu`, `${t.arch}-pc-windows-gnu`];
-  /// unknown: clang's spelling of x86_64-windows-msvc.
-  if (t.os === "msvc") return [t.triple, `${t.arch}-unknown-windows-msvc`];
-  if (t.os === "darwin") {
-    const archs = t.arch === "aarch64" ? ["arm64", "aarch64"] : ["x86_64"];
+  return (t.arch === "aarch64" ? ["aarch64", "arm64"] : [t.arch]).flatMap((a) => {
+    if (t.os === "mingw") return [`${a}-w64-windows-gnu`, `${a}-pc-windows-gnu`];
+    /// unknown: clang's spelling of x86_64-windows-msvc.
+    if (t.os === "msvc") return [`${a}-pc-windows-msvc`, `${a}-unknown-windows-msvc`];
     /// macosx: clang's name for a versioned macos triple (macos14.0).
-    return archs.flatMap((a) => [`${a}-apple-darwin`, `${a}-apple-macos`, `${a}-apple-macosx`]);
-  }
-  /// pc: the vendor of GCC's triple on some distributions (Gentoo).
-  return [t.triple, `${t.arch}-pc-linux-${t.os === "musl" ? "musl" : "gnu"}`];
+    if (t.os === "darwin") return [`${a}-apple-darwin`, `${a}-apple-macos`, `${a}-apple-macosx`];
+    /// pc: the vendor of GCC's triple on some distributions (Gentoo).
+    const env = t.os === "musl" ? "musl" : "gnu";
+    return [`${a}-unknown-linux-${env}`, `${a}-pc-linux-${env}`];
+  });
 }
 
 export function machine(): Machine {

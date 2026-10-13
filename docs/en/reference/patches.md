@@ -14,14 +14,12 @@ again, builds the same thing; libclang's manifest lists them
 | [`0002-completion-unresolved-member-base`](https://github.com/clice-io/xclang/blob/main/patches/0002-completion-unresolved-member-base/README.md) | member-access completion reports its context when Sema finds no class for the base |
 | [`0003-completion-context-base-expr`](https://github.com/clice-io/xclang/blob/main/patches/0003-completion-context-base-expr/README.md) | `CodeCompletionContext::getBaseExpr`, the member base as written |
 | [`0004-windows-driver-setup-api-mingw`](https://github.com/clice-io/xclang/blob/main/patches/0004-windows-driver-setup-api-mingw/README.md) | the MinGW-built clang finds Visual Studio 2017 and later through the Setup API, like the MSVC-built one ([clice#714](https://github.com/clice-io/clice/issues/714)) |
-| [`0006-libcxx-format-buffer-full`](https://github.com/clice-io/xclang/blob/main/patches/0006-libcxx-format-buffer-full/README.md) | `std::format_to` into a container no longer writes past its 256-code-unit stack buffer after an argument whose length is a multiple of 256 |
 | [`0007-lld-macho-empty-section-unwind`](https://github.com/clice-io/xclang/blob/main/patches/0007-lld-macho-empty-section-unwind/README.md) | ld64.lld keeps a function's unwind entry when an empty section's symbol shares its address: ThinLTO programs linked by one clang command catch their exceptions on arm64 macOS |
 | [`0008-preprocessed-raw-string-lines`](https://github.com/clice-io/xclang/blob/main/patches/0008-preprocessed-raw-string-lines/README.md) | `clang -E` writes a raw string literal's CRLF line breaks as `\n`, what they mean, and counts its lines: its output, compiled (build caches such as xmake's), gives the same strings and line numbers |
-| [`0009-textapi-arm64e-x1`](https://github.com/clice-io/xclang/blob/main/patches/0009-textapi-arm64e-x1/README.md) | ld64.lld reads the macOS 27 SDK's `.tbd` stubs, which list `arm64e.x1`: macOS programs link against Xcode 27's SDK (release/23.x's backport, in 23.1.3) |
 | [`0010-windows-stack-trace`](https://github.com/clice-io/xclang/blob/main/patches/0010-windows-stack-trace/README.md) | crash stack traces on arm64 Windows go past system DLL frames, whose return addresses are signed: a crash in a C library callback, or a trace printed from a signal handler, reaches the code that crashed |
 | [`0011-clang-cl-config-pass-through`](https://github.com/clice-io/xclang/blob/main/patches/0011-clang-cl-config-pass-through/README.md) | clang-cl reports no option of a config file unused, also those it passes through with `/clang:`: the MSVC targets' C compiles with `/WX` |
 | [`0012-msvc-compiler-rt-libpath-first`](https://github.com/clice-io/xclang/blob/main/patches/0012-msvc-compiler-rt-libpath-first/README.md) | clang links MSVC targets with its own compiler-rt ahead of Visual Studio's `clang_rt.*.lib`: without a fetched SDK, `__int128` division, UBSan and libFuzzer link |
-| [`0013-runtime-dir-pc-vendor`](https://github.com/clice-io/xclang/blob/main/patches/0013-runtime-dir-pc-vendor/README.md) | `--target=x86_64-pc-linux-gnu` and `x86_64-pc-windows-gnu`, GCC's spellings, find compiler-rt under the usual spelling: they link |
+| [`0013-runtime-dir-pc-vendor`](https://github.com/clice-io/xclang/blob/main/patches/0013-runtime-dir-pc-vendor/README.md) | `--target=x86_64-pc-linux-gnu` and `x86_64-pc-windows-gnu`, GCC's spellings, and `arm64-linux-gnu` and `arm64-w64-mingw32` find compiler-rt under the usual spelling: they link |
 | [`0014-coff-timestamp-default`](https://github.com/clice-io/xclang/blob/main/patches/0014-coff-timestamp-default/README.md) | COFF objects for MinGW targets have no compile time in their header again, as in LLVM 22 and GNU tools: the same source gives the same object (llvm/llvm-project#222099) |
 | [`0016-libcxx-vcruntime`](https://github.com/clice-io/xclang/blob/main/patches/0016-libcxx-vcruntime/README.md) | libc++ on vcruntime defines no `std::nothrow`, the C runtime's, and defines `std::set_new_handler` and `get_new_handler`, which only Microsoft's STL library did |
 | [`0017-lld-coff-call-graph-order`](https://github.com/clice-io/xclang/blob/main/patches/0017-lld-coff-call-graph-order/README.md) | lld-link lays out a PGO-built program the same way on every link: local functions of the same name in several objects no longer move from one link to the next |
@@ -30,6 +28,8 @@ again, builds the same thing; libclang's manifest lists them
 0005 (ASan's container checks in libc++'s ODR signature) was in 23.1.2.3 and
 23.1.2.4; the ASan libc++ replaced it in 23.1.2.5. 0015 (`-stdlib=` for MSVC
 targets: `platform` dropped `-stdlib++-isystem`) was in 23.1.2.10; 0018,
-for every target, replaced it.
+for every target, replaced it. LLVM 23.1.3 took over 0006 (`std::format_to`
+into a container wrote past its stack buffer, llvm/llvm-project#226791) and
+0009 (the macOS 27 SDK's `arm64e.x1` stubs, llvm/llvm-project#222721).
 [CHANGELOG.md](https://github.com/clice-io/xclang/blob/main/CHANGELOG.md)
 has which release took which patch.
