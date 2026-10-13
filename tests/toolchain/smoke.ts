@@ -146,6 +146,13 @@ for (const dir of ["include", ...triples.flatMap(([t]) => [`${t}/include`, `${t}
 /// The license notices of what the archive holds (toolchain/licenses.ts).
 failures.push(...licenses.check(tree, ["xclang", "llvm-project", "zstd", "glibc", "linux", "nss", "mingw-w64",
   ...(musl.length ? ["musl"] : []), ...(fs.existsSync(tool("xclang")) ? ["rust", "rust-crates"] : [])]));
+/// With the notices that LLVM keeps only in its sources' comments.
+if (since("23.1.3.1")) {
+  for (const { file } of licenses.LLVM_NOTICES) {
+    const notice = path.join(tree, "share", "licenses", "llvm-project", `${file}.license`);
+    if (!fs.existsSync(notice)) failures.push(`no ${notice}`);
+  }
+}
 
 run(tool("FileCheck"), [write("check.txt", "CHECK: hello\nCHECK-NEXT: world\n"),
   `--input-file=${write("input.txt", "hello\nworld\n")}`]);

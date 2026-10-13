@@ -17,6 +17,14 @@ the [patches](docs/en/reference/patches.md) of its tag.
   strip (llvm/llvm-project#228607).
 - Patches: **0006** and **0009** dropped: LLVM 23.1.3 has both,
   llvm/llvm-project#226791 and #222721.
+- `share/licenses` has the notices of the third-party code that LLVM
+  keeps only in its sources' comments, cut from them into
+  `llvm-project/<file>.license`: xxHash (BSD-2-Clause) and Unicode's UTF
+  conversions and character names (Unicode-DFS-2015, Unicode-DFS-2016),
+  which every program and libclang link, OpenBSD's `strlcpy` of the regex
+  engine (ISC), and the Visual Studio Setup API's declarations (MIT). The
+  SBOM's `llvm-project` declares their licenses, and BSD-3-Clause, the
+  regex engine's other one.
 
 ## [23.1.2.12](https://github.com/clice-io/xclang/releases/tag/23.1.2.12) — 2026-10-12
 
