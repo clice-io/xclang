@@ -1,0 +1,27 @@
+name: pr-title
+
+# A pull request's title is the subject of the commit its squash merge
+# makes on main, so it follows the commit subjects' form (CONTRIBUTING.md):
+# `<area>: <what changed>`, the area a word or a few (`bazel`, `xclang
+# sdk`, `docs, examples`). Checked again when the title is edited; the
+# ruleset of main asks for this check besides checks-passed.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions: {}
+
+jobs:
+  pr-title:
+    runs-on: ubuntu-24.04
+    steps:
+      - env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^[A-Za-z0-9][A-Za-z0-9 .+/_,-]{0,60}: [^ ].*$'
+          if [[ ! "$TITLE" =~ $pattern ]]; then
+            echo "::error::the title is the squashed commit's subject, '<area>: <what changed>' (CONTRIBUTING.md); got: $TITLE"
+            exit 1
+          fi
+          echo "ok: $TITLE"
