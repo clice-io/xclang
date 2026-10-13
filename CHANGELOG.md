@@ -8,6 +8,10 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+## [23.1.3.1](https://github.com/clice-io/xclang/releases/tag/23.1.3.1) — 2026-10-13
+
+Built by 23.1.2.12.
+
 - **`arm64` spellings of every arm64 target**: `--target=arm64-linux-gnu`,
   `arm64-linux-musl`, `arm64-w64-mingw32`, `arm64-pc-windows-msvc` and the
   like, Apple's and Microsoft's name of the architecture, read the
