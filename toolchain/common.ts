@@ -206,18 +206,21 @@ export function normalized(t: Target): string {
   return t.os === "mingw" ? `${t.arch}-w64-windows-gnu` : t.triple;
 }
 
-/// Every spelling of the triple that should reach the target's config file.
+/// Every spelling of the triple that should reach the target's config file:
+/// for aarch64 also arm64's, Apple's and Microsoft's name of it, which
+/// clang takes for every target (patches/0013 finds the runtimes of the
+/// Linux and MinGW targets for it).
 export function cfgNames(t: Target): string[] {
-  if (t.os === "mingw") return [`${t.arch}-w64-windows-gnu`, `${t.arch}-pc-windows-gnu`];
-  /// unknown: clang's spelling of x86_64-windows-msvc.
-  if (t.os === "msvc") return [t.triple, `${t.arch}-unknown-windows-msvc`];
-  if (t.os === "darwin") {
-    const archs = t.arch === "aarch64" ? ["arm64", "aarch64"] : ["x86_64"];
+  return (t.arch === "aarch64" ? ["aarch64", "arm64"] : [t.arch]).flatMap((a) => {
+    if (t.os === "mingw") return [`${a}-w64-windows-gnu`, `${a}-pc-windows-gnu`];
+    /// unknown: clang's spelling of x86_64-windows-msvc.
+    if (t.os === "msvc") return [`${a}-pc-windows-msvc`, `${a}-unknown-windows-msvc`];
     /// macosx: clang's name for a versioned macos triple (macos14.0).
-    return archs.flatMap((a) => [`${a}-apple-darwin`, `${a}-apple-macos`, `${a}-apple-macosx`]);
-  }
-  /// pc: the vendor of GCC's triple on some distributions (Gentoo).
-  return [t.triple, `${t.arch}-pc-linux-${t.os === "musl" ? "musl" : "gnu"}`];
+    if (t.os === "darwin") return [`${a}-apple-darwin`, `${a}-apple-macos`, `${a}-apple-macosx`];
+    /// pc: the vendor of GCC's triple on some distributions (Gentoo).
+    const env = t.os === "musl" ? "musl" : "gnu";
+    return [`${a}-unknown-linux-${env}`, `${a}-pc-linux-${env}`];
+  });
 }
 
 export function machine(): Machine {

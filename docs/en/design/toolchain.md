@@ -26,8 +26,15 @@ line. xclang writes one file per target, and per spelling of it, into
 | Linux | `<arch>-unknown-linux-gnu.cfg`, `<arch>-pc-linux-gnu.cfg` |
 | Linux (musl) | `<arch>-unknown-linux-musl.cfg`, `<arch>-pc-linux-musl.cfg` |
 | Windows (MinGW) | `<arch>-w64-windows-gnu.cfg`, `<arch>-pc-windows-gnu.cfg` |
-| macOS | `<arch>-apple-darwin.cfg`, `<arch>-apple-macos.cfg`, `<arch>-apple-macosx.cfg` (`arm64` and `aarch64` for arm64) |
+| macOS | `<arch>-apple-darwin.cfg`, `<arch>-apple-macos.cfg`, `<arch>-apple-macosx.cfg` |
 | Windows (MSVC) | `<arch>-pc-windows-msvc.cfg`, `<arch>-unknown-windows-msvc.cfg`, and for clang-cl `<spelling>-clang-cl.cfg` |
+
+`<arch>` is `x86_64`, or for arm64 both `aarch64` and `arm64`, Apple's and
+Microsoft's name, which clang takes for every target: `arm64-linux-gnu`,
+`arm64-w64-mingw32` and `arm64-pc-windows-msvc` read the files of the
+aarch64 targets (from 23.1.3.1 on; macOS's always), and the Linux and
+MinGW ones find their compiler-rt with
+[patch 0013](../reference/patches.md).
 
 Each says this
 ([toolchain/config/](https://github.com/clice-io/xclang/tree/main/toolchain/config)):

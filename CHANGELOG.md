@@ -8,6 +8,14 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+- **`arm64` spellings of every arm64 target**: `--target=arm64-linux-gnu`,
+  `arm64-linux-musl`, `arm64-w64-mingw32`, `arm64-pc-windows-msvc` and the
+  like, Apple's and Microsoft's name of the architecture, read the
+  target's config file and link with its compiler-rt, as the macOS
+  targets' always did. They read none before, and took the host's headers
+  and libraries, without a word.
+- Patches: **0013** extended to `arm64`: the Linux and MinGW targets'
+  `arm64` spellings find compiler-rt under `aarch64`.
 - **LLVM 23.1.3.** Among its fixes: an InstCombine miscompile
   (llvm/llvm-project#226783), AArch64 and DAGCombiner codegen, Windows
   arm64 `sret` in GlobalISel and FastISel, x86 SEH frames

@@ -1,20 +1,25 @@
 diff --git a/clang/lib/Driver/ToolChain.cpp b/clang/lib/Driver/ToolChain.cpp
-index f894a06..df3eb81 100644
+index f894a0635de1..3b2f646c9a59 100644
 --- a/clang/lib/Driver/ToolChain.cpp
 +++ b/clang/lib/Driver/ToolChain.cpp
-@@ -1122,6 +1122,17 @@ ToolChain::getTargetSubDirPath(StringRef BaseDir) const {
+@@ -1122,6 +1122,22 @@ ToolChain::getTargetSubDirPath(StringRef BaseDir) const {
    if (auto Path = getPathForTriple(T))
      return *Path;
  
-+  // A triple spelled with the vendor "pc" (x86_64-pc-linux-gnu, as GCC
-+  // spells it, or x86_64-pc-windows-gnu) finds the runtimes built for the
-+  // usual spelling: "unknown" for Linux, "w64" for MinGW.
-+  if (T.getVendor() == llvm::Triple::PC &&
-+      (T.isOSLinux() || T.isWindowsGNUEnvironment())) {
++  // A Linux or MinGW triple spelled another way finds the runtimes built
++  // for the usual spelling: the vendor "pc" (x86_64-pc-linux-gnu, as GCC
++  // spells it, or x86_64-pc-windows-gnu) those of "unknown" for Linux and
++  // "w64" for MinGW, the architecture "arm64" (arm64-linux-gnu) those of
++  // "aarch64".
++  if (T.isOSLinux() || T.isWindowsGNUEnvironment()) {
 +    llvm::Triple Usual = T;
-+    Usual.setVendorName(T.isOSLinux() ? "unknown" : "w64");
-+    if (auto Path = getPathForTriple(Usual))
-+      return *Path;
++    if (T.getVendor() == llvm::Triple::PC)
++      Usual.setVendorName(T.isOSLinux() ? "unknown" : "w64");
++    if (T.getArch() == llvm::Triple::aarch64)
++      Usual.setArchName("aarch64");
++    if (Usual.str() != T.str())
++      if (auto Path = getPathForTriple(Usual))
++        return *Path;
 +  }
 +
    if (T.isOSAIX()) {

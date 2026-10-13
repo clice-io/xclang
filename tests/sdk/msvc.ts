@@ -302,6 +302,12 @@ for (const a of ["x86_64", "aarch64"]) {
   check(mddBuilt && mddDlls.includes("ucrtbased.dll") && /vcruntime\d+d\.dll/.test(mddDlls), `${triple}: cpp-mdd links with the DLL debug CRT`);
   build("int128", "clang", ["-O2", int128], "int128 ", "hybrid");
   build("int128-cl", "clang-cl", ["/O2", "--", int128], "int128 ", "hybrid");
+  /// arm64, Microsoft's name of the architecture, which the last --target
+  /// spells: the same config files, compiler-rt's builtins with them.
+  if (a === "aarch64") {
+    build("int128-arm64", "clang", ["--target=arm64-pc-windows-msvc", "-O2", int128], "int128 ", "hybrid");
+    build("int128-arm64-cl", "clang-cl", ["--target=arm64-windows-msvc", "/O2", "--", int128], "int128 ", "hybrid");
+  }
   // Libraries as Windows code names them, in mixed case: every
   // architecture's, from a command of 23.1.2.12 or later (xclang/src/windows.rs
   // fix_case), whose fetch links them in each architecture's directory.

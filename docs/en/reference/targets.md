@@ -24,15 +24,18 @@ GitHub-hosted runner.
 | target | also spelled | C runtime | runs on | builds on |
 |---|---|---|---|---|
 | `x86_64-unknown-linux-gnu` | `x86_64-pc-linux-gnu`, `x86_64-linux-gnu` (Bazel) | glibc 2.17 | glibc 2.17 or later | every host |
-| `aarch64-unknown-linux-gnu` | `aarch64-pc-linux-gnu`, `aarch64-linux-gnu` (Bazel) | glibc 2.17 | glibc 2.17 or later | every host |
+| `aarch64-unknown-linux-gnu` | `aarch64-pc-linux-gnu`, `aarch64-linux-gnu` (Bazel), `arm64-linux-gnu`, ... | glibc 2.17 | glibc 2.17 or later | every host |
 | `x86_64-w64-mingw32` | `x86_64-w64-windows-gnu`, `x86_64-pc-windows-gnu` | mingw-w64 with UCRT | Windows 10 or later | every host |
-| `aarch64-w64-mingw32` | `aarch64-w64-windows-gnu`, `aarch64-pc-windows-gnu` | mingw-w64 with UCRT | Windows 10 or later | every host |
+| `aarch64-w64-mingw32` | `aarch64-w64-windows-gnu`, `aarch64-pc-windows-gnu`, `arm64-w64-mingw32`, ... | mingw-w64 with UCRT | Windows 10 or later | every host |
 | `aarch64-apple-darwin` | `arm64-apple-darwin`, `arm64-apple-macos`, `aarch64-apple-macosx`, ... | the SDK's libSystem | macOS 13.0 or later | macOS hosts; Linux and Windows hosts with the SDK `xclang` fetches |
 | `x86_64-apple-darwin` | `x86_64-apple-macos`, `x86_64-apple-macosx` | the SDK's libSystem | macOS 13.0 or later | macOS hosts; Linux and Windows hosts with the SDK `xclang` fetches |
 | `x86_64-pc-windows-msvc` | `x86_64-unknown-windows-msvc` | Microsoft's CRT, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches; Windows hosts also with Visual Studio |
-| `aarch64-pc-windows-msvc` | `aarch64-unknown-windows-msvc` | Microsoft's CRT, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches; Windows hosts also with Visual Studio |
+| `aarch64-pc-windows-msvc` | `aarch64-unknown-windows-msvc`, `arm64-pc-windows-msvc`, `arm64-windows-msvc` | Microsoft's CRT, the hybrid CRT | Windows 10 or later | every host, with the SDK `xclang` fetches; Windows hosts also with Visual Studio |
 | `x86_64-unknown-linux-musl` | `x86_64-pc-linux-musl`, `x86_64-linux-musl` | musl 1.2.6, linked statically | any Linux x64 | every host, from 23.1.2.10 on |
-| `aarch64-unknown-linux-musl` | `aarch64-pc-linux-musl`, `aarch64-linux-musl` | musl 1.2.6, linked statically | any Linux arm64 | every host, from 23.1.2.10 on |
+| `aarch64-unknown-linux-musl` | `aarch64-pc-linux-musl`, `aarch64-linux-musl`, `arm64-linux-musl`, ... | musl 1.2.6, linked statically | any Linux arm64 | every host, from 23.1.2.10 on |
+
+The `arm64` spellings of the Linux, musl, MinGW and MSVC targets work from
+23.1.3.1 on ([config files](../design/toolchain.md#a-config-file-per-target)).
 
 All of them are tier 1. The macOS targets need Apple's SDK, which comes from
 Xcode on macOS hosts ([macOS](../design/macos.md#the-sdk-is-xcode-s)). On
