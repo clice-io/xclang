@@ -719,9 +719,11 @@ if (!windows) {
 int main(int argc, char**) { int* p = new int[4]; int r = p[argc + 4]; delete[] p; return r; }
 `, "heap-buffer-overflow", ""],
     ["thread", `#include <sanitizer/tsan_interface.h>
+#include <chrono>
 #include <thread>
 int shared;
-int main() { std::thread t([] { shared++; }); shared++; t.join(); return shared == 2 ? 0 : 1; }
+// The thread's write first, then main's: in this order TSan reports the race every time.
+int main() { std::thread t([] { shared++; }); std::this_thread::sleep_for(std::chrono::milliseconds(100)); shared++; t.join(); return shared == 2 ? 0 : 1; }
 `, "ThreadSanitizer: data race", ""],
     ["fuzzer", `#include <cstddef>
 #include <cstdint>

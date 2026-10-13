@@ -123,10 +123,12 @@ const ubsan = write("ubsan.c", `#include <limits.h>
 int main(int argc, char **argv) { (void)argv; int x = INT_MAX; x += argc; printf("ubsan %d\\n", x); return 0; }
 `);
 const tsan = write("tsan.cpp", `#include <sanitizer/tsan_interface.h>
+#include <chrono>
 #include <cstdio>
 #include <thread>
 int shared;
-int main() { std::thread t([] { shared++; }); shared++; t.join(); std::printf("tsan %d\\n", shared); return 0; }
+// The thread's write first, then main's: in this order TSan reports the race every time.
+int main() { std::thread t([] { shared++; }); std::this_thread::sleep_for(std::chrono::milliseconds(100)); shared++; t.join(); std::printf("tsan %d\\n", shared); return 0; }
 `);
 const fuzzer = write("fuzzer.cpp", `#include <cstddef>
 #include <cstdint>
