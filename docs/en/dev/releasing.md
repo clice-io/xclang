@@ -75,9 +75,11 @@ number of the same one.
 5. **Notes**: what it was built by, then what changed for users, from the
    release's section of CHANGELOG.md. A repack's say that the compiler and
    runtimes are the previous release's, the same bytes.
-6. **Publish**, which creates the tag, and then fast-forward `main` to the
-   release's branch. Publishing starts published.yml: the Bazel module
-   tested with the published archives and published to bazel.clice.io,
+6. **Publish**, which creates the tag, and then merge the release's branch
+   into `main` with a pull request (squashed, as every change to `main`),
+   which brings its CHANGELOG section and the module of the release.
+   Publishing starts published.yml: the Bazel module tested with the
+   published archives and published to bazel.clice.io,
    `tests/cmake` built from the tag as a user's FetchContent does, the
    conda packages made, tested and published, the `latest` branch moved to
    the tag, and examples.yml, the docs' commands against the release on

@@ -7,7 +7,7 @@ here instead of naming tests.
 
 ## Summary
 
-- **Every push and pull request** is tested for what it changed
+- **Every pull request**, and every push to `main`, is tested for what it changed
   (checks.yml), against the latest release, with nothing built but the
   `xclang` command: the release's archives with the checkout's config files
   and CMake package (`tests/toolchain/smoke.ts`,
@@ -38,13 +38,13 @@ here instead of naming tests.
 
 ## When Tests Run
 
-Three workflows start the others: checks.yml on a push or pull request,
+Three workflows start the others: checks.yml on a pull request or a push to `main`,
 published.yml when a release is published, weekly.yml every Monday. The
 rest are called by them, by release.yml, or started by hand.
 
-| workflow | push, pull request (checks.yml), when these change | release.yml, with a candidate's archives | published.yml | weekly.yml | what |
+| workflow | pull request, push to `main` (checks.yml), when these change | release.yml, with a candidate's archives | published.yml | weekly.yml | what |
 |---|---|---|---|---|---|
-| docs.yml | every push and pull request, by itself | | | | `tests/docs/docs.ts` and the types (`npm run check`); on `main`, then publishing to docs.clice.io |
+| docs.yml | a push to `main`; pull requests run the same as checks.yml's `docs` job | | | | `tests/docs/docs.ts` and the types (`npm run check`); then publishing to docs.clice.io |
 | test-archives.yml | `tests/toolchain`, `tests/libclang`, `toolchain/config` | stage `test` | | | `tests/toolchain/smoke.ts` and `tests/libclang/libclang.ts` on a machine of each host; the programs the smoke test builds for other targets run on those (on-target.yml); with `repack-of`, `tests/release/repack.ts`: each host's archives against those of the release repacked (or of an earlier run of the same revision, which a full rebuild must give again), file by file, only the packaging's files differ |
 | test-cmake.yml | `packages/cmake`, `tests/cmake`, `tests/libclang`, `toolchain/runtimes-src.ts`, `toolchain/cmake/caches` | stage `cmake` | the tag fetched from GitHub | | `tests/cmake/cmake.ts`: the package by `PATH`, through the toolchain file, from FetchContent, and with the runtimes from source; their programs for other targets run there (on-target.yml) |
 | test-bazel.yml | `packages/bazel`, `tests/bazel`, `toolchain/runtimes-src.ts` | stage `bazel`: `tests/bazel` (with the musl targets), the runtimes from source, and the vendor SDKs' targets with the archives' `xclang` | ✓ | ✓ | `tests/bazel` with the module, `tests/bazel/bazel.ts`, the runtimes from source (`tests/bazel/runtimes.ts`), and cross builds run on the target (`tests/bazel/cross.ts`) |
@@ -57,9 +57,12 @@ rest are called by them, by release.yml, or started by hand.
 A change to on-target.yml, to the archives action
 (`.github/actions/archives`), to `tests/lib` or to `toolchain/common.ts`
 (which writes the config files and the CMake package) runs every workflow of
-checks.yml. A newer push to a branch or pull request cancels the checks
-still running for the one before, but on `main`. A pull request from a
-branch of this repository is tested by the push of that branch.
+checks.yml. A newer push to a pull request cancels the checks still
+running for the one before; on `main` every push is checked. Its
+`checks-passed` job, green when every other job passed or was skipped for
+its paths, is what the ruleset of `main` asks of a pull request. A branch
+without one is checked by hand
+(`gh workflow run checks.yml --ref <branch>`).
 
 By hand only, and on purpose: release.yml, which builds for three hours,
 and bench.yml (about 550 runner-minutes for five shards), compile speed

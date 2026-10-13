@@ -101,6 +101,9 @@ These are cheap locally:
   lines.
 - Docs and comments say what is and why, plainly. No marketing
   adjectives; reasons instead.
+- `main` changes through pull requests only, squashed, once checks.yml's
+  `checks-passed` is green; the repository's ruleset refuses a direct push.
+  The pull request's title is the commit's subject.
 - Commit subjects are `<area>: <what changed>` (`bazel: ...`,
   `docs: ...`, `patches: ...`). The body says why.
 - Every user-visible change gets a line in the Unreleased section of
