@@ -1,10 +1,12 @@
 name: checks
 
-# What a push or a pull request changed, checked against the latest
-# release, nothing built but the xclang command: each workflow below runs
-# when one of its paths changed (the changes job). A newer push to the same
-# branch or pull request cancels the run before it, but on main.
-# docs.yml runs on every push by itself.
+# What a pull request, or a push to main, changed, checked against the
+# latest release, nothing built but the xclang command: each workflow below
+# runs when one of its paths changed (the changes job). A newer push to the
+# same pull request cancels the run before it, but on main. main takes
+# changes only through pull requests, which need checks-passed (the
+# repository's ruleset); a branch without one is checked by hand
+# (workflow_dispatch).
 #
 #   test-archives.yml   tests/toolchain, tests/libclang, tests/lib,
 #                       toolchain/config: the release's archives with this
@@ -23,13 +25,16 @@ name: checks
 # action, to tests/lib or to toolchain/common.ts runs what uses it. The release's own pipeline
 # (release.yml) is not among them: its stages build for hours.
 #
-# Every push also checks that the Bazel module names the latest release, or
-# a newer one (the bazel-version job).
+# Every run also checks that the Bazel module names the latest release, or
+# a newer one (the bazel-version job), and the docs and the scripts' types
+# (the docs job, as docs.yml does on main before it publishes).
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -44,9 +49,6 @@ concurrency:
 
 jobs:
   changes:
-    # A pull request from a branch of this repository is checked by the
-    # push already.
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-24.04
     outputs:
       archives: ${{ steps.paths.outputs.archives }}
@@ -88,7 +90,6 @@ jobs:
   # downloads archives that have what its rules use. stage-draft.yml moves
   # it to each release, on the release's branch, which main then takes.
   bazel-version:
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -128,3 +129,27 @@ jobs:
     needs: changes
     if: needs.changes.outputs.examples == 'true'
     uses: ./.github/workflows/examples.yml
+
+  docs:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: node tests/docs/docs.ts
+      - run: npm ci && npm run check
+
+  # The one check the ruleset of main asks of a pull request: every job
+  # above passed, or was skipped because its paths did not change.
+  checks-passed:
+    if: always()
+    needs: [changes, bazel-version, docs, archives, cmake, bazel, sdk, cli, examples]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: re-actors/alls-green@v1.2.2
+        with:
+          allowed-skips: archives, cmake, bazel, sdk, cli, examples
+          jobs: ${{ toJSON(needs) }}

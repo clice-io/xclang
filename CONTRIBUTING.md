@@ -14,6 +14,9 @@ Thanks for helping. The full guide is
   runtimes and patches; tests/cmake, tests/bazel for the build systems;
   examples.yml for what the docs show.
 - **Scripts are TypeScript on Node**, with `///` comments.
+- **Pull requests** are how `main` changes: it takes no direct push, and a
+  pull request merges, squashed, once `checks-passed` (checks.yml) is
+  green. Its title is the squashed commit's subject.
 - **Commit subjects** are `<area>: <what changed>` (`bazel: ...`,
   `docs: ...`); the body says why. User-visible changes get a line in
   CHANGELOG.md's Unreleased section.

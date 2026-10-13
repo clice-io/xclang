@@ -1,7 +1,8 @@
 name: docs
 
-# The repository's own consistency, on every push and pull request (a
-# minute; no path filter, as the docs show files from all over it):
+# The repository's own consistency, on main (pull requests run the same in
+# checks.yml's docs job; a minute, no path filter, as the docs show files
+# from all over it):
 # tests/docs/docs.ts (the docs' files and command blocks are examples/'s
 # files and examples.yml's steps, their links reach pages and headings,
 # their status cells are status words) and the scripts' and tests' types
@@ -12,7 +13,7 @@ name: docs
 
 on:
   push:
-  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:

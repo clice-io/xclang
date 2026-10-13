@@ -8,8 +8,9 @@ description: Cut an xclang release <llvm version>.<revision> — full rebuild or
 A release is `<LLVM_VERSION>.<revision>` (toolchain/common.ts has
 `LLVM_VERSION`; the revision is release.yml's `revision` input). Nothing
 published is ever replaced: a rebuild gets the next revision. Builds run on
-CI only, on GitHub-hosted runners. Ask the user before pushing to main and
-before publishing.
+CI only, on GitHub-hosted runners. main takes no direct push: changes,
+the release's CHANGELOG and module commits too, reach it by a squashed
+pull request once checks-passed is green. Ask the user before publishing.
 
 ## Full rebuild or repack
 
@@ -143,8 +144,9 @@ the release run tests them with the new archives.
    gh release edit <version> -R clice-io/xclang --title <version> \
      --notes-file notes.md --draft=false --latest
    ```
-   Then fast-forward main to `exp/<version>` (ask before pushing): main
-   takes the module of the release with it.
+   Then open a pull request from `exp/<version>` to main (title
+   `changelog: <version>`) and squash-merge it once checks-passed is
+   green: main takes the release's CHANGELOG and module with it.
    Publishing starts published.yml, which does the rest; watch it:
    test-bazel.yml with the release's archives, then the tag's module
    (`xclang-bazel-<version>.tar.gz`) to bazel.clice.io through
