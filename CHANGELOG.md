@@ -16,6 +16,10 @@ the [patches](docs/en/reference/patches.md) of its tag.
   and libraries, without a word.
 - Patches: **0013** extended to `arm64`: the Linux and MinGW targets'
   `arm64` spellings find compiler-rt under `aarch64`.
+- A rebuild of a revision with its profile gives the same archives again,
+  the Windows hosts' `llvm.exe` too, which the bootstrap's lld-link links:
+  23.1.2.12, the bootstrap now, has patch 0017
+  ([reproducible builds](docs/en/design/roadmap.md#reproducible-builds)).
 - **LLVM 23.1.3.** Among its fixes: an InstCombine miscompile
   (llvm/llvm-project#226783), AArch64 and DAGCombiner codegen, Windows
   arm64 `sret` in GlobalISel and FastISel, x86 SEH frames

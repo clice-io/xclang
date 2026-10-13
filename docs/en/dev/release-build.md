@@ -104,8 +104,7 @@ config files, the CMake package, the `xclang` command, the license
 notices, the runtimes' sources (`libc++/src`) and where libc++abi's
 headers are may differ, and no archive may be missing. `repack-of` can also name a
 run of the same revision instead of a release: a full rebuild with that run's profile (`profile-run`) must then
-give its archives again, but for the Windows hosts' `llvm.exe` until the
-bootstrap has patch 0017
+give its archives again, all but the `xclang` command, which each run builds
 ([reproducible builds](../design/roadmap.md#reproducible-builds)).
 
 With the `cli` input, on by default, the `package` stage also builds the
