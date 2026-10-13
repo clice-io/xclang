@@ -8,18 +8,6 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
-- **`arm64` spellings of every arm64 target**: `--target=arm64-linux-gnu`,
-  `arm64-linux-musl`, `arm64-w64-mingw32`, `arm64-pc-windows-msvc` and the
-  like, Apple's and Microsoft's name of the architecture, read the
-  target's config file and link with its compiler-rt, as the macOS
-  targets' always did. They read none before, and took the host's headers
-  and libraries, without a word.
-- Patches: **0013** extended to `arm64`: the Linux and MinGW targets'
-  `arm64` spellings find compiler-rt under `aarch64`.
-- A rebuild of a revision with its profile gives the same archives again,
-  the Windows hosts' `llvm.exe` too, which the bootstrap's lld-link links:
-  23.1.2.12, the bootstrap now, has patch 0017
-  ([reproducible builds](docs/en/design/roadmap.md#reproducible-builds)).
 - **LLVM 23.1.3.** Among its fixes: an InstCombine miscompile
   (llvm/llvm-project#226783), AArch64 and DAGCombiner codegen, Windows
   arm64 `sret` in GlobalISel and FastISel, x86 SEH frames
@@ -28,7 +16,15 @@ the [patches](docs/en/reference/patches.md) of its tag.
   (llvm/llvm-project#219094) and a use-after-free in llvm-objcopy's Mach-O
   strip (llvm/llvm-project#228607).
 - Patches: **0006** and **0009** dropped: LLVM 23.1.3 has both,
-  llvm/llvm-project#226791 and #222721.
+  llvm/llvm-project#226791 and llvm/llvm-project#222721.
+- **`arm64` spellings of every arm64 target**: `--target=arm64-linux-gnu`,
+  `arm64-linux-musl`, `arm64-w64-mingw32`, `arm64-pc-windows-msvc` and the
+  like, Apple's and Microsoft's name of the architecture, read the
+  target's config file and link with its compiler-rt, as the macOS
+  targets' always did. They read none before, and took the host's headers
+  and libraries, without a word.
+- Patches: **0013** extended to `arm64`: the Linux and MinGW targets'
+  `arm64` spellings find compiler-rt under `aarch64`.
 - `share/licenses` has the notices of the third-party code that LLVM
   keeps only in its sources' comments, cut from them into
   `llvm-project/<file>.license`: xxHash (BSD-2-Clause) and Unicode's UTF
@@ -37,6 +33,10 @@ the [patches](docs/en/reference/patches.md) of its tag.
   engine (ISC), and the Visual Studio Setup API's declarations (MIT). The
   SBOM's `llvm-project` declares their licenses, and BSD-3-Clause, the
   regex engine's other one.
+- A rebuild of a revision with its profile gives the same archives again,
+  the Windows hosts' `llvm.exe` too, which the bootstrap's lld-link links:
+  23.1.2.12, the bootstrap now, has patch 0017
+  ([reproducible builds](docs/en/design/roadmap.md#reproducible-builds)).
 
 ## [23.1.2.12](https://github.com/clice-io/xclang/releases/tag/23.1.2.12) — 2026-10-12
 
