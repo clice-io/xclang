@@ -262,10 +262,11 @@ if (since("23.1.2.10")) {
   }
   const cl = read("clang-cl", ["--target=arm64-pc-windows-msvc", "/c", "--", helloC]);
   if (cl !== "arm64-pc-windows-msvc-clang-cl.cfg") failures.push(`clang-cl --target=arm64-pc-windows-msvc reads ${cl}`);
-  const link = spawnSync(tool("clang"), ["--target=arm64-pc-windows-msvc", "-###", helloC, "-o", path.join(work, "hello-arm64.exe")],
-    { encoding: "utf8", cwd: work }).stderr ?? "";
+  /// -### writes a Windows path's backslashes doubled.
+  const link = (spawnSync(tool("clang"), ["--target=arm64-pc-windows-msvc", "-###", helloC, "-o", path.join(work, "hello-arm64.exe")],
+    { encoding: "utf8", cwd: work }).stderr ?? "").replace(/\\+/g, "/");
   if (!link.includes("--dependent-lib=clang_rt.builtins-aarch64.lib") ||
-    !/lld-link.*"-libpath:[^"]*[\\/]lib[\\/]clang[\\/]\d+[\\/]lib[\\/]windows"/.test(link)) {
+    !/lld-link.*"-libpath:[^"]*\/lib\/clang\/\d+\/lib\/windows"/.test(link)) {
     failures.push(`clang --target=arm64-pc-windows-msvc links without compiler-rt's builtins of aarch64: ${link}`);
   }
 }
