@@ -267,7 +267,7 @@ The training is widened between releases, not while one is pending
 | <a id="gsym-determinism"></a>The same GSYM file on every run (`xclang_debug_symbols` passing `--num-threads=1`) | Supported |
 | <a id="immutable-releases"></a>Immutable GitHub releases | Planned |
 | <a id="reproducible-archives"></a>Reproducible release archives | Supported |
-| <a id="reproducible-builds"></a>Reproducible toolchain builds: a rebuild of a revision on its profile is the same bytes | Supported |
+| <a id="reproducible-builds"></a>Reproducible toolchain builds: a rebuild of a revision with its profile gives the same archives, checked on rebuilds | Supported |
 | <a id="license-notices"></a>Third-party license notices in the archives | Supported |
 | <a id="slsa"></a>SLSA provenance attestations | Planned |
 
@@ -287,21 +287,48 @@ The training is widened between releases, not while one is pending
   time and no owner in the `.tar.xz` files, xz in fixed blocks whatever
   its threads; each host's archives are made twice, on two machines, and
   compared ([build](../dev/release-build.md#the-stages)).
-- **Reproducible builds**, since 23.1.2.10: a full rebuild of a revision
-  with the same profile gives the same archives again, file by file (the
-  `xclang` command aside, which each run builds): `clang --version` names
-  LLVM's release commit, not xclang's, nothing built for Windows holds a
-  time, and the macOS sanitizers' dylibs hold no file times. Two such
-  builds of 23.1.2.10 differed only in the Windows hosts' `llvm.exe`,
-  which the bootstrap's lld-link links: it laid out PGO-built programs
-  differently from one link to the next, which
-  [patch 0017](../reference/patches.md) fixes. 23.1.3.1 is built by
-  23.1.2.12, whose lld-link has it: two builds of 23.1.3.1, runs
-  [38350485630](https://github.com/clice-io/xclang/actions/runs/38350485630)
-  and [38356990210](https://github.com/clice-io/xclang/actions/runs/38356990210),
-  have every file the same, `llvm.exe` too.
-  Each training gives another profile; a release is rebuilt on its own
-  (`profile-run`).
+- **Reproducible builds**: a rebuild of a revision with its profile
+  (`xclang-<version>.profdata`, an asset of the release) is meant to give
+  every archive of every host again, byte for byte. Rebuilds are checked
+  to do so; that is no guarantee, as a bug of the compiler or linker that
+  builds xclang can break it, as lld-link's did. Every release makes each
+  host's archives twice and builds the `xclang` command twice, on two
+  machines each, and compares them
+  ([build](../dev/release-build.md#the-stages)). A second full build, by
+  hand, checks the rest at LLVM upgrades and bootstrap changes
+  ([releasing](../dev/releasing.md#reproducible-rebuilds)). Since
+  23.1.2.10, `clang --version` names LLVM's release commit, not xclang's,
+  nothing built for Windows holds a time, and the macOS sanitizers'
+  dylibs hold no file times. Since 23.1.3.2, the `xclang` command is the
+  same bytes in any directory, with any `CARGO_HOME`, at any time
+  ([build](../dev/release-build.md#the-xclang-command)). The rebuilds
+  checked:
+  - Two full builds of 23.1.2.10 differed only in the Windows hosts'
+    `llvm.exe`: the bootstrap's lld-link laid out PGO-built programs
+    differently from one link to the next, which
+    [patch 0017](../reference/patches.md) fixes.
+  - Two full builds of 23.1.3.1, built by 23.1.2.12, which has the patch,
+    runs
+    [38350485630](https://github.com/clice-io/xclang/actions/runs/38350485630)
+    and [38356990210](https://github.com/clice-io/xclang/actions/runs/38356990210),
+    had every file the same, `llvm.exe` too, but `bin/xclang` of the
+    Windows and macOS hosts, fixed in 23.1.3.2: the PE image held the
+    time of its link, and the Mach-O UUID hashed the path of a temporary
+    directory.
+
+  What a rebuild needs:
+  - **The release's profile.** Each training gives another profile, so
+    the profile is part of the release. release.yml takes it from the run
+    that trained it (`profile-run`), whose artifact lasts 30 days;
+    `toolchain/toolchain.ts --profile` takes the release's
+    `xclang-<version>.profdata`, the same bytes.
+  - **GitHub's runners.** The programs and runtimes keep paths of the
+    build: libc++abi's assertions, linked into the tools, name its
+    sources, and the debug information of compiler-rt and of the MinGW
+    CRT its directories. What is built for macOS is built against the
+    runner's Xcode, whose SDK version it records (`LC_BUILD_VERSION`). A
+    build in another directory, or on a runner image with another Xcode,
+    differs there.
 - **License notices**, since 23.1.2.7: every archive has `share/licenses`,
   each component's license files and an SPDX document
   ([layout](../reference/layout.md#licenses)).

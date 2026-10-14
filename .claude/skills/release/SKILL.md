@@ -106,7 +106,21 @@ the release run tests them with the new archives.
    that release, member by member: only the packaging's files may differ
    (config files, lib/cmake/xclang, bin/xclang, share/licenses); a
    program, library or header that differs fails it, and the release with
-   it.
+   it. `repack-of=<run id>` of a run of the same revision is a rebuild:
+   there every member must be the same, bin/xclang and the packaging
+   included.
+
+   **When LLVM or the bootstrap moved**, a second full build checks that
+   the revision rebuilds to the same bytes (docs/en/dev/releasing.md,
+   Reproducible Rebuilds), started next to the first once its `train`
+   stage is done: `-f stages=runtimes,toolchain,asan,package,test -f
+   profile-run=<full run> -f repack-of=<full run> -f revision=<n>`. The
+   release is the first run's; what differs is a bug, and goes into the
+   roadmap's list of the rebuilds checked (docs/en/design/roadmap.md,
+   reproducible builds) with the two runs. Nothing else rebuilds a full
+   run: each release run makes every host's archives twice
+   (stage-package.yml) and builds the xclang command twice (cli.yml,
+   same-bytes), on two machines each.
 
    A full run's toolchain-* and runtimes-* artifacts are kept 14 days, its
    profile 30 (`gh api repos/clice-io/xclang/actions/runs/<run>/artifacts
@@ -124,7 +138,8 @@ the release run tests them with the new archives.
    build for other targets run there, repack's comparison), bazel, cmake,
    sdk (both MSVC targets from Linux, macOS and Windows hosts, both macOS
    targets from the Linux and Windows hosts, the programs run on Windows
-   x64 and arm64 and on both Macs), cli. Every toolchain archive has
+   x64 and arm64 and on both Macs), cli (same-bytes among them: the
+   command built twice gave the same bytes). Every toolchain archive has
    `bin/xclang` (`bin/xclang.exe`), and `xclang --version` names the
    release. Sizes vs the previous release (`gh release view <prev> --json
    assets`). A draft that is deleted leaves its module's commit on the

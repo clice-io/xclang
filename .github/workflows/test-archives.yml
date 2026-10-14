@@ -6,7 +6,7 @@ name: test-archives
 # (on-target.yml). With repack-of, also each host's archives against those
 # of the release they repack (tests/release/repack.ts), or, given a run id,
 # against that run's: a rebuild of the same revision, which must be the
-# same bytes but for the packaging.
+# same bytes, the packaging included.
 #
 #   release.yml     a run's archives (dist-run), before they are released
 #   checks.yml      a published release's (the latest), with this
