@@ -325,10 +325,10 @@ The training is widened between releases, not while one is pending
   - **GitHub's runners.** The programs and runtimes keep paths of the
     build: libc++abi's assertions, linked into the tools, name its
     sources, and the debug information of compiler-rt and of the MinGW
-    CRT its directories. The macOS hosts are built against the runner's
-    Xcode, whose SDK version they record (`LC_BUILD_VERSION`). A build in
-    another directory, or on a runner image with another Xcode, differs
-    there.
+    CRT its directories. What is built for macOS is built against the
+    runner's Xcode, whose SDK version it records (`LC_BUILD_VERSION`). A
+    build in another directory, or on a runner image with another Xcode,
+    differs there.
 - **License notices**, since 23.1.2.7: every archive has `share/licenses`,
   each component's license files and an SPDX document
   ([layout](../reference/layout.md#licenses)).
