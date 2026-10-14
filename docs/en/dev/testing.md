@@ -45,11 +45,11 @@ rest are called by them, by release.yml, or started by hand.
 | workflow | pull request, push to `main` (checks.yml), when these change | release.yml, with a candidate's archives | published.yml | weekly.yml | what |
 |---|---|---|---|---|---|
 | docs.yml | a push to `main`; pull requests run the same as checks.yml's `docs` job | | | | `tests/docs/docs.ts` and the types (`npm run check`); then publishing to docs.clice.io |
-| test-archives.yml | `tests/toolchain`, `tests/libclang`, `toolchain/config` | stage `test` | | | `tests/toolchain/smoke.ts` and `tests/libclang/libclang.ts` on a machine of each host; the programs the smoke test builds for other targets run on those (on-target.yml); with `repack-of`, `tests/release/repack.ts`: each host's archives against those of the release repacked (or of an earlier run of the same revision, which a full rebuild must give again), file by file, only the packaging's files differ |
+| test-archives.yml | `tests/toolchain`, `tests/libclang`, `toolchain/config` | stage `test` | | | `tests/toolchain/smoke.ts` and `tests/libclang/libclang.ts` on a machine of each host; the programs the smoke test builds for other targets run on those (on-target.yml); with `repack-of`, `tests/release/repack.ts`: each host's archives against those of the release repacked, file by file, only the packaging's files differ; or against an earlier run of the same revision, which a rebuild must give again, every file the same |
 | test-cmake.yml | `packages/cmake`, `tests/cmake`, `tests/libclang`, `toolchain/runtimes-src.ts`, `toolchain/cmake/caches` | stage `cmake` | the tag fetched from GitHub | | `tests/cmake/cmake.ts`: the package by `PATH`, through the toolchain file, from FetchContent, and with the runtimes from source; their programs for other targets run there (on-target.yml) |
 | test-bazel.yml | `packages/bazel`, `tests/bazel`, `toolchain/runtimes-src.ts` | stage `bazel`: `tests/bazel` (with the musl targets), the runtimes from source, and the vendor SDKs' targets with the archives' `xclang` | ✓ | ✓ | `tests/bazel` with the module, `tests/bazel/bazel.ts`, the runtimes from source (`tests/bazel/runtimes.ts`), and cross builds run on the target (`tests/bazel/cross.ts`) |
 | test-sdk.yml | `tests/sdk`, `toolchain/config`, `packages/cmake` | stage `sdk`; needs `cli`, as the archives' `xclang` fetches the SDKs | | | the MSVC targets (`tests/sdk/msvc.ts`) and the macOS targets from Linux and Windows hosts (`tests/sdk/macos.ts`); their programs on Windows and Macs |
-| cli.yml | `xclang`, `tests/cli`, `tests/sdk`, `packages/cmake` | the build, for stage `package`; stage `cli` | | ✓ | the `xclang` command: rustfmt, clippy, unit tests, `tests/cli/cli.ts`, `tests/cli/cargo.ts` |
+| cli.yml | `xclang`, `tests/cli`, `tests/sdk`, `packages/cmake` | the build, for stage `package`; stage `cli` | | ✓ | the `xclang` command: built again on another machine, in another directory with another `CARGO_HOME`, the same bytes; rustfmt, clippy, unit tests, `tests/cli/cli.ts`, `tests/cli/cargo.ts` |
 | examples.yml | `examples` | | once conda.clice.io has the release and `latest` names it | ✓ | the commands and `examples/` of the docs, as written; the programs for other targets on their runners |
 | conda.yml | | | build 0, published | | each package installed with pixi and used, on every host |
 | stage-package.yml | | stage `package` | | | each host's archives made again on another machine, in another directory, with other file times, umask 077 and three xz threads (the first has four): the same bytes |
@@ -316,7 +316,9 @@ for another target.
 ## The xclang Command
 
 cli.yml builds the `xclang` command for every host, with a released xclang
-as the C compiler and linker (`xclang/build.ts`). On a machine of each
+as the C compiler and linker (`xclang/build.ts`). Another machine builds it
+again, in another directory with another `CARGO_HOME`, and every binary and
+license file must be the same bytes (the same-bytes job). On a machine of each
 host, in the latest release's toolchain (or a run's archives, with the
 command they carry), `tests/cli/cli.ts` then:
 
@@ -463,6 +465,11 @@ Some claims were checked once, by hand, and are not part of a workflow:
 - lld linked clice's 600 MB `clice.exe` with ThinLTO six times from the same
   inputs, in three layouts, before patch 0017
   ([Windows](../design/windows.md#the-same-bytes-from-every-link)).
+- A second full build of a revision gave its archives again: the rebuilds
+  checked, and what differed, are in
+  [reproducible builds](../design/roadmap.md#reproducible-builds). One
+  runs at each LLVM upgrade and bootstrap change
+  ([releasing](releasing.md#reproducible-rebuilds)).
 
 ## Speed
 

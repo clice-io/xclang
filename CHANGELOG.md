@@ -8,6 +8,16 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+- **`bin/xclang` is the same bytes wherever and whenever it is built.**
+  The Windows hosts' `xclang.exe` held the time of its link, and the macOS
+  hosts' `xclang` a UUID hashed over the name of a temporary directory, so
+  two builds of a revision differed there; the crates' paths in its panic
+  messages are `/cargo/registry/src/...`, not the builder's
+  `$CARGO_HOME`. Each release builds it twice, on two machines, and
+  checks that both are the same bytes, and a rebuild of a run must give
+  `bin/xclang` again too
+  ([reproducible builds](docs/en/design/roadmap.md#reproducible-builds)).
+
 ## [23.1.3.1](https://github.com/clice-io/xclang/releases/tag/23.1.3.1) — 2026-10-13
 
 Built by 23.1.2.12.

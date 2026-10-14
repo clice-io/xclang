@@ -14,8 +14,10 @@
 /// from the pinned LLVM source and patches/) and where libc++abi's headers
 /// are (common.shareHeaders). Any other file that differs, comes or
 /// goes fails the check; the programs, libraries and headers are the
-/// earlier release's, byte for byte. The members that differ are listed,
-/// also in the job summary.
+/// earlier release's, byte for byte. Archives of the same version on both
+/// sides are a rebuild of that revision (repack-of a run of it): there
+/// nothing may differ, the packaging and the xclang command included. The
+/// members that differ are listed, also in the job summary.
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -42,11 +44,11 @@ const PACKAGING = [
 
 /// xclang-<version>-<host>.tar.xz and the like, keyed by the name without
 /// the version.
-function archives(dir: string): Map<string, string> {
-  const found = new Map<string, string>();
+function archives(dir: string): Map<string, { file: string; version: string }> {
+  const found = new Map<string, { file: string; version: string }>();
   for (const file of fs.readdirSync(dir)) {
     const m = /^(.*?)-(\d+\.\d+\.\d+\.\d+)(.*)\.tar\.xz$/.exec(file);
-    if (m) found.set(`${m[1]}-<version>${m[3]}`, path.join(dir, file));
+    if (m) found.set(`${m[1]}-<version>${m[3]}`, { file: path.join(dir, file), version: m[2]! });
   }
   return found;
 }
@@ -157,13 +159,14 @@ async function members(archive: string): Promise<Map<string, Member>> {
 const previous = archives(values.previous);
 const dist = archives(values.dist);
 if (!dist.size) common.fail(`no archives in ${values.dist}`);
+const rebuild = new Set([...previous.values(), ...dist.values()].map((a) => a.version)).size === 1;
 const lines: string[] = [];
 let unexpected = 0;
-for (const [key, file] of [...previous].sort()) {
+for (const [key, { file }] of [...previous].sort()) {
   if (!dist.has(key)) common.fail(`${path.basename(file)} has no counterpart in ${values.dist}`);
 }
-for (const [key, file] of [...dist].sort()) {
-  const before = previous.get(key);
+for (const [key, { file }] of [...dist].sort()) {
+  const before = previous.get(key)?.file;
   if (!before) common.fail(`${path.basename(file)} has no counterpart in ${values.previous}`);
   const [old, now] = await Promise.all([members(before), members(file)]);
   const differ: string[] = [];
@@ -177,7 +180,7 @@ for (const [key, file] of [...dist].sort()) {
     }
     const what = !a ? "added" : !b ? "removed" : a.kind !== b.kind ? `${a.kind} → ${b.kind}`
       : a.mode !== b.mode ? `mode ${a.mode.toString(8)} → ${b.mode.toString(8)}` : "content";
-    const expected = PACKAGING.some((p) => p.test(name));
+    const expected = !rebuild && PACKAGING.some((p) => p.test(name));
     if (!expected) unexpected++;
     differ.push(`  ${expected ? "packaging" : "UNEXPECTED"}  ${name} (${what})`);
   }
@@ -188,4 +191,7 @@ for (const [key, file] of [...dist].sort()) {
 if (process.env.GITHUB_STEP_SUMMARY) {
   fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, ["```", ...lines, "```", ""].join("\n"));
 }
-if (unexpected) common.fail(`${unexpected} members differ that the packaging does not write`);
+if (unexpected) {
+  common.fail(rebuild ? `${unexpected} members differ in a rebuild of the same version`
+    : `${unexpected} members differ that the packaging does not write`);
+}

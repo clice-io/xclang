@@ -30,9 +30,11 @@ then carries the fix as a patch until a release has it.
 
 Not yet: GitHub releases are not immutable, so an archive and its
 `SHA256SUMS` could in principle be replaced together (a pin recorded
-elsewhere is not affected); there are no signed build attestations; the
-archives are not byte-for-byte reproducible. See
-[releases](https://docs.clice.io/xclang/reference/releases).
+elsewhere is not affected); there are no signed build attestations. See
+[releases](https://docs.clice.io/xclang/reference/releases). That a rebuild
+gives the same archives is checked, at LLVM upgrades and bootstrap changes,
+not guaranteed
+([reproducible builds](https://docs.clice.io/xclang/design/roadmap#reproducible-builds)).
 
 ## Supported versions
 

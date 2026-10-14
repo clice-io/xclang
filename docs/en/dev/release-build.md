@@ -26,7 +26,8 @@ steps for cutting one are in [releasing](releasing.md).
 5. **Package and test.** The archives of each host are made twice, on
    two machines, and must be the same bytes: they are reproducible (tar
    sorted, with the commit's time and no owner; xz in blocks of a fixed
-   size, whatever its number of threads). They are tested on a machine of
+   size, whatever its number of threads). So is the `xclang` command they
+   carry, built twice too. They are tested on a machine of
    that host, and the Bazel module and the CMake package are tested with
    them ([testing](testing.md)). Each toolchain also gets the runtimes'
    sources, patched, in `libc++/src`.
@@ -104,8 +105,9 @@ host's archives with that release's, file by file, both ways: only the
 config files, the CMake package, the `xclang` command, the license
 notices, the runtimes' sources (`libc++/src`) and where libc++abi's
 headers are may differ, and no archive may be missing. `repack-of` can also name a
-run of the same revision instead of a release: a full rebuild with that run's profile (`profile-run`) must then
-give its archives again, all but the `xclang` command, which each run builds
+run of the same revision instead of a release: a rebuild with that run's
+profile (`profile-run`) must then give its archives again, every file the
+same, the packaging and the `xclang` command included
 ([reproducible builds](../design/roadmap.md#reproducible-builds)).
 
 With the `cli` input, on by default, the `package` stage also builds the
@@ -156,6 +158,22 @@ cli.yml builds the binaries and tests each on a machine of its host
 ([testing](testing.md#the-xclang-command)). `release.yml` with `cli` builds the
 program, and `toolchain/package.ts --cli` puts it into the toolchain
 archives.
+
+A build gives the same bytes wherever and whenever it runs, on macOS with
+the same Xcode, whose SDK version the binary records. cli.yml builds every
+binary twice, on two machines, in two directories with two `CARGO_HOME`s,
+and compares them. `xclang/build.ts` passes:
+
+- `--remap-path-prefix=$CARGO_HOME=/cargo`: the crates' paths in panic
+  messages are `/cargo/registry/src/...`, not the builder's home;
+- `-Wl,--no-insert-timestamp` to the MinGW links, whose PE image would
+  otherwise hold the time of the link;
+- `-Wl,-S` to the macOS links, which then write no debug map. ld64.lld
+  hashes the whole output into `LC_UUID`, and the debug map names
+  rustc's temporary directory of an LTO link,
+  `target/release/deps/rustcXXXXXX`, a new name each time. The strip
+  after the link drops the debug map but keeps the UUID, and the code
+  signature of arm64 hashes it.
 
 Each dependency is there for a reason:
 

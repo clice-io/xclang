@@ -21,16 +21,32 @@
 ///                             -nodefaultlibs and asks for libgcc_s, whose
 ///                             xclang stub is empty; on x86_64 Linux
 ///                             -Clinker-features=-lld, so that xclang's lld
-///                             links rather than the rust-lld rustc ships
+///                             links rather than the rust-lld rustc ships;
+///                             what makes the same bytes, below
 ///
 /// The target of this machine is built without --target, so that the same
 /// flags reach the build scripts, which cargo links with the same linker.
+///
+/// A build gives the same bytes wherever and whenever it runs, with the same
+/// Xcode on macOS, whose SDK version the binary records (cli.yml builds each
+/// binary twice and compares them):
+///
+///   --remap-path-prefix       the crates' paths in panic messages are
+///                             /cargo/registry/..., not $CARGO_HOME's
+///   -Wl,--no-insert-timestamp no link time in a PE image
+///   -Wl,-S                    no debug map in a Mach-O link: ld64.lld
+///                             hashes the whole output into LC_UUID, and the
+///                             debug map names the temporary directory
+///                             (target/release/deps/rustcXXXXXX) rustc puts
+///                             the rlibs of an LTO link in; the strip after
+///                             the link drops the map but keeps the UUID
 ///
 /// Next to each binary, licenses/ holds the license files of what it is
 /// made of, for the archives' share/licenses (toolchain/licenses.ts): Rust's
 /// standard library and every crate the binary links.
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import * as common from "../toolchain/common.ts";
@@ -43,6 +59,8 @@ const { values } = parseArgs({
   },
 });
 const crate = import.meta.dirname;
+/// Where cargo has the crates' sources, as cargo resolves it (from the crate).
+const cargoHome = path.resolve(crate, process.env.CARGO_HOME ?? path.join(os.homedir(), ".cargo"));
 const hosts = (values.host?.split(",") ??
   common.HOSTS.filter((t) => common.buildMachine(t) === common.machine()).map((t) => t.triple)).map(common.target);
 
@@ -70,16 +88,20 @@ for (const host of hosts) {
   const native = host.triple === common.machineTarget().triple;
   const T = target.toUpperCase().replaceAll("-", "_");
   const t = target.replaceAll("-", "_");
-  const flags = [`-Clink-arg=--target=${host.triple}`];
+  const flags = [`-Clink-arg=--target=${host.triple}`, `--remap-path-prefix=${cargoHome}=/cargo`];
   if (host.os === "linux") flags.push("-Clink-arg=-l:libunwind.a");
   if (target === "x86_64-unknown-linux-gnu") flags.push("-Clinker-features=-lld");
+  if (host.os === "mingw") flags.push("-Clink-arg=-Wl,--no-insert-timestamp");
+  if (host.os === "darwin") flags.push("-Clink-arg=-Wl,-S");
+  /// With --target, the flags are the target's only, not the build
+  /// scripts'; separated by 0x1f, as $CARGO_HOME may have a space.
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     [`CARGO_TARGET_${T}_LINKER`]: tool("clang"),
     [`CC_${t}`]: tool("clang"),
     [`CXX_${t}`]: tool("clang++"),
     [`AR_${t}`]: tool("llvm-ar"),
-    [native ? "RUSTFLAGS" : `CARGO_TARGET_${T}_RUSTFLAGS`]: flags.join(" "),
+    CARGO_ENCODED_RUSTFLAGS: flags.join("\x1f"),
   };
   if (values.revision) env.XCLANG_VERSION = `${common.LLVM_VERSION}.${values.revision}`;
   if (host.os === "darwin") env.MACOSX_DEPLOYMENT_TARGET = common.MACOS_MIN;

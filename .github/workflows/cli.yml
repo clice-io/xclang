@@ -3,7 +3,9 @@ name: cli
 # xclang's own command (xclang/, Rust). The build job builds it for every host
 # with a released xclang as the C compiler and linker (xclang/build.ts):
 # Linux and Windows from Linux x64, macOS on macOS arm64, as the
-# cli-build-* artifacts, and runs its rustfmt, clippy and unit tests. The
+# cli-build-* artifacts, and runs its rustfmt, clippy and unit tests; a
+# second machine builds it again, and same-bytes checks that both gave the
+# same bytes. The
 # test jobs then check it in a toolchain, on a machine of each host
 # (tests/cli/cli.ts): both vendor SDKs fetched, C, C++ and Objective-C
 # programs cross-compiled against them, target add and remove against a
@@ -46,26 +48,38 @@ permissions:
 
 jobs:
   build:
-    name: build on ${{ matrix.runner }}
+    name: build on ${{ matrix.runner }}${{ matrix.again && ', again' || '' }}
     if: ${{ !inputs.dist-run }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
+        machine: [linux, macos]
+        again: [false, true]
         include:
-          - { runner: ubuntu-24.04, machine: linux }
-          - { runner: macos-15, machine: macos }
+          - { machine: linux, runner: ubuntu-24.04 }
+          - { machine: macos, runner: macos-15 }
     steps:
+      # Built again on another machine, as another would build it: in
+      # another directory, with another CARGO_HOME, at another time.
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          path: ${{ matrix.again && 'elsewhere' || '' }}
       - uses: actions/setup-node@v5
         with:
           node-version: 24
       - name: Build
-        run: node xclang/build.ts ${{ inputs.revision && format('--revision {0}', inputs.revision) || '' }}
+        working-directory: ${{ matrix.again && 'elsewhere' || '.' }}
+        env:
+          AGAIN: ${{ matrix.again }}
+        run: |
+          [ "$AGAIN" = true ] && export CARGO_HOME=$RUNNER_TEMP/cargo
+          node xclang/build.ts ${{ inputs.revision && format('--revision {0}', inputs.revision) || '' }}
+          mkdir -p "$RUNNER_TEMP/digests"
+          (cd work/out && find cli-* -type f -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256) > "$RUNNER_TEMP/digests/${{ matrix.machine }}-${{ matrix.again && 'again' || 'first' }}.txt"
       - name: rustfmt, clippy, unit tests
-        if: ${{ matrix.machine == 'linux' }}
+        if: ${{ matrix.machine == 'linux' && !matrix.again }}
         working-directory: xclang
         run: |
           cargo fmt --check
@@ -73,10 +87,35 @@ jobs:
           cargo clippy --all-targets --features maintainer -- -D warnings
           cargo test --features maintainer
       - uses: actions/upload-artifact@v7
+        if: ${{ !matrix.again }}
         with:
           name: ${{ inputs.artifact || 'cli-build' }}-${{ matrix.machine }}
           path: work/out/cli-*
           if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: digests-${{ inputs.artifact || 'cli-build' }}-${{ matrix.machine }}-${{ matrix.again && 'again' || 'first' }}
+          path: ${{ runner.temp }}/digests
+          retention-days: 7
+
+  # Both builds of each machine gave the same bytes: every binary and
+  # license file.
+  same-bytes:
+    name: the same bytes from both builds
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: digests-${{ inputs.artifact || 'cli-build' }}-*
+          path: digests
+          merge-multiple: true
+      - name: Compare
+        run: |
+          for machine in linux macos; do
+            grep -v /licenses/ "digests/$machine-first.txt" | tee -a "$GITHUB_STEP_SUMMARY"
+            diff "digests/$machine-first.txt" "digests/$machine-again.txt"
+          done
 
   test:
     name: test on ${{ matrix.host }}

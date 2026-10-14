@@ -30,6 +30,28 @@ runtimes, the CMake caches or the training, needs a full rebuild. A fix
 of the conda packages alone is no release, but the next conda build
 number of the same one.
 
+## Reproducible Rebuilds
+
+A rebuild of a revision with its profile is meant to give every archive
+again, byte for byte. That is checked, not guaranteed: a bug of the
+compiler or linker that builds xclang can break it
+([reproducible builds](../design/roadmap.md#reproducible-builds)). Every
+release run checks the cheap part: each host's archives made twice, and
+the `xclang` command built twice, on two machines each. When LLVM or the
+bootstrap moves, a second full build, by hand, checks the rest before the
+release is published:
+
+```sh
+gh workflow run release.yml -R clice-io/xclang --ref exp/<version> \
+  -f stages=runtimes,toolchain,asan,package,test \
+  -f profile-run=<full run> -f repack-of=<full run> -f revision=<n>
+```
+
+It builds everything but the profile again, and its `test` stage compares
+every host's archives with the full run's: every file must be the same,
+the `xclang` command and the packaging included. The release is the
+first run's; what differs is a bug, listed with the rebuilds checked.
+
 ## Steps
 
 1. **Bootstrap**, for a full rebuild. `toolchain/common.ts` pins the release
@@ -62,6 +84,8 @@ number of the same one.
    full rebuild can make a release. With `repack-of`, the `test` stage
    checks each host's archives against that release's, file by file
    (`tests/release/repack.ts`): only the packaging's files may differ.
+   When LLVM or the bootstrap moved, the second full build of
+   [reproducible rebuilds](#reproducible-rebuilds) runs next to it.
 4. **Check the draft**: 17 assets, every job of the run green, sizes
    against the previous release. Its commit is `bazel: the module
    of <version>`, which the `release` stage commits on the run's, with its
