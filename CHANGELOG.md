@@ -8,6 +8,10 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+## [23.1.3.2](https://github.com/clice-io/xclang/releases/tag/23.1.3.2) — 2026-10-14
+
+The compiler and runtimes are 23.1.3.1's.
+
 - **`bin/xclang` is the same bytes wherever and whenever it is built.**
   The Windows hosts' `xclang.exe` held the time of its link, and the macOS
   hosts' `xclang` a UUID hashed over the name of a temporary directory, so
