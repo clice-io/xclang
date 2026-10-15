@@ -4,9 +4,13 @@ name: stage-draft
 # profile. Drafts create no tag; publishing one is done by hand, and tags
 # the draft's commit: the run's, with the Bazel module at the release
 # (packages/bazel/bazel.ts versions), pushed to the run's branch, so that
-# the tag, and main fast-forwarded to the branch, name the release whose
+# the tag, and main after the branch's pull request, name the release whose
 # archives a git_override of them downloads. The commit has the run's
-# commit's times: a rebuild of the tag makes the same archives.
+# commit's times: a rebuild of the tag makes the same archives. It also
+# merges the `latest` branch, the tag of the release before, keeping its
+# own tree: main takes a release's branch squashed, so the tag would not
+# descend from the one before, and published.yml moves `latest` forward
+# only, as FetchContent's update of a `latest` checkout rebases onto it.
 
 on:
   workflow_call:
@@ -74,10 +78,20 @@ jobs:
           node packages/bazel/bazel.ts versions dist/SHA256SUMS
           if ! git diff --quiet; then
             git add packages/bazel
-            GIT_AUTHOR_DATE="$(git log -1 --format=%aI)" GIT_COMMITTER_DATE="$(git log -1 --format=%cI)" \
-              git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-              commit -q -m "bazel: the module of $version" \
-                -m "packages/bazel/bazel/versions.bzl and MODULE.bazel name $version, from its SHA256SUMS (stage-draft.yml)."
+            # `latest`, unless the run's commit has it already.
+            latest=""
+            if git fetch -q --depth=1 origin refs/heads/latest; then
+              latest=$(git rev-parse FETCH_HEAD)
+              status=$(gh api "repos/$GITHUB_REPOSITORY/compare/$latest...$(git rev-parse HEAD)" -q .status)
+              if [[ "$status" == ahead || "$status" == identical ]]; then latest=""; fi
+            fi
+            export GIT_AUTHOR_DATE="$(git log -1 --format=%aI)" GIT_COMMITTER_DATE="$(git log -1 --format=%cI)"
+            export GIT_AUTHOR_NAME="github-actions[bot]" GIT_AUTHOR_EMAIL="41898282+github-actions[bot]@users.noreply.github.com"
+            export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
+            commit=$(git commit-tree "$(git write-tree)" -p HEAD ${latest:+-p "$latest"} \
+              -m "bazel: the module of $version" \
+              -m "packages/bazel/bazel/versions.bzl and MODULE.bazel name $version, from its SHA256SUMS (stage-draft.yml).${latest:+ Merges latest ($latest), the tag of the release before, keeping the tree of this commit, so that latest moves forward to this one.}")
+            git reset -q "$commit"
             # Not forced: a branch that moved since the run began stops the draft.
             git push "https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY" "HEAD:$GITHUB_REF"
           fi
