@@ -110,9 +110,11 @@ jobs:
           archives: dist/xclang-bazel-*.tar.gz
           token: ${{ secrets.UPLOAD_BAZEL }}
 
-  # Forward only: a release is never older than the one before it. Not
-  # after a failed test of the module either, which skips bazel-registry
-  # and is no failure of it.
+  # Forward only: a release is never older than the one before it, and its
+  # tag merges `latest` (stage-draft.yml); FetchContent rebases a `latest`
+  # checkout onto it, which a forced move would break. Not after a failed
+  # test of the module either, which skips bazel-registry and is no
+  # failure of it.
   latest:
     needs: [release, bazel, cmake, conda, bazel-registry]
     if: ${{ !cancelled() && needs.release.outputs.publish == 'true' && !contains(needs.*.result, 'failure') }}

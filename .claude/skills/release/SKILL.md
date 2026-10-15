@@ -132,7 +132,12 @@ the release run tests them with the new archives.
    and pushed: packages/bazel names the release and its digests, so the
    tag and main name it too (a git_override of either downloads its
    archives; checks.yml's bazel-version job fails while main names an
-   older one); a branch that moved during the run stops the stage. 17 assets (six toolchains, six libclang, two ASan
+   older one); a branch that moved during the run stops the stage. The
+   commit merges the `latest` branch (its second parent), keeping its own
+   tree, so that the tag descends from the previous release's and
+   published.yml can fast-forward `latest` to it: main squashes the
+   release branches, and a forced `latest` breaks FetchContent's rebase of
+   every `GIT_TAG latest` checkout. 17 assets (six toolchains, six libclang, two ASan
    libclang, option tables, profdata, SHA256SUMS), and every job of the
    run green: test (smoke and libclang on every host, the programs they
    build for other targets run there, repack's comparison), bazel, cmake,
@@ -144,8 +149,8 @@ the release run tests them with the new archives.
    release. Sizes vs the previous release (`gh release view <prev> --json
    assets`). A draft that is deleted leaves its module's commit on the
    branch, naming a release that does not exist (the bazel stage of a run
-   from there downloads its option tables): reset the branch to the commit
-   before it (`git push -f origin <commit>:exp/<version>`) before running
+   from there downloads its option tables): reset the branch to its first
+   parent (`git push -f origin <commit>^1:exp/<version>`) before running
    again.
 5. **Notes.** Write them as the earlier releases' are (`gh release view
    23.1.2.4 -R clice-io/xclang`): what it was built by, then what changed

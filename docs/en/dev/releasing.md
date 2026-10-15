@@ -91,11 +91,15 @@ first run's; what differs is a bug, listed with the rebuilds checked.
    of <version>`, which the `release` stage commits on the run's, with its
    times, and pushes to the branch: `packages/bazel/bazel/versions.bzl`
    and `MODULE.bazel` name the release and its digests, so its tag, and
-   `main` after it, download its archives through `git_override`.
+   `main` after it, download its archives through `git_override`. The
+   commit also merges the `latest` branch, keeping its own files: `main`
+   takes the release's branch squashed, and without the merge the tag
+   would not descend from the one before, which `latest` must move
+   forward from. The first parent is the run's commit.
    checks.yml fails while the module names an older release than the
    latest. A draft that is deleted leaves that commit on the branch,
-   naming a release that does not exist: the branch goes back to the
-   commit before it before another run.
+   naming a release that does not exist: the branch goes back to its
+   first parent before another run.
 5. **Notes**: what it was built by, then what changed for users, from the
    release's section of CHANGELOG.md. A repack's say that the compiler and
    runtimes are the previous release's, the same bytes.
