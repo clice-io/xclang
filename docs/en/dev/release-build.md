@@ -160,8 +160,11 @@ cli.yml builds the binaries and tests each on a machine of its host
 program, and `toolchain/package.ts --cli` puts it into the toolchain
 archives.
 
-A build gives the same bytes wherever and whenever it runs, on macOS with
-the same Xcode, whose SDK version the binary records. cli.yml builds every
+A build gives the same bytes in any directory, with any `CARGO_HOME`, at
+any time, on a machine of the kind that builds that host: Linux for the
+Linux and Windows hosts, macOS, with the same Xcode, whose SDK version the
+binary records, for the macOS ones. Windows binaries built on macOS
+(`--host`) differ from those built on Linux. cli.yml builds every
 binary twice, on two machines, in two directories with two `CARGO_HOME`s,
 and compares them. `xclang/build.ts` passes:
 

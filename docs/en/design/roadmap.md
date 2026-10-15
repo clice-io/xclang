@@ -315,6 +315,11 @@ The training is widened between releases, not while one is pending
     Windows and macOS hosts, fixed in 23.1.3.2: the PE image held the
     time of its link, and the Mach-O UUID hashed the path of a temporary
     directory.
+  - Two repack runs of 23.1.3.2, which package 23.1.3.1's compiler and
+    runtimes and build the `xclang` command again, runs
+    [38620234667](https://github.com/clice-io/xclang/actions/runs/38620234667)
+    and [38621738784](https://github.com/clice-io/xclang/actions/runs/38621738784),
+    had every archive the same, byte for byte, `bin/xclang` included.
 
   What a rebuild needs:
   - **The release's profile.** Each training gives another profile, so
