@@ -27,9 +27,11 @@
 /// The target of this machine is built without --target, so that the same
 /// flags reach the build scripts, which cargo links with the same linker.
 ///
-/// A build gives the same bytes wherever and whenever it runs, with the same
-/// Xcode on macOS, whose SDK version the binary records (cli.yml builds each
-/// binary twice and compares them):
+/// A build gives the same bytes in any directory, with any $CARGO_HOME, at any
+/// time, on a machine of the kind that builds that host (above), with the
+/// same Xcode on macOS, whose SDK version the binary records (cli.yml builds
+/// each binary twice and compares them). Windows binaries built on macOS
+/// (--host) differ from those built on Linux.
 ///
 ///   --remap-path-prefix       the crates' paths in panic messages are
 ///                             /cargo/registry/..., not $CARGO_HOME's
