@@ -8,6 +8,16 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+## [23.1.3.3](https://github.com/clice-io/xclang/releases/tag/23.1.3.3) — 2026-10-15
+
+The compiler and runtimes are 23.1.3.1's.
+
+- **The `latest` branch names the newest release again**, for CMake's
+  FetchContent (`GIT_TAG latest`). It stayed at 23.1.3.1, as 23.1.3.2's
+  tag does not descend from 23.1.3.1's, and moving it there would have
+  broken FetchContent's update of every checkout of it. Each release's
+  tag now merges `latest`, so that `latest` moves forward to it.
+
 ## [23.1.3.2](https://github.com/clice-io/xclang/releases/tag/23.1.3.2) — 2026-10-14
 
 The compiler and runtimes are 23.1.3.1's.
