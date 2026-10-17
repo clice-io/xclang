@@ -17,7 +17,9 @@ here instead of naming tests.
   the command (`tests/cli/cli.ts`, `tests/cli/cargo.ts`) and the examples.
   Every push also checks that the Bazel module names the latest release
   and its digests (the bazel-version job, `packages/bazel/bazel.ts
-  check`). docs.yml checks the docs and the scripts' types on every push.
+  check`), and a pull request builds docs.clice.io with its docs (the
+  docs-site job). docs.yml checks the docs and the scripts' types on every
+  push to `main`, before it publishes them.
 - **Before a release**, release.yml tests each host's archives on a
   machine of that host, and the same checks run with them. The programs
   they build for other targets run on a machine of those targets, with no

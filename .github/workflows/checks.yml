@@ -142,14 +142,30 @@ jobs:
       - run: node tests/docs/docs.ts
       - run: npm ci && npm run check
 
+  # docs.clice.io built with this pull request's docs in place of the
+  # published ones (clice-io/docs's check mode, no token): what VitePress
+  # cannot read fails here, not in the sync after the merge. On main,
+  # docs.yml's publish runs the same check first.
+  docs-site:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: clice-io/docs@main
+        with:
+          project: xclang
+          mode: check
+
   # The one check the ruleset of main asks of a pull request: every job
   # above passed, or was skipped because its paths did not change.
   checks-passed:
     if: always()
-    needs: [changes, bazel-version, docs, archives, cmake, bazel, sdk, cli, examples]
+    needs: [changes, bazel-version, docs, docs-site, archives, cmake, bazel, sdk, cli, examples]
     runs-on: ubuntu-24.04
     steps:
       - uses: re-actors/alls-green@v1.2.2
         with:
-          allowed-skips: archives, cmake, bazel, sdk, cli, examples
+          allowed-skips: docs-site, archives, cmake, bazel, sdk, cli, examples
           jobs: ${{ toJSON(needs) }}
