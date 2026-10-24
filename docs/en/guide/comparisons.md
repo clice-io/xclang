@@ -94,8 +94,7 @@ mingw-w64 too.
 
 - llvm-mingw has more Windows architectures: i686, armv7, and arm64ec in
   its scripts. It has an msvcrt variant for older Windows, ASan for x86
-  and x64 (xclang's, for x64, is in no release yet), and Control Flow
-  Guard.
+  and x64 (xclang's is for x64), and Control Flow Guard.
 - It links libc++ and libunwind as DLLs unless `-static` is given
   ([#333](https://github.com/mstorsjo/llvm-mingw/issues/333)). xclang links
   them in.

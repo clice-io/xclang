@@ -235,9 +235,9 @@ file built with other language options than its importer's. So put
 The sanitizers are features of the whole build: `--features=asan`,
 `tsan`, `ubsan` or `lsan`. `asan` compiles and links with the ASan libc++
 ([sanitizers](../features/sanitizers.md#bazel)). The Windows targets have
-`ubsan`, and x64 also has `asan` (MinGW's from the release after
-23.1.3.3); the musl targets only `ubsan`. A sanitizer whose runtime the target has not stops the build
-at once, saying why. ASan's runtime on Windows is a DLL, which the build
+`ubsan`, and x64 also has `asan` (MinGW's since 23.1.3.4); the musl
+targets only `ubsan`. A sanitizer whose runtime the target has not stops
+the build at once, saying why. ASan's runtime on Windows is a DLL, which the build
 puts beside every program, in `bazel-bin` and in its runfiles, where
 `bazel run` and `bazel test` start it
 ([MinGW targets](../features/sanitizers.md#mingw-targets)).
@@ -431,7 +431,6 @@ Another target's libclang comes from the release.
 | | status |
 |---|---|
 | [Fetched targets](../design/roadmap.md#fetched-targets-in-build-systems) in the module | Planned |
-| [Sanitizer features for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Unreleased |
 | [ASan, TSan and LSan for musl targets](../design/roadmap.md#musl-sanitizers) | Considered |
 | [Runtimes from source for the MSVC targets](../design/roadmap.md#runtimes-msvc) | Planned |
 

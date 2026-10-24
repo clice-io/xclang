@@ -48,7 +48,6 @@ always.
 
 | | status |
 |---|---|
-| [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Unreleased |
 | [ASan, TSan, LSan and libFuzzer for musl targets](../design/roadmap.md#musl-sanitizers) | Considered |
 | [Runtimes from source for the MSVC targets](../design/roadmap.md#runtimes-msvc) | Planned |
 

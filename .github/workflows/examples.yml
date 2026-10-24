@@ -508,6 +508,19 @@ jobs:
           grep 'ERROR: AddressSanitizer: container-overflow' reports.txt
           grep 'WARNING: ThreadSanitizer: data race' reports.txt
           bazel shutdown
+      # docs/en/features/sanitizers.md, "MinGW Targets": ASan's DLL beside
+      # the program, which bazel run starts on x64 Windows.
+      - name: Sanitizers, MinGW
+        if: matrix.host == 'x86_64-w64-mingw32'
+        working-directory: examples/sanitizers
+        run: |
+          set +e
+          bazel run -c dbg --features=asan //:overflow 2> report.txt; status=$?
+          set -e
+          cat report.txt
+          test "$status" = 1
+          grep 'ERROR: AddressSanitizer: container-overflow' report.txt
+          bazel shutdown
       # docs/en/features/debugging.md.
       - name: Debug symbols
         working-directory: examples/debug-symbols
@@ -724,14 +737,13 @@ jobs:
       # libc++ for x64 and UBSan for arm64, from every host. On x64 Windows
       # the ASan program finds the DLL in the environment's bin/, on PATH;
       # from the other hosts it goes to on-target.yml with the DLL beside
-      # it. Not in a release before the MinGW targets' sanitizers.
+      # it.
       - name: Sanitizers, MinGW targets
         working-directory: examples/sanitizers
         run: |
           pixi install
           export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
           dll="$(clang++ -print-resource-dir)/lib/x86_64-w64-windows-gnu/libclang_rt.asan_dynamic.dll"
-          [[ -f "$dll" ]] || { echo "::notice::this release has no sanitizers for the MinGW targets"; exit 0; }
           asan=$(dirname "$(clang++ --target=x86_64-w64-mingw32 -print-library-module-manifest-path)")/asan
           clang++ --target=x86_64-w64-mingw32 -fsanitize=address -isystem "$asan/include" -nostdlib++ "$asan/libc++.a" \
               -g -O1 overflow.cpp -o overflow.exe

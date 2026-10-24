@@ -176,7 +176,7 @@ its C compiler and linker. Every toolchain archive carries it, as
 | <a id="msan"></a>MemorySanitizer, through libc++ built on demand | Supported |
 | <a id="runtimes-msvc"></a>Runtimes from source for the MSVC targets | Planned |
 | <a id="runtimes-bazel-lto"></a>LTO of the runtimes from source with the program, in Bazel | Considered |
-| <a id="mingw-sanitizers"></a>Sanitizers for MinGW targets | Unreleased |
+| <a id="mingw-sanitizers"></a>Sanitizers for MinGW targets | Supported |
 | <a id="musl-sanitizers"></a>ASan, TSan, LSan and libFuzzer for musl targets, with a dynamically linked musl (Alpine's way) | Considered |
 | <a id="bazel-gsymutil"></a>`@xclang//bazel:llvm-gsymutil`, the toolchain's llvm-gsymutil for `bazel run` | Supported |
 | <a id="cargo-helper"></a>`xclang cargo`, cargo with the variables of xclang's targets set | Supported |

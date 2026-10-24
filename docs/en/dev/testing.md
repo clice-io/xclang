@@ -433,11 +433,11 @@ checks what the page says it prints:
   Bazel. ASan with the ASan libc++ reports the container-overflow and exits
   1; without it, no report. TSan reports the data race and exits 66. On
   macOS, both abort after the report. libFuzzer runs 1000 inputs. From
-  every host, for the MinGW targets, in a release that has their
-  sanitizers: ASan with the ASan libc++ for x64, which reports the
-  container-overflow on x64 Windows (natively with the DLL from the
-  environment's `bin/`, from the others with it beside the program), and
-  UBSan for arm64.
+  every host, for the MinGW targets: ASan with the ASan libc++ for x64,
+  which reports the container-overflow on x64 Windows (natively with the
+  DLL from the environment's `bin/`, from the others with it beside the
+  program), and UBSan for arm64; on x64 Windows, `bazel run` of ASan,
+  the DLL beside the program.
 - **Debug symbols**, on every host: a GSYM by hand, looked up by the
   address of a function, and with `xclang_debug_symbols` in CMake (with the
   dSYM on macOS) and in Bazel.

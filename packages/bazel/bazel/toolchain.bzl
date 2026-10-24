@@ -170,8 +170,8 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
             )
     xclang_cc_runtimes(name = name + "_runtimes", runtimes = [":%s_asan_dll" % name] if dll else [])
 
-    # The sanitizers of the release's runtimes: MinGW's UBSan and ASan only
-    # in those after 23.1.3.3.
+    # The sanitizers of the release's runtimes: MinGW's UBSan and ASan since
+    # 23.1.3.4.
     ubsan = t.libc != "mingw" or native.glob(["%s/lib/%s/libclang_rt.ubsan_standalone.a" % (resource, t.runtime)], allow_empty = True)
     sanitizers = [s for s in t.sanitizers if (s != "asan" or not t.asan_dll or dll) and (s != "ubsan" or ubsan)]
 
