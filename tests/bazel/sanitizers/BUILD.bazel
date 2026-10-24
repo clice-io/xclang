@@ -17,7 +17,8 @@ cc_test(
     srcs = ["containers_test.cpp"],
 )
 
-# A signed overflow, which --features=ubsan reports, and the program goes on.
+# A signed overflow, which --features=ubsan reports, and which ends the
+# program there (rules_cc's sanitizer features: -fno-sanitize-recover=all).
 cc_binary(
     name = "signed_overflow",
     srcs = ["signed_overflow.cpp"],

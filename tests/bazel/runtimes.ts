@@ -221,8 +221,10 @@ if (windows && since("23.1.3.4")) {
     expect("bazel test --features=asan //sanitizers:containers_test",
       bazel(["test", ...prebuilt, "--features=asan", "//sanitizers:containers_test"]) !== undefined, "failed");
   }
+  /// It ends the program: rules_cc's sanitizer features compile with
+  /// -fno-sanitize-recover=all.
   const ubsan = report(["run", ...prebuilt, "--features=ubsan", "//sanitizers:signed_overflow"]);
-  expect("bazel run --features=ubsan //sanitizers:signed_overflow reported", ubsan.status === 0 &&
+  expect("bazel run --features=ubsan //sanitizers:signed_overflow reported", ubsan.status !== 0 &&
     /runtime error: signed integer overflow/.test(ubsan.output), `exit ${ubsan.status}: ${ubsan.output.slice(-2000)}`);
 }
 
