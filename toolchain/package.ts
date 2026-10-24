@@ -96,6 +96,14 @@ common.writeCMakePackage(path.join(tree, "lib", "cmake", "xclang"), version);
 const bin = path.join(tree, "bin");
 if (host.os === "mingw") fs.copyFileSync(path.join(bin, "llvm-windres.exe"), path.join(bin, "windres.exe"));
 else fs.symlinkSync("llvm", path.join(bin, "windres"));
+/// ASan's DLL of the MinGW target, which x64 Windows runs, also in its bin/,
+/// as llvm-mingw has it: an ASan program finds it there where the
+/// toolchain is on PATH (conda's activation, pixi), and elsewhere beside
+/// itself.
+if (host.triple === "x86_64-w64-mingw32") {
+  const dll = "libclang_rt.asan_dynamic.dll";
+  fs.copyFileSync(path.join(common.resourceDir(tree), "lib", common.normalized(host), dll), path.join(bin, dll));
+}
 const cliLicenses: licenses.Component[] = [];
 if (values.cli) {
   const name = host.os === "mingw" ? "xclang.exe" : "xclang";

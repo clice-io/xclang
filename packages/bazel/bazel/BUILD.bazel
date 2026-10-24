@@ -116,6 +116,17 @@ cc_args(
     args = ["-Xclang", "-fmodules-embed-all-files"],
 )
 
+# A program's DLLs beside it in bazel-bin and its runfiles, where Windows
+# finds them when bazel run and bazel test start it, as a feature on by
+# default for the Windows targets (bazel/toolchain.bzl), as Bazel's own
+# Windows toolchains have it: those of its dependencies, ASan's runtime
+# among them (bazel/asan_dll.bzl).
+cc_feature(
+    name = "copy_dynamic_libraries_to_binary",
+    feature_name = "copy_dynamic_libraries_to_binary",
+    visibility = ["//visibility:public"],
+)
+
 # llvm-gsymutil of the machine's toolchain, to read the GSYM of
 # xclang_debug_symbols (bazel/debug_symbols.bzl) without the toolchain on
 # PATH: bazel run @xclang//bazel:llvm-gsymutil -- <absolute .gsym>

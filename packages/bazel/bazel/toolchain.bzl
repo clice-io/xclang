@@ -15,13 +15,16 @@ only Bazel's and the SDK's.
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc/toolchains:cc_toolchain.bzl", "cc_toolchain")
 load("@xclang_unix_config//cc/private/toolchain:unix_cc_toolchain_config.bzl", "cc_toolchain_config")
+load(":asan_dll.bzl", "xclang_asan_dll", "xclang_cc_runtimes")
 load(":hosts.bzl", "MACOS_MIN", "TARGETS", "sdk_repository")
 load(":runtimes.bzl", "xclang_runtimes", "xclang_runtimes_check")
 load(":unsupported.bzl", "xclang_unsupported_toolchain")
 
 def xclang_host_toolchains(host, clang_version, root, absolute_root, xcode_sdk = None):
     """The BUILD file of a host's repository: cc_<target>, the cc_toolchain for
-    each target (bazel/toolchains registers those it builds for),
+    each target (bazel/toolchains registers those it builds for), and
+    cc_<target>_runtimes, its C++ runtimes for --features=asan (ASan's DLL
+    of the Windows targets, bazel/asan_dll.bzl);
     std_<target>, the std modules of each target's C++ library
     (@xclang//bazel:std), and the runtimes built from source
     (bazel/runtimes.bzl); cc and std are the host's own.
@@ -41,6 +44,7 @@ def xclang_host_toolchains(host, clang_version, root, absolute_root, xcode_sdk =
                 name = "cc_" + target,
                 message = "this release of xclang has no %s: the musl targets are in 23.1.2.10 and later, the MSVC targets in 23.1.2.7" % target,
             )
+            xclang_cc_runtimes(name = "cc_%s_runtimes" % target)
             continue
         xclang_cc_toolchain(
             name = "cc_" + target,
@@ -151,14 +155,31 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
     sdk_compiler_files = [Label("@%s//:compiler_files" % sdk)] if sdk else []
     sdk_linker_files = [Label("@%s//:linker_files" % sdk)] if sdk else []
 
+    # ASan's DLL beside the programs (bazel/asan_dll.bzl), the runtimes of
+    # the toolchain bazel/toolchains registers for --features=asan: none
+    # before the release that has it for MinGW.
+    dll = []
+    if t.asan_dll:
+        lib = "%s/lib/%s/%s" % (resource, t.runtime, t.asan_dll)
+        dll = native.glob([lib + ".dll"], allow_empty = True)
+        if dll:
+            xclang_asan_dll(
+                name = name + "_asan_dll",
+                dll = lib + ".dll",
+                interface_library = lib + (".lib" if msvc else ".dll.a"),
+            )
+    xclang_cc_runtimes(name = name + "_runtimes", runtimes = [":%s_asan_dll" % name] if dll else [])
+
     # What of //runtimes and the sanitizer features the target cannot build
     # fails the toolchain's analysis, saying why: the runtimes from source
-    # on an MSVC target, their options without them, and MemorySanitizer
-    # without them or on another target than the glibc ones.
+    # on an MSVC target, their options without them, MemorySanitizer
+    # without them or on another target than the glibc ones, and a
+    # sanitizer the target's runtimes have not.
     xclang_runtimes_check(
         name = name + "_check",
         msan = t.libc == "glibc",
         msvc = msvc,
+        sanitizers = [s for s in t.sanitizers if s != "asan" or not t.asan_dll or dll],
         target = target,
     )
 
@@ -301,6 +322,7 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
         dbg_compile_flags = ["-g"],
         extra_enabled_features = thinlto_cache + strip + (gc_sections if t.os == "linux" else []) +
                                  ([Label("//bazel:no_exported_symbols")] if t.os == "macos" else []) +
+                                 ([Label("//bazel:copy_dynamic_libraries_to_binary")] if t.os == "windows" else []) +
                                  [Label("//bazel:modules_embed_all_files")],
         extra_known_features = (gc_sections if t.os == "windows" else []) +
                                ([Label("//bazel/dsym:generate_dsym_file")] if dsym_link else []),

@@ -147,7 +147,19 @@ def _check_impl(ctx):
         if not source:
             fail("xclang: --features=msan needs every library instrumented, libc++ too, and MemorySanitizer's " +
                  "runtime, which the toolchain has not: the runtimes built from source, --@xclang//runtimes:source")
+    for feature, sanitizer in _SANITIZERS.items():
+        if feature in ctx.features and feature not in ctx.attr.sanitizers:
+            fail("xclang: this release of xclang has no %s for %s (--features=%s); its sanitizer features are %s" %
+                 (sanitizer, ctx.attr.target, feature, ", ".join(ctx.attr.sanitizers)))
     return [DefaultInfo()]
+
+# The sanitizer features of the prebuilt runtimes, by what they turn on.
+_SANITIZERS = {
+    "asan": "AddressSanitizer",
+    "lsan": "LeakSanitizer",
+    "tsan": "ThreadSanitizer",
+    "ubsan": "UBSan",
+}
 
 xclang_runtimes_check = rule(
     implementation = _check_impl,
@@ -155,13 +167,14 @@ xclang_runtimes_check = rule(
         [("_" + name, attr.label(default = Label("//runtimes:" + name))) for name in ["source"] + list(_OPTIONS)],
         msan = attr.bool(doc = "The target has MemorySanitizer, with the runtimes from source."),
         msvc = attr.bool(doc = "An MSVC target, which has no runtimes from source yet."),
+        sanitizers = attr.string_list(doc = "The sanitizer features the target's runtimes have, msan aside."),
         target = attr.string(mandatory = True),
     ),
     doc = """Fails the analysis of a toolchain (bazel/toolchain.bzl) for target with
 what of //runtimes and the sanitizer features it cannot build: the runtimes
 from source or their options on an MSVC target, their options without them,
-and MemorySanitizer without them or on a target that has none (as the CMake
-package refuses them).""",
+MemorySanitizer without them or on a target that has none, and a sanitizer
+whose runtime the target has not (as the CMake package refuses them).""",
 )
 
 def xclang_runtimes(root):
