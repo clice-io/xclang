@@ -4,9 +4,11 @@ For the glibc Linux targets and the macOS targets, compiler-rt carries
 AddressSanitizer (ASan), ThreadSanitizer (TSan), LeakSanitizer, UBSan and
 libFuzzer. Those
 targets also carry an ASan build of libc++, the *ASan libc++*, which ASan
-programs link. The MSVC targets carry UBSan, and for x64 ASan and
-libFuzzer ([below](#msvc-targets)); the musl targets UBSan
-([below](#musl-targets)).
+programs link. The Windows targets carry UBSan, and for x64 ASan with the
+ASan libc++: the MinGW targets from the release after 23.1.3.3
+([below](#mingw-targets)),
+the MSVC targets with libFuzzer for x64 too ([below](#msvc-targets)). The
+musl targets carry UBSan ([below](#musl-targets)).
 
 ## Usage
 
@@ -197,8 +199,8 @@ end with the exit code of the program.
   `libclang_rt.asan_osx_dynamic.dylib`. A program loads them from the
   resource directory of the toolchain, or from its own directory. An ASan
   build is for testing, not for shipping, so this is an exception to
-  [hermeticity](../design/hermeticity.md#known-limitations), as the ASan
-  DLL of the MSVC targets is. In Bazel on macOS hosts, the sanitizer
+  [hermeticity](../design/hermeticity.md#known-limitations), as ASan's DLL
+  of the Windows targets is. In Bazel on macOS hosts, the sanitizer
   features link the absolute path of the toolchain as an rpath; a program
   built on another host finds the dylibs in its own directory.
 - **libclang has an ASan build too**, for Linux x64 and macOS arm64 hosts.
@@ -232,6 +234,63 @@ normal one only in `_LIBCPP_INSTRUMENTED_WITH_ASAN`. That macro also turns
 on the container checks of `std::string`. Every piece of the C++ of the
 program is then instrumented the same way, and the reports are real.
 
+## MinGW Targets
+
+From the release after 23.1.3.3 on (in no release yet), the MinGW
+targets carry UBSan, and x64 ASan with the ASan libc++, as compiler-rt
+has them for Windows and llvm-mingw ships them.
+clang names their libraries itself, with `-fsanitize=`, from
+`lib/clang/<major>/lib/<arch>-w64-windows-gnu`.
+
+- **ASan's runtime is a DLL**, `libclang_rt.asan_dynamic.dll`, next to
+  its import library there: Windows has no static ASan runtime. A program
+  loads it from its own directory, or from `PATH`. The toolchain of the
+  x64 Windows host has a copy in `bin/`, which a conda or pixi
+  environment puts on `PATH`, as it puts the compiler; elsewhere, copy it
+  next to the program. Bazel puts it beside every program of a build with
+  `--features=asan` ([Bazel](../integrations/bazel.md#use-sanitizers)).
+  It loads only Windows' own DLLs and UCRT: xclang's libc++ and libunwind
+  are linked into it.
+- **The ASan libc++** is in `x86_64-w64-mingw32/lib/asan`, `$asan`
+  below: `-isystem $asan/include` to compile, `-nostdlib++ $asan/libc++.a`
+  to link, as on Linux. CMake's `XCLANG_SANITIZER=address` and Bazel's
+  `--features=asan` take it.
+- **An x64 ASan program runs on x64 Windows**, not in arm64 Windows'
+  emulation of x64, where ASan cannot intercept the C runtime's functions.
+- TSan, LeakSanitizer, MemorySanitizer and libFuzzer are not there, and
+  neither is ASan for arm64: compiler-rt has none of them for Windows.
+  CMake and Bazel refuse them for the MinGW targets.
+
+`ubsan.cpp`, in the same directory, overflows a signed integer:
+
+<!-- file: examples/sanitizers/ubsan.cpp -->
+```cpp
+#include <climits>
+#include <cstdio>
+
+int main(int argc, char**) {
+    int n = INT_MAX;
+    // A signed overflow: UBSan reports it, and the program goes on.
+    n += argc;
+    std::printf("%d\n", n);
+}
+```
+
+On any host:
+
+<!-- excerpt: .github/workflows/examples.yml -->
+```sh
+asan=$(dirname "$(clang++ --target=x86_64-w64-mingw32 -print-library-module-manifest-path)")/asan
+clang++ --target=x86_64-w64-mingw32 -fsanitize=address -isystem "$asan/include" -nostdlib++ "$asan/libc++.a" \
+    -g -O1 overflow.cpp -o overflow.exe
+clang++ --target=aarch64-w64-mingw32 -fsanitize=undefined -O1 ubsan.cpp -o ubsan.exe
+```
+
+`overflow.exe`, on an x64 Windows machine with the DLL beside it or on
+`PATH`, reports the container-overflow; `ubsan.exe`, on arm64 Windows,
+reports `runtime error: signed integer overflow` and prints
+`-2147483648`.
+
 ## MSVC Targets
 
 The [MSVC targets](../integrations/clang.md#msvc-targets) carry UBSan,
@@ -250,30 +309,17 @@ clang names their libraries itself, with `-fsanitize=`, from
   same ([Bazel](../integrations/bazel.md#use-sanitizers)).
 
 - **ASan's runtime is a DLL**, `clang_rt.asan_dynamic-x86_64.dll`, also for
-  a program with the static CRT. Copy it next to the program. It loads
-  `vcruntime140.dll`, as compiler-rt builds it with the DLL CRT.
+  a program with the static CRT. Copy it next to the program; Bazel puts
+  it there, as for MinGW. It loads `vcruntime140.dll`, as compiler-rt
+  builds it with the DLL CRT.
 - The hybrid CRT, `/MD` and the static CRT all work with ASan.
 - With Microsoft's STL (`-stdlib=platform`), an ASan program that uses
   the STL's containers does not link: they name the STL's
   `stl_asan.lib`, which `xclang sdk fetch` does not fetch.
 - arm64 Windows has no ASan or libFuzzer in LLVM 23.
 
-`ubsan.cpp`, in the same directory, overflows a signed integer:
-
-<!-- file: examples/sanitizers/ubsan.cpp -->
-```cpp
-#include <climits>
-#include <cstdio>
-
-int main(int argc, char**) {
-    int n = INT_MAX;
-    // A signed overflow: UBSan reports it, and the program goes on.
-    n += argc;
-    std::printf("%d\n", n);
-}
-```
-
-With the Windows SDK fetched, on any host:
+With the Windows SDK fetched, on any host, with `ubsan.cpp` of the
+[MinGW targets](#mingw-targets):
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -324,5 +370,5 @@ as well, instrumented like the program.
 
 | | status |
 |---|---|
-| [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
+| [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Unreleased |
 | [ASan, TSan, LSan and libFuzzer for musl targets](../design/roadmap.md#musl-sanitizers) | Considered |

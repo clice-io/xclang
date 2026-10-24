@@ -14,11 +14,15 @@
 /// of uninitialized memory inside libc++ and nothing of what libc++ itself
 /// writes, ThreadSanitizer (--features=tsan), which reports a data race,
 /// and a program of ThinLTO (--features=thin_lto) on them, which are not;
-/// Linux x64 and arm64 macOS, AddressSanitizer (--features=asan), whose
-/// container-overflow only an instrumented libc++ reports. What the module
-/// cannot build is refused, saying why: the options without
-/// --@xclang//runtimes:source, MemorySanitizer without it and for a target
-/// that has none, and on macOS the platform's C++ library with it. With
+/// Linux x64, arm64 macOS and x64 Windows, AddressSanitizer
+/// (--features=asan), whose container-overflow only an instrumented libc++
+/// reports. On Windows, the sanitizer features with the prebuilt runtimes
+/// too, as bazel run and bazel test start the programs: for x64 ASan, with
+/// its DLL beside them, and UBSan. What the module cannot build is refused,
+/// saying why: the options without --@xclang//runtimes:source,
+/// MemorySanitizer without it and for a target that has none, a sanitizer
+/// whose runtime the target has not, and on macOS the platform's C++
+/// library with it. With
 /// --programs
 /// <dir>, the hardening variant for other targets too (from Linux x64:
 /// Linux arm64 and both MinGW targets; from arm64 macOS: x86_64 macOS),
@@ -30,6 +34,7 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import * as common from "../../toolchain/common.ts";
 import { host, programsDir, writePrograms, type Program } from "../lib/on-target.ts";
+import { since } from "../lib/version.ts";
 
 const { values } = parseArgs({
   options: { tree: { type: "string" }, "disk-cache": { type: "string" }, programs: { type: "string" } },
@@ -89,6 +94,15 @@ function build(options: string[]): { variant: string; std: string } | undefined 
   return { variant: path.join(workspace, variant), std: path.join(workspace, std) };
 }
 
+/// A bazel command whose program's output and status are the point (bazel
+/// run): its output (stdout, then stderr) and status.
+function report(args: string[]): { output: string; status: number | null } {
+  const startup = windows ? ["--output_user_root=C:/b", "--windows_enable_symlinks"] : [];
+  console.log(`+ bazel ${args.join(" ")}`);
+  const result = spawnSync("bazel", [...startup, ...args], { cwd: workspace, encoding: "utf8", shell: windows, maxBuffer: 1 << 28 });
+  return { output: `${result.stdout ?? ""}${result.stderr ?? ""}`.replaceAll("\r", ""), status: result.status };
+}
+
 /// Run a program; its output (stdout, then stderr), status and signal.
 function run(file: string, args: string[] = [], env: NodeJS.ProcessEnv = {}) {
   const result = spawnSync(file, args, { encoding: "utf8", env: { ...process.env, ...env } });
@@ -127,7 +141,8 @@ const variants: { name: string; flags: string[]; namespace: string; mode: number
       { name: "tsan", flags: ["--features=tsan"], namespace: "__1", mode: 2, exceptions: 1 },
     ]
     : []),
-  ...(native === "x86_64-unknown-linux-gnu" || native === "aarch64-apple-darwin"
+  ...(native === "x86_64-unknown-linux-gnu" || native === "aarch64-apple-darwin" ||
+      (native === "x86_64-w64-mingw32" && since("23.1.3.4"))
     ? [{ name: "asan", flags: ["--features=asan"], namespace: "__1", mode: 2, exceptions: 1 }]
     : []),
 ];
@@ -191,6 +206,26 @@ function findConfigSite(outputPath: string): string[] {
   return found;
 }
 
+/// The sanitizer features with the prebuilt runtimes on Windows, from
+/// 23.1.3.4, as bazel run and bazel test start the programs: for x64, ASan's
+/// DLL beside them (bazel/asan_dll.bzl), with the ASan libc++, whose
+/// container-overflow it reports, and two programs of a package with it;
+/// UBSan's report for both.
+if (windows && since("23.1.3.4")) {
+  console.log("\n=== the prebuilt runtimes' sanitizers");
+  const prebuilt = [`--repo_env=XCLANG_ROOT=${tree}`, ...flags.slice(2)];
+  if (native === "x86_64-w64-mingw32") {
+    const overflow = report(["run", ...prebuilt, "--features=asan", "//sanitizers:overflow"]);
+    expect("bazel run --features=asan //sanitizers:overflow reported", overflow.status !== 0 &&
+      /AddressSanitizer: container-overflow/.test(overflow.output), `exit ${overflow.status}: ${overflow.output.slice(-2000)}`);
+    expect("bazel test --features=asan //sanitizers:containers_test",
+      bazel(["test", ...prebuilt, "--features=asan", "//sanitizers:containers_test"]) !== undefined, "failed");
+  }
+  const ubsan = report(["run", ...prebuilt, "--features=ubsan", "//sanitizers:signed_overflow"]);
+  expect("bazel run --features=ubsan //sanitizers:signed_overflow reported", ubsan.status === 0 &&
+    /runtime error: signed integer overflow/.test(ubsan.output), `exit ${ubsan.status}: ${ubsan.output.slice(-2000)}`);
+}
+
 /// What the module refuses, before it builds anything.
 console.log("\n=== refused");
 refused("hardening without the runtimes from source", ["--@xclang//runtimes:hardening=fast"],
@@ -200,6 +235,13 @@ refused("msan without the runtimes from source", ["--features=msan"], native.end
   : /MemorySanitizer is for the Linux targets \(glibc\)/);
 refused("msan for MinGW", ["--@xclang//runtimes:source", "--features=msan", "--platforms=@xclang//platforms:x86_64-w64-mingw32"],
   /MemorySanitizer is for the Linux targets \(glibc\), x86_64 and aarch64, not x86_64-w64-mingw32/);
+/// A sanitizer whose runtime the target has not.
+refused("tsan for MinGW", ["--features=tsan", "--platforms=@xclang//platforms:x86_64-w64-mingw32"],
+  /no ThreadSanitizer for x86_64-w64-mingw32 \(--features=tsan\)/);
+refused("asan for arm64 MinGW", ["--features=asan", "--platforms=@xclang//platforms:aarch64-w64-mingw32"],
+  /no AddressSanitizer for aarch64-w64-mingw32 \(--features=asan\)/);
+refused("lsan for musl", ["--features=lsan", "--platforms=@xclang//platforms:x86_64-unknown-linux-musl"],
+  /no LeakSanitizer for x86_64-unknown-linux-musl \(--features=lsan\)/);
 if (native.endsWith("-apple-darwin")) {
   refused("the platform's C++ library with the runtimes from source",
     ["--@xclang//runtimes:source", "--@xclang//bazel:stdlib=platform"], /not with --@xclang\/\/runtimes:source/);

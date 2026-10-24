@@ -215,10 +215,10 @@ Every target keeps the same rule, also those not yet supported
 ## Known Limitations
 
 - **Sanitizer runtimes.** On macOS they are dylibs, which a program loads
-  from the toolchain or from its own directory. For the MSVC targets,
-  ASan's runtime is a DLL, copied next to the program
-  ([sanitizers](../features/sanitizers.md#msvc-targets)). An ASan build is
-  for testing, not for shipping.
+  from the toolchain or from its own directory. For the Windows targets,
+  ASan's runtime is a DLL, which a program loads from its own directory or
+  from `PATH` ([ASan's DLL](windows.md#asan-s-dll)). An ASan build is for
+  testing, not for shipping.
 - **The macOS SDK.** Apple's SDK cannot be redistributed, so on macOS
   hosts the macOS targets build against Xcode's, found by `xcrun`. It is
   an input from outside the toolchain, and xclang does not pin it. On

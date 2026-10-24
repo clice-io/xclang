@@ -28,8 +28,8 @@
 ///    again: the same __config_site, and for Linux and MinGW the same
 ///    objects, the compiler's name in .comment aside. Once through this
 ///    checkout's toolchain file, with XCLANG_ROOT. Linux x64 adds
-///    MemorySanitizer, ThreadSanitizer and libc++ with ThinLTO; Linux x64
-///    and arm64 macOS, AddressSanitizer. With --programs <dir>, the
+///    MemorySanitizer, ThreadSanitizer and libc++ with ThinLTO; Linux x64,
+///    arm64 macOS and x64 Windows, AddressSanitizer. With --programs <dir>, the
 ///    hardening variant for other targets too (from Linux x64: Linux arm64
 ///    and both MinGW targets; from arm64 macOS: x86_64 macOS), whose
 ///    programs tests/lib/on-target.ts runs on machines of those targets.
@@ -44,9 +44,10 @@
 /// 7. The build's sanitizers (XCLANG_SANITIZER) with the prebuilt runtimes:
 ///    tests/cmake/runtimes for this host's target, reporting what each
 ///    finds, on Linux and macOS (ASan with the ASan libc++, UBSan, TSan,
-///    LSan), and UBSan for a Linux host's musl target. MemorySanitizer is
-///    refused without the runtimes from source, and for the targets that
-///    have none.
+///    LSan), on Windows (UBSan, and for x64 ASan with the ASan libc++ and
+///    its DLL), and UBSan for a Linux host's musl target. MemorySanitizer
+///    is refused without the runtimes from source, and for the targets
+///    that have none; so is a sanitizer whose runtime the target has not.
 /// 8. tests/cmake/policies, a project of CMake 3.2's policies (on CMake 4,
 ///    which refuses those, 3.5's), through the toolchain file, which keeps
 ///    its own; its build directory configured again for another target is
@@ -246,15 +247,17 @@ if (fs.existsSync(sources)) {
       ["tsan", ["-DXCLANG_SANITIZER=thread"]],
     ] as [string, string[]][] : []),
     /// ASan (and UBSan) through the variant's instrumented libc++, address
-    /// named last: its annotations whatever the order.
-    ...(linuxX64 || native.triple === "aarch64-apple-darwin"
+    /// named last: its annotations whatever the order. On x64 Windows (from
+    /// 23.1.3.4), with ASan's DLL in the toolchain's bin/, through PATH.
+    ...(linuxX64 || native.triple === "aarch64-apple-darwin" || (native.triple === "x86_64-w64-mingw32" && since("23.1.3.4"))
       ? [["asan", ["-DXCLANG_SANITIZER=undefined,address"]]] as [string, string[]][]
       : []),
   ];
   for (const [variant, args] of variants) {
     const name = `runtimes-${variant}`;
     const file = variant === "checkout" ? path.join(common.ROOT, "packages", "cmake", "toolchain.cmake") : toolchain;
-    if (!build(name, [`--toolchain=${file}`, "-DXCLANG_RUNTIMES=source", ...args], process.env, true, project)) continue;
+    const env = variant === "asan" ? pathEnv : process.env;
+    if (!build(name, [`--toolchain=${file}`, "-DXCLANG_RUNTIMES=source", ...args], env, true, project)) continue;
     const installs = fs.readdirSync(path.join(work, name, "xclang-runtimes"), { withFileTypes: true })
       .filter((e) => e.isDirectory()).map((e) => path.join(work, name, "xclang-runtimes", e.name, "install"));
     if (installs.length !== 1) {
@@ -330,14 +333,23 @@ if (since("23.1.2.11")) {
 /// tests/cmake/runtimes for this host's target, whose program reports what
 /// each finds, on the Linux and macOS hosts: ASan with the ASan libc++ (its
 /// container-overflow) and UBSan, TSan, LSan; UBSan for the musl target of a
-/// Linux host's architecture. MemorySanitizer refused, saying why: without
-/// the runtimes from source, and on a MinGW, musl or (on macOS) macOS target.
+/// Linux host's architecture; on Windows, UBSan, and for x64 ASan with the
+/// ASan libc++. MemorySanitizer refused, saying why: without the runtimes
+/// from source, and on a MinGW, musl or (on macOS) macOS target; so is a
+/// sanitizer whose runtime the target has not (TSan for MinGW, ASan for
+/// arm64 MinGW and for musl).
 {
   const project = path.join(source, "runtimes");
   if (native.os === "linux" || native.os === "darwin") {
     for (const [name, list] of [["address", "address;undefined"], ["thread", "thread"], ["leak", "leak"]]) {
       build(`sanitizer-${name}`, [`--toolchain=${toolchain}`, `-DXCLANG_SANITIZER=${list}`], process.env, true, project);
     }
+  }
+  /// Windows, from 23.1.3.4: UBSan, and on x64 ASan, its DLL found in the
+  /// toolchain's bin/ through PATH, as pixi has it.
+  if (native.os === "mingw" && since("23.1.3.4")) {
+    const [name, list] = native.arch === "x86_64" ? ["address", "address;undefined"] : ["undefined", "undefined"];
+    build(`sanitizer-${name}`, [`--toolchain=${toolchain}`, `-DXCLANG_SANITIZER=${list}`], pathEnv, true, project);
   }
   const musl = `${native.arch}-unknown-linux-musl`;
   if (native.os === "linux" && fs.existsSync(path.join(tree, musl))) {
@@ -359,6 +371,13 @@ if (since("23.1.2.11")) {
   for (const triple of without) {
     refused(`msan-${triple}`, [`-DXCLANG_TARGET=${triple}`, "-DXCLANG_RUNTIMES=source", "-DXCLANG_SANITIZER=memory"],
       /MemorySanitizer is for the Linux targets \(glibc\)/);
+  }
+  /// A sanitizer whose runtime the target has not.
+  const lacking: [string, string][] = [["x86_64-w64-mingw32", "thread"], ["aarch64-w64-mingw32", "address"],
+    ...(fs.existsSync(path.join(tree, musl)) ? [[musl, "address"] as [string, string]] : [])];
+  for (const [triple, sanitizer] of lacking) {
+    refused(`${sanitizer}-${triple}`, [`-DXCLANG_TARGET=${triple}`, `-DXCLANG_SANITIZER=${sanitizer}`],
+      new RegExp(`no\\s+${sanitizer}\\s+sanitizer\\s+for\\s+${triple}`));
   }
 }
 
