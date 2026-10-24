@@ -8,6 +8,10 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+## [23.1.3.4](https://github.com/clice-io/xclang/releases/tag/23.1.3.4) — 2026-10-24
+
+Built by 23.1.2.12.
+
 - **Sanitizers for the MinGW targets**: UBSan for both, and for x64 ASan
   with libc++'s ASan build, so that `std::string` and `std::vector` are
   checked and no container overflow is reported that is not there.
