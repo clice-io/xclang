@@ -281,6 +281,36 @@ in several objects all took the place of one of them, which one depending
 on where lld-link's memory happened to put them.
 [Patch 0017](../reference/patches.md) takes the first.
 
+## ASan's DLL
+
+compiler-rt has only a dynamic ASan runtime for Windows, for MinGW and
+MSVC alike: a DLL, which every ASan program loads at its start, from its
+own directory or from `PATH`. An ASan build is for testing, so this is a
+[known exception](hermeticity.md#known-limitations) to hermeticity, as
+the macOS sanitizers' dylibs are.
+
+- **MinGW's DLL links xclang's libc++ and libunwind statically**, as
+  compiler-rt's Linux runtimes carry them. llvm-mingw's links its
+  `libc++.dll`, which xclang does not have; xclang's loads only Windows'
+  own DLLs and UCRT. The program links its own copy, the
+  [ASan libc++](../features/sanitizers.md#why-an-asan-libc), and neither
+  sees the other's.
+- **The x64 Windows host's `bin/` has a copy**, as llvm-mingw's toolchains
+  have, so an ASan program finds it wherever that toolchain is on
+  `PATH`: in a conda or pixi environment, or a shell of its own. The
+  other hosts' programs run elsewhere, and a program that leaves the
+  machine takes the DLL along beside it.
+- **The Bazel module puts it beside every program** of a build with
+  `--features=asan`, for the x64 MinGW and MSVC targets: a toolchain of
+  the C++ runtimes (`@bazel_tools//tools/cpp:cc_runtimes_toolchain_type`,
+  which rules_cc's C++ rules depend on) gives every program the DLL as a
+  dynamic library, and the `copy_dynamic_libraries_to_binary` feature,
+  on for the Windows targets as in Bazel's own Windows toolchains, puts
+  it next to the program in `bazel-bin` and in its runfiles, where
+  `bazel run` and `bazel test` start it.
+- An x64 ASan program does not run in arm64 Windows' emulation of x64:
+  ASan cannot intercept UCRT's functions there.
+
 ## Not Yet Supported
 
 | | status |
@@ -289,7 +319,7 @@ on where lld-link's memory happened to put them.
 | [Windows 7 and XP](roadmap.md#windows-7) | In research |
 | [Windows x86 (MinGW)](roadmap.md#windows-x86-mingw) | Considered |
 | [Windows arm64ec](roadmap.md#arm64ec) | Considered |
-| [Sanitizers for MinGW targets](roadmap.md#mingw-sanitizers) | Considered |
+| [Sanitizers for MinGW targets](roadmap.md#mingw-sanitizers) | Unreleased |
 | [Runtimes from source for the MSVC targets](roadmap.md#runtimes-msvc) | Planned |
 
 A MinGW variant on msvcrt, for Windows before 10, is

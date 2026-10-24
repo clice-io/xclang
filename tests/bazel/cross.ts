@@ -13,9 +13,11 @@
 ///       targets', and the macOS targets' off macOS. For tests/bazel, the
 ///       debug information of //debug:debugged built with -c dbg: an MSVC
 ///       program's PDB, checked here, and a macOS program with its dSYM in
-///       <dir>, which on-target.ts checks there; for x64 MSVC,
-///       //asan:overflow with --features=asan, whose report on-target.ts
-///       checks; for the MSVC and macOS targets, //platform:stdlib with
+///       <dir>, which on-target.ts checks there; for x64 MSVC and MinGW,
+///       //sanitizers:overflow with --features=asan, with ASan's DLL that
+///       the build put beside it, whose report on-target.ts checks (and on
+///       x64 Windows, bazel run's); for
+///       the MSVC and macOS targets, //platform:stdlib with
 ///       --@xclang//bazel:stdlib=platform, the platform's C++ library (and
 ///       //platform:generated, whose C++ tool is built for the host), which
 ///       the other targets refuse; for the MSVC targets, the runtimes from
@@ -219,24 +221,38 @@ function collect(workspace: string, target: string, out: string, args: string[])
         expect: "hello debugger", adhoc: true, dsym: { address: `0x${address}`, source: "main.cpp" } });
     }
   }
-  /// tests/bazel's //asan:overflow with --features=asan for x64 MSVC, beside
-  /// ASan's runtime DLL: the ASan libc++ reports its container-overflow.
+  /// tests/bazel's //sanitizers:overflow with --features=asan for the x64
+  /// Windows targets, with ASan's DLL that the build put beside it
+  /// (bazel/asan_dll.bzl): the ASan libc++ reports its container-overflow.
   /// Not before libc++ for the MSVC targets (23.1.2.10), whose STL under
-  /// ASan names stl_asan.lib, which the SDK lacks.
-  if (target === "x86_64-pc-windows-msvc" && fs.existsSync(path.join(workspace, "asan", "BUILD.bazel"))) {
+  /// ASan names stl_asan.lib, which the SDK lacks, nor before ASan for
+  /// MinGW (23.1.3.4).
+  const dlls: Record<string, string> = {
+    "x86_64-pc-windows-msvc": "clang_rt.asan_dynamic-x86_64.dll",
+    "x86_64-w64-mingw32": "libclang_rt.asan_dynamic.dll",
+  };
+  if (dlls[target] && fs.existsSync(path.join(workspace, "sanitizers", "BUILD.bazel"))) {
     if (!fs.existsSync(path.join(toolchain, target, "lib", "asan", "include", "__config_site"))) {
-      console.log(`skipped: //asan:overflow, the toolchain has no ASan libc++ for ${target}`);
+      console.log(`skipped: //sanitizers:overflow, the toolchain has no ASan libc++ for ${target}`);
     } else {
-      bazel(workspace, ["build", platform, ...options, "--features=asan", "//asan:overflow"]);
-      const built = path.join(fs.realpathSync(path.join(workspace, "bazel-bin")), "asan");
+      bazel(workspace, ["build", platform, ...options, "--features=asan", "//sanitizers:overflow"]);
+      const built = path.join(fs.realpathSync(path.join(workspace, "bazel-bin")), "sanitizers");
       const asan = path.join(out, "asan");
       fs.mkdirSync(asan, { recursive: true });
-      fs.copyFileSync(path.join(built, "overflow.exe"), path.join(asan, "overflow.exe"));
-      const clang = path.join(toolchain, "lib", "clang");
-      const dll = "clang_rt.asan_dynamic-x86_64.dll";
-      fs.copyFileSync(path.join(clang, fs.readdirSync(clang)[0]!, "lib", "windows", dll), path.join(asan, dll));
-      programs.push({ name: `//asan:overflow --features=asan, built on ${host()}`, file: "asan/overflow.exe",
+      for (const file of ["overflow.exe", dlls[target]!]) copyResolved(path.join(built, file), path.join(asan, file));
+      programs.push({ name: `//sanitizers:overflow --features=asan, built on ${host()}`, file: "asan/overflow.exe",
         expect: "container-overflow", fails: true });
+      /// On x64 Windows, bazel run starts it there.
+      if (host() === "x86_64-w64-mingw32") {
+        const args = ["run", platform, ...options, "--features=asan", "//sanitizers:overflow"];
+        console.log(`+ bazel ${args.join(" ")}`);
+        const result = spawnSync("bazel", ["--output_user_root=C:/b", "--windows_enable_symlinks", ...args],
+          { cwd: workspace, encoding: "utf8", shell: true, maxBuffer: 1 << 28 });
+        if (result.status === 0 || !/AddressSanitizer: container-overflow/.test(`${result.stdout}${result.stderr}`)) {
+          common.fail(`bazel ${args.join(" ")}: exit ${result.status}, no container-overflow:\n${(result.stderr ?? "").slice(-2000)}`);
+        }
+        console.log(`ok: bazel run of //sanitizers:overflow --features=asan for ${target} reports the container-overflow`);
+      }
     }
   }
   /// tests/bazel's //platform:stdlib with the platform's C++ library

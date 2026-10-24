@@ -94,7 +94,7 @@
              ],
          )
  
-+    if is_msvc:
++    if is_msvc or ctx.attr.target_libc == "mingw":
 +        # No rpath and no soname: Windows finds DLLs beside the program and
 +        # on PATH, by the name the import library has.
 +        runtime_library_search_directories_feature = feature(name = "runtime_library_search_directories")

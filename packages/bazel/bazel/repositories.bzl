@@ -287,7 +287,8 @@ xclang_unix_config = repository_rule(
     doc = """rules_cc's unix toolchain config, from the rules_cc of the build, with
 xclang's patches: Windows names for MinGW's executables and DLLs
 (rules_cc-mingw.patch), the MSVC targets' flags for lld-link, their PDB and
-their C runtimes (rules_cc-msvc.patch), and xclang's defaults (rules_cc-xclang.patch): static
+their C runtimes, and no rpath for any Windows target (rules_cc-msvc.patch),
+and xclang's defaults (rules_cc-xclang.patch): static
 linking unless a target asks for the supports_dynamic_linker feature, other
 repositories' headers as system headers (external_include_paths), the
 sanitizer features' link flags (sanitizer_link_flags), a program of the

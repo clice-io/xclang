@@ -10,6 +10,8 @@
 /// - the musl targets' programs are static: no program interpreter, no
 ///   shared library; std::filesystem, std::format, an exception through
 ///   musl's qsort and `import std;` too;
+/// - the MinGW targets' UBSan, and x64's ASan with libc++'s ASan build and
+///   its DLL, from 23.1.3.4;
 /// - natively also `import std;`, a precompiled header and ThinLTO;
 /// - dSYM and GSYM debug symbols by the tree's dsymutil and llvm-gsymutil;
 /// - share/licenses names every component.
@@ -217,6 +219,53 @@ for (const t of targets) {
     if (runnable(t)) {
       const output = run(out, []);
       if (output !== undefined && !output.includes(expected)) failures.push(`${out} printed ${JSON.stringify(output)}`);
+    }
+  }
+}
+
+/// The MinGW targets' sanitizers, from 23.1.3.4: UBSan for both, and for
+/// x64 ASan with libc++'s ASan build, whose std::string reports a
+/// container-overflow. ASan's runtime is a DLL: the x64 host's program
+/// finds the one in bin/ through PATH, as conda's activation has it; on a
+/// machine of the target, the one copied beside it from compiler-rt's
+/// directory. An x64 ASan program runs on x64 Windows only: under arm64
+/// Windows' emulation, ASan cannot intercept ucrtbase's functions.
+if (since("23.1.3.4")) {
+  const ubsan = write("sanitize-ubsan.cpp", `#include <climits>
+#include <cstdio>
+int main(int argc, char**) { int n = INT_MAX; n += argc; std::printf("%d\\n", n); }
+`);
+  for (const t of ["x86_64-w64-mingw32", "aarch64-w64-mingw32"]) {
+    const out = path.join(work, `sanitize-ubsan-${t}.exe`);
+    if (run(tool("clang++"), [`--target=${t}`, "-fsanitize=undefined", "-O1", ubsan, "-o", out]) === undefined) continue;
+    keep(t, out, "runtime error: signed integer overflow");
+    if (runnable(t)) expectReport(`-fsanitize=undefined for ${t}`, out, [], "runtime error: signed integer overflow");
+  }
+  const t = "x86_64-w64-mingw32";
+  const asan = path.join(tree, t, "lib", "asan");
+  const overflow = write("sanitize-string-mingw.cpp", `#include <string>
+int main(int argc, char**) {
+  std::string s(40, 'x');
+  s.reserve(100);
+  return s.data()[40 + argc];
+}
+`);
+  const out = path.join(work, "sanitize-string-mingw.exe");
+  const flags = ["-fsanitize=address", "-isystem", path.join(asan, "include"), "-nostdlib++", path.join(asan, "libc++.a")];
+  if (run(tool("clang++"), [`--target=${t}`, ...flags, "-g", "-O1", overflow, "-o", out]) !== undefined) {
+    const dll = "libclang_rt.asan_dynamic.dll";
+    if (native === t) {
+      const env = { ...process.env, PATH: `${path.join(tree, "bin")}${path.delimiter}${process.env.PATH}` };
+      const result = spawnSync(out, [], { encoding: "utf8", cwd: work, env, timeout: 600_000 });
+      if (result.status === 0 || !/AddressSanitizer: container-overflow/.test(result.stderr ?? "")) {
+        failures.push(`std::string under ASan for ${t}, the DLL from bin/: exit ${result.status}, ${(result.stderr ?? "").slice(0, 2000)}`);
+      }
+    } else if (values.out) {
+      const dir = programsDir(path.resolve(values.out), t, "smoke");
+      fs.copyFileSync(out, path.join(dir, path.basename(out)));
+      fs.copyFileSync(path.join(tree, "lib", "clang", fs.readdirSync(path.join(tree, "lib", "clang"))[0]!, "lib", "x86_64-w64-windows-gnu", dll),
+        path.join(dir, dll));
+      elsewhere.set(dir, [...elsewhere.get(dir) ?? [], { file: path.basename(out), expect: "AddressSanitizer: container-overflow", fails: true }]);
     }
   }
 }

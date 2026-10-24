@@ -58,8 +58,9 @@ Windows unless it names one of those.
 
 | feature | default | |
 |---|---|---|
-| `asan`, `tsan`, `ubsan`, `lsan` | off | sanitizers, for the whole build (`--features=asan`); `asan` compiles and links with the ASan libc++, or with the runtimes from source instrumented by it. None for the MinGW targets; for the musl targets `ubsan`; for the MSVC targets `ubsan`, and `asan` for x64 |
+| `asan`, `tsan`, `ubsan`, `lsan` | off | sanitizers, for the whole build (`--features=asan`); `asan` compiles and links with the ASan libc++, or with the runtimes from source instrumented by it. For the Windows targets `ubsan`, and `asan` for x64 (MinGW's from the release after 23.1.3.3), whose DLL every program then has beside it; for the musl targets `ubsan`. Others are refused |
 | `msan` | off | MemorySanitizer, for the whole build, with the runtimes from source (`--@xclang//runtimes:source`), which then include its runtime; Linux targets (glibc). Refused without them, and for the other targets. Since 23.1.2.11 |
+| `copy_dynamic_libraries_to_binary` | Windows targets: on | a program's DLLs beside it in `bazel-bin` and in its runfiles, ASan's among them, as Bazel's own Windows toolchains have it |
 | `cpp_modules` | off | C++20 modules: `module_interfaces` of a `cc_library`/`cc_binary`, scanned by clang-scan-deps; needs `--experimental_cpp_modules` |
 | `gc_sections` | Linux targets: on in `opt`; Windows targets: off | lld's `--gc-sections`, lld-link's `/opt:ref` for the MSVC targets ([why not for Windows](../design/windows.md#gc-sections-and-static-initializers)) |
 | `thinlto_cache` | on | the linker's ThinLTO cache, with flags only when `XCLANG_THINLTO_CACHE` names a directory |
@@ -109,7 +110,8 @@ MemorySanitizer's runtime. No runtime is compiled with ThinLTO.
 What the module cannot build stops the build at once, saying why: the
 runtimes from source, or any of the flags beside it, for an MSVC target;
 those flags without `--@xclang//runtimes:source`; `msan` without it, or
-for a target other than glibc's.
+for a target other than glibc's; a sanitizer feature whose runtime the
+target has not.
 
 ## Targets and Rules
 

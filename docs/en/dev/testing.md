@@ -108,6 +108,11 @@ How the stages fit together is in the [build pipeline](release-build.md).
   the capacity of a `std::string` is reported, and a program that shares
   the `std::filesystem` instantiations of `libc++.a` gets no false report
   ([why an ASan libc++](../features/sanitizers.md#why-an-asan-libc)).
+- The MinGW targets' sanitizers, from every host: UBSan's report for both,
+  and for x64 the `std::string` overflow through the ASan libc++, run on
+  x64 Windows, natively with ASan's DLL from the toolchain's `bin/` on
+  `PATH`, from the other hosts with the DLL beside the program
+  (on-target.yml).
 - dSYM and GSYM debug symbols made by the toolchain's `dsymutil` and
   `llvm-gsymutil`, for every target.
 - The musl targets, in the archives that carry them: their programs have
@@ -191,8 +196,8 @@ Ninja 1.11, and with the newest of both:
    the code of `import std` in the program; on Linux x64, MemorySanitizer
    reports a use of uninitialized memory inside libc++ and nothing of what
    libc++ itself writes, ThreadSanitizer reports a data race, and libc++
-   of ThinLTO is bitcode; on Linux x64 and arm64 macOS, AddressSanitizer
-   reports a container-overflow through libc++. From Linux x64
+   of ThinLTO is bitcode; on Linux x64, arm64 macOS and x64 Windows,
+   AddressSanitizer reports a container-overflow through libc++. From Linux x64
    (to Linux arm64 and both MinGW targets) and arm64 macOS (to x86_64
    macOS), with the newest CMake, the hardening variant's programs run on a
    machine of the target (on-target.yml).
@@ -205,9 +210,12 @@ Ninja 1.11, and with the newest of both:
    (`XCLANG_SANITIZER`): `tests/cmake/runtimes` for the host's target, on
    the Linux and macOS hosts, reports ASan's container-overflow through
    the ASan libc++, UBSan's signed overflow, ThreadSanitizer's data race
-   and LeakSanitizer's leak; a Linux host's musl target, UBSan's.
-   MemorySanitizer is refused, saying why, without the runtimes from
-   source, and for the MinGW, musl and (on macOS) macOS targets.
+   and LeakSanitizer's leak; on the Windows hosts UBSan's, and on x64
+   ASan's, with its DLL from the toolchain's `bin/` on `PATH`; a Linux
+   host's musl target, UBSan's. MemorySanitizer is refused, saying why,
+   without the runtimes from source, and for the MinGW, musl and (on
+   macOS) macOS targets; so is a sanitizer whose runtime the target has
+   not (ThreadSanitizer for MinGW, ASan for arm64 MinGW and musl).
 
 `tests/cmake` covers a C++ module of partitions, `xclang::std` with
 `std.compat`, `xclang_add_std` with `-fno-exceptions`, and
@@ -268,11 +276,17 @@ has their sources, once per variant: with no options, the prebuilt
 ABI macros without exceptions and RTTI, which the code of `import std` is
 named with; on Linux x64, `--features=msan` reporting inside libc++ and not
 on what it writes, `--features=tsan` reporting a data race and
-`--features=thin_lto`; on Linux x64 and arm64 macOS, `--features=asan`
-reporting a container-overflow through libc++. What the module refuses
+`--features=thin_lto`; on Linux x64, arm64 macOS and x64 Windows,
+`--features=asan` reporting a container-overflow through libc++. On the
+Windows hosts, with the prebuilt runtimes, `bazel run` and `bazel test`
+start programs of `--features=asan` (x64), ASan's DLL beside them, the
+ASan libc++ reporting the container-overflow, and `bazel run` of
+`--features=ubsan` reports a signed overflow. What the module refuses
 stops the build, saying why: the runtimes' options without
-`--@xclang//runtimes:source`, `msan` without it and for a MinGW target,
-and on macOS the platform's C++ library with it. From Linux x64 and arm64
+`--@xclang//runtimes:source`, `msan` without it and for a MinGW target, a
+sanitizer whose runtime the target has not (`tsan` for MinGW, `asan` for
+arm64 MinGW, `lsan` for musl), and on macOS the platform's C++ library
+with it. From Linux x64 and arm64
 macOS, the hardening variant for other targets runs on their machines.
 `packages/bazel/runtimes.ts check` (by hand) says whether
 `runtimes_sources.bzl` is still what LLVM's CMake build compiles.
@@ -288,8 +302,9 @@ published, `@libclang` aside. A `-c dbg` program's PDB names its sources relativ
 execution root, and no path of the output base (checked where it was
 built: Microsoft's PDBs take part in it); a macOS one's dSYM, made in the
 link on Linux and Windows too, gives its UUIDs and main's line on the Mac.
-An x64 MSVC program built with `--features=asan` reports the
-container-overflow of the ASan libc++ on Windows. `//platform:stdlib`
+An x64 MSVC or MinGW program built with `--features=asan` reports the
+container-overflow of the ASan libc++ on Windows, with ASan's DLL that the
+build put beside it, and on x64 Windows through `bazel run` too. `//platform:stdlib`
 with `--@xclang//bazel:stdlib=platform` builds with Microsoft's STL for
 the MSVC targets and with the SDK's `libc++.1.dylib` for the macOS ones,
 and runs on their machines; the cross jobs check that the other targets
@@ -417,7 +432,12 @@ checks what the page says it prints:
 - **Sanitizers**, on Linux and macOS hosts: by hand, with CMake and with
   Bazel. ASan with the ASan libc++ reports the container-overflow and exits
   1; without it, no report. TSan reports the data race and exits 66. On
-  macOS, both abort after the report. libFuzzer runs 1000 inputs.
+  macOS, both abort after the report. libFuzzer runs 1000 inputs. From
+  every host, for the MinGW targets, in a release that has their
+  sanitizers: ASan with the ASan libc++ for x64, which reports the
+  container-overflow on x64 Windows (natively with the DLL from the
+  environment's `bin/`, from the others with it beside the program), and
+  UBSan for arm64.
 - **Debug symbols**, on every host: a GSYM by hand, looked up by the
   address of a function, and with `xclang_debug_symbols` in CMake (with the
   dSYM on macOS) and in Bazel.

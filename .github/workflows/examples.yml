@@ -720,6 +720,37 @@ jobs:
             grep 'ubsan.cpp:7:7: runtime error: signed integer overflow' ubsan.txt
             grep -x -- -2147483648 ubsan.txt
           fi
+      # docs/en/features/sanitizers.md, "MinGW Targets": ASan with the ASan
+      # libc++ for x64 and UBSan for arm64, from every host. On x64 Windows
+      # the ASan program finds the DLL in the environment's bin/, on PATH;
+      # from the other hosts it goes to on-target.yml with the DLL beside
+      # it. Not in a release before the MinGW targets' sanitizers.
+      - name: Sanitizers, MinGW targets
+        working-directory: examples/sanitizers
+        run: |
+          pixi install
+          export PATH="$PWD/.pixi/envs/default/opt/xclang/bin:$PATH"
+          dll="$(clang++ -print-resource-dir)/lib/x86_64-w64-windows-gnu/libclang_rt.asan_dynamic.dll"
+          [[ -f "$dll" ]] || { echo "::notice::this release has no sanitizers for the MinGW targets"; exit 0; }
+          asan=$(dirname "$(clang++ --target=x86_64-w64-mingw32 -print-library-module-manifest-path)")/asan
+          clang++ --target=x86_64-w64-mingw32 -fsanitize=address -isystem "$asan/include" -nostdlib++ "$asan/libc++.a" \
+              -g -O1 overflow.cpp -o overflow.exe
+          clang++ --target=aarch64-w64-mingw32 -fsanitize=undefined -O1 ubsan.cpp -o ubsan.exe
+          if [[ "${{ matrix.host }}" == x86_64-w64-mingw32 ]]; then
+            set +e
+            ./overflow.exe 2> overflow.txt; status=$?
+            set -e
+            cat overflow.txt
+            test "$status" = 1
+            grep 'ERROR: AddressSanitizer: container-overflow' overflow.txt
+          else
+            dir=$RUNNER_TEMP/programs/x86_64-w64-mingw32/asan-mingw-${{ matrix.host }}
+            mkdir -p "$dir" && cp overflow.exe "$dll" "$dir/"
+            echo '[{"file": "overflow.exe", "fails": true, "expect": "ERROR: AddressSanitizer: container-overflow"}]' > "$dir/programs.json"
+          fi
+          dir=$RUNNER_TEMP/programs/aarch64-w64-mingw32/ubsan-mingw-${{ matrix.host }}
+          mkdir -p "$dir" && cp ubsan.exe "$dir/"
+          echo '[{"file": "ubsan.exe", "expect": "ubsan.cpp:7:7: runtime error: signed integer overflow"}]' > "$dir/programs.json"
       # docs/en/integrations/cmake.md, "Use the System's C++ Library", in a
       # project without import std, which GCC's libstdc++ before 15 and the
       # macOS SDK's libc++ lack. A Windows host's own target is MinGW, whose

@@ -57,15 +57,15 @@ static, need no glibc, and run on the Linux x64 and arm64 runners
 | C++ library | libc++, libc++abi, static; GCC's libstdc++ with `-stdlib=platform` | libc++, libc++abi, static; a `--sysroot`'s libstdc++ with `-stdlib=platform` | libc++, libc++abi, static; a `--sysroot`'s libstdc++ with `-stdlib=platform` | libc++, libc++abi, static (not the system's `libc++.dylib`, which `-stdlib=platform` takes) | libc++ on the VC runtime, static; Microsoft's STL with `-stdlib=platform` |
 | unwinder | libunwind, static | libunwind, static | libunwind, static | the system's (libSystem) | the VC runtime's, static |
 | compiler-rt builtins, profile | Supported | Supported | Supported | Supported | Supported |
-| ASan, TSan, LSan, UBSan, libFuzzer | Supported | UBSan only | Considered | Supported | Supported: UBSan; ASan and libFuzzer for x64 |
-| ASan libc++ | Supported | none | Considered | Supported | Supported, x64 |
+| ASan, TSan, LSan, UBSan, libFuzzer | Supported | UBSan only | Unreleased: UBSan; ASan for x64 | Supported | Supported: UBSan; ASan and libFuzzer for x64 |
+| ASan libc++ | Supported | none | Unreleased, x64 | Supported | Supported, x64 |
 | [runtimes from source](../features/runtimes-from-source.md) | Supported, with MemorySanitizer | Supported | Supported | Supported | Planned |
 | linker | ld.lld | ld.lld | ld.lld (MinGW driver) | ld64.lld; `-fuse-ld=ld` for Apple's, without LTO | lld-link |
 
-Sanitizers for the MinGW targets are
-[considered](../design/roadmap.md#mingw-sanitizers); those of the MSVC
-targets are in [sanitizers](../features/sanitizers.md#msvc-targets), those
-of musl in [sanitizers](../features/sanitizers.md#musl-targets).
+The sanitizers of the MinGW targets, in no release yet, are in
+[sanitizers](../features/sanitizers.md#mingw-targets), those of the MSVC
+targets in [sanitizers](../features/sanitizers.md#msvc-targets), those of
+musl in [sanitizers](../features/sanitizers.md#musl-targets).
 
 ## musl Targets
 
@@ -113,7 +113,7 @@ run on a runner of their target, with no emulator
 
 | | status |
 |---|---|
-| [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Considered |
+| [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Unreleased |
 | [ASan, TSan, LSan and libFuzzer for musl targets](../design/roadmap.md#musl-sanitizers) | Considered |
 | [Runtimes from source for the MSVC targets](../design/roadmap.md#runtimes-msvc) | Planned |
 

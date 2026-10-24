@@ -297,7 +297,9 @@ them. Since 23.1.2.11, and not for the MSVC targets
 ([runtimes from source](../features/runtimes-from-source.md#cmake)).
 With the prebuilt runtimes, `-DXCLANG_SANITIZER=address` gives the whole
 build ASan and the prebuilt ASan libc++
-([sanitizers](../features/sanitizers.md#cmake)).
+([sanitizers](../features/sanitizers.md#cmake)); for x64 Windows, a
+program loads ASan's DLL from beside itself or from `PATH`
+([MinGW targets](../features/sanitizers.md#mingw-targets)).
 
 ## Ship Debug Symbols
 

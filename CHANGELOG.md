@@ -8,6 +8,19 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+- **Sanitizers for the MinGW targets**: UBSan for both, and for x64 ASan
+  with libc++'s ASan build, so that `std::string` and `std::vector` are
+  checked and no container overflow is reported that is not there.
+  ASan's runtime is a DLL, `libclang_rt.asan_dynamic.dll`, which the x64
+  Windows toolchain also has in `bin/`, where a conda or pixi environment
+  finds it. CMake's `XCLANG_SANITIZER` and Bazel's `--features=asan` and
+  `ubsan` take them; in Bazel, ASan's DLL is beside every program of the
+  x64 MinGW and MSVC targets, so `bazel run` and `bazel test` start them.
+  A sanitizer whose runtime the target has not (TSan for MinGW, ASan for
+  arm64 MinGW and musl) stops CMake's configure and Bazel's analysis,
+  saying so, rather than failing in the link
+  ([sanitizers](docs/en/features/sanitizers.md#mingw-targets)).
+
 ## [23.1.3.3](https://github.com/clice-io/xclang/releases/tag/23.1.3.3) — 2026-10-15
 
 The compiler and runtimes are 23.1.3.1's.

@@ -1,0 +1,25 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+# Past a std::string's size, within its capacity: with --features=asan only
+# the ASan libc++ reports it (tests/bazel/runtimes.ts on x64 Windows,
+# tests/bazel/cross.ts for x64 MSVC and MinGW).
+cc_binary(
+    name = "overflow",
+    srcs = ["overflow.cpp"],
+)
+
+# libc++'s containers, an exception and a thread, which --features=asan
+# does not report: bazel test starts it, with ASan's DLL beside it on
+# Windows, as beside //sanitizers:overflow in the same package.
+cc_test(
+    name = "containers_test",
+    srcs = ["containers_test.cpp"],
+)
+
+# A signed overflow, which --features=ubsan reports, and which ends the
+# program there (rules_cc's sanitizer features: -fno-sanitize-recover=all).
+cc_binary(
+    name = "signed_overflow",
+    srcs = ["signed_overflow.cpp"],
+)

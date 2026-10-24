@@ -16,7 +16,8 @@
 #                     libc++ where the target has one, and memory is not
 #                     available; with runtimes from source, they are built
 #                     with the sanitizers, and with memory, compiler-rt's
-#                     MemorySanitizer runtime with them
+#                     MemorySanitizer runtime with them. One whose runtime
+#                     the target has not is refused
 #
 # With XCLANG_RUNTIMES=source only:
 #
@@ -111,6 +112,36 @@ if(memory IN_LIST _xclang_sanitizers)
             "and compiler-rt's runtime of it, which the toolchain has not: XCLANG_RUNTIMES=source")
     endif()
 endif()
+# The other sanitizers the target's runtimes have, refused here rather than
+# at the first link: compiler-rt has UBSan for Windows, and for x86_64 ASan
+# (for MinGW in the releases after 23.1.3.3, which carry them); musl's
+# static programs have UBSan only.
+if(_xclang_target_os MATCHES "^(linux|darwin)$")
+    set(_xclang_have address thread undefined leak)
+elseif(_xclang_target_os STREQUAL "msvc" AND _xclang_target_arch STREQUAL "x86_64")
+    set(_xclang_have address undefined)
+elseif(_xclang_target_os STREQUAL "mingw")
+    set(_xclang_have "")
+    file(GLOB _xclang_mingw_rt "${XCLANG_ROOT}/lib/clang/*/lib/${_xclang_target_arch}-w64-windows-gnu")
+    if(EXISTS "${_xclang_mingw_rt}/libclang_rt.asan_dynamic.dll.a")
+        list(APPEND _xclang_have address)
+    endif()
+    if(EXISTS "${_xclang_mingw_rt}/libclang_rt.ubsan_standalone.a")
+        list(APPEND _xclang_have undefined)
+    endif()
+else()
+    set(_xclang_have undefined)
+endif()
+foreach(_xclang_sanitizer IN LISTS _xclang_sanitizers)
+    if(NOT _xclang_sanitizer STREQUAL "memory" AND NOT _xclang_sanitizer IN_LIST _xclang_have)
+        list(JOIN _xclang_have ", " _xclang_have)
+        if(NOT _xclang_have)
+            set(_xclang_have none)
+        endif()
+        message(FATAL_ERROR "xclang: this release of xclang has no ${_xclang_sanitizer} sanitizer for "
+            "${_xclang_triple}; its sanitizers there are ${_xclang_have}")
+    endif()
+endforeach()
 
 # What the target names its directories after: clang's spelling.
 if(_xclang_target_os STREQUAL "mingw")

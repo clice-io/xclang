@@ -3,13 +3,14 @@
 /// bootstrap compiler, into work/out/runtimes-<name>:
 ///
 ///   <triple>/                  sysroot, libunwind, libc++abi, libc++ (and
-///                              where there are sanitizers its ASan build)
+///                              where there is ASan its ASan build)
 ///   libc++/, mingw-w64/        the headers targets share: libc++'s, with
 ///                              the target's __config_site in
 ///                              libc++/include/<target>/c++/v1, and
 ///                              mingw-w64's (common.shareHeaders)
-///   lib/clang/<ver>/lib/...    compiler-rt: builtins, crt objects, profile;
-///                              the MSVC targets' libc++ (msvcCxx)
+///   lib/clang/<ver>/lib/...    compiler-rt: builtins, crt objects, profile,
+///                              sanitizers (ASan's DLL of the Windows
+///                              targets); the MSVC targets' libc++ (msvcCxx)
 ///
 /// The MSVC targets' C runtime is Microsoft's, from the user's SDK, and so
 /// is vcruntime, their C++ ABI library. Their libc++ (msvcCxx) and
@@ -58,7 +59,8 @@ function cmake(name: string, source: string, args: string[]): void {
 /// (toolchain/cmake/caches/compiler-rt.cmake).
 const SANITIZERS = ["linux", "darwin"];
 
-/// The sanitizer runtimes of Linux carry xclang's libc++abi as their C++ ABI.
+/// The sanitizer runtimes of Linux carry xclang's libc++abi as their C++
+/// ABI, and so does MinGW's ASan DLL.
 const LINUX_SANITIZERS = [
   "-DSANITIZER_CXX_ABI=libc++",
   "-DSANITIZER_USE_STATIC_CXX_ABI=ON",
@@ -77,6 +79,25 @@ const MUSL_SANITIZERS = [
   "-DCOMPILER_RT_BUILD_LIBFUZZER=OFF",
   ...LINUX_SANITIZERS,
 ];
+
+/// What compiler-rt has for MinGW, as llvm-mingw builds it: UBSan, and for
+/// x86_64 ASan, whose runtime is a DLL (Windows has no static one),
+/// libclang_rt.asan_dynamic.dll, with its import library and the thunk
+/// every ASan program links. Without libFuzzer. The DLL links xclang's
+/// libc++ statically, and with it libunwind, which libc++abi unwinds with
+/// (llvm-mingw's links libc++.dll): compiler-rt links it -nodefaultlibs, and
+/// a DLL leaves no symbol undefined.
+const MINGW_SANITIZERS = [
+  "-DCOMPILER_RT_BUILD_SANITIZERS=ON",
+  "-DCOMPILER_RT_BUILD_LIBFUZZER=OFF",
+  "-DCMAKE_SHARED_LINKER_FLAGS=-lunwind",
+  ...LINUX_SANITIZERS,
+];
+
+/// The targets with ASan, and so with libc++'s ASan build (cxxAsan).
+function hasAsan(t: common.Target): boolean {
+  return SANITIZERS.includes(t.os) || (t.os === "mingw" && t.arch === "x86_64");
+}
 
 /// compiler-rt names its directory after the compiler's target, so that
 /// is the spelling clang's driver looks for: the normalized one.
@@ -146,7 +167,7 @@ function cxx(t: common.Target, stage: string): void {
   for (const name of stubs) fs.writeFileSync(path.join(prefix, "lib", `lib${name}.a`), "!<arch>\n");
 }
 
-/// libc++'s ASan build, for the targets with sanitizers, in
+/// libc++'s ASan build, for the targets with ASan, in
 /// <prefix>/lib/asan: its libc++.a (libc++abi in it), instrumented like
 /// the ASan programs that link it, and its include/__config_site, which
 /// turns on std::string's container checks. An ASan build takes both:
@@ -158,10 +179,14 @@ function cxxAsan(t: common.Target, stage: string): void {
   /// On macOS the libraries look for the ASan runtime next to the builtins,
   /// which clang does not report there (-print-libgcc-file-name).
   const builtins = path.join(common.resourceDir(stage), "lib", "darwin", "libclang_rt.osx.a");
+  /// mingw-w64's headers are shared by now (common.shareHeaders), where
+  /// the config files find them.
+  const mingw = `--no-default-config -idirafter ${path.join(stage, "mingw-w64", "include")}`;
   cmake(`cxx-asan-${t.triple}`, path.join(src, "runtimes"), [
     ...cxxArgs(t, stage, install),
     "-DLLVM_USE_SANITIZER=Address",
     ...(t.os === "darwin" ? [`-DCOMPILER_RT_LIBRARY_builtins_${t.triple}=${builtins}`] : []),
+    ...(t.os === "mingw" ? ["C", "CXX", "ASM"].map((lang) => `-DCMAKE_${lang}_FLAGS=${mingw}`) : []),
   ]);
   const dest = path.join(cxxPrefix(t, stage), "lib", "asan");
   fs.rmSync(dest, { recursive: true, force: true });
@@ -193,6 +218,7 @@ function profile(t: common.Target, stage: string): void {
     `-DCOMPILER_RT_BUILD_LIBFUZZER=${SANITIZERS.includes(t.os) ? "ON" : "OFF"}`,
     ...(t.os === "linux" ? LINUX_SANITIZERS : []),
     ...(t.os === "musl" ? MUSL_SANITIZERS : []),
+    ...(t.os === "mingw" ? MINGW_SANITIZERS : []),
     ...compilerRtFlags(t),
   ]);
   /// What a static program cannot use: the shared runtimes, and LSan's,
@@ -385,21 +411,22 @@ function check(t: common.Target, stage: string): void {
     "}",
     "",
   ].join("\n"));
-  const exe = path.join(dir, `hello${t.os === "mingw" || t.os === "msvc" ? ".exe" : ""}`);
+  const ext = t.os === "mingw" || t.os === "msvc" ? ".exe" : "";
+  const exe = path.join(dir, `hello${ext}`);
   common.run(path.join(stage, "bin", "clang++"), [`--target=${t.triple}`, "-O2", source, "-o", exe]);
   if (common.runsHere(t)) common.run(exe, []);
   const tool = t.os === "darwin" ? ["llvm-otool", "-L"] : ["llvm-readobj", "--needed-libs"];
   common.run(path.join(stage, "bin", tool[0]), [tool[1], exe]);
-  /// musl's static programs with UBSan, its standalone runtime.
-  if (t.os === "musl") {
-    const ubsanExe = path.join(dir, "hello-ubsan");
+  /// musl's static programs and MinGW's with UBSan, its standalone runtime.
+  if (t.os === "musl" || t.os === "mingw") {
+    const ubsanExe = path.join(dir, `hello-ubsan${ext}`);
     common.run(path.join(stage, "bin", "clang++"), [`--target=${t.triple}`, "-O1", "-fsanitize=undefined", source, "-o", ubsanExe]);
     if (common.runsHere(t)) common.run(ubsanExe, []);
   }
   /// The same with ASan and libc++'s ASan build (cxxAsan), run natively.
-  if (!SANITIZERS.includes(t.os)) return;
+  if (!hasAsan(t)) return;
   const asan = path.join(cxxPrefix(t, stage), "lib", "asan");
-  const asanExe = path.join(dir, "hello-asan");
+  const asanExe = path.join(dir, `hello-asan${ext}`);
   common.run(path.join(stage, "bin", "clang++"), [
     `--target=${t.triple}`, "-O1", "-fsanitize=address", "-isystem", path.join(asan, "include"),
     "-nostdlib++", path.join(asan, "libc++.a"), source, "-o", asanExe,
@@ -470,7 +497,7 @@ if (values.target === "msvc") {
   cxx(t, stage);
   common.shareHeaders(stage);
   profile(t, stage);
-  if (SANITIZERS.includes(t.os)) cxxAsan(t, stage);
+  if (hasAsan(t)) cxxAsan(t, stage);
   check(t, stage);
   collect(stage, t.triple, [t.triple, "libc++", ...(t.os === "mingw" ? ["mingw-w64"] : []),
     path.join(resource, "lib", common.normalized(t))]);

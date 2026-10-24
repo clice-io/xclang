@@ -8,9 +8,12 @@ targets, which build against the SDK a project fetches (bazel/sdk.bzl)."""
 # toolchain config, compiler-rt's directory under lib/clang/<version>/lib,
 # what of the target's directory compiling and linking read (with the
 # headers targets share, bazel/toolchain.bzl), where in it the ASan build of
-# libc++ is (none for MinGW, musl and arm64 MSVC; for x64 MSVC its headers
-# alone), and the vendor SDK it builds against: Apple's off macOS hosts (on
-# them, Xcode's), Microsoft's always.
+# libc++ is (none for arm64 MinGW, musl and arm64 MSVC; for x64 MSVC its
+# headers alone), the sanitizer features its prebuilt runtimes have
+# (MemorySanitizer's comes with the runtimes from source), ASan's DLL in
+# compiler-rt's directory for the Windows targets with ASan (bazel/asan_dll.bzl),
+# and the vendor SDK it builds against: Apple's off macOS hosts (on them,
+# Xcode's), Microsoft's always.
 TARGETS = {
     "x86_64-unknown-linux-gnu": struct(
         cfg = "x86_64-unknown-linux-gnu",
@@ -22,6 +25,8 @@ TARGETS = {
         headers = ["usr/include/**"],
         libraries = ["lib64/**", "usr/lib/**", "usr/lib64/**"],
         asan_libcxx = "usr/lib/asan",
+        sanitizers = ["asan", "lsan", "tsan", "ubsan"],
+        asan_dll = None,
         sdk = None,
     ),
     "aarch64-unknown-linux-gnu": struct(
@@ -34,6 +39,8 @@ TARGETS = {
         headers = ["usr/include/**"],
         libraries = ["lib64/**", "usr/lib/**", "usr/lib64/**"],
         asan_libcxx = "usr/lib/asan",
+        sanitizers = ["asan", "lsan", "tsan", "ubsan"],
+        asan_dll = None,
         sdk = None,
     ),
     "aarch64-apple-darwin": struct(
@@ -46,6 +53,8 @@ TARGETS = {
         headers = ["include/**"],
         libraries = ["lib/**"],
         asan_libcxx = "lib/asan",
+        sanitizers = ["asan", "lsan", "tsan", "ubsan"],
+        asan_dll = None,
         sdk = "macos",
     ),
     "x86_64-apple-darwin": struct(
@@ -58,6 +67,8 @@ TARGETS = {
         headers = ["include/**"],
         libraries = ["lib/**"],
         asan_libcxx = "lib/asan",
+        sanitizers = ["asan", "lsan", "tsan", "ubsan"],
+        asan_dll = None,
         sdk = "macos",
     ),
     "x86_64-w64-mingw32": struct(
@@ -69,7 +80,9 @@ TARGETS = {
         runtime = "x86_64-w64-windows-gnu",
         headers = ["include/**"],
         libraries = ["lib/**"],
-        asan_libcxx = None,
+        asan_libcxx = "lib/asan",
+        sanitizers = ["asan", "ubsan"],
+        asan_dll = "libclang_rt.asan_dynamic",
         sdk = None,
     ),
     "aarch64-w64-mingw32": struct(
@@ -82,6 +95,8 @@ TARGETS = {
         headers = ["include/**"],
         libraries = ["lib/**"],
         asan_libcxx = None,
+        sanitizers = ["ubsan"],
+        asan_dll = None,
         sdk = None,
     ),
     # Static programs with musl, from 23.1.2.10 on.
@@ -95,6 +110,8 @@ TARGETS = {
         headers = ["usr/include/**"],
         libraries = ["usr/lib/**"],
         asan_libcxx = None,
+        sanitizers = ["ubsan"],
+        asan_dll = None,
         sdk = None,
     ),
     "aarch64-unknown-linux-musl": struct(
@@ -107,6 +124,8 @@ TARGETS = {
         headers = ["usr/include/**"],
         libraries = ["usr/lib/**"],
         asan_libcxx = None,
+        sanitizers = ["ubsan"],
+        asan_dll = None,
         sdk = None,
     ),
     # No directory of their own before libc++ for them (23.1.2.10), and no
@@ -122,6 +141,8 @@ TARGETS = {
         headers = ["include/**"],
         libraries = ["lib/**"],
         asan_libcxx = "lib/asan",
+        sanitizers = ["asan", "ubsan"],
+        asan_dll = "clang_rt.asan_dynamic-x86_64",
         sdk = "windows",
     ),
     "aarch64-pc-windows-msvc": struct(
@@ -134,6 +155,8 @@ TARGETS = {
         headers = ["include/**"],
         libraries = ["lib/**"],
         asan_libcxx = None,
+        sanitizers = ["ubsan"],
+        asan_dll = None,
         sdk = "windows",
     ),
 }
