@@ -23,8 +23,8 @@ xclang/
                            <target>-sdk.cfg and <target>-clang-cl-sdk.cfg,
                            the SDK in use of an MSVC target, which the
                            xclang command writes; on x64 Windows hosts,
-                           a copy of x64 MinGW's ASan DLL (in no release
-                           yet; Windows: ASan's DLL)
+                           copies of the x64 MinGW and MSVC targets' ASan
+                           DLLs (in no release yet; Windows: ASan's DLL)
   lib/clang/<major>/       clang's resource headers, compiler-rt's headers,
                            and compiler-rt for every target; for the MSVC
                            targets libc++ too

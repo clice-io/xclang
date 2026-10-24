@@ -295,11 +295,12 @@ the macOS sanitizers' dylibs are.
   own DLLs and UCRT. The program links its own copy, the
   [ASan libc++](../features/sanitizers.md#why-an-asan-libc), and neither
   sees the other's.
-- **The x64 Windows host's `bin/` has a copy**, as llvm-mingw's toolchains
-  have, so an ASan program finds it wherever that toolchain is on
-  `PATH`: in a conda or pixi environment, or a shell of its own. The
-  other hosts' programs run elsewhere, and a program that leaves the
-  machine takes the DLL along beside it.
+- **The x64 Windows host's `bin/` has a copy of both**, MinGW's as
+  llvm-mingw's toolchains have it and MSVC's as Visual Studio has it, so
+  an ASan program finds its DLL wherever that toolchain is on `PATH`: in
+  a conda or pixi environment, or a shell of its own. The other hosts'
+  programs run elsewhere, and a program that leaves the machine takes the
+  DLL along beside it.
 - **The Bazel module puts it beside every program** of a build with
   `--features=asan`, for the x64 MinGW and MSVC targets: a toolchain of
   the C++ runtimes (`@bazel_tools//tools/cpp:cc_runtimes_toolchain_type`,

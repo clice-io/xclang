@@ -332,9 +332,19 @@ for (const a of ["x86_64", "aarch64"]) {
         "container-overflow", null, { fails: true });
     }
     build("fuzzer", "clang++", ["-std=c++17", "-fsanitize=fuzzer", "-O1", fuzzer], "Done 1000 runs", null, { args: ["-runs=1000"] });
-    /// ASan's runtime is a DLL, which the program finds next to it.
+    /// ASan's runtime is a DLL, which the program finds next to it; on x64
+    /// Windows, from 23.1.3.4, in the toolchain's bin/ too, through PATH,
+    /// as pixi has it: there with none beside it.
     const dll = "clang_rt.asan_dynamic-x86_64.dll";
     fs.copyFileSync(path.join(common.resourceDir(tree), "lib", "windows", dll), path.join(dir, dll));
+    if (native && libcxx && since("23.1.3.4")) {
+      const alone = path.join(work, "asan-path");
+      fs.mkdirSync(alone, { recursive: true });
+      fs.copyFileSync(path.join(dir, "asan-libcxx.exe"), path.join(alone, "asan-libcxx.exe"));
+      const env = { ...process.env, PATH: `${path.join(tree, "bin")}${path.delimiter}${process.env.PATH}` };
+      const r = run(path.join(alone, "asan-libcxx.exe"), [], { cwd: alone, env, timeout: 600_000 });
+      check(r.status !== 0 && r.out.includes("AddressSanitizer: container-overflow"), `${triple}: asan-libcxx with ASan's DLL from bin/`);
+    }
   }
   /// The older SDK, in use for this program only: x64 only, as fetched.
   if (a === "x86_64") {
