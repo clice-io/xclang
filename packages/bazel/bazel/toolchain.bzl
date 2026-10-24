@@ -170,6 +170,11 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
             )
     xclang_cc_runtimes(name = name + "_runtimes", runtimes = [":%s_asan_dll" % name] if dll else [])
 
+    # The sanitizers of the release's runtimes: MinGW's UBSan and ASan only
+    # in those after 23.1.3.3.
+    ubsan = t.libc != "mingw" or native.glob(["%s/lib/%s/libclang_rt.ubsan_standalone.a" % (resource, t.runtime)], allow_empty = True)
+    sanitizers = [s for s in t.sanitizers if (s != "asan" or not t.asan_dll or dll) and (s != "ubsan" or ubsan)]
+
     # What of //runtimes and the sanitizer features the target cannot build
     # fails the toolchain's analysis, saying why: the runtimes from source
     # on an MSVC target, their options without them, MemorySanitizer
@@ -179,7 +184,7 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
         name = name + "_check",
         msan = t.libc == "glibc",
         msvc = msvc,
-        sanitizers = [s for s in t.sanitizers if s != "asan" or not t.asan_dll or dll],
+        sanitizers = sanitizers,
         target = target,
     )
 

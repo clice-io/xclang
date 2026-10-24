@@ -150,7 +150,7 @@ def _check_impl(ctx):
     for feature, sanitizer in _SANITIZERS.items():
         if feature in ctx.features and feature not in ctx.attr.sanitizers:
             fail("xclang: this release of xclang has no %s for %s (--features=%s); its sanitizer features are %s" %
-                 (sanitizer, ctx.attr.target, feature, ", ".join(ctx.attr.sanitizers)))
+                 (sanitizer, ctx.attr.target, feature, ", ".join(ctx.attr.sanitizers) or "none"))
     return [DefaultInfo()]
 
 # The sanitizer features of the prebuilt runtimes, by what they turn on.
