@@ -304,7 +304,7 @@ built: Microsoft's PDBs take part in it); a macOS one's dSYM, made in the
 link on Linux and Windows too, gives its UUIDs and main's line on the Mac.
 An x64 MSVC or MinGW program built with `--features=asan` reports the
 container-overflow of the ASan libc++ on Windows, with ASan's DLL that the
-build put beside it. `//platform:stdlib`
+build put beside it, and on x64 Windows through `bazel run` too. `//platform:stdlib`
 with `--@xclang//bazel:stdlib=platform` builds with Microsoft's STL for
 the MSVC targets and with the SDK's `libc++.1.dylib` for the macOS ones,
 and runs on their machines; the cross jobs check that the other targets

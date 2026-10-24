@@ -15,7 +15,8 @@
 ///       program's PDB, checked here, and a macOS program with its dSYM in
 ///       <dir>, which on-target.ts checks there; for x64 MSVC and MinGW,
 ///       //sanitizers:overflow with --features=asan, with ASan's DLL that
-///       the build put beside it, whose report on-target.ts checks; for
+///       the build put beside it, whose report on-target.ts checks (and on
+///       x64 Windows, bazel run's); for
 ///       the MSVC and macOS targets, //platform:stdlib with
 ///       --@xclang//bazel:stdlib=platform, the platform's C++ library (and
 ///       //platform:generated, whose C++ tool is built for the host), which
@@ -241,6 +242,17 @@ function collect(workspace: string, target: string, out: string, args: string[])
       for (const file of ["overflow.exe", dlls[target]!]) copyResolved(path.join(built, file), path.join(asan, file));
       programs.push({ name: `//sanitizers:overflow --features=asan, built on ${host()}`, file: "asan/overflow.exe",
         expect: "container-overflow", fails: true });
+      /// On x64 Windows, bazel run starts it there.
+      if (host() === "x86_64-w64-mingw32") {
+        const args = ["run", platform, ...options, "--features=asan", "//sanitizers:overflow"];
+        console.log(`+ bazel ${args.join(" ")}`);
+        const result = spawnSync("bazel", ["--output_user_root=C:/b", "--windows_enable_symlinks", ...args],
+          { cwd: workspace, encoding: "utf8", shell: true, maxBuffer: 1 << 28 });
+        if (result.status === 0 || !/AddressSanitizer: container-overflow/.test(`${result.stdout}${result.stderr}`)) {
+          common.fail(`bazel ${args.join(" ")}: exit ${result.status}, no container-overflow:\n${(result.stderr ?? "").slice(-2000)}`);
+        }
+        console.log(`ok: bazel run of //sanitizers:overflow --features=asan for ${target} reports the container-overflow`);
+      }
     }
   }
   /// tests/bazel's //platform:stdlib with the platform's C++ library
