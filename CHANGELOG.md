@@ -13,9 +13,11 @@ the [patches](docs/en/reference/patches.md) of its tag.
   checked and no container overflow is reported that is not there.
   ASan's runtime is a DLL, `libclang_rt.asan_dynamic.dll`, which the x64
   Windows toolchain also has in `bin/`, where a conda or pixi environment
-  finds it. CMake's `XCLANG_SANITIZER` and Bazel's `--features=asan` and
-  `ubsan` take them; in Bazel, ASan's DLL is beside every program of the
-  x64 MinGW and MSVC targets, so `bazel run` and `bazel test` start them.
+  finds it, as it has the x64 MSVC target's,
+  `clang_rt.asan_dynamic-x86_64.dll`, now. CMake's `XCLANG_SANITIZER` and
+  Bazel's `--features=asan` and `ubsan` take them; in Bazel, ASan's DLL
+  is beside every program of the x64 MinGW and MSVC targets, so `bazel
+  run` and `bazel test` start them.
   A sanitizer whose runtime the target has not (TSan for MinGW, ASan for
   arm64 MinGW and musl) stops CMake's configure and Bazel's analysis,
   saying so, rather than failing in the link
