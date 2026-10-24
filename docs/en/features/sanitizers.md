@@ -309,9 +309,12 @@ clang names their libraries itself, with `-fsanitize=`, from
   same ([Bazel](../integrations/bazel.md#use-sanitizers)).
 
 - **ASan's runtime is a DLL**, `clang_rt.asan_dynamic-x86_64.dll`, also for
-  a program with the static CRT. Copy it next to the program; Bazel puts
-  it there, as for MinGW. It loads `vcruntime140.dll`, as compiler-rt
-  builds it with the DLL CRT.
+  a program with the static CRT. A program loads it from its own
+  directory, or from `PATH`: the toolchain of the x64 Windows host has a
+  copy in `bin/` (in no release yet), as Visual Studio has it with its
+  compiler; elsewhere, copy it next to the program. Bazel puts it there,
+  as for MinGW. It loads `vcruntime140.dll`, as compiler-rt builds it with
+  the DLL CRT.
 - The hybrid CRT, `/MD` and the static CRT all work with ASan.
 - With Microsoft's STL (`-stdlib=platform`), an ASan program that uses
   the STL's containers does not link: they name the STL's
