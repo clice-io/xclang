@@ -514,8 +514,10 @@ if (!windows) {
     check(true, "--features=asan: libclang_test and resource_dir_test on @libclang pass");
   } else {
     const result = run(workspace, ["build", "--nobuild", "--features=asan", "//libclang:libclang_test"]);
-    check(result.status !== 0 && /has no ASan libclang|has no AddressSanitizer for/.test(result.stderr ?? ""),
-      "--features=asan: no ASan libclang for this host's target, and the build says so");
+    const refused = result.status !== 0 && /has no ASan libclang|has no AddressSanitizer for/.test(result.stderr ?? "");
+    /// What Bazel said instead, for a failure to be diagnosed.
+    if (!refused) process.stderr.write(`status ${result.status}\n${result.stderr ?? ""}`);
+    check(refused, "--features=asan: no ASan libclang for this host's target, and the build says so");
   }
 }
 

@@ -15,11 +15,11 @@ name: test-bazel
 # xclang command (cli.yml), which fetches the SDKs. Only programs leave
 # their jobs, never anything of an SDK, and no cache is uploaded.
 #
-#   release.yml     with a run's archives (dist-run), unpacked and named by
-#                   XCLANG_ROOT and the like, before they are released: the
-#                   module's tests, and the vendor SDKs' targets with the
-#                   archives' own command (not with libclang, whose
-#                   other targets' archives are not there yet)
+#   release.yml     with a run's archives (dist-run) before they are
+#                   released: versions.bzl made from their digests, and
+#                   the archives in Bazel's distdir (the distdir action),
+#                   so that all of it runs as for the published release;
+#                   the vendor SDKs' targets with the archives' own command
 #   checks.yml,     with a published release's archives (the latest by
 #   weekly.yml,     default), versions.bzl made from its SHA256SUMS
 #   published.yml,
@@ -88,29 +88,27 @@ jobs:
         run: |
           gh release download $RELEASE -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
           node packages/bazel/bazel.ts versions "$RUNNER_TEMP/SHA256SUMS"
-      - uses: ./.github/actions/archives
+      # A run's: the host's archives, those of bazel.ts's target of another
+      # os (its libclang), and the option tables (Linux x64's).
+      - uses: ./.github/actions/distdir
         if: inputs.dist-run
         with:
-          host: ${{ matrix.host }}
           dist-run: ${{ inputs.dist-run }}
-      - name: The archives
-        if: inputs.dist-run
-        run: |
-          env="--repo_env=XCLANG_ROOT=$XCLANG_TREE --repo_env=XCLANG_LIBCLANG_ROOT=$XCLANG_LIBCLANG"
-          [[ -n "$XCLANG_LIBCLANG_ASAN" ]] && env="$env --repo_env=XCLANG_LIBCLANG_ASAN_ROOT=$XCLANG_LIBCLANG_ASAN"
-          echo "REPO_ENV=$env" >> "$GITHUB_ENV"
+          hosts: >-
+            ${{ matrix.host }} x86_64-unknown-linux-gnu
+            ${{ fromJSON('{"x86_64-unknown-linux-gnu":"x86_64-w64-mingw32","aarch64-unknown-linux-gnu":"aarch64-w64-mingw32","x86_64-w64-mingw32":"x86_64-unknown-linux-gnu","aarch64-w64-mingw32":"aarch64-unknown-linux-gnu","aarch64-apple-darwin":"aarch64-unknown-linux-gnu","x86_64-apple-darwin":"x86_64-unknown-linux-gnu"}')[matrix.host] }}
       - name: Test
         working-directory: tests/bazel
         run: |
           # Windows: a short output root, and runfiles as symlinks.
           startup=(); [[ "$RUNNER_OS" == Windows ]] && startup=(--output_user_root=C:/b --windows_enable_symlinks)
-          bazel "${startup[@]}" test //... $REPO_ENV --disk_cache="$RUNNER_TEMP/disk"
-          bazel "${startup[@]}" test -c opt //... $REPO_ENV --disk_cache="$RUNNER_TEMP/disk"
+          bazel "${startup[@]}" test //... --disk_cache="$RUNNER_TEMP/disk"
+          bazel "${startup[@]}" test -c opt //... --disk_cache="$RUNNER_TEMP/disk"
           # A GSYM, read by the toolchain's llvm-gsymutil through bazel run.
           # (Git Bash would make //symbols a Windows path.)
           gsym="$PWD/bazel-bin/symbols/hello.gsym"; [[ "$RUNNER_OS" == Windows ]] && gsym="$(cygpath -m "$gsym")"
-          MSYS_NO_PATHCONV=1 bazel "${startup[@]}" build --strip=never //symbols:hello_symbols $REPO_ENV --disk_cache="$RUNNER_TEMP/disk"
-          MSYS_NO_PATHCONV=1 bazel "${startup[@]}" run $REPO_ENV --disk_cache="$RUNNER_TEMP/disk" @xclang//bazel:llvm-gsymutil -- "$gsym" | grep '"main"'
+          MSYS_NO_PATHCONV=1 bazel "${startup[@]}" build --strip=never //symbols:hello_symbols --disk_cache="$RUNNER_TEMP/disk"
+          MSYS_NO_PATHCONV=1 bazel "${startup[@]}" run --disk_cache="$RUNNER_TEMP/disk" @xclang//bazel:llvm-gsymutil -- "$gsym" | grep '"main"'
       # The musl targets from every host: tests/bazel's tests built, and on
       # Linux of their architecture run, as static programs. Not the
       # packages of shared libraries, debuggers and libclang (no musl build);
@@ -119,7 +117,7 @@ jobs:
         working-directory: tests/bazel
         run: |
           startup=(); [[ "$RUNNER_OS" == Windows ]] && startup=(--output_user_root=C:/b --windows_enable_symlinks)
-          external="$(bazel "${startup[@]}" info output_base $REPO_ENV)/external"
+          external="$(bazel "${startup[@]}" info output_base)/external"
           for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl; do
             if ! ls -d "$external"/*+xclang_${{ matrix.host }}/$target > /dev/null 2>&1; then
               echo "::error::the archives of ${{ matrix.host }} have no $target"
@@ -127,16 +125,13 @@ jobs:
             fi
             command=build; [[ "$RUNNER_OS" == Linux && "$target" == "$(uname -m)-unknown-linux-musl" ]] && command=test
             bazel "${startup[@]}" $command --platforms=@xclang//platforms:$target //c/... //cpp/... //modules/... //options/... \
-              $REPO_ENV --disk_cache="$RUNNER_TEMP/disk"
+              --disk_cache="$RUNNER_TEMP/disk"
           done
       # gdb, for tests/bazel/bazel.ts's debugger checks.
       - name: gdb
-        if: ${{ runner.os == 'Linux' && !inputs.dist-run }}
+        if: runner.os == 'Linux'
         run: command -v gdb || { sudo apt-get update -q && sudo apt-get install -y -q gdb; }
-      # Keys of the downloaded archives: a run's unpacked ones are not
-      # named by packages/bazel/bazel/versions.bzl.
       - name: Cache keys and inputs
-        if: ${{ !inputs.dist-run }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: node tests/bazel/bazel.ts --disk-cache "$RUNNER_TEMP/disk"
@@ -145,9 +140,9 @@ jobs:
       # with this checkout's (the archives action). Those of other targets,
       # from Linux x64 and arm64 macOS, run on a machine of the target.
       - uses: ./.github/actions/archives
-        if: ${{ !inputs.dist-run }}
         with:
           host: ${{ matrix.host }}
+          dist-run: ${{ inputs.dist-run }}
           release: ${{ inputs.release }}
       - name: Runtimes from source
         env:
@@ -170,10 +165,8 @@ jobs:
       pattern: programs-bazel-runtimes-*
 
   # Built here, run on a machine of the target by on-target.yml; the
-  # macOS targets from other hosts than macOS are sdk's. Not for a run's
-  # archives, whose libclang is the host's only.
+  # macOS targets from other hosts than macOS are sdk's.
   cross:
-    if: ${{ !inputs.dist-run }}
     name: cross (${{ matrix.host }} to ${{ matrix.target }})
     strategy:
       fail-fast: false
@@ -215,11 +208,19 @@ jobs:
           node-version: 24
       - run: npm install -g @bazel/bazelisk
       - name: Release digests
+        if: ${{ !inputs.dist-run }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release download $RELEASE -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
           node packages/bazel/bazel.ts versions "$RUNNER_TEMP/SHA256SUMS"
+      # A run's: the host's toolchain, the target's libclang, the option
+      # tables (Linux x64's).
+      - uses: ./.github/actions/distdir
+        if: inputs.dist-run
+        with:
+          dist-run: ${{ inputs.dist-run }}
+          hosts: ${{ matrix.host }} ${{ matrix.target }} x86_64-unknown-linux-gnu
       - name: Build
         run: node tests/bazel/cross.ts build "${{ matrix.target }}" "$RUNNER_TEMP/out/${{ matrix.host }}/tests"
       # The latest kotatsu of the clice registry, its tests among the rest of
@@ -293,6 +294,12 @@ jobs:
         run: |
           gh release download $RELEASE -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
           node packages/bazel/bazel.ts versions "$RUNNER_TEMP/SHA256SUMS"
+      # A run's: a macOS target's libclang, the option tables (Linux x64's).
+      - uses: ./.github/actions/distdir
+        if: inputs.dist-run
+        with:
+          dist-run: ${{ inputs.dist-run }}
+          hosts: ${{ contains(matrix.target, 'apple') && matrix.target || '' }} x86_64-unknown-linux-gnu
       - uses: ./.github/actions/archives
         with:
           host: ${{ matrix.host }}
@@ -309,15 +316,10 @@ jobs:
         run: |
           cp built/cli-${{ matrix.host }}/xclang* "$XCLANG_TREE/bin/"
           chmod +x "$XCLANG_TREE"/bin/xclang*
-      # A run's archives: without libclang, the macOS targets' of the
-      # release before. (Git Bash would make //c/... a Windows path.)
       - name: Build
-        env:
-          MSYS_NO_PATHCONV: 1
-          TARGETS: ${{ inputs.dist-run && '//c/... //cpp/... //debug/... //modules/... //options/... //shared/...' || '' }}
         run: |
           node tests/bazel/cross.ts build "${{ matrix.target }}" "$RUNNER_TEMP/out/${{ matrix.host }}/sdk" --accept-license \
-            -- "--repo_env=XCLANG_ROOT=$XCLANG_TREE" $TARGETS
+            -- "--repo_env=XCLANG_ROOT=$XCLANG_TREE"
       - uses: actions/upload-artifact@v7
         with:
           name: programs-bazel-${{ matrix.host }}-to-${{ matrix.target }}
@@ -326,13 +328,12 @@ jobs:
           retention-days: 7
 
   # What every other host built for this target, run there: <host>/tests,
-  # <host>/sdk, <host>/kotatsu, short paths for Windows; for a run's
-  # archives, sdk's only.
+  # <host>/sdk, <host>/kotatsu, short paths for Windows.
   run:
     needs: [cross, sdk]
     if: ${{ !cancelled() }}
     uses: ./.github/workflows/on-target.yml
     with:
-      targets: ${{ inputs.dist-run && '["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]' || '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]' }}
+      targets: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]'
       pattern: programs-bazel-*-to-{0}
       dir: .
