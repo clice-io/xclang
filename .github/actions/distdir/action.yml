@@ -1,0 +1,42 @@
+name: distdir
+description: >-
+  A run's archives for the Bazel module as their release will have them,
+  before it is published: packages/bazel names the release and the digests
+  of its archives (the package stage's, the lines of the draft's
+  SHA256SUMS), and Bazel's distdir (the user's .bazelrc) has the
+  dist-<host> artifacts of the hosts given, where Bazel finds an archive of
+  its digest instead of downloading it. Other releases' archives come from
+  GitHub as ever.
+
+inputs:
+  dist-run:
+    description: The run whose archives
+    required: true
+  hosts:
+    description: The hosts whose dist-<host> artifacts, separated by spaces
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: The run's archives in Bazel's distdir
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        RUN: ${{ inputs.dist-run }}
+        HOSTS: ${{ inputs.hosts }}
+      run: |
+        dir="$RUNNER_TEMP/distdir"; rc="$HOME/.bazelrc"
+        [[ "$RUNNER_OS" == Windows ]] && { dir=$(cygpath -m "$dir"); rc="$USERPROFILE/.bazelrc"; }
+        hosts=$(tr ' ' '\n' <<< "$HOSTS" | sort -u)
+        names=()
+        for h in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu x86_64-w64-mingw32 aarch64-w64-mingw32 \
+          aarch64-apple-darwin x86_64-apple-darwin; do
+          names+=(-n "digests-$h-first")
+        done
+        for h in $hosts; do names+=(-n "dist-$h"); done
+        gh run download "$RUN" -R "$GITHUB_REPOSITORY" -D "$dir" "${names[@]}"
+        cat "$dir"/digests-*-first/first.txt > "$dir/SHA256SUMS"
+        node packages/bazel/bazel.ts versions "$dir/SHA256SUMS"
+        for h in $hosts; do echo "common --distdir=$dir/dist-$h" >> "$rc"; done
+        cat "$rc"

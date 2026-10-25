@@ -25,9 +25,8 @@ here instead of naming tests.
   they build for other targets run on a machine of those targets, with no
   emulator (on-target.yml).
 - **On publishing**, published.yml tests the release on every channel: the
-  Bazel module further (`tests/bazel/bazel.ts`) with cross-built programs
-  run on their targets (22 host-to-target pairs), the CMake package from
-  the tag, the conda packages. Then examples.yml runs the commands of the
+  Bazel module with the published archives, the CMake package from the
+  tag, the conda packages. Then examples.yml runs the commands of the
   docs as written, from conda.clice.io, the archives, the `latest` branch
   and bazel.clice.io; what they build for another target runs on a runner
   of that target.
@@ -49,7 +48,7 @@ rest are called by them, by release.yml, or started by hand.
 | docs.yml | a push to `main`; pull requests run the same as checks.yml's `docs` job | | | | `tests/docs/docs.ts` and the types (`npm run check`); then publishing to docs.clice.io |
 | test-archives.yml | `tests/toolchain`, `tests/libclang`, `toolchain/config` | stage `test` | | | `tests/toolchain/smoke.ts` and `tests/libclang/libclang.ts` on a machine of each host; the programs the smoke test builds for other targets run on those (on-target.yml); with `repack-of`, `tests/release/repack.ts`: each host's archives against those of the release repacked, file by file, only the packaging's files differ; or against an earlier run of the same revision, which a rebuild must give again, every file the same |
 | test-cmake.yml | `packages/cmake`, `tests/cmake`, `tests/libclang`, `toolchain/runtimes-src.ts`, `toolchain/cmake/caches` | stage `cmake` | the tag fetched from GitHub | | `tests/cmake/cmake.ts`: the package by `PATH`, through the toolchain file, from FetchContent, and with the runtimes from source; their programs for other targets run there (on-target.yml) |
-| test-bazel.yml | `packages/bazel`, `tests/bazel`, `toolchain/runtimes-src.ts` | stage `bazel`: `tests/bazel` (with the musl targets), the runtimes from source, and the vendor SDKs' targets with the archives' `xclang` | ✓ | ✓ | `tests/bazel` with the module, `tests/bazel/bazel.ts`, the runtimes from source (`tests/bazel/runtimes.ts`), and cross builds run on the target (`tests/bazel/cross.ts`) |
+| test-bazel.yml | `packages/bazel`, `tests/bazel`, `toolchain/runtimes-src.ts` | stage `bazel`: all of it, with the archives in Bazel's distdir, and the vendor SDKs' targets with the archives' `xclang` | ✓ | ✓ | `tests/bazel` with the module, `tests/bazel/bazel.ts`, the runtimes from source (`tests/bazel/runtimes.ts`), and cross builds run on the target (`tests/bazel/cross.ts`) |
 | test-sdk.yml | `tests/sdk`, `toolchain/config`, `packages/cmake` | stage `sdk`; needs `cli`, as the archives' `xclang` fetches the SDKs | | | the MSVC targets (`tests/sdk/msvc.ts`) and the macOS targets from Linux and Windows hosts (`tests/sdk/macos.ts`); their programs on Windows and Macs |
 | cli.yml | `xclang`, `tests/cli`, `tests/sdk`, `packages/cmake` | the build, for stage `package`; stage `cli` | | ✓ | the `xclang` command: built again on another machine, in another directory with another `CARGO_HOME`, the same bytes; rustfmt, clippy, unit tests, `tests/cli/cli.ts`, `tests/cli/cargo.ts` |
 | examples.yml | `examples` | | once conda.clice.io has the release and `latest` names it | ✓ | the commands and `examples/` of the docs, as written; the programs for other targets on their runners |
@@ -227,8 +226,7 @@ merged in it.
 `tests/bazel` builds and tests with the module on every host, and builds
 its tests for both musl targets, but those of shared libraries, debuggers
 and libclang; a Linux host runs the musl tests of its architecture
-(`bazel test`). Both run in release.yml too.
-`tests/bazel/bazel.ts` then checks, with the same disk cache:
+(`bazel test`). `tests/bazel/bazel.ts` then checks, with the same disk cache:
 
 1. **No absolute paths.** A copy of the checkout elsewhere, with another
    output base, builds the programs from the disk cache alone. So do they
@@ -297,8 +295,7 @@ the same for the targets of the vendor SDKs, the module accepting their
 licenses for the build: the MSVC targets from Linux x64, macOS arm64 and
 Windows x64, the macOS targets from Linux and Windows, with the latest
 release's toolchain and this checkout's `xclang` command, which fetches
-the SDKs; in a release's run, with its archives before they are
-published, `@libclang` aside. A `-c dbg` program's PDB names its sources relative to the
+the SDKs; in a release's run, with its archives and their command. A `-c dbg` program's PDB names its sources relative to the
 execution root, and no path of the output base (checked where it was
 built: Microsoft's PDBs take part in it); a macOS one's dSYM, made in the
 link on Linux and Windows too, gives its UUIDs and main's line on the Mac.
@@ -311,6 +308,9 @@ and runs on their machines; the cross jobs check that the other targets
 refuse it, saying why. The MSVC targets refuse the runtimes from source,
 also with the platform's C++ library, and their options.
 
+release.yml runs all of it with a candidate's archives, before they are
+published: `packages/bazel` names them by the digests the `package` stage
+took, and Bazel finds them in its distdir (`.github/actions/distdir`).
 examples.yml builds `examples/bazel` from bazel.clice.io on every host, and
 for another target.
 
