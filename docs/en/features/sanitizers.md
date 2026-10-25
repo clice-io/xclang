@@ -5,8 +5,7 @@ AddressSanitizer (ASan), ThreadSanitizer (TSan), LeakSanitizer, UBSan and
 libFuzzer. Those
 targets also carry an ASan build of libc++, the *ASan libc++*, which ASan
 programs link. The Windows targets carry UBSan, and for x64 ASan with the
-ASan libc++: the MinGW targets from the release after 23.1.3.3
-([below](#mingw-targets)),
+ASan libc++: the MinGW targets since 23.1.3.4 ([below](#mingw-targets)),
 the MSVC targets with libFuzzer for x64 too ([below](#msvc-targets)). The
 musl targets carry UBSan ([below](#musl-targets)).
 
@@ -152,7 +151,7 @@ cc_binary(
 module(name = "sanitizers")
 
 bazel_dep(name = "rules_cc", version = "0.2.25")
-bazel_dep(name = "xclang", version = "23.1.2.8")
+bazel_dep(name = "xclang", version = "23.1.3.4")
 ```
 
 <!-- file: examples/sanitizers/.bazelrc -->
@@ -236,9 +235,9 @@ program is then instrumented the same way, and the reports are real.
 
 ## MinGW Targets
 
-From the release after 23.1.3.3 on (in no release yet), the MinGW
-targets carry UBSan, and x64 ASan with the ASan libc++, as compiler-rt
-has them for Windows and llvm-mingw ships them.
+Since 23.1.3.4, the MinGW targets carry UBSan, and x64 ASan with the
+ASan libc++, as compiler-rt has them for Windows and llvm-mingw ships
+them.
 clang names their libraries itself, with `-fsanitize=`, from
 `lib/clang/<major>/lib/<arch>-w64-windows-gnu`.
 
@@ -291,6 +290,16 @@ clang++ --target=aarch64-w64-mingw32 -fsanitize=undefined -O1 ubsan.cpp -o ubsan
 reports `runtime error: signed integer overflow` and prints
 `-2147483648`.
 
+With [Bazel](#bazel), on an x64 Windows host, `--features=asan` puts the
+DLL beside the program, where `bazel run` starts it:
+
+<!-- excerpt: .github/workflows/examples.yml -->
+```sh
+bazel run -c dbg --features=asan //:overflow
+```
+
+It reports the container-overflow and ends with exit code 1.
+
 ## MSVC Targets
 
 The [MSVC targets](../integrations/clang.md#msvc-targets) carry UBSan,
@@ -311,7 +320,7 @@ clang names their libraries itself, with `-fsanitize=`, from
 - **ASan's runtime is a DLL**, `clang_rt.asan_dynamic-x86_64.dll`, also for
   a program with the static CRT. A program loads it from its own
   directory, or from `PATH`: the toolchain of the x64 Windows host has a
-  copy in `bin/` (in no release yet), as Visual Studio has it with its
+  copy in `bin/` (since 23.1.3.4), as Visual Studio has it with its
   compiler; elsewhere, copy it next to the program. Bazel puts it there,
   as for MinGW. It loads `vcruntime140.dll`, as compiler-rt builds it with
   the DLL CRT.
@@ -373,5 +382,4 @@ as well, instrumented like the program.
 
 | | status |
 |---|---|
-| [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Unreleased |
 | [ASan, TSan, LSan and libFuzzer for musl targets](../design/roadmap.md#musl-sanitizers) | Considered |

@@ -114,7 +114,7 @@ if(memory IN_LIST _xclang_sanitizers)
 endif()
 # The other sanitizers the target's runtimes have, refused here rather than
 # at the first link: compiler-rt has UBSan for Windows, and for x86_64 ASan
-# (for MinGW in the releases after 23.1.3.3, which carry them); musl's
+# (for MinGW since 23.1.3.4, whose releases carry them); musl's
 # static programs have UBSan only.
 if(_xclang_target_os MATCHES "^(linux|darwin)$")
     set(_xclang_have address thread undefined leak)

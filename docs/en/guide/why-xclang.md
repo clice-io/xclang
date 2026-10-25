@@ -88,7 +88,7 @@ ASan, TSan, LSan, UBSan and libFuzzer work for the glibc Linux and macOS
 targets, and MemorySanitizer for Linux with the
 [runtimes built from source](../features/runtimes-from-source.md); UBSan
 for the musl and MSVC targets, and ASan and libFuzzer for x64 MSVC;
-UBSan, and ASan for x64, for the MinGW targets in the next release. An
+UBSan, and ASan for x64, for the MinGW targets. An
 ASan program against an uninstrumented libc++ reports container overflows
 that are not there. So xclang ships an ASan build of libc++, which ASan
 programs link. Debug information holds wherever the build ran, and the
@@ -126,7 +126,6 @@ FetchContent or the Bazel registry.
 | | status |
 |---|---|
 | [More Linux architectures, WebAssembly, Android, BSDs, bare metal](../design/roadmap.md#targets) | Considered |
-| [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Unreleased |
 | [Relative debug paths in CMake builds](../design/roadmap.md#cmake-relative-paths) | Planned |
 | [Immutable releases](../design/roadmap.md#immutable-releases) | Planned |
 | [SLSA provenance](../design/roadmap.md#slsa) | Planned |

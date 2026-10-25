@@ -86,7 +86,6 @@ other toolchains serve these:
 |---|---|---|
 | [Android, WebAssembly, bare metal, more Linux architectures](../design/roadmap.md#targets) | Considered | the NDK, wasi-sdk, zig cc, or a GCC cross toolchain |
 | [iOS and Apple's other devices](../design/roadmap.md#ios) | In research | Xcode |
-| [Sanitizers for MinGW targets](../design/roadmap.md#mingw-sanitizers) | Unreleased | |
 
 ## Known Limitations
 

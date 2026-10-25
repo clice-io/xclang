@@ -58,7 +58,7 @@ Windows unless it names one of those.
 
 | feature | default | |
 |---|---|---|
-| `asan`, `tsan`, `ubsan`, `lsan` | off | sanitizers, for the whole build (`--features=asan`); `asan` compiles and links with the ASan libc++, or with the runtimes from source instrumented by it. For the Windows targets `ubsan`, and `asan` for x64 (MinGW's from the release after 23.1.3.3), whose DLL every program then has beside it; for the musl targets `ubsan`. Others are refused |
+| `asan`, `tsan`, `ubsan`, `lsan` | off | sanitizers, for the whole build (`--features=asan`); `asan` compiles and links with the ASan libc++, or with the runtimes from source instrumented by it. For the Windows targets `ubsan`, and `asan` for x64 (MinGW's since 23.1.3.4), whose DLL every program then has beside it; for the musl targets `ubsan`. Others are refused |
 | `msan` | off | MemorySanitizer, for the whole build, with the runtimes from source (`--@xclang//runtimes:source`), which then include its runtime; Linux targets (glibc). Refused without them, and for the other targets. Since 23.1.2.11 |
 | `copy_dynamic_libraries_to_binary` | Windows targets: on | a program's DLLs beside it in `bazel-bin` and in its runfiles, ASan's among them, as Bazel's own Windows toolchains have it |
 | `cpp_modules` | off | C++20 modules: `module_interfaces` of a `cc_library`/`cc_binary`, scanned by clang-scan-deps; needs `--experimental_cpp_modules` |

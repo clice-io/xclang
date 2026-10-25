@@ -320,7 +320,6 @@ the macOS sanitizers' dylibs are.
 | [Windows 7 and XP](roadmap.md#windows-7) | In research |
 | [Windows x86 (MinGW)](roadmap.md#windows-x86-mingw) | Considered |
 | [Windows arm64ec](roadmap.md#arm64ec) | Considered |
-| [Sanitizers for MinGW targets](roadmap.md#mingw-sanitizers) | Unreleased |
 | [Runtimes from source for the MSVC targets](roadmap.md#runtimes-msvc) | Planned |
 
 A MinGW variant on msvcrt, for Windows before 10, is

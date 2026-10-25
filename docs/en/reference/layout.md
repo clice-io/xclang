@@ -24,7 +24,7 @@ xclang/
                            the SDK in use of an MSVC target, which the
                            xclang command writes; on x64 Windows hosts,
                            copies of the x64 MinGW and MSVC targets' ASan
-                           DLLs (in no release yet; Windows: ASan's DLL)
+                           DLLs (since 23.1.3.4; Windows: ASan's DLL)
   lib/clang/<major>/       clang's resource headers, compiler-rt's headers,
                            and compiler-rt for every target; for the MSVC
                            targets libc++ too
@@ -67,7 +67,7 @@ ASan build's `__config_site` (`lib/asan/include`).
 | libc++, libc++abi, libunwind | `usr/lib`; the headers in the shared `libc++/include/c++/v1` | `usr/lib`; the same | `lib`; the same | `lib` (no libunwind: the system's, in libSystem); the same |
 | libc++ module sources | `usr/share/libc++/v1` | `usr/share/libc++/v1` | `share/libc++/v1` | `share/libc++/v1` |
 | libc++ module manifest | `usr/lib/libc++.modules.json` | `usr/lib/libc++.modules.json` | `lib/libc++.modules.json` | `lib/libc++.modules.json` |
-| ASan libc++ | `usr/lib/asan` | none | x64: `lib/asan` (in no release yet) | `lib/asan` |
+| ASan libc++ | `usr/lib/asan` | none | x64: `lib/asan` (since 23.1.3.4) | `lib/asan` |
 | GCC library names | empty `libatomic.a`, `libgcc.a`, `libgcc_eh.a`, `libgcc_s.a` | the same | the same, and `libssp.a`, `libssp_nonshared.a` | none |
 
 The musl targets' directories are in every archive from 23.1.2.10 on.
