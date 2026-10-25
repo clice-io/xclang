@@ -499,8 +499,7 @@ if (!windows) {
 
 /// 11. @libclang follows --features=asan: the ASan build's libraries and
 /// resource directory where xclang has one (the tests too), and where it has
-/// none a build that says so, or that the target has no ASan at all (arm64
-/// Windows, from 23.1.3.4, whose toolchain's analysis may come first).
+/// none a build that says so.
 {
   const workspace = path.join(common.ROOT, "tests", "bazel");
   const inputs = (features: string[], target: string) =>
@@ -514,7 +513,7 @@ if (!windows) {
     check(true, "--features=asan: libclang_test and resource_dir_test on @libclang pass");
   } else {
     const result = run(workspace, ["build", "--nobuild", "--features=asan", "//libclang:libclang_test"]);
-    check(result.status !== 0 && /has no ASan libclang|has no AddressSanitizer for/.test(result.stderr ?? ""),
+    check(result.status !== 0 && /has no ASan libclang/.test(result.stderr ?? ""),
       "--features=asan: no ASan libclang for this host's target, and the build says so");
   }
 }
