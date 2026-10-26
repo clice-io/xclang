@@ -266,6 +266,10 @@ and libclang; a Linux host runs the musl tests of its architecture
     `-c opt -g` in the sandbox and their tests pass; without
     `modules_embed_all_files`, an importer cannot open the source of the
     module it imports.
+14. **macOS links without the Objective-C runtime**: a program and a dylib
+    load neither Foundation nor libobjc (`llvm-otool -L`), and both do
+    with `macos_default_link_flags`. `tests/bazel/cross.ts` checks the
+    same of both built for macOS on the other hosts.
 
 `tests/bazel/runtimes.ts`, after them, builds `tests/bazel/runtimes` with the
 runtimes from source (`--@xclang//runtimes:source`), with a toolchain that

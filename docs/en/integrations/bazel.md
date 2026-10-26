@@ -190,7 +190,14 @@ there. Their features:
 The macOS targets' deployment target is `--macos_minimum_os`, but never
 below 13.0, the oldest macOS xclang's libc++ runs on: Bazel's default is
 the SDK's version on macOS hosts, 11.0 elsewhere. Their dSYMs are made on
-every host.
+every host. A macOS program or library links only the frameworks that it
+and its dependencies name: not Foundation and libobjc, which rules_cc's
+own toolchains link into every one (`-fobjc-link-runtime`), loading the
+Objective-C runtime into it. A library that uses CoreFoundation names it,
+as abseil's time zone code does
+(`linkopts = ["-Wl,-framework,CoreFoundation"]`); for a dependency that
+does not, the `macos_default_link_flags` feature links Foundation and
+libobjc into every program again.
 
 A Windows platform is MinGW's unless it has the C library constraint
 `@xclang//platforms/libc:msvc`, as `@xclang//platforms:x86_64-pc-windows-msvc`

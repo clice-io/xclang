@@ -45,6 +45,8 @@
 ///     a macOS host.
 /// 13. Module interfaces embed their sources: importers build at -c opt -g
 ///     in the sandbox (modules_embed_all_files), on Linux and macOS.
+/// 14. A macOS program and dylib load neither Foundation nor libobjc, on a
+///     macOS host (and built elsewhere, tests/bazel/cross.ts).
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -556,6 +558,28 @@ if (!windows) {
   const unopened = off.status !== 0 && /cannot open file/.test(off.stderr);
   check(on.status === 0 && unopened, `modules_embed_all_files: //modules:all at -c opt -g ${on.status === 0 ? "builds in the sandbox and passes" : "fails"}` +
     `${unopened ? ", and without it cannot open a module's source" : ", and builds without it too"}`);
+}
+
+/// 14. macOS links without the Objective-C runtime: //cpp:hello and
+/// //shared:plugin load neither Foundation nor libobjc; with
+/// --features=macos_default_link_flags, rules_cc's -fobjc-link-runtime,
+/// both do.
+if (host.includes("apple")) {
+  const workspace = path.join(common.ROOT, "tests", "bazel");
+  const otool = path.join(toolchainDir(workspace), "bin", "llvm-otool");
+  /// The outputs that load Foundation or libobjc, of the two built with features.
+  const runtime = (features: string[]) => {
+    const targets = ["//cpp:hello", "//shared:plugin"];
+    bazel(workspace, ["build", ...features, ...targets]);
+    const files = run(workspace, ["cquery", ...features, "--output=files", targets.join(" + ")]).stdout.trim().split("\n");
+    if (files.length !== 2) common.fail(`cquery of ${targets.join(" ")}: ${files.join(", ")}`);
+    return files.filter((f) => /Foundation\.framework|libobjc/.test(spawnSync(otool, ["-L", path.join(workspace, f)], { encoding: "utf8" }).stdout ?? ""));
+  };
+  const off = runtime([]);
+  const on = runtime(["--features=macos_default_link_flags"]);
+  check(off.length === 0 && on.length === 2,
+    `macOS links: ${off.length ? `${off.join(" and ")} load Foundation or libobjc` : "hello and libplugin.dylib load neither Foundation nor libobjc"}, ` +
+    `${on.length === 2 ? "and both do" : "and not both do"} with macos_default_link_flags`);
 }
 
 if (process.env.GITHUB_STEP_SUMMARY) {

@@ -68,6 +68,7 @@ Windows unless it names one of those.
 | `supports_dynamic_linker` | off | Bazel's dynamic linking of libraries into tests and programs, for the Linux targets; off, they link statically, as they do for the others always |
 | `release_strip` | on | what `<name>.stripped` does: `--strip-unneeded` for ELF and COFF, `--strip-all` for Mach-O ([strip](../features/debugging.md#strip)) |
 | `modules_embed_all_files` | on | a C++20 module interface's file embeds its sources (`-Xclang -fmodules-embed-all-files`): an importer that reads them (with `-g`) has them in the sandbox |
+| `macos_default_link_flags` | off | rules_cc's: `-fobjc-link-runtime` in every link of a macOS target, which links Foundation and libobjc into each program and library; off, a target links the frameworks it names ([macOS links](../integrations/bazel.md#vendor-sdks)). On before 23.1.3.5 |
 | `no_exported_symbols` | macOS targets: on in `opt` | the program exports nothing (`-Wl,-no_exported_symbols`), so that its strip leaves no symbol to name a crash log's frames ([strip](../features/debugging.md#strip)); off for a program whose plugins bind to its symbols |
 | `generate_pdb_file` | MSVC targets: on in `dbg` | the link writes `<name>.pdb` (output group `pdb_file`), with paths relative to the execution root |
 | `dynamic_link_msvcrt` | off | MSVC targets: the VC runtime's DLLs (`/MD`) in place of the hybrid CRT |
