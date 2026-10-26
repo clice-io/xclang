@@ -8,6 +8,10 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+## [23.1.3.5](https://github.com/clice-io/xclang/releases/tag/23.1.3.5) — 2026-10-26
+
+The compiler and runtimes are 23.1.3.4's.
+
 - **Bazel: macOS programs and libraries link no Objective-C runtime**
   unless they use it. rules_cc's `-fobjc-link-runtime` linked Foundation
   and libobjc into every one, and so loaded the runtime, with its checks
