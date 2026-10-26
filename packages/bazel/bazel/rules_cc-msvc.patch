@@ -186,7 +186,7 @@
                  )],
              ),
          ],
-@@ -2029,8 +2145,9 @@
+@@ -2033,8 +2149,9 @@
                  extension = _cpp_module_extension(ctx.attr.compiler),
              ),
          ]
@@ -198,7 +198,7 @@
              # executables and DLLs it links need their Windows names; static
              # libraries keep the GNU lib<name>.a naming MinGW uses as well.
              artifact_name_patterns.extend([
-@@ -2186,6 +2303,9 @@
+@@ -2190,6 +2307,9 @@
      if symbol_check:
          features.append(symbol_check)
  

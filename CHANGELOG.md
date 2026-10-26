@@ -8,6 +8,14 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+- **Bazel: macOS programs and libraries link no Objective-C runtime**
+  unless they use it. rules_cc's `-fobjc-link-runtime` linked Foundation
+  and libobjc into every one, and so loaded the runtime, with its checks
+  of `fork`, into a program or a preloaded library that has no
+  Objective-C. A library that uses CoreFoundation names it, as abseil's
+  time zone code does; the `macos_default_link_flags` feature turns the
+  flag back on ([Bazel](docs/en/integrations/bazel.md#vendor-sdks)).
+
 ## [23.1.3.4](https://github.com/clice-io/xclang/releases/tag/23.1.3.4) — 2026-10-24
 
 Built by 23.1.2.12.

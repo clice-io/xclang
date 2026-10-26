@@ -207,7 +207,20 @@
      )
  
      # If you have Xcode + the CLT installed the version defaults can be
-@@ -1989,6 +2086,7 @@
+@@ -1826,7 +1923,11 @@
+     # which breaks abseil.
+     macos_default_link_flags_feature = feature(
+         name = "macos_default_link_flags",
+-        enabled = True,
++        # Known but off: its -fobjc-link-runtime links Foundation and libobjc
++        # into every program and library, which loads the Objective-C runtime
++        # into each. A target links the frameworks it names (abseil names
++        # CoreFoundation), and link_flags have -no-canonical-prefixes.
++        enabled = False,
+         flag_sets = [
+             flag_set(
+                 actions = all_link_actions,
+@@ -1989,6 +2090,7 @@
              lsan_feature,
              tsan_feature,
              ubsan_feature,
@@ -215,7 +228,7 @@
              gcc_quoting_for_param_files_feature,
              static_link_cpp_runtimes_feature,
          ] + (
-@@ -2044,6 +2142,7 @@
+@@ -2044,6 +2146,7 @@
              lsan_feature,
              tsan_feature,
              ubsan_feature,
@@ -223,7 +236,7 @@
              gcc_quoting_for_param_files_feature,
              static_link_cpp_runtimes_feature,
          ] + (
-@@ -2056,6 +2155,10 @@
+@@ -2056,6 +2159,10 @@
              default_link_flags_feature,
              user_link_flags_feature,
              default_link_libs_feature,
@@ -234,7 +247,7 @@
              includes_feature,
              include_paths_feature,
              external_include_paths_feature,
-@@ -2096,7 +2199,7 @@
+@@ -2096,7 +2203,7 @@
          features = features,
          action_configs = action_configs,
          artifact_name_patterns = artifact_name_patterns,
@@ -243,7 +256,7 @@
          toolchain_identifier = ctx.attr.toolchain_identifier,
          host_system_name = ctx.attr.host_system_name,
          target_system_name = ctx.attr.target_system_name,
-@@ -2152,6 +2255,24 @@
+@@ -2152,6 +2259,24 @@
          "opt_compile_flags": attr.string_list(),
          "opt_link_flags": attr.string_list(),
          "supports_start_end_lib": attr.bool(),

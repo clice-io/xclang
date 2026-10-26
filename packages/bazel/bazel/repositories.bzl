@@ -289,7 +289,9 @@ xclang's patches: Windows names for MinGW's executables and DLLs
 (rules_cc-mingw.patch), the MSVC targets' flags for lld-link, their PDB and
 their C runtimes, and no rpath for any Windows target (rules_cc-msvc.patch),
 and xclang's defaults (rules_cc-xclang.patch): static
-linking unless a target asks for the supports_dynamic_linker feature, other
+linking unless a target asks for the supports_dynamic_linker feature, macOS
+links without Foundation and libobjc unless one asks for
+macos_default_link_flags (-fobjc-link-runtime), other
 repositories' headers as system headers (external_include_paths), the
 sanitizer features' link flags (sanitizer_link_flags), a program of the
 links' own (link_tool), on macOS the libraries' defines in C++20 module

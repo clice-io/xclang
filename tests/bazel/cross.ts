@@ -10,7 +10,9 @@
 ///       test, from the workspace's directory of its runfiles. With
 ///       --accept-license, the workspace's module accepts the vendors'
 ///       licenses for the build, and the vendor SDKs are fetched: the MSVC
-///       targets', and the macOS targets' off macOS. For tests/bazel, the
+///       targets', and the macOS targets' off macOS. For tests/bazel, for
+///       the macOS targets, that //cpp:hello and //shared:plugin load
+///       neither Foundation nor libobjc; the
 ///       debug information of //debug:debugged built with -c dbg: an MSVC
 ///       program's PDB, checked here, and a macOS program with its dSYM in
 ///       <dir>, which on-target.ts checks there; for x64 MSVC and MinGW,
@@ -169,6 +171,20 @@ function collect(workspace: string, target: string, out: string, args: string[])
     args: t.args,
     env: t.env,
   }));
+
+  /// tests/bazel's plain C++ program and shared library, for a macOS
+  /// target: they load neither Foundation nor libobjc, which rules_cc's
+  /// -fobjc-link-runtime (macos_default_link_flags, off) links into every
+  /// program.
+  if (target.endsWith("-apple-darwin") && fs.existsSync(path.join(workspace, "shared", "BUILD.bazel"))) {
+    for (const file of ["cpp/hello", "shared/libplugin.dylib"]) {
+      const libs = capture(tool("llvm-otool"), ["-L", path.join(bin, file)]);
+      if (!libs.includes("/usr/lib/libSystem.B.dylib") || /Foundation\.framework|libobjc/.test(libs)) {
+        common.fail(`${file} for ${target} loads Foundation or libobjc, or llvm-otool -L failed:\n${libs}`);
+      }
+    }
+    console.log(`ok: //cpp:hello and //shared:plugin for ${target} load neither Foundation nor libobjc`);
+  }
 
   /// tests/bazel's //debug:debugged with -c dbg, for the targets whose
   /// debug information is not in the program: its paths relative to the
