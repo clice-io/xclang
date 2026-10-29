@@ -37,6 +37,18 @@ cc_test(
     ],
 )
 
+# clang's lookup of Visual Studio (LLVMWindowsDriver), which on the MinGW
+# targets needs a Windows library its link interface does not name.
+cc_test(
+    name = "windows_driver_test",
+    srcs = ["windows_driver.cpp"],
+    copts = ["-fno-rtti"],
+    deps = [
+        "@libclang//:LLVMSupport",
+        "@libclang//:LLVMWindowsDriver",
+    ],
+)
+
 # The ASan build with assertions, published for Linux x64 and macOS arm64.
 cc_test(
     name = "libclang_asan_test",
