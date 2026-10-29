@@ -8,6 +8,15 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+- **Bazel: `@libclang` for the MinGW targets links `oleaut32` again**,
+  which `LLVMWindowsDriver`, the lookup of Visual Studio by clang's
+  driver, needs: since 23.1.2.10, a program on it failed to link with
+  `undefined symbol: __declspec(dllimport) SysFreeString`. LLVM's build
+  relies on the Windows libraries that CMake links into every program,
+  which its CMake export leaves out; `@libclang`'s libraries now link them
+  too, as a CMake consumer's link does
+  ([libclang](docs/en/features/libclang.md#bazel)).
+
 ## [23.1.3.5](https://github.com/clice-io/xclang/releases/tag/23.1.3.5) — 2026-10-26
 
 The compiler and runtimes are 23.1.3.4's.

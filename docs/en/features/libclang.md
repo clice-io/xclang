@@ -101,7 +101,9 @@ cmake --build build
 
 `@libclang` is the libclang of the target platform. Each library comes with
 the link interface that the CMake packages of LLVM and clang give it:
-system libraries, zlib and zstd. A Bazel target names only what it uses:
+system libraries, zlib and zstd. For the MinGW targets, it also brings the
+Windows libraries that CMake links into every program and LLVM relies on
+(`oleaut32` for `LLVMWindowsDriver`). A Bazel target names only what it uses:
 
 <!-- excerpt: examples/libclang/BUILD.bazel -->
 ```python

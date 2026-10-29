@@ -201,6 +201,13 @@ _OTHERS = [
     "AllTargetsDisassemblers",
 ]
 
+# What CMake links into every Windows program (CMAKE_CXX_STANDARD_LIBRARIES
+# of its GNU toolchains), which LLVM's build relies on and its export leaves
+# out: LLVMWindowsDriver's lookup of Visual Studio calls oleaut32
+# (patches/0004). A CMake consumer of the archive gets them from CMake;
+# @libclang links them for the MinGW targets.
+_WINDOWS_LIBRARIES = ["kernel32", "user32", "gdi32", "winspool", "shell32", "ole32", "oleaut32", "uuid", "comdlg32", "advapi32"]
+
 def _unquote(value):
     value = value.strip()
     if value.startswith('"') and value.endswith('"'):
@@ -246,6 +253,7 @@ def libclang_build(rctx):
 
     # zlib is in the archive, or the system's (macOS).
     zlib = rctx.path("lib/libz.a").exists
+    windows = TARGETS[rctx.attr.target].libc == "mingw"
     rules = []
     for target, props in sorted(targets.items()):
         if props.get("TYPE") not in ("STATIC", "INTERFACE"):
@@ -253,7 +261,7 @@ def libclang_build(rctx):
         locations = [v for k, v in props.items() if k.startswith("IMPORTED_LOCATION")]
         if props["TYPE"] == "STATIC" and len(locations) != 1:
             fail("%s has the locations %s" % (target, locations))
-        deps = [":headers"]
+        deps = [":headers"] + ([":windows_libraries"] if windows else [])
         linkopts = []
         for item in props.get("INTERFACE_LINK_LIBRARIES", "").split(";"):
             # A link-only dependency, escaped in the quoted list.
@@ -327,6 +335,13 @@ cc_library(
     deps = [":headers"],
 )
 """)
+    if windows:
+        rules.append("""\
+cc_library(
+    name = "windows_libraries",
+    linkopts = {linkopts},
+)
+""".format(linkopts = json.encode(["-l" + lib for lib in _WINDOWS_LIBRARIES])))
 
     return """\
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
