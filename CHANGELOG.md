@@ -8,6 +8,13 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+- **The macOS SDK of `macos-latest` fetches again.** Apple withdrew the
+  Command Line Tools package that the version table pinned for SDK 26.5
+  and 27.0, and its CDN answers 403 for it, at first only where an edge no
+  longer keeps a copy. The table has the package Apple put in its place,
+  and SDK 27.2 for 27; Xcode 27's preset, whose SDK 27.0 Apple no longer
+  serves, is gone ([vendor SDKs](docs/en/design/vendor-sdks.md)).
+
 ## [23.1.3.6](https://github.com/clice-io/xclang/releases/tag/23.1.3.6) — 2026-10-29
 
 The compiler and runtimes are 23.1.3.4's.

@@ -1856,20 +1856,20 @@
  "macos": {
   "packages": [
    {
-    "sdk": "27.0",
-    "product": "082-83364",
-    "posted": "2026-09-09",
-    "url": "https://swcdn.apple.com/content/downloads/58/48/082-83364-A_KCEBOO2NJS/0d2rj4y5ucjlkgcvqt6f6a4pergug5tu2b/CLTools_macOSNMOS_SDK.pkg",
-    "size": 70553676,
-    "sha256": "d55351824fd17742fd6e1e7a252fa1028698f32147ee48be9a6b75442bf30575"
+    "sdk": "27.2",
+    "product": "142-50405",
+    "posted": "2026-10-29",
+    "url": "https://swcdn.apple.com/content/downloads/53/49/142-50405-A_WOBLDDXP4W/wk3d2yw94ir1jieuddcu9b9tffxrb09bq8/CLTools_macOSNMOS_SDK.pkg",
+    "size": 71479724,
+    "sha256": "1eb5196e069ad6e0abde1d750d967b7ea58f5b97f179dbf07aee2d00ca6c813e"
    },
    {
     "sdk": "26.5",
-    "product": "082-83364",
-    "posted": "2026-09-09",
-    "url": "https://swcdn.apple.com/content/downloads/58/48/082-83364-A_KCEBOO2NJS/0d2rj4y5ucjlkgcvqt6f6a4pergug5tu2b/CLTools_macOSLMOS_SDK.pkg",
+    "product": "142-50405",
+    "posted": "2026-10-29",
+    "url": "https://swcdn.apple.com/content/downloads/53/49/142-50405-A_WOBLDDXP4W/wk3d2yw94ir1jieuddcu9b9tffxrb09bq8/CLTools_macOSLMOS_SDK.pkg",
     "size": 61624678,
-    "sha256": "e4e017a68641660767f2512185a027fab7dfcce2387cbbfcdffdd4558da3d576"
+    "sha256": "bc5740627396f791c6cb85556598d48f9d6b3d25f1cec0aa6927fd34881e7c6f"
    },
    {
     "sdk": "15.4",
@@ -2090,18 +2090,6 @@
   ]
  },
  "presets": {
-  "xcode-27": {
-   "image": "xcode-27",
-   "labels": [
-    "xcode-27",
-    "xcode-27-xlarge"
-   ],
-   "readme": "https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md",
-   "image-version": "20260928.0222.1",
-   "xcode": "27.0",
-   "sdk": "27.0",
-   "read": "2026-10-04"
-  },
   "macOS-26": {
    "image": "macOS-26",
    "labels": [
@@ -2123,10 +2111,10 @@
     "macos-26-xlarge"
    ],
    "readme": "https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md",
-   "image-version": "20260907.0351.1",
+   "image-version": "20261026.0455.2",
    "xcode": "26.6",
    "sdk": "26.5",
-   "read": "2026-10-04"
+   "read": "2026-11-02"
   },
   "macOS-15": {
    "image": "macOS-15",
@@ -2147,10 +2135,10 @@
     "macos-15-xlarge"
    ],
    "readme": "https://github.com/actions/runner-images/blob/main/images/macos/macos-15-arm64-Readme.md",
-   "image-version": "20260907.0337.1",
+   "image-version": "20261028.0489.1",
    "xcode": "16.4",
    "sdk": "15.5",
-   "read": "2026-10-04"
+   "read": "2026-11-02"
   },
   "windows-2025-vs2026": {
    "image": "windows-2025-vs2026",

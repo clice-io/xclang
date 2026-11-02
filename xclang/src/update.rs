@@ -2,11 +2,12 @@
 //! version the vendors offer now to the version table, and the presets of
 //! GitHub's runner images.
 //!
-//! What is in the table never changes; a run only appends what is new. Only
-//! the presets, which follow the images, are made anew. The sha256s Visual
-//! Studio's manifests list are taken from them; the others are computed by
-//! downloading the packages (nuget.org gives SHA-512 only), some 15 GB the
-//! first time.
+//! What is in the table never changes; a run only adds what is new, and
+//! drops the Apple packages that no catalog lists any more (Apple withdrew
+//! them, and its CDN no longer serves them). Only the presets, which follow
+//! the images, are made anew. The sha256s Visual Studio's manifests list
+//! are taken from them; the others are computed by downloading the
+//! packages (nuget.org gives SHA-512 only), some 15 GB the first time.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::File;
@@ -373,8 +374,10 @@ fn update_macos(table: &mut Table, jobs: usize) -> Result<()> {
     // An SDK package, not the empty ones that remove an old SDK.
     let sdk_package = re(r"/CLTools_[^/]*SDK[^/]*\.pkg$");
     let known: HashSet<String> = table.macos.packages.iter().map(|p| p.url.clone()).collect();
-    // url -> (posted, product), in the order the catalogs list them.
+    // url -> (posted, product), in the order the catalogs list them; and
+    // every SDK package they list, None when a catalog could not be read.
     let mut found: Vec<(String, (String, String))> = vec![];
+    let mut listed = Some(HashSet::new());
     let catalogs = CATALOG_HEADS
         .iter()
         .map(|h| {
@@ -386,6 +389,7 @@ fn update_macos(table: &mut Table, jobs: usize) -> Result<()> {
             Ok((data, _)) => data,
             Err(e) => {
                 eprintln!("{e}");
+                listed = None;
                 continue;
             }
         };
@@ -415,11 +419,13 @@ fn update_macos(table: &mut Table, jobs: usize) -> Result<()> {
                     Some(rest) => format!("https:{rest}"),
                     None => u.clone(),
                 };
-                if sdk_package.is_match(&u)
-                    && *size > 1 << 20
-                    && !known.contains(&u)
-                    && !found.iter().any(|f| f.0 == u)
-                {
+                if !sdk_package.is_match(&u) || *size <= 1 << 20 {
+                    continue;
+                }
+                if let Some(listed) = &mut listed {
+                    listed.insert(u.clone());
+                }
+                if !known.contains(&u) && !found.iter().any(|f| f.0 == u) {
                     found.push((u, (posted.clone(), pid.clone())));
                 }
             }
@@ -437,35 +443,62 @@ fn update_macos(table: &mut Table, jobs: usize) -> Result<()> {
     let _ = std::fs::remove_dir_all(&tmp);
     let examined = examined?;
     let mut order: Vec<usize> = (0..found.len()).collect();
-    // Newest first (stable: as the catalogs list them on a tie): the first
-    // package of a version is the one fetch takes.
+    // Newest first (stable: as the catalogs list them on a tie).
     order.sort_by(|&a, &b| found[b].1.cmp(&found[a].1));
-    let mut shas: HashSet<String> = table
-        .macos
-        .packages
-        .iter()
-        .map(|p| p.sha256.clone())
-        .collect();
-    for i in order {
+    let new = order.into_iter().map(|i| {
         let (url, (posted, pid)) = &found[i];
         let (size, sha, version) = &examined[i];
-        if !shas.insert(sha.clone()) {
-            continue;
-        }
-        table.macos.packages.push(MacPackage {
+        MacPackage {
             sdk: version.clone(),
             product: pid.clone(),
             posted: posted.chars().take(10).collect(),
             url: url.clone(),
             size: *size,
             sha256: sha.clone(),
-        });
-        eprintln!(
-            "  + macOS SDK {version} ({pid}, {})",
-            url.rsplit('/').next().unwrap_or(url)
-        );
+        }
+    });
+    if listed.is_none() {
+        eprintln!("a catalog was not read: no package leaves the table");
     }
+    merge_macos(&mut table.macos.packages, listed.as_ref(), new);
     Ok(())
+}
+
+/// The table's packages without those no catalog lists (Apple withdraws a
+/// product now and then, a newer one in its place, and its CDN then answers
+/// 403 for its packages once an edge no longer keeps them), with the new
+/// ones whose sha256 it lacks, newest first: the first package of a version
+/// is the one fetch takes.
+fn merge_macos(
+    packages: &mut Vec<MacPackage>,
+    listed: Option<&HashSet<String>>,
+    new: impl IntoIterator<Item = MacPackage>,
+) {
+    let name = |p: &MacPackage| {
+        format!(
+            "macOS SDK {} ({}, {})",
+            p.sdk,
+            p.product,
+            p.url.rsplit('/').next().unwrap_or(&p.url)
+        )
+    };
+    if let Some(listed) = listed {
+        packages.retain(|p| {
+            let keep = listed.contains(&p.url);
+            if !keep {
+                eprintln!("  - {}: in no catalog now", name(p));
+            }
+            keep
+        });
+    }
+    let mut shas: HashSet<String> = packages.iter().map(|p| p.sha256.clone()).collect();
+    for p in new {
+        if shas.insert(p.sha256.clone()) {
+            eprintln!("  + {}", name(&p));
+            packages.push(p);
+        }
+    }
+    packages.sort_by(|a, b| b.posted.cmp(&a.posted));
 }
 
 /// Presets: what GitHub's Windows and macOS runner images (not deprecated
@@ -710,5 +743,38 @@ mod tests {
     #[test]
     fn dates() {
         assert_eq!(today().len(), 10);
+    }
+
+    #[test]
+    fn withdrawn_packages() {
+        let p = |sdk: &str, product: &str, posted: &str, url: &str, sha: &str| MacPackage {
+            sdk: sdk.into(),
+            product: product.into(),
+            posted: posted.into(),
+            url: url.into(),
+            size: 1,
+            sha256: sha.into(),
+        };
+        let table = vec![
+            p("27.0", "082-83364", "2026-09-09", "a/NMOS", "1"),
+            p("26.5", "082-83364", "2026-09-09", "a/LMOS", "2"),
+            p("26.5", "140-17812", "2026-06-26", "b/NMOS", "3"),
+        ];
+        // Apple put 142-50405 in 082-83364's place, the same LMOS again.
+        let new = vec![
+            p("27.1", "142-50405", "2026-10-29", "c/NMOS", "4"),
+            p("26.5", "142-50405", "2026-10-29", "c/LMOS", "2"),
+        ];
+        let urls = |packages: &[MacPackage]| -> Vec<String> {
+            packages.iter().map(|p| p.url.clone()).collect()
+        };
+        let listed: HashSet<String> = ["b/NMOS", "c/NMOS", "c/LMOS"].map(String::from).into();
+        let mut packages = table.clone();
+        merge_macos(&mut packages, Some(&listed), new.clone());
+        assert_eq!(urls(&packages), ["c/NMOS", "c/LMOS", "b/NMOS"]);
+        // A catalog not read: nothing leaves, nothing comes twice.
+        let mut packages = table.clone();
+        merge_macos(&mut packages, None, new);
+        assert_eq!(urls(&packages), ["c/NMOS", "a/NMOS", "a/LMOS", "b/NMOS"]);
     }
 }
