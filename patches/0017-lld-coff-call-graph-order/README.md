@@ -21,7 +21,8 @@ by section, not by name.
 The patch gives a name the lowest order of its sections, whatever the
 order of the walk.
 
-- Upstream: not reported.
+- Upstream: [#236426](https://github.com/llvm/llvm-project/issues/236426)
+  (the report, open).
 - Checked: applies to 23.1.2 with `patch -F0`; the patched Writer.cpp
   compiles against 23.1.2's headers. 24 objects, each with a `static hot`
   that its `f<i>` calls (`.cg_profile`), linked 12 times by LLD 22.1.5 or
