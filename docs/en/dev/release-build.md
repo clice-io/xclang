@@ -201,7 +201,8 @@ lines.
 
 **The version table** is made by `xclang sdk update-table`, built with the
 `maintainer` feature, which the shipped program does not have. It appends
-what the vendors offer now, and reads the presets anew:
+what the vendors offer now, drops the Apple packages that no catalog lists
+any more, and reads the presets anew:
 
 ```sh
 cd xclang && cargo run --release --features maintainer -- sdk update-table --table sdk-versions.json

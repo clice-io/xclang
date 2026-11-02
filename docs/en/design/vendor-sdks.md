@@ -44,6 +44,16 @@ that means:
   lists every version the vendors offer, with sizes and sha256. Its
   presets match GitHub's runner images (`macos-latest`, `windows-2022`,
   ...), so a cross build gets what a workflow on that image gets.
+- **Apple's downloads are no archive**, a known limit. Its software update
+  catalogs offer the Command Line Tools current for each macOS, and Apple
+  withdraws a release now and then, a new one in its place. Its CDN then
+  answers 403 for the withdrawn packages, once the edge a machine reaches
+  no longer keeps a copy, and the table drops them on its next update. So
+  an xclang release fetches a macOS SDK only as long as Apple serves its
+  package. The sha256 ensures a fetch gets that package or none; to build
+  with it again later, keep the package: in Bazel's repository cache or a
+  `--distdir`, or in the `--cache` directory of `xclang sdk fetch`
+  ([CI](../integrations/ci.md#get-the-toolchain)).
 
 ## Apple's SDK without Xcode
 

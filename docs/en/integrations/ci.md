@@ -51,6 +51,12 @@ which the newest release's `SHA256SUMS` names:
 **Bazel.** The module downloads the toolchain into the repository cache of
 Bazel. Keep `--repository_cache` with the disk cache (below).
 
+**Vendor SDKs.** Bazel keeps their packages in the repository cache too;
+`xclang sdk fetch` keeps them in its `--cache` directory, which a cache
+entry can hold. Apple stops serving a macOS SDK package now and then
+([vendor SDKs](../design/vendor-sdks.md#why-fetch-not-ship)), and a kept
+package still builds.
+
 ## Keep Caches between Runs
 
 With xclang, the caches of a build are correct to share. In Bazel, every
