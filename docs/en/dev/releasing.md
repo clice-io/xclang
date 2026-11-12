@@ -10,8 +10,12 @@ this page is the same process, for people. What the pipeline does is in the
 
 - **Nothing published is replaced.** A rebuild, even of the same commit, is
   the next revision; the `release` stage refuses a version that exists.
-- **Builds run on CI**, on GitHub-hosted runners, from a branch
-  `exp/<version>`, not from `main`.
+- **A release is built from `main`, and its tag lands on `main`.** `main`
+  is the develop branch, the tag the release. The release's CHANGELOG
+  reaches `main` by a pull request, as every change does; its build runs
+  on CI, on GitHub-hosted runners, from the branch `release/<version>`
+  made at that commit; the branch's pull request, merged into `main` as a
+  merge commit, publishes the release.
 - **A pending release is not mixed with pipeline changes**: the release
   goes out with the pipeline that has been tested.
 
@@ -42,7 +46,7 @@ bootstrap moves, a second full build, by hand, checks the rest before the
 release is published:
 
 ```sh
-gh workflow run release.yml -R clice-io/xclang --ref exp/<version> \
+gh workflow run release.yml -R clice-io/xclang --ref release/<version> \
   -f stages=runtimes,toolchain,asan,package,test \
   -f profile-run=<full run> -f repack-of=<full run> -f revision=<n>
 ```
@@ -58,23 +62,26 @@ first run's; what differs is a bug, listed with the rebuilds checked.
    that builds this one (`bootstrap-linux`, `bootstrap-macos`, with their
    sha256 from that release's `SHA256SUMS`). Move it to the previous
    release when that one has what the build needs.
-2. **CHANGELOG.md**, on the release's branch `exp/<version>`: Unreleased
-   becomes the release's section, with what built it ("Built by
-   `<bootstrap>`.", or for a repack "The compiler and runtimes are
-   `<previous>`'s."), and a new empty Unreleased. The tag then has it, and
-   nothing has to follow on `main`: the docs, the READMEs and `examples/`
+2. **CHANGELOG.md**, by a pull request to `main` once everything else the
+   release takes is there: Unreleased becomes the release's section, with
+   what built it ("Built by `<bootstrap>`.", or for a repack "The compiler
+   and runtimes are `<previous>`'s."), and a new empty Unreleased. Nothing
+   else names a release by hand: the docs, the READMEs and `examples/`
    name no release but the oldest the Bazel module takes, and reach the
-   newest by themselves.
+   newest by themselves. The pull request's commit on `main` is the one
+   the release is built from: the branch `release/<version>` is made
+   there, and every run of the release runs on it, so that a run again
+   stays on that commit however `main` moves.
 3. **Full run with a draft**, about three hours:
    ```sh
-   gh workflow run release.yml -R clice-io/xclang --ref exp/<version> \
+   gh workflow run release.yml -R clice-io/xclang --ref release/<version> \
      -f stages=runtimes,instrumented,train,toolchain,asan,package,test,bazel,cmake,sdk,cli,release \
      -f revision=<n>
    ```
    A failed stage is run again with `reuse-run` and only the stages still
    to do. A repack, in about half an hour:
    ```sh
-   gh workflow run release.yml -R clice-io/xclang --ref exp/<version> \
+   gh workflow run release.yml -R clice-io/xclang --ref release/<version> \
      -f stages=package,test,bazel,cmake,sdk,cli,release \
      -f reuse-run=<full run> -f profile-run=<full run> \
      -f repack-of=<previous version> -f revision=<n>
@@ -88,30 +95,30 @@ first run's; what differs is a bug, listed with the rebuilds checked.
    [reproducible rebuilds](#reproducible-rebuilds) runs next to it.
 4. **Check the draft**: 17 assets, every job of the run green, sizes
    against the previous release. Its commit is `bazel: the module
-   of <version>`, which the `release` stage commits on the run's, with its
-   times, and pushes to the branch: `packages/bazel/bazel/versions.bzl`
-   and `MODULE.bazel` name the release and its digests, so its tag, and
-   `main` after it, download its archives through `git_override`. The
-   commit also merges the `latest` branch, keeping its own files: `main`
-   takes the release's branch squashed, and without the merge the tag
-   would not descend from the one before, which `latest` must move
-   forward from. The first parent is the run's commit.
-   checks.yml fails while the module names an older release than the
-   latest. A draft that is deleted leaves that commit on the branch,
-   naming a release that does not exist: the branch goes back to its
-   first parent before another run.
+   of <version>`, which the `release` stage commits on the run's, with
+   its times, and pushes to `release/<version>`:
+   `packages/bazel/bazel/versions.bzl` and `MODULE.bazel` name the release
+   and its digests, so that its tag downloads its archives through
+   `git_override`. The stage refuses a run
+   whose commit is not in `main`'s history, or whose history lacks the
+   previous release's tag, which `latest` names and moves forward from.
+   `main` is not touched yet: a draft that is deleted leaves the commit on
+   `release/<version>` only, which goes back to its parent before another
+   run.
 5. **Notes**: what it was built by, then what changed for users, from the
    release's section of CHANGELOG.md. A repack's say that the compiler and
    runtimes are the previous release's, the same bytes.
-6. **Publish**, which creates the tag, and then merge the release's branch
-   into `main` with a pull request (squashed, as every change to `main`),
-   which brings its CHANGELOG section and the module of the release.
-   Publishing starts published.yml: the Bazel module tested with the
-   published archives and published to bazel.clice.io,
-   `tests/cmake` built from the tag as a user's FetchContent does, the
-   conda packages made, tested and published, the `latest` branch moved to
-   the tag, and examples.yml, the docs' commands against the release on
-   every host. A packaging fix of the conda packages alone is conda.yml by
-   hand, with the next build number.
+6. **Publish**: the notes on the draft, then a pull request of
+   `release/<version>` into `main`, whose diff is the module. Merged as a
+   merge commit (not squashed, as every other pull request is), it brings
+   the draft's commit into `main`'s history, and published.yml publishes
+   the draft, which tags that commit. Then it publishes the release
+   everywhere else: the Bazel module tested with the published archives
+   and published to bazel.clice.io, `tests/cmake` built from the tag as a
+   user's FetchContent does, the conda packages made, tested and
+   published, the `latest` branch moved to the tag, and examples.yml, the
+   docs' commands against the release on every host. A packaging fix of
+   the conda packages alone is conda.yml by hand, with the next build
+   number.
 7. **bench.yml** with the release run's artifacts, when performance
    matters for the notes or the docs.

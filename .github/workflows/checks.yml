@@ -88,7 +88,8 @@ jobs:
   # packages/bazel names the latest release or a newer one, with its
   # digests (packages/bazel/bazel.ts check): a git_override of this commit
   # downloads archives that have what its rules use. stage-draft.yml moves
-  # it to each release, on the release's branch, which main then takes.
+  # it to each release on release/<version>, which main takes by the
+  # release's pull request, publishing it (published.yml).
   bazel-version:
     runs-on: ubuntu-24.04
     steps:

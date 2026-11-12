@@ -27,7 +27,8 @@ run-name: "release: revision ${{ inputs.revision }}, ${{ inputs.stages }}"
 #                  fetches (test-sdk.yml; needs cli)
 #   cli            the archives' own command (cli.yml)
 #   release        a draft release of everything (stage-draft.yml; needs
-#                  the profile)
+#                  the profile), only on release/<version>, a branch made
+#                  at the commit of main the release is built from
 #
 # A repack is a release whose compiler and runtimes are an earlier
 # release's: reuse-run and profile-run name that release's run, and the
