@@ -41,12 +41,12 @@ export const SOURCES = {
   /// one. (23.1.2.1 itself was built by LLVM's own release builds,
   /// llvm-linux-x64 and llvm-macos-arm64.)
   "bootstrap-linux": {
-    url: `${XCLANG}/23.1.3.6/xclang-23.1.3.6-x86_64-unknown-linux-gnu.tar.xz`,
-    sha256: "cdcb0975bfc7676f9d043c0fcee67ba00e700e6eed8bf2d9f6153def62c1316d",
+    url: `${XCLANG}/23.1.5.1/xclang-23.1.5.1-x86_64-unknown-linux-gnu.tar.xz`,
+    sha256: "f7dad0d4580e7721610458c877464d9802f1b0a0e73911dc25c13eb75add9c39",
   },
   "bootstrap-macos": {
-    url: `${XCLANG}/23.1.3.6/xclang-23.1.3.6-aarch64-apple-darwin.tar.xz`,
-    sha256: "23c80ed7975bbdc94395ae82ed5dff0902439329b49763114b20a7e3c51044c2",
+    url: `${XCLANG}/23.1.5.1/xclang-23.1.5.1-aarch64-apple-darwin.tar.xz`,
+    sha256: "b48ae68930be2f916de6b6d05172e573073abbe36f310815c82256f7eb6d2b61",
   },
   /// What builds xclang's own command (xclang/build.ts): a released
   /// toolchain, the C compiler and linker of every host's binary.
