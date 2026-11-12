@@ -14,6 +14,12 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -gline-tables-only" CACHE STRING "")
 set(LLVM_ENABLE_PROJECTS "clang;clang-tools-extra;lld" CACHE STRING "")
 set(LLVM_TARGETS_TO_BUILD all CACHE STRING "")
 set(LLVM_ENABLE_ASSERTIONS OFF CACHE BOOL "")
+# An llvm_unreachable() reached traps, where it would otherwise be undefined
+# behavior that the optimizer turns into an endless loop or a fall into
+# whatever code follows. llvm-config.h carries it to libclang's users: their
+# code built against its headers traps too. The instrumented build has the
+# same, so that the profile's function hashes match.
+set(LLVM_UNREACHABLE_OPTIMIZE OFF CACHE BOOL "")
 set(LLVM_ENABLE_LTO Thin CACHE STRING "")
 set(LLVM_PARALLEL_LINK_JOBS 1 CACHE STRING "")
 set(LLVM_ENABLE_LIBCXX ON CACHE BOOL "")

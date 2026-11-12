@@ -254,6 +254,7 @@ bazel run //:options
 | `clang-tidy` | 头文件与 `clang-tidy/clang-tidy-config.h`（配置时未开启静态分析器与基于查询的检查项） |
 | 所有目标平台的 MC 层 | 全部 LLVM 目标平台的 `TargetInfo`、MC 描述、汇编解析器与反汇编器 |
 | 不含代码生成器 | 不包含 `InitializeAllTargets()`、`InitializeAllAsmPrinters()` 与 `InitializeNativeTarget()` |
+| `llvm_unreachable` 直接终止 | `LLVM_UNREACHABLE_OPTIMIZE` 关闭：执行到 `llvm_unreachable` 时程序立即停止。库里如此；工具自己的代码定义 `NDEBUG` 并基于这些头文件编译时，通过 `llvm/Config/llvm-config.h` 也如此；不定义 `NDEBUG` 时（ASan 构建即是），它打印消息后中止 |
 | 构建记录 | `lib/cmake/xclang/libclang.cmake`（记录 `XCLANG_LLVM_VERSION`、`XCLANG_LTO`、`XCLANG_PGO`、`XCLANG_PATCHES` 等） |
 
 `clang` 使用 X86 MC 汇编解析器解析微软风格的 `__asm {}` 块，工具则通过 `InitializeAllTargetInfos()`、`InitializeAllTargetMCs()`、`InitializeAllAsmParsers()` 与 `InitializeAllDisassemblers()` 注册 MC 层，以便按 triple 查找目标平台（例如从 `aarch64-linux-gnu-g++` 这样的编译器名称推断目标平台）。在 CMake 中，对应的组件为 `AllTargetsInfos`、`AllTargetsDescs`、`AllTargetsAsmParsers` 与 `AllTargetsDisassemblers`；在 Bazel 中则为 `@libclang//:AllTargetsInfos`、`@libclang//:AllTargetsDescs`、`@libclang//:AllTargetsAsmParsers` 与 `@libclang//:AllTargetsDisassemblers`。
