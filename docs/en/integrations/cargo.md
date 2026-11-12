@@ -6,7 +6,7 @@ When another build tool invokes `cargo` directly instead of `xclang cargo`, set 
 
 ## Prerequisites
 
-- xclang's `bin/` first in `PATH`, as `pixi shell` sets it ([Install](../guide/install.md)), or `xclang` run by its path: it locates its toolchain from its own binary path.
+- xclang's `bin/` first in `PATH`, as `pixi shell` sets it ([Install](../guide/quick-start.md)), or `xclang` run by its path: it locates its toolchain from its own binary path.
 - `rustup`. When a target's Rust standard library is not installed, `xclang cargo` adds it with `rustup target add`.
 
 ## Build for Windows from Linux or macOS
@@ -94,7 +94,7 @@ The binary imports only Windows system DLLs and UCRT (`api-ms-win-crt-*`), no `l
 hello from C, linked by xclang
 ```
 
-Rust's MinGW targets for xclang are `x86_64-pc-windows-gnullvm` and `aarch64-pc-windows-gnullvm`, whose standard library links `libunwind` and UCRT to match xclang's MinGW sysroots ([MinGW targets](../targets/windows.md#mingw-targets)). Rust's `*-pc-windows-gnu` targets link `libgcc` and `msvcrt` instead; `xclang cargo` rejects them and names the `*-pc-windows-gnullvm` target.
+Rust's MinGW targets for xclang are `x86_64-pc-windows-gnullvm` and `aarch64-pc-windows-gnullvm`, whose standard library links `libunwind` and UCRT to match xclang's MinGW sysroots ([MinGW targets](../guide/cross-compiling.md#mingw-targets)). Rust's `*-pc-windows-gnu` targets link `libgcc` and `msvcrt` instead; `xclang cargo` rejects them and names the `*-pc-windows-gnullvm` target.
 
 ## Targets
 
@@ -130,14 +130,14 @@ When `<Rust target>-linker` runs, it forwards `rustc`'s arguments after adjustin
 
 - **Linux (`glibc`)**: replaces `-lgcc_s` (and `-lgcc_eh` with `+crt-static`) with `-l:libunwind.a`, because xclang's `libgcc_s.a` and `libgcc_eh.a` are empty stubs; drops `-B<rustlib>/bin/gcc-ld` so `clang` does not invoke `rustc`'s `rust-lld` on x86_64.
 - **Linux (`musl`)**: drops `rustc`'s `self-contained` musl startup objects and `-L` directories, `-nostartfiles` and `-no-pie`, so the binary links xclang's `musl`, matching the headers that crates' C code compiled against.
-- **Windows (`MSVC`)**: links the [hybrid CRT](../targets/windows.md#the-hybrid-crt-and-c-runtime-flags) by replacing `/defaultlib:msvcrt` with `/defaultlib:libcmt` and passing `/nodefaultlib:libucrt.lib /defaultlib:ucrt.lib /ignore:4099` (plus `/winsysroot:<sdk>` when a fetched Windows SDK is present).
+- **Windows (`MSVC`)**: links the [hybrid CRT](../guide/cross-compiling.md#msvc-targets) by replacing `/defaultlib:msvcrt` with `/defaultlib:libcmt` and passing `/nodefaultlib:libucrt.lib /defaultlib:ucrt.lib /ignore:4099` (plus `/winsysroot:<sdk>` when a fetched Windows SDK is present).
 - **Windows (`MinGW`) and macOS**: adds only `--target=<triple>`.
 
 Before spawning `cargo`, `xclang cargo` determines the targets from `--target`, else `build.target` (from `--config`, `CARGO_BUILD_TARGET` or `.cargo/config.toml`), else `rustc -vV`'s host target. For compiling subcommands, it adds any missing Rust standard library with `rustup target add` (unless `-Zbuild-std` is set) and checks that any required vendor SDK has been fetched; for non-compiling subcommands (`metadata`, `tree`, `clean`, and so on) it skips both checks. Linker wrappers and generated CMake toolchain files are stored under `$XCLANG_CACHE_DIR/cargo/<hash>`, or `xclang/cargo/<hash>` in the user's cache directory (`~/.cache`, `~/Library/Caches`, `%LOCALAPPDATA%`).
 
 ## The System's C++ Library
 
-Set `XCLANG_STDLIB=platform` to build C++ code in crates against the [platform's C++ library](../targets/cross-compiling.md#the-platform-s-c-library) instead of xclang's `libc++`:
+Set `XCLANG_STDLIB=platform` to build C++ code in crates against the [platform's C++ library](../guide/cross-compiling.md#the-platform-s-c-library) instead of xclang's `libc++`:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -151,7 +151,7 @@ XCLANG_STDLIB=platform xclang cargo build --release
 
 ## Static Programs with musl
 
-Rust's `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl` targets link against xclang's `musl` ([musl targets](../targets/linux.md#musl-targets)), dropping the bundled `self-contained` musl and startup files that `rustc` ships:
+Rust's `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl` targets link against xclang's `musl` ([musl targets](../guide/cross-compiling.md#musl-targets)), dropping the bundled `self-contained` musl and startup files that `rustc` ships:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -162,7 +162,7 @@ The resulting binary has no program interpreter and loads no shared libraries. `
 
 ## macOS from Linux and Windows
 
-Building for `aarch64-apple-darwin` or `x86_64-apple-darwin` from a Linux or Windows host requires Apple's SDK, fetched once with `xclang sdk fetch macos --accept-license` ([macOS on Linux and Windows hosts](../targets/macos.md#on-linux-and-windows-hosts)). On macOS hosts, Xcode's SDK is used:
+Building for `aarch64-apple-darwin` or `x86_64-apple-darwin` from a Linux or Windows host requires Apple's SDK, fetched once with `xclang sdk fetch macos --accept-license` ([macOS on Linux and Windows hosts](../guide/cross-compiling.md#on-linux-and-windows-hosts)). On macOS hosts, Xcode's SDK is used:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -171,14 +171,14 @@ xclang cargo build --release --target aarch64-apple-darwin
 
 ## The MSVC ABI
 
-Building for `x86_64-pc-windows-msvc` or `aarch64-pc-windows-msvc` uses the Windows SDK fetched with `xclang sdk fetch windows --accept-license` ([MSVC targets](../targets/windows.md#msvc-targets)), or an installed Visual Studio on Windows hosts:
+Building for `x86_64-pc-windows-msvc` or `aarch64-pc-windows-msvc` uses the Windows SDK fetched with `xclang sdk fetch windows --accept-license` ([MSVC targets](../guide/cross-compiling.md#msvc-targets)), or an installed Visual Studio on Windows hosts:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 xclang cargo build --release --target x86_64-pc-windows-msvc
 ```
 
-It links the [hybrid CRT](../targets/windows.md#the-hybrid-crt-and-c-runtime-flags): the VC runtime linked statically and UCRT loaded from Windows, with no `vcruntime140.dll` dependency.
+It links the [hybrid CRT](../guide/cross-compiling.md#msvc-targets): the VC runtime linked statically and UCRT loaded from Windows, with no `vcruntime140.dll` dependency.
 
 ## Build for the Machine You Are On
 

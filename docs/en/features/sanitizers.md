@@ -1,16 +1,31 @@
 # Sanitizers
 
-For the glibc [Linux](../targets/linux.md) and [macOS](../targets/macos.md)
-targets, `compiler-rt` ships AddressSanitizer (ASan), ThreadSanitizer (TSan),
-LeakSanitizer (LSan), UndefinedBehaviorSanitizer (UBSan) and libFuzzer, along
-with an ASan-instrumented build of `libc++` (the *ASan `libc++`*) that ASan
-programs link. The [Windows](../targets/windows.md) targets ship UBSan on
-`x86_64` and `aarch64` and ASan with the ASan `libc++` on `x86_64`
-([MinGW Targets](#mingw-targets), [MSVC Targets](#msvc-targets)), plus
-libFuzzer on `x86_64` MSVC. The [musl](../targets/linux.md#musl-targets)
-targets ship UBSan ([musl Targets](#musl-targets)), and
-[MemorySanitizer](#memorysanitizer) is available on the glibc Linux targets by
-building [runtimes from source](runtimes-from-source.md).
+`compiler-rt` carries the sanitizers' runtimes for each target, and the
+targets with ASan an ASan build of `libc++` (the *ASan `libc++`*), which
+ASan programs link. MemorySanitizer comes with the
+[runtimes from source](runtimes-from-source.md). libFuzzer is there for the
+glibc Linux, macOS and x64 MSVC targets.
+
+<!-- BEGIN GENERATED: sanitizers -->
+
+| target | ASan | LSan | TSan | UBSan | MSan |
+| --- | --- | --- | --- | --- | --- |
+| `x86_64-unknown-linux-gnu` | yes | yes | yes | yes | with the runtimes from source |
+| `aarch64-unknown-linux-gnu` | yes | yes | yes | yes | with the runtimes from source |
+| `x86_64-w64-mingw32` | yes |  |  | yes |  |
+| `aarch64-w64-mingw32` |  |  |  | yes |  |
+| `aarch64-apple-darwin` | yes | yes | yes | yes |  |
+| `x86_64-apple-darwin` | yes | yes | yes | yes |  |
+| `x86_64-unknown-linux-musl` |  |  |  | yes |  |
+| `aarch64-unknown-linux-musl` |  |  |  | yes |  |
+| `x86_64-pc-windows-msvc` | yes |  |  | yes |  |
+| `aarch64-pc-windows-msvc` |  |  |  | yes |  |
+
+<!-- END GENERATED -->
+
+How each family differs: [MinGW Targets](#mingw-targets),
+[MSVC Targets](#msvc-targets), [musl Targets](#musl-targets),
+[MemorySanitizer](#memorysanitizer).
 
 ## Usage
 
@@ -237,6 +252,11 @@ Full option lists are in the [CMake API](../reference/cmake-api.md) and the
 - **ASan build of `libclang`**: for Linux `x86_64` and macOS `arm64` hosts,
   xclang provides an ASan-instrumented build of `libclang` compiled against the
   ASan `libc++` ([libclang](libclang.md#the-asan-build)).
+- **No ASan build of the platform's C++ library**: with
+  `XCLANG_STDLIB=platform`, `XCLANG_SANITIZER=address` links no ASan C++
+  library, and on the MSVC targets the STL's containers under ASan need
+  `stl_asan.lib`, which `xclang sdk fetch windows` does not fetch.
+
 
 ### Why an ASan libc++
 
@@ -329,7 +349,7 @@ It reports the `container-overflow` and exits with code `1`.
 
 ## MSVC Targets
 
-The [MSVC targets](../targets/windows.md#msvc-targets) carry UBSan on `x86_64`
+The [MSVC targets](../guide/cross-compiling.md#msvc-targets) carry UBSan on `x86_64`
 and `aarch64`, and ASan and libFuzzer on `x86_64`. `clang` selects their
 libraries from `lib/clang/<major>/lib/windows` when `-fsanitize=` is passed.
 
@@ -369,7 +389,7 @@ With `clang_rt.asan_dynamic-x86_64.dll` beside it, `overflow.exe` reports the
 
 ## musl Targets
 
-The [musl targets](../targets/linux.md#musl-targets) link statically, and only
+The [musl targets](../guide/cross-compiling.md#musl-targets) link statically, and only
 UBSan works in a statically linked executable: its standalone runtime
 (`-fsanitize=undefined`, `-DXCLANG_SANITIZER=undefined` in CMake,
 `--features=ubsan` in Bazel), its minimal runtime
@@ -406,20 +426,3 @@ glibc Linux targets (`x86_64` and `aarch64`) when
 Enabling [runtimes from source](runtimes-from-source.md) with TSan or ASan also
 compiles `libc++` and `libc++abi` from source with that sanitizer's
 instrumentation.
-
-## Limitations
-
-- **Windows targets**: no static ASan runtime (ASan uses a DLL), no ASan on
-  `aarch64`, no TSan, LSan or MSan in `compiler-rt`, no libFuzzer on MinGW or
-  `aarch64` MSVC, and `x86_64` ASan binaries cannot run under Windows on Arm's
-  `x86_64` emulator ([MinGW Targets](#mingw-targets),
-  [MSVC Targets](#msvc-targets)).
-- **`-stdlib=platform` with ASan**: xclang ships no ASan-instrumented platform
-  C++ library, so `XCLANG_SANITIZER=address` with `XCLANG_STDLIB=platform`
-  links none, and on MSVC targets Microsoft's STL containers require `stl_asan.lib`, which
-  `xclang sdk fetch windows` does not fetch.
-- **musl targets**: only UBSan is available because the bundled musl targets
-  link statically; ASan, TSan, LSan and libFuzzer on musl are
-  [considered](../design/roadmap.md#musl-sanitizers).
-- **MemorySanitizer**: supported only on the glibc Linux targets (`x86_64` and
-  `aarch64`) and requires [runtimes from source](runtimes-from-source.md).

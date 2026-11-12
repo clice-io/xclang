@@ -5,23 +5,11 @@ guide:
       label: What is xclang?
     - file: quick-start
       label: Quick Start
-    - file: install
-      label: Installation
-    - comparisons
-    - troubleshooting
-
-targets:
-  label: Targets
-  items:
     - file: cross-compiling
       label: Cross-Compiling
-    - linux
-    - windows
-    - file: macos
-      label: macOS
 
 integrations:
-  label: Integrations
+  label: Build Systems
   items:
     - cmake
     - bazel
@@ -47,14 +35,16 @@ features:
 reference:
   label: Reference
   items:
-    - file: layout
-      label: Archive Layout
-    - cmake-api
-    - bazel-api
-    - file: patches
-      label: LLVM Patches
     - file: xclang-command
       label: xclang Command
+    - cmake-api
+    - bazel-api
+    - file: layout
+      label: Archive Layout
+    - file: patches
+      label: LLVM Patches
+    - file: releases
+      label: Releases
 
 design:
   label: Design
@@ -62,6 +52,9 @@ design:
     - hermeticity
     - file: toolchain
       label: Toolchain Structure
+    - windows
+    - file: macos
+      label: macOS
     - pgo
     - file: bazel-module
       label: Bazel Module

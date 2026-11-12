@@ -38,7 +38,7 @@ same eight targets: Linux x64 and arm64 with glibc 2.17, Windows x64 and
 arm64 with MinGW-w64 (UCRT), macOS arm64 and x64, with Xcode's SDK on
 macOS hosts, and the **musl targets**, Linux x64 and arm64: static programs
 that take nothing from the system they run on
-([musl targets](https://docs.clice.io/xclang/targets/linux#musl-targets)).
+([musl targets](https://docs.clice.io/xclang/guide/cross-compiling#musl-targets)).
 
 With the SDKs the user fetches with the toolchain's `xclang` command
 (`xclang sdk fetch`), from 23.1.2.7 on:
@@ -47,16 +47,16 @@ With the SDKs the user fetches with the toolchain's `xclang` command
   and Windows SDK, from every host, with libc++ (since 23.1.2.10) or
   Microsoft's STL; on a Windows host with no SDK fetched, with the
   installed Visual Studio
-  ([MSVC targets](https://docs.clice.io/xclang/targets/windows#msvc-targets)).
+  ([MSVC targets](https://docs.clice.io/xclang/guide/cross-compiling#msvc-targets)).
 - **macOS targets from Linux and Windows**, with Apple's SDK
-  ([macOS](https://docs.clice.io/xclang/targets/macos#on-linux-and-windows-hosts)).
+  ([macOS](https://docs.clice.io/xclang/guide/cross-compiling#on-linux-and-windows-hosts)).
 
 Since 23.1.2.11, `-stdlib=platform` builds for any of these targets with
 the platform's C++ library in place of xclang's libc++, for C++ interfaces
 to libraries built with it: libstdc++ on Linux, the SDK's libc++ for macOS,
 Microsoft's STL for MSVC, and for musl and MinGW the libstdc++ of a
 `--sysroot`
-([the system's C++ library](https://docs.clice.io/xclang/targets/cross-compiling#the-platform-s-c-library)).
+([the system's C++ library](https://docs.clice.io/xclang/guide/cross-compiling#the-platform-s-c-library)).
 
 Not supported yet, each with its status in the roadmap:
 
@@ -160,12 +160,12 @@ At [docs.clice.io/xclang](https://docs.clice.io/xclang), from
 - Guide:
   [What is xclang?](https://docs.clice.io/xclang/guide/what-is-xclang),
   [Quick Start](https://docs.clice.io/xclang/guide/quick-start),
-  [Installation](https://docs.clice.io/xclang/guide/install),
-  [Cross-Compiling](https://docs.clice.io/xclang/targets/cross-compiling),
+  [Installation](https://docs.clice.io/xclang/guide/quick-start),
+  [Cross-Compiling](https://docs.clice.io/xclang/guide/cross-compiling),
   [Why xclang?](https://docs.clice.io/xclang/guide/what-is-xclang),
-  [Comparisons](https://docs.clice.io/xclang/guide/comparisons) with zig cc,
+  [Comparisons](https://docs.clice.io/xclang/guide/what-is-xclang) with zig cc,
   llvm-mingw, conda-forge and others,
-  [FAQ](https://docs.clice.io/xclang/guide/troubleshooting)
+  [FAQ](https://docs.clice.io/xclang/guide/what-is-xclang)
 - Integrations: [CMake](https://docs.clice.io/xclang/integrations/cmake),
   [Bazel](https://docs.clice.io/xclang/integrations/bazel),
   [Make and Meson](https://docs.clice.io/xclang/integrations/clang),
@@ -177,12 +177,12 @@ At [docs.clice.io/xclang](https://docs.clice.io/xclang), from
   [Debugging](https://docs.clice.io/xclang/features/debugging),
   [libclang](https://docs.clice.io/xclang/features/libclang),
   [ThinLTO Cache](https://docs.clice.io/xclang/features/libclang#the-thinlto-cache)
-- Reference: [Targets](https://docs.clice.io/xclang/targets/cross-compiling),
-  [Compatibility](https://docs.clice.io/xclang/targets/cross-compiling),
+- Reference: [Targets](https://docs.clice.io/xclang/guide/cross-compiling),
+  [Compatibility](https://docs.clice.io/xclang/guide/cross-compiling),
   [Archive Layout](https://docs.clice.io/xclang/reference/layout),
   [CMake API](https://docs.clice.io/xclang/reference/cmake-api),
   [Bazel API](https://docs.clice.io/xclang/reference/bazel-api),
-  [Releases](https://docs.clice.io/xclang/guide/install),
+  [Releases](https://docs.clice.io/xclang/guide/quick-start),
   [LLVM Patches](https://docs.clice.io/xclang/reference/patches),
   [xclang Command](https://docs.clice.io/xclang/reference/xclang-command)
 - Design: [Hermeticity](https://docs.clice.io/xclang/design/hermeticity),

@@ -1,12 +1,12 @@
 # LLVM Patches
 
-xclang builds LLVM's release source with the changes in
-[`patches/`](https://github.com/clice-io/xclang/tree/main/patches), one
-directory each: the patch and a README on what it changes, why, how it was
-checked, and its state upstream. They are applied in the order of the
-directories right after the source is unpacked, so a tag's workflow, run
-again, builds the same thing; libclang's manifest lists them
-(`XCLANG_PATCHES` in `lib/cmake/xclang/libclang.cmake`).
+xclang builds its compiler, linkers, runtimes and libclang from LLVM's
+release source, `llvm-project-<version>.src.tar.xz`, with the changes in
+[`patches/`](https://github.com/clice-io/xclang/tree/main/patches). Each
+patch's README says what goes wrong without it, what it changes, how it was
+checked and where it stands upstream.
+
+## Patches
 
 | patch | what it changes |
 |---|---|
@@ -23,13 +23,26 @@ again, builds the same thing; libclang's manifest lists them
 | [`0014-coff-timestamp-default`](https://github.com/clice-io/xclang/blob/main/patches/0014-coff-timestamp-default/README.md) | COFF objects for MinGW targets have no compile time in their header again, as in LLVM 22 and GNU tools: the same source gives the same object (llvm/llvm-project#222099) |
 | [`0016-libcxx-vcruntime`](https://github.com/clice-io/xclang/blob/main/patches/0016-libcxx-vcruntime/README.md) | libc++ on vcruntime defines no `std::nothrow`, the C runtime's, and defines `std::set_new_handler` and `get_new_handler`, which only Microsoft's STL library did |
 | [`0017-lld-coff-call-graph-order`](https://github.com/clice-io/xclang/blob/main/patches/0017-lld-coff-call-graph-order/README.md) | lld-link lays out a PGO-built program the same way on every link: local functions of the same name in several objects no longer move from one link to the next |
-| [`0018-stdlib-system-config`](https://github.com/clice-io/xclang/blob/main/patches/0018-stdlib-system-config/README.md) | a `-stdlib=` of another library than libc++ (`platform`, `libstdc++`; clang-cl `/clang:-stdlib=platform`) selects the target's `<triple>-system.cfg`: the platform's C++ library, and its sysroot, on every target ([the system's C++ library](../targets/cross-compiling.md#the-platform-s-c-library)) |
+| [`0018-stdlib-system-config`](https://github.com/clice-io/xclang/blob/main/patches/0018-stdlib-system-config/README.md) | a `-stdlib=` of another library than libc++ (`platform`, `libstdc++`; clang-cl `/clang:-stdlib=platform`) selects the target's `<triple>-system.cfg`: the platform's C++ library, and its sysroot, on every target ([the system's C++ library](../guide/cross-compiling.md#the-platform-s-c-library)) |
 
-0005 (ASan's container checks in libc++'s ODR signature) was in 23.1.2.3 and
-23.1.2.4; the ASan libc++ replaced it in 23.1.2.5. 0015 (`-stdlib=` for MSVC
-targets: `platform` dropped `-stdlib++-isystem`) was in 23.1.2.10; 0018,
-for every target, replaced it. LLVM 23.1.3 took over 0006 (`std::format_to`
-into a container wrote past its stack buffer, llvm/llvm-project#226791) and
-0009 (the macOS 27 SDK's `arm64e.x1` stubs, llvm/llvm-project#222721).
-[CHANGELOG.md](https://github.com/clice-io/xclang/blob/main/CHANGELOG.md)
-has which release took which patch.
+## How They Are Applied
+
+`toolchain/common.ts` applies every `patches/NNNN-name/NNNN.patch`, in the
+order of the directories, right after it unpacks LLVM's source, with
+`patch -p1 -F0 --forward`: without fuzz, so a patch applies where it was
+made or the build fails. The runtimes' sources that every toolchain carries
+in `libc++/src` get the same patches, those of their files
+([runtimes from source](../features/runtimes-from-source.md)). libclang's
+`lib/cmake/xclang/libclang.cmake` lists the series in `XCLANG_PATCHES`
+([CMake API](cmake-api.md)).
+
+## What a Patch Has
+
+- A directory `patches/NNNN-short-name/` with one `NNNN.patch`, a `git diff`
+  against LLVM's release tag, and a `README.md`: what goes wrong and who
+  hits it, what the patch changes, its state upstream (`Upstream:`), where
+  it came from (`From:`) and how it was checked (`Checked:`).
+- A check that fails without it, in `tests/toolchain/smoke.ts` (every
+  host's toolchain), `tests/cmake` or `tests/bazel`.
+- A number that is never reused: a patch that upstream took is deleted with
+  the LLVM release that has it.

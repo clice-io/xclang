@@ -15,7 +15,7 @@ Ninja Multi-Config generator, with Ninja 1.11 or later.
 | `xclang-config.cmake` | `find_package(xclang)`: `xclang::std`, `xclang_add_std()`, `xclang_debug_symbols()`, `XCLANG_ROOT`, the ThinLTO cache |
 | `xclang-config-version.cmake` | the release, for `find_package(xclang 23.1)` (toolchain archives only) |
 | `toolchain.cmake` | the toolchain directory as the toolchain of a build, for the host or `XCLANG_TARGET` |
-| `runtimes.cmake` | included by `toolchain.cmake`: the runtimes built from source, and the build's sanitizers (since 23.1.2.11) |
+| `runtimes.cmake` | included by `toolchain.cmake`: the runtimes built from source, and the build's sanitizers |
 | `runtimes-cxx.cmake`, `runtimes-compiler-rt.cmake` | the CMake caches of xclang's own builds of libc++ and compiler-rt, which `runtimes.cmake` builds with (toolchain archives only) |
 | `xclang.cmake` | in `packages/cmake/` only: included before `project()` from a FetchContent checkout, it downloads the toolchain |
 
@@ -47,7 +47,7 @@ cmake -G Ninja -B build --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake [-D
 
 | variable | |
 |---|---|
-| `XCLANG_TARGET` | `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`, `x86_64-w64-mingw32`, `aarch64-w64-mingw32`, `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-pc-windows-msvc` or `aarch64-pc-windows-msvc`; the host's by default. The MSVC targets, and the macOS targets on Linux and Windows hosts, build with the SDK that the toolchain's `xclang` fetched; the MSVC targets on a Windows host without it with the installed Visual Studio. The musl targets, from 23.1.2.10 on, are no cross build on a Linux host of their architecture, which runs their static programs (`try_run`, tests). A build directory keeps the target of its first configure: another one later stops the configure (a new build directory, or `cmake --fresh`) |
+| `XCLANG_TARGET` | `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`, `x86_64-w64-mingw32`, `aarch64-w64-mingw32`, `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-pc-windows-msvc` or `aarch64-pc-windows-msvc`; the host's by default. The MSVC targets, and the macOS targets on Linux and Windows hosts, build with the SDK that the toolchain's `xclang` fetched; the MSVC targets on a Windows host without it with the installed Visual Studio. The musl targets are no cross build on a Linux host of their architecture, which runs their static programs (`try_run`, tests). A build directory keeps the target of its first configure: another one later stops the configure (a new build directory, or `cmake --fresh`) |
 | `XCLANG_ROOT` | the toolchain directory, when the file is used from outside one; a relative path is relative to the build directory |
 | `XCLANG_STDLIB` | `libc++`, the default: xclang's libc++, and its sysroot. `platform`: the platform's C++ library, `-stdlib=platform` on every compile and link ([the system's C++ library](../integrations/cmake.md#use-the-system-s-c-library)); no `CMAKE_SYSROOT` of the toolchain's for Linux targets, and one of the user's required for the musl and MinGW targets; `xclang::std` the platform library's where it has a module manifest (GCC 15's libstdc++), and `find_package(xclang)` fails where it has none. Not with `XCLANG_RUNTIMES=source` |
 | `XCLANG_RUNTIMES`, `XCLANG_SANITIZER`, ... | the runtimes built from source and the build's sanitizers ([below](#runtimes-from-source)) |
@@ -88,13 +88,13 @@ adds the SDK to `CMAKE_FIND_ROOT_PATH`, with the modes above.
 
 ### Runtimes from Source
 
-Since 23.1.2.11. `runtimes.cmake`, which the toolchain file includes, reads these
+`runtimes.cmake`, which the toolchain file includes, reads these
 variables ([runtimes from source](../features/runtimes-from-source.md)):
 
 | variable | |
 |---|---|
 | `XCLANG_RUNTIMES` | `prebuilt`, the default: the toolchain's runtimes. `source`: libc++ (with libc++abi), libc++experimental and libunwind built from the toolchain's `libc++/src` for the target, with the options below, at the first configure that asks for the variant; every compile and link of the build is against them in place of the prebuilt ones, `try_compile`'s too. Not for the MSVC targets |
-| `XCLANG_SANITIZER` | a list of `address`, `memory`, `thread`, `undefined`, `leak`: `-fsanitize=` on every compile and link of the build, and runtimes that suit it. With the prebuilt runtimes, `address` adds the ASan libc++ where the target has one, and `memory` stops the configure; with `source`, the runtimes are built with the sanitizers (`LLVM_USE_SANITIZER`: ASan with UBSan if both are named, else one of MemorySanitizer, ThreadSanitizer, UBSan and LeakSanitizer, in that order), and `memory` builds compiler-rt's MemorySanitizer runtime too, linked into executables; `memory` for the glibc Linux targets. A sanitizer whose runtime the target has not stops the configure: the Windows targets have `undefined`, and x64 `address` (MinGW's since 23.1.3.4); the musl targets `undefined` |
+| `XCLANG_SANITIZER` | a list of `address`, `memory`, `thread`, `undefined`, `leak`: `-fsanitize=` on every compile and link of the build, and runtimes that suit it. With the prebuilt runtimes, `address` adds the ASan libc++ where the target has one, and `memory` stops the configure; with `source`, the runtimes are built with the sanitizers (`LLVM_USE_SANITIZER`: ASan with UBSan if both are named, else one of MemorySanitizer, ThreadSanitizer, UBSan and LeakSanitizer, in that order), and `memory` builds compiler-rt's MemorySanitizer runtime too, linked into executables; `memory` for the glibc Linux targets. A sanitizer whose runtime the target has not stops the configure: the Windows targets have `undefined`, and x64 `address`; the musl targets `undefined` |
 | `XCLANG_LIBCXX_HARDENING` | `none`, `fast`, `extensive` or `debug`: libc++'s hardening mode (`LIBCXX_HARDENING_MODE`), of the library and the default of its headers |
 | `XCLANG_LIBCXX_ABI_VERSION` | `1` or `2` (`LIBCXX_ABI_VERSION`) |
 | `XCLANG_LIBCXX_ABI_NAMESPACE` | libc++'s inline namespace, `__<name>` (`LIBCXX_ABI_NAMESPACE`) |

@@ -10,9 +10,9 @@ symbols for every target with the tools bundled in every toolchain archive
   functions, inline call stacks and line tables converted from DWARF by
   `llvm-gsymutil --convert`. A GSYM file is about a tenth of the size of the
   DWARF and fast to look up in a crash reporter.
-- **dSYM**, for [macOS](../targets/macos.md) targets: the `.dSYM` bundle read
+- **dSYM**, for [macOS](../guide/cross-compiling.md#macos) targets: the `.dSYM` bundle read
   by Apple's tools and `lldb`, collected by `dsymutil` on any host.
-- **PDB**, for [MSVC](../targets/windows.md#msvc-targets) targets: the CodeView
+- **PDB**, for [MSVC](../guide/cross-compiling.md#msvc-targets) targets: the CodeView
   `.pdb` written by `lld-link`, which `llvm-gsymutil` does not read.
 
 ## Usage
@@ -221,6 +221,18 @@ Full option lists are in the [CMake API](../reference/cmake-api.md) and the
   targets produce a `.pdb` instead.
 - **Stripping for shipped binaries is tailored to the object format**
   ([below](#strip)).
+- **GSYM needs `-g`**: from `-gline-tables-only` DWARF, LLVM 23's
+  `llvm-gsymutil` loads no functions, and the GSYM has names from the
+  symbol table without files or lines.
+- **One thread for the same GSYM**: with its default threads,
+  `llvm-gsymutil --convert` lays the file out differently from run to run
+  (3,043,120 to 3,053,168 bytes over three runs, with the same lookups).
+  With `--num-threads=1` every run gives the same file, about 0.6% smaller;
+  for Ubuntu 24.04's `libclang-cpp.so.18` (a 98 MB GSYM) and
+  `libLLVM.so.18` (118 MB) on a 4-core runner, one thread took 6.0 s and
+  7.8 s, four threads 4.3 s and 5.7 s. `xclang_debug_symbols` passes
+  `--num-threads=1`.
+
 
 ### Paths in Debug Information
 
@@ -275,7 +287,7 @@ xclang therefore generates the `.dSYM` from the link's preserved LTO objects:
 - Passing `-object_path_lto` also exposed an `ld64.lld` bug where the empty
   `ltmp0` object overwrote `main`'s `__unwind_info` entry on `arm64`, fixed by
   [patch 0007](../reference/patches.md)
-  ([macOS](../targets/macos.md#why-ld64-lld-and-patch-0007)).
+  ([macOS](../design/macos.md#why-ld64-lld-and-patch-0007)).
 
 ### Strip
 
@@ -300,22 +312,3 @@ and crash logs record raw addresses for the `.dSYM` or `.gsym` to symbolicate
 accurately. If an executable loads plugins that bind to its symbols, disable
 the feature with `features = ["-no_exported_symbols"]` on its `cc_binary`.
 Pass extra flags to `llvm-strip` with `--stripopt`.
-
-## Limitations
-
-- **`-gline-tables-only` produces a GSYM without line numbers**: in LLVM 23,
-  `llvm-gsymutil` loads no functions from `-gline-tables-only` DWARF, so the
-  GSYM contains only symbol-table names without file or line information.
-  Compile with `-g`.
-- **Multi-threaded `llvm-gsymutil` output is non-deterministic**: running
-  `llvm-gsymutil --convert` with its default thread count writes different file
-  layouts from run to run for the same DWARF input (for example, 3,043,120 to
-  3,053,168 bytes across three runs, with identical address lookups). With
-  `--num-threads=1`, the output is identical on every run and about 0.6%
-  smaller; on Ubuntu 24.04's `libclang-cpp.so.18` (98 MB GSYM) and
-  `libLLVM.so.18` (118 MB GSYM) on a 4-core runner, one thread took 6.0 s and
-  7.8 s versus 4.3 s and 5.7 s with four threads. `xclang_debug_symbols` passes
-  `--num-threads=1` by default.
-- **Absolute paths in CMake debug information**: CMake builds record the build
-  directory's absolute paths in DWARF and Mach-O debug maps; relative debug
-  paths for CMake are [planned](../design/roadmap.md#cmake-relative-paths).

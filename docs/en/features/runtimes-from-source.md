@@ -196,6 +196,16 @@ are in the [CMake API](../reference/cmake-api.md) and the
   single Bazel target.
 - **Host requirements**: CMake's runtime build runs LLVM's CMake scripts and
   requires Python 3 on the host; Bazel needs no additional host tools.
+- **Not for the MSVC targets**: CMake and Bazel refuse runtimes from source
+  for them ([planned](../design/roadmap.md#runtimes-msvc)).
+- **One C++ library**: `-stdlib=platform` (`XCLANG_STDLIB=platform`,
+  `--@xclang//bazel:stdlib=platform`) takes the platform's C++ library, and
+  runtimes from source build `libc++`: a build has one or the other.
+- **No LTO of the runtimes in Bazel**: `--features=thin_lto` links the
+  program against runtimes compiled to machine code, as Bazel runs ThinLTO's
+  backends only for the libraries in `deps`, not for those the toolchain
+  links ([considered](../design/roadmap.md#runtimes-bazel-lto)).
+
 
 ### The Sources
 
@@ -205,18 +215,3 @@ Every toolchain archive includes the runtime sources once for all targets in
 and the internal `libc` headers that `libc++` includes, without tests or
 documentation and with xclang's `libc++` [patches](../reference/patches.md)
 applied. They occupy 35 MB unpacked (2.3 MB in each compressed archive).
-
-## Limitations
-
-- **MSVC targets**: building runtimes from source for `x86_64-pc-windows-msvc`
-  and `aarch64-pc-windows-msvc` is not yet supported and is
-  [planned](../design/roadmap.md#runtimes-msvc); CMake and Bazel reject
-  `XCLANG_RUNTIMES=source` and `--@xclang//runtimes:source` for MSVC targets.
-- **`-stdlib=platform`** (`XCLANG_STDLIB=platform`,
-  `--@xclang//bazel:stdlib=platform`) takes the platform's C++ library, and
-  runtimes from source build `libc++`: a build has one or the other.
-- **ThinLTO of runtimes in Bazel**: `--features=thin_lto` compiles the program
-  with ThinLTO and links it against native-code runtimes from source, because
-  Bazel runs ThinLTO backends only on `cc_library` targets in `deps` rather
-  than libraries linked by the toolchain; LTO of runtimes from source in Bazel
-  is [considered](../design/roadmap.md#runtimes-bazel-lto).

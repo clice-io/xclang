@@ -271,6 +271,9 @@ Full option lists are in the [CMake API](../reference/cmake-api.md) and the
   `modules_embed_all_files` feature, on by default). An importer compiled
   with `-g` reads them, and in the sandbox it has the module file but not
   the source.
+- **No header units**: neither CMake nor Bazel builds header units
+  (`import <vector>;`).
+
 
 ### Build Caches and Modules
 
@@ -306,7 +309,7 @@ or disk cache.
 With `-stdlib=platform` (`-DXCLANG_STDLIB=platform` in CMake,
 `--@xclang//bazel:stdlib=platform` in Bazel), `xclang::std` and
 `@xclang//bazel:std` use the platform C++ library's module sources instead of
-xclang's `libc++` ([cross-compiling](../targets/cross-compiling.md#the-platform-s-c-library)):
+xclang's `libc++` ([cross-compiling](../guide/cross-compiling.md#the-platform-s-c-library)):
 
 - **MSVC targets**: `xclang::std` and `@xclang//bazel:std` compile Microsoft's
   STL module sources (`std.ixx` and `std.compat.ixx` from the fetched Windows
@@ -322,17 +325,3 @@ xclang's `libc++` ([cross-compiling](../targets/cross-compiling.md#the-platform-
   sources for its `libc++`, so `import std` is not available with
   `-stdlib=platform` (`find_package(xclang)` fails in CMake, and
   `@xclang//bazel:std` is marked incompatible in Bazel).
-
-## Limitations
-
-- Header units (`import <vector>;`) are not built by CMake or Bazel.
-- Bazel requires `--experimental_cpp_modules` (Bazel 9 and `rules_cc` 0.2.25 or
-  later).
-- CMake builds C++20 modules only with the `Ninja` and `Ninja Multi-Config`
-  generators (CMake 3.28 and Ninja 1.11 or later).
-- `ccache` does not cache module interface compilations, and `ccache` 4.13 and
-  older can serve stale object files for importers
-  ([Build Caches and Modules](#build-caches-and-modules)).
-- With `-stdlib=platform`, `import std` requires module sources from the
-  platform's C++ library and is unavailable on macOS
-  ([Platform Notes](#platform-notes)).

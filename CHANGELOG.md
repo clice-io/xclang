@@ -3,7 +3,7 @@
 What changed for xclang's users in each release. Releases are tagged
 `<llvm version>.<revision>`; every one of them has the same assets (the
 toolchain, libclang and its ASan build, the option tables, the profile and
-`SHA256SUMS`, see [Installing](docs/en/guide/install.md)), and LLVM's source with
+`SHA256SUMS`, see [Installing](docs/en/guide/quick-start.md)), and LLVM's source with
 the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
@@ -26,7 +26,7 @@ Built by 23.1.3.6.
   and 27.0, and its CDN answers 403 for it, at first only where an edge no
   longer keeps a copy. The table has the package Apple put in its place,
   and SDK 27.2 for 27; Xcode 27's preset, whose SDK 27.0 Apple no longer
-  serves, is gone ([vendor SDKs](docs/en/targets/cross-compiling.md#vendor-sdks)).
+  serves, is gone ([vendor SDKs](docs/en/guide/cross-compiling.md#vendor-sdks)).
 - **macOS SDKs outlast Apple's withdrawals.** The version table pins each
   macOS SDK package by the content of its SDK too. When Apple withdraws
   the package (its CDN answers 403), `xclang sdk fetch` and the Bazel
@@ -34,7 +34,7 @@ Built by 23.1.3.6.
   by that content; a version no package carries any more fails, naming the
   versions they carry. `--version latest` (`version = "latest"` in Bazel)
   takes the newest SDK the catalogs list, which is not reproducible
-  ([vendor SDKs](docs/en/targets/macos.md#packages-apple-withdraws-and-content-digests)).
+  ([vendor SDKs](docs/en/design/macos.md#packages-apple-withdraws-and-content-digests)).
 - **Bazel: the module works with rules_cc 0.2.28**, and any rules_cc from
   0.2.25 on. It patched the unix toolchain config of the build's rules_cc,
   which failed to fetch with 0.2.28 (`CONTENT_DOES_NOT_MATCH_TARGET`), and
@@ -258,7 +258,7 @@ Built by 23.1.2.6.
   before), and for musl and MinGW the libstdc++ of a `--sysroot`. Each
   target has a second config file, `<triple>-system.cfg`, which the option
   selects; it keeps the SDK, lld and the C runtime
-  ([the system's C++ library](docs/en/targets/cross-compiling.md#the-platform-s-c-library)).
+  ([the system's C++ library](docs/en/guide/cross-compiling.md#the-platform-s-c-library)).
   The integrations follow, with one name: the CMake package's
   `-DXCLANG_STDLIB=platform`, the Bazel module's
   `--@xclang//bazel:stdlib=platform` for the MSVC and macOS targets, and
@@ -287,8 +287,8 @@ Built by 23.1.2.6.
   build too. clang's default standard for MSVC targets stays C++14, where
   libc++ has none of the C++17 library the STL offers early
   (`std::is_integral_v`): build with `-std=c++17` or later
-  ([MSVC targets](docs/en/targets/windows.md#msvc-targets),
-  [Windows](docs/en/targets/windows.md#msvc-targets)).
+  ([MSVC targets](docs/en/guide/cross-compiling.md#msvc-targets),
+  [Windows](docs/en/guide/cross-compiling.md#msvc-targets)).
 - **0015** added: clang's MSVC toolchain takes `-stdlib=libc++` (libc++
   installed with the compiler, or the directories of `-stdlib++-isystem`)
   and `-stdlib=platform` (Microsoft's STL). **0016** added: libc++ on
@@ -303,7 +303,7 @@ Built by 23.1.2.6.
   `aarch64-unknown-linux-musl`, in every toolchain archive: static programs
   with no program interpreter and no shared library, which take nothing
   from the system they run on
-  ([musl targets](docs/en/targets/linux.md#musl-targets)). musl 1.2.6
+  ([musl targets](docs/en/guide/cross-compiling.md#musl-targets)). musl 1.2.6
   with the patches of its security advisories and Linux 6.18's UAPI
   headers, built by xclang; libc++, libc++abi, libunwind, compiler-rt and
   `import std` as for the other Linux targets; of the sanitizers UBSan, as
@@ -400,7 +400,7 @@ The compiler and runtimes are 23.1.2.7's.
   workspace, the toolchain and libclang from `releases/latest` (whose
   `SHA256SUMS` names the version), and `GIT_TAG latest` for CMake's
   FetchContent, a branch at the tag of the newest release
-  ([installing](docs/en/guide/install.md), [versions](docs/en/guide/install.md#versions)).
+  ([installing](docs/en/guide/quick-start.md), [versions](docs/en/reference/releases.md#versions)).
   The docs and `examples/` use these; a release's version keeps it. The
   Bazel module's version stays the oldest release a project takes.
 - MSVC targets without a fetched SDK: the config files load, where every
@@ -455,7 +455,7 @@ Built by 23.1.2.6.
 - **MSVC targets**, `x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc`,
   against Microsoft's CRT, STL and Windows SDK, which the toolchain's own
   `xclang sdk fetch windows --accept-license` fetches into its `sdk/`
-  ([MSVC targets](docs/en/targets/windows.md#msvc-targets)), from every
+  ([MSVC targets](docs/en/guide/cross-compiling.md#msvc-targets)), from every
   host: config files for clang and clang-cl. By default the hybrid CRT:
   the VC runtime and the STL linked statically, UCRT Windows' own DLL, so
   a program loads no `vcruntime140.dll`; the DLLs (`/MD`), all-static and
@@ -481,7 +481,7 @@ Built by 23.1.2.6.
   `clang++ --target=arm64-apple-macos` (or x86_64) builds against Apple's
   macOS SDK, which the toolchain's own
   `xclang sdk fetch macos --accept-license` fetches into its `sdk/macos`
-  ([macOS](docs/en/targets/macos.md#on-linux-and-windows-hosts)).
+  ([macOS](docs/en/guide/cross-compiling.md#on-linux-and-windows-hosts)).
   On those hosts the macOS targets' config files begin with
   `-isysroot <CFGDIR>/../sdk/macos`: an `-isysroot` on the command line
   replaces it, and clang no longer reads `SDKROOT` there. On macOS hosts

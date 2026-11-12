@@ -61,7 +61,7 @@ It prints the `clang` version, followed by `tokens 9 zlib 1 zstd 1`.
 not through conda or `FetchContent`. In `examples/libclang`, inside `pixi shell`
 after `pixi install`, download, verify and unpack the archive matching the
 installed release on Linux `x86_64`
-([installation](../guide/install.md#assets) lists all host triples; on macOS,
+([installation](../reference/releases.md#assets) lists all host triples; on macOS,
 verify with `shasum -a 256 -c --ignore-missing SHA256SUMS`):
 
 <!-- excerpt: .github/workflows/examples.yml -->
@@ -261,7 +261,7 @@ bazel run //:options
 
 The same headers are published as the `noarch` conda package `llvm-option-inc`
 (installed under `$PREFIX/include/llvm-options-td`) and in the release asset
-`llvm-option-inc-<version>.tar.xz` ([installation](../guide/install.md#assets)).
+`llvm-option-inc-<version>.tar.xz` ([installation](../reference/releases.md#assets)).
 
 ## Options
 
@@ -297,6 +297,11 @@ Full option lists are in the [CMake API](../reference/cmake-api.md) and the
   automatically selects and downloads only the archive matching the target
   platform (`--platforms`). In CMake, set `CMAKE_PREFIX_PATH` to the unpacked
   `libclang` archive of the target host.
+- **Hosts only**: there is a `libclang` for each of the six hosts, and none
+  for the musl or MSVC targets; in Bazel, what depends on `@libclang` is
+  incompatible with those platforms. A `libclang` for the MSVC ABI is
+  [not planned](../design/roadmap.md#libclang-msvc).
+
 
 ### What the Archive Contains
 
@@ -424,24 +429,3 @@ branch `exp/bazel-lto`):
 Linking a small tool (`examples/libclang`) across all six hosts takes 7 to
 20 s cold (no cache or empty cache) and 0.6 to 1.7 s warm (152 to 155 cache
 entries), producing identical binary bytes on every run.
-
-## Limitations
-
-- **Host triples only**: `libclang` archives are built for the six host triples
-  (`x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`,
-  `x86_64-w64-mingw32`, `aarch64-w64-mingw32`, `aarch64-apple-darwin`,
-  `x86_64-apple-darwin`). There is no `libclang` for the musl or MSVC targets;
-  in Bazel, targets that depend on `@libclang` are marked incompatible with
-  musl and MSVC platforms, and an MSVC `libclang` is
-  [not planned](../design/roadmap.md#libclang-msvc).
-- **ASan build hosts**: `libclang-<version>-<host>-asan.tar.xz` is published
-  only for `x86_64-unknown-linux-gnu` and `aarch64-apple-darwin`.
-- **Same release's `lld` and `-fno-rtti`**: because `libclang` ships as
-  ThinLTO bitcode compiled without RTTI, it must be linked with the `lld` of
-  the same xclang release (on macOS, `-fuse-ld=ld` selects Apple's `ld`, which
-  only links non-LTO objects) and compiled with `-fno-rtti`.
-- **No backend code generators**: `libclang` archives include every target's MC
-  layer (`AllTargetsInfos`, `AllTargetsDescs`, `AllTargetsAsmParsers`,
-  `AllTargetsDisassemblers`) and omit LLVM's code generation backends
-  (`InitializeAllTargets()`, `InitializeAllAsmPrinters()` and
-  `InitializeNativeTarget()` do not link).

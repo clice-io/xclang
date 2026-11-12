@@ -24,7 +24,7 @@ xclang/
                            the SDK in use of an MSVC target, which the
                            xclang command writes; on x64 Windows hosts,
                            copies of the x64 MinGW and MSVC targets' ASan
-                           DLLs (since 23.1.3.4; Windows: ASan's DLL)
+                           DLLs (Windows: ASan's DLL)
   lib/clang/<major>/       clang's resource headers, compiler-rt's headers,
                            and compiler-rt for every target; for the MSVC
                            targets libc++ too
@@ -34,8 +34,7 @@ xclang/
                            each target's own __config_site, <target> as
                            clang spells it (x86_64-w64-windows-gnu)
   libc++/src/              the runtimes' sources, the same for every target,
-                           in llvm-project's layout, patched (below); since
-                           23.1.2.11
+                           in llvm-project's layout, patched (below)
   mingw-w64/include/       mingw-w64's headers, the same for both Windows
                            targets
   share/licenses/          the license notices of everything in the archive
@@ -52,7 +51,7 @@ Their compiler-rt and libc++ are in `lib/clang/<major>/lib/windows`, the
 directory lld-link searches by itself: `libc++-<arch>.lib`,
 `libc++experimental-<arch>.lib` and, for x64, `libc++asan-x86_64.lib`,
 which the target's `__config_site` names in every object that includes
-libc++ ([Windows](../targets/windows.md#libc-and-microsoft-s-stl)). Their
+libc++ ([Windows](../design/windows.md#libc-on-vcruntime)). Their
 `<target>/` holds libc++'s module sources (`share/libc++/v1`), its module
 manifest (`lib/libc++.modules.json`), which
 `-print-library-module-manifest-path` does not report for them, and the
@@ -62,15 +61,14 @@ ASan build's `__config_site` (`lib/asan/include`).
 
 | | Linux | Linux (musl) | Windows (MinGW) | macOS |
 |---|---|---|---|---|
-| C library | glibc 2.17's headers in `usr/include`, its startup files and libraries in `lib64`, `usr/lib64` | musl 1.2.6's headers in `usr/include`, its startup files and `libc.a` in `usr/lib`, and its empty `libm.a`, `libpthread.a`, ... | mingw-w64 (UCRT) and winpthreads: the libraries in `lib`, the headers in the shared `mingw-w64/include` | none: Apple's SDK, Xcode's, or on Linux and Windows hosts `sdk/macos` ([macOS](../targets/macos.md#on-linux-and-windows-hosts)) |
+| C library | glibc 2.17's headers in `usr/include`, its startup files and libraries in `lib64`, `usr/lib64` | musl 1.2.6's headers in `usr/include`, its startup files and `libc.a` in `usr/lib`, and its empty `libm.a`, `libpthread.a`, ... | mingw-w64 (UCRT) and winpthreads: the libraries in `lib`, the headers in the shared `mingw-w64/include` | none: Apple's SDK, Xcode's, or on Linux and Windows hosts `sdk/macos` ([macOS](../guide/cross-compiling.md#on-linux-and-windows-hosts)) |
 | kernel headers | Linux 3.10's (x64), 4.18's (arm64), in `usr/include` | Linux 6.18's, in `usr/include` | | |
 | libc++, libc++abi, libunwind | `usr/lib`; the headers in the shared `libc++/include/c++/v1` | `usr/lib`; the same | `lib`; the same | `lib` (no libunwind: the system's, in libSystem); the same |
 | libc++ module sources | `usr/share/libc++/v1` | `usr/share/libc++/v1` | `share/libc++/v1` | `share/libc++/v1` |
 | libc++ module manifest | `usr/lib/libc++.modules.json` | `usr/lib/libc++.modules.json` | `lib/libc++.modules.json` | `lib/libc++.modules.json` |
-| ASan libc++ | `usr/lib/asan` | none | x64: `lib/asan` (since 23.1.3.4) | `lib/asan` |
+| ASan libc++ | `usr/lib/asan` | none | x64: `lib/asan` | `lib/asan` |
 | GCC library names | empty `libatomic.a`, `libgcc.a`, `libgcc_eh.a`, `libgcc_s.a` | the same | the same, and `libssp.a`, `libssp_nonshared.a` | none |
 
-The musl targets' directories are in every archive from 23.1.2.10 on.
 
 `clang++ --target=<target> -print-library-module-manifest-path` prints the
 path of the manifest.
@@ -91,8 +89,7 @@ its own `--sysroot` names them too.
 They are not in an `include/` at the top: clang's drivers look for libc++
 in `<toolchain>/include/c++/v1` by themselves, the macOS one before the
 SDK's, so `--no-default-config` would find xclang's headers without a
-`__config_site` there instead of the system's. Before 23.1.2.7 each target
-directory had its own copies, 155 MB of the 800 MB unpacked.
+`__config_site` there instead of the system's.
 
 ## The Runtimes' Sources
 
@@ -102,8 +99,7 @@ llvm-project's `runtimes/`, `cmake/`, `llvm/cmake/`, `libcxx/`,
 documentation, and the headers of LLVM's libc that libc++ includes, with
 xclang's patches of them applied. The CMake package and the Bazel module
 build the runtimes from them ([runtimes from source](../features/runtimes-from-source.md)),
-LLVM's `runtimes/` as from a checkout. They are 35 MB unpacked, since
-23.1.2.11.
+LLVM's `runtimes/` as from a checkout. They are 35 MB unpacked.
 
 ## Licenses
 
@@ -127,7 +123,7 @@ The toolchain's components:
 | `llvm-project` | clang, lld, the LLVM tools, libc++, libc++abi, libunwind, compiler-rt; the files keep their paths in LLVM's source, and a `<file>.license` is a notice cut from that file's comment | Apache-2.0 WITH LLVM-exception, and the third-party parts': the regex engine, BLAKE3, xxHash, Unicode's conversions and data, the Visual Studio Setup API's declarations |
 | `zlib`, `zstd` | linked into the programs (macOS hosts: zstd only) | Zlib; BSD-3-Clause OR GPL-2.0-only |
 | `glibc` | the Linux targets' C library, 2.17 | LGPL-2.1-or-later |
-| `musl` | the musl targets' C library, 1.2.6, from 23.1.2.10 on | MIT, and the parts its `COPYRIGHT` names: BSD-2-Clause, BSD-3-Clause, ISC, SunPro |
+| `musl` | the musl targets' C library, 1.2.6 | MIT, and the parts its `COPYRIGHT` names: BSD-2-Clause, BSD-3-Clause, ISC, SunPro |
 | `linux` | the Linux targets' kernel UAPI headers, glibc's and musl's | GPL-2.0-only WITH Linux-syscall-note |
 | `nss` | the Linux targets' `libfreebl3.so`, which glibc's `libcrypt` loads | MPL-2.0 |
 | `mingw-w64` | the Windows targets' headers, CRT and winpthreads, which the Windows hosts' programs link too | ZPL-2.1, and the runtime's other parts |
@@ -146,7 +142,7 @@ has it, and `mingw-w64` on Windows hosts), the option tables `xclang` and
 On Linux and macOS hosts, the tool names in `bin/` are symbolic links to
 `llvm`. The Windows archives hold no symbolic links, so they unpack without
 extra rights, and conda can package them; every tool name is a small
-[launcher](../targets/windows.md#the-launchers) instead. The Linux sysroots
+[launcher](../design/windows.md#the-launchers) instead. The Linux sysroots
 hold no links either: soname links are the files themselves, and `libfoo.so`
 links are linker scripts
 ([why glibc 2.17](../design/hermeticity.md#why-glibc-2-17)).

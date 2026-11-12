@@ -2,7 +2,7 @@
 
 Any build tool that invokes a compiler by name works with xclang. Put xclang's `bin/` first in `PATH` (as `pixi shell` does) or invoke the binaries by path, and pass `--target=<triple>` to build for another target.
 
-Requires: xclang's `bin/` in `PATH` ([Install](../guide/install.md)).
+Requires: xclang's `bin/` in `PATH` ([Install](../guide/quick-start.md)).
 
 ## Clang
 
@@ -17,17 +17,17 @@ clang++ -O2 --target=x86_64-w64-mingw32 hello.cpp -o hello-windows-x64.exe
 clang++ -O2 --target=aarch64-w64-mingw32 hello.cpp -o hello-windows-arm64.exe
 ```
 
-Each target has a config file (`bin/<triple>.cfg`) that selects its sysroot or SDK, links `libc++`, `libunwind` and `compiler-rt` statically, uses `lld`, and sets the OS floor ([Cross-Compiling](../targets/cross-compiling.md#how-clang-finds-a-target-s-files), [Toolchain Design](../design/toolchain.md)). Clang's alternate target spellings, such as `x86_64-pc-linux-gnu` or `arm64-apple-macos`, load the same config files.
+Each target has a config file (`bin/<triple>.cfg`) that selects its sysroot or SDK, links `libc++`, `libunwind` and `compiler-rt` statically, uses `lld`, and sets the OS floor ([Cross-Compiling](../guide/cross-compiling.md#how-clang-finds-a-target-s-files), [Toolchain Design](../design/toolchain.md)). Clang's alternate target spellings, such as `x86_64-pc-linux-gnu` or `arm64-apple-macos`, load the same config files.
 
-- **musl targets**: `--target=x86_64-unknown-linux-musl` and `--target=aarch64-unknown-linux-musl` build static Linux binaries ([musl targets](../targets/linux.md#musl-targets)).
-- **macOS targets**: `--target=aarch64-apple-darwin` and `--target=x86_64-apple-darwin` build against Xcode's SDK on macOS hosts, and against the SDK fetched by `xclang sdk fetch macos --accept-license` on Linux and Windows hosts ([macOS](../targets/macos.md)).
-
-
-- **MSVC targets**: `--target=x86_64-pc-windows-msvc`, `--target=aarch64-pc-windows-msvc` and `clang-cl` build against the Windows SDK fetched by `xclang sdk fetch windows --accept-license`, or an installed Visual Studio on Windows hosts ([MSVC targets](../targets/windows.md#msvc-targets)).
+- **musl targets**: `--target=x86_64-unknown-linux-musl` and `--target=aarch64-unknown-linux-musl` build static Linux binaries ([musl targets](../guide/cross-compiling.md#musl-targets)).
+- **macOS targets**: `--target=aarch64-apple-darwin` and `--target=x86_64-apple-darwin` build against Xcode's SDK on macOS hosts, and against the SDK fetched by `xclang sdk fetch macos --accept-license` on Linux and Windows hosts ([macOS](../guide/cross-compiling.md#macos)).
 
 
-- **The platform's C++ library**: `-stdlib=platform` (or `/clang:-stdlib=platform` with `clang-cl`) selects `<triple>-system.cfg` and builds against the target's system C++ library: `libstdc++` on Linux and MinGW, Microsoft's STL on MSVC, or `/usr/lib/libc++.1.dylib` on macOS ([the platform's C++ library](../targets/cross-compiling.md#the-platform-s-c-library)). `--no-default-config` disables xclang's config files altogether.
-- **GCC compatibility**: Build scripts written for GCC work without changes. `-latomic`, `-lgcc`, `-lgcc_eh`, `-lgcc_s` and (on Windows) `-lssp` resolve to empty stub archives, `-lstdc++` links `libc++`, and `windres` invokes `llvm-windres` ([GCC library names](../targets/linux.md#gcc-library-names), [Hermeticity](../design/hermeticity.md)).
+- **MSVC targets**: `--target=x86_64-pc-windows-msvc`, `--target=aarch64-pc-windows-msvc` and `clang-cl` build against the Windows SDK fetched by `xclang sdk fetch windows --accept-license`, or an installed Visual Studio on Windows hosts ([MSVC targets](../guide/cross-compiling.md#msvc-targets)).
+
+
+- **The platform's C++ library**: `-stdlib=platform` (or `/clang:-stdlib=platform` with `clang-cl`) selects `<triple>-system.cfg` and builds against the target's system C++ library: `libstdc++` on Linux and MinGW, Microsoft's STL on MSVC, or `/usr/lib/libc++.1.dylib` on macOS ([the platform's C++ library](../guide/cross-compiling.md#the-platform-s-c-library)). `--no-default-config` disables xclang's config files altogether.
+- **GCC compatibility**: Build scripts written for GCC work without changes. `-latomic`, `-lgcc`, `-lgcc_eh`, `-lgcc_s` and (on Windows) `-lssp` resolve to empty stub archives, `-lstdc++` links `libc++`, and `windres` invokes `llvm-windres` ([GCC library names](../design/hermeticity.md#gcc-library-names), [Hermeticity](../design/hermeticity.md)).
 
 ## Make
 

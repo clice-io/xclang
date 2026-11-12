@@ -2,7 +2,7 @@
 
 Set up xclang on GitHub Actions, cache downloaded toolchains, Bazel repositories and ThinLTO objects between runs, and cross-compile on one runner to run tests on another.
 
-Requires: a GitHub Actions workflow using the hosted runners listed in [Cross-Compiling](../targets/cross-compiling.md#targets-and-hosts).
+Requires: a GitHub Actions workflow using the hosted runners listed in [Cross-Compiling](../guide/cross-compiling.md#targets-and-hosts).
 
 ## Get the Toolchain
 
@@ -44,7 +44,7 @@ Requires: a GitHub Actions workflow using the hosted runners listed in [Cross-Co
 
 **Bazel.** The `xclang` module downloads the toolchain archive into Bazel's repository cache. Cache `--repository_cache` alongside `--disk_cache` ([below](#keep-caches-between-runs)).
 
-**Vendor SDKs.** Bazel caches vendor SDK archives in `--repository_cache`, and `xclang sdk fetch` caches them in the directory given as its `--cache`, which an `actions/cache` step can persist across runs. Keeping a cached macOS SDK package also protects builds if Apple later withdraws that package from its catalog ([packages Apple withdraws](../targets/macos.md#packages-apple-withdraws-and-content-digests)).
+**Vendor SDKs.** Bazel caches vendor SDK archives in `--repository_cache`, and `xclang sdk fetch` caches them in the directory given as its `--cache`, which an `actions/cache` step can persist across runs. Keeping a cached macOS SDK package also protects builds if Apple later withdraws that package from its catalog ([packages Apple withdraws](../design/macos.md#packages-apple-withdraws-and-content-digests)).
 
 ## Keep Caches between Runs
 
@@ -150,8 +150,4 @@ In Bazel, the build job passes `--platforms=@xclang//platforms:<target>` and upl
 | `aarch64-apple-darwin` | `macos-15` |
 | `x86_64-apple-darwin` | `macos-15-intel` |
 
-MSVC targets and macOS targets build on any runner once the vendor SDK is fetched with `xclang sdk fetch` ([MSVC targets](../targets/windows.md#msvc-targets), [macOS](../targets/macos.md#on-linux-and-windows-hosts)) or via the Bazel module extension ([Bazel](bazel.md#build-for-msvc-and-for-macos-anywhere)). `x86_64-apple-darwin` binaries also run on `macos-15` under Rosetta, and `x86_64` Windows binaries run on `windows-11-arm`.
-
-## See Also
-
-- [CMake](cmake.md) and [Bazel](bazel.md): setting up the builds run in these workflows.
+MSVC targets and macOS targets build on any runner once the vendor SDK is fetched with `xclang sdk fetch` ([MSVC targets](../guide/cross-compiling.md#msvc-targets), [macOS](../guide/cross-compiling.md#on-linux-and-windows-hosts)) or via the Bazel module extension ([Bazel](bazel.md#build-for-msvc-and-for-macos-anywhere)). `x86_64-apple-darwin` binaries also run on `macos-15` under Rosetta, and `x86_64` Windows binaries run on `windows-11-arm`.

@@ -16,7 +16,7 @@ bazel_dep(name = "rules_cc", version = "0.2.25")
 bazel_dep(name = "xclang", version = "23.1.5.1")
 ```
 
-The `version` in `bazel_dep` is the oldest release the project requires; Bazel selects the newest version requested across the dependency graph ([versions](../guide/install.md#versions)). `.bazelrc` adds the registry and the flags needed for `import std`:
+The `version` in `bazel_dep` is the oldest release the project requires; Bazel selects the newest version requested across the dependency graph ([versions](../reference/releases.md#versions)). `.bazelrc` adds the registry and the flags needed for `import std`:
 
 <!-- file: examples/bazel/.bazelrc -->
 ```
@@ -65,6 +65,9 @@ startup --output_user_root=C:/b
 startup --windows_enable_symlinks
 ```
 
+Bazel runs actions on Windows without a sandbox, so an action may read a
+file it does not declare there; the Linux and macOS builds of the same
+targets check the declarations.
 
 ## Build for Another Target
 
@@ -75,9 +78,9 @@ Pass `--platforms=@xclang//platforms:<target>` to build for another target:
 bazel build --platforms=@xclang//platforms:x86_64-w64-mingw32 //:hello
 ```
 
-The ten target platforms are listed in the [Bazel API](../reference/bazel-api.md) and in [Cross-Compiling](../targets/cross-compiling.md#targets-and-hosts). Cross-compiling uses the host's toolchain archive configured for the target, so Bazel downloads no second toolchain archive. `@xclang//bazel:std` and `@libclang` follow the target platform automatically, while tools built in the exec configuration (`cfg = "exec"`) build for the host. You can also define your own `platform` target: the toolchains match on OS and CPU, and without a C library constraint Linux selects `glibc` and Windows selects MinGW; add `@xclang//platforms/libc:musl` for musl or `@xclang//platforms/libc:msvc` for MSVC.
+The ten target platforms are listed in the [Bazel API](../reference/bazel-api.md) and in [Cross-Compiling](../guide/cross-compiling.md#targets-and-hosts). Cross-compiling uses the host's toolchain archive configured for the target, so Bazel downloads no second toolchain archive. `@xclang//bazel:std` and `@libclang` follow the target platform automatically, while tools built in the exec configuration (`cfg = "exec"`) build for the host. You can also define your own `platform` target: the toolchains match on OS and CPU, and without a C library constraint Linux selects `glibc` and Windows selects MinGW; add `@xclang//platforms/libc:musl` for musl or `@xclang//platforms/libc:msvc` for MSVC.
 
-- **musl targets**: `--platforms=@xclang//platforms:x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl` build static programs from any host ([musl targets](../targets/linux.md#musl-targets)). On a Linux host of the same architecture, `bazel test` runs their tests directly.
+- **musl targets**: `--platforms=@xclang//platforms:x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl` build static programs from any host ([musl targets](../guide/cross-compiling.md#musl-targets)). On a Linux host of the same architecture, `bazel test` runs their tests directly.
 - **MSVC targets, and macOS targets off macOS**: require accepting the vendor's license in the root `MODULE.bazel` ([below](#build-for-msvc-and-for-macos-anywhere)). Without the tag, a build for them fails immediately and says what to add.
 - **One output directory by default**: Bazel 9 writes outputs for different platforms into the same CPU output directory (`k8-fastbuild`), so switching `--platforms` overwrites previous outputs. Add `common --experimental_platform_in_output_dir` to `.bazelrc` to give each platform its own directory, such as `x86_64-w64-mingw32-fastbuild`.
 - **Building tests for another target**: `bazel test` runs tests on the host, so run cross-compiled tests on a machine of the target ([CI](ci.md#build-on-one-runner-run-on-another)). `cc_test` builds for any target platform; other test rules build only when an execution platform matches the target's OS and CPU, or anywhere with `--@bazel_tools//tools/test:incompatible_use_default_test_toolchain=false`.
@@ -85,7 +88,7 @@ The ten target platforms are listed in the [Bazel API](../reference/bazel-api.md
 
 ## Build for MSVC, and for macOS Anywhere
 
-Add `xclang.windows_sdk` and `xclang.macos_sdk` to the root `MODULE.bazel` to accept the vendor's license and let the module extension fetch Microsoft's CRT and Windows SDK ([MSVC targets](../targets/windows.md#msvc-targets)) and Apple's macOS SDK ([macOS](../targets/macos.md#on-linux-and-windows-hosts)):
+Add `xclang.windows_sdk` and `xclang.macos_sdk` to the root `MODULE.bazel` to accept the vendor's license and let the module extension fetch Microsoft's CRT and Windows SDK ([MSVC targets](../guide/cross-compiling.md#msvc-targets)) and Apple's macOS SDK ([macOS](../guide/cross-compiling.md#on-linux-and-windows-hosts)):
 
 ```python
 xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
@@ -99,12 +102,12 @@ bazel build --platforms=@xclang//platforms:x86_64-pc-windows-msvc //:hello
 bazel build --platforms=@xclang//platforms:aarch64-apple-darwin //:hello
 ```
 
-- **Root module only**: Only tags in the root module take effect; tags in dependencies are ignored. Without `accept_license = True`, a build that needs the SDK prints the vendor's terms and stops ([vendor SDKs](../targets/cross-compiling.md#vendor-sdks)).
-- **Pinned versions**: By default the extension uses the `windows-latest` and `macos-latest` presets. Pass `preset = "windows-2022"` for another runner preset, or pass `msvc_version` and `sdk_version` (Windows) and `version` (macOS) to pin specific versions ([presets, versions and `latest`](../targets/macos.md#presets-versions-and-latest), [Bazel API](../reference/bazel-api.md)).
-- **Fetched when first needed**: Each SDK is a separate repository (`xclang_windows_sdk_x86_64`, `xclang_windows_sdk_aarch64`, `xclang_macos_sdk`). Bazel downloads the vendor packages into its repository cache only when a build targets that platform, and the toolchain's `xclang` command unpacks them into the output base. On macOS hosts, macOS targets use Xcode's SDK instead. When Apple has withdrawn a pinned macOS package, `xclang` locates the replacement package by content digest and downloads it directly ([packages Apple withdraws](../targets/macos.md#packages-apple-withdraws-and-content-digests)).
+- **Root module only**: Only tags in the root module take effect; tags in dependencies are ignored. Without `accept_license = True`, a build that needs the SDK prints the vendor's terms and stops ([vendor SDKs](../guide/cross-compiling.md#vendor-sdks)).
+- **Pinned versions**: By default the extension uses the `windows-latest` and `macos-latest` presets. Pass `preset = "windows-2022"` for another runner preset, or pass `msvc_version` and `sdk_version` (Windows) and `version` (macOS) to pin specific versions ([presets, versions and `latest`](../guide/cross-compiling.md#presets-and-versions), [Bazel API](../reference/bazel-api.md)).
+- **Fetched when first needed**: Each SDK is a separate repository (`xclang_windows_sdk_x86_64`, `xclang_windows_sdk_aarch64`, `xclang_macos_sdk`). Bazel downloads the vendor packages into its repository cache only when a build targets that platform, and the toolchain's `xclang` command unpacks them into the output base. On macOS hosts, macOS targets use Xcode's SDK instead. When Apple has withdrawn a pinned macOS package, `xclang` locates the replacement package by content digest and downloads it directly ([packages Apple withdraws](../design/macos.md#packages-apple-withdraws-and-content-digests)).
 - **Do not share vendor SDK caches publicly**: The repository cache holds the vendor's archives, and remote execution uploads action inputs including SDK files. Do not expose a shared or public repository cache or remote execution cache containing them; a remote cache of action outputs alone does not distribute the SDK.
 
-For MSVC targets, C++ compiles default to `-std=c++17` (unless `--cxxopt` or `copts` specify a standard) and link the [hybrid CRT](../targets/windows.md#the-hybrid-crt-and-c-runtime-flags). Their toolchain features are:
+For MSVC targets, C++ compiles default to `-std=c++17` (unless `--cxxopt` or `copts` specify a standard) and link the [hybrid CRT](../guide/cross-compiling.md#msvc-targets). Their toolchain features are:
 
 - `generate_pdb_file` (on by default with `-c dbg`): writes `<name>.pdb` (output group `pdb_file`) with source paths relative to the execution root, and embeds only the filename in the binary.
 - `dynamic_link_msvcrt`: links the VC runtime DLLs (`/MD`).
@@ -113,9 +116,9 @@ For MSVC targets, C++ compiles default to `-std=c++17` (unless `--cxxopt` or `co
 
 `@libclang` has no prebuilt archive for MSVC targets, so targets that depend on `@libclang` are marked incompatible with MSVC platforms and skipped by `//...`.
 
-For macOS targets, the deployment target is `--macos_minimum_os`, clamped to at least `13.0` ([macOS](../targets/macos.md#xclang-s-libc-and-stdlib-platform)). Unlike `rules_cc`'s built-in macOS toolchain, xclang's toolchain does not pass `-fobjc-link-runtime` on every link, so C++ programs link only the frameworks they and their dependencies name. A library that uses CoreFoundation names `linkopts = ["-Wl,-framework,CoreFoundation"]`; for dependencies that omit it, the `macos_default_link_flags` feature restores `-fobjc-link-runtime`.
+For macOS targets, the deployment target is `--macos_minimum_os`, clamped to at least `13.0` ([macOS](../guide/cross-compiling.md#stdlib-platform-and-the-deployment-target)). Unlike `rules_cc`'s built-in macOS toolchain, xclang's toolchain does not pass `-fobjc-link-runtime` on every link, so C++ programs link only the frameworks they and their dependencies name. A library that uses CoreFoundation names `linkopts = ["-Wl,-framework,CoreFoundation"]`; for dependencies that omit it, the `macos_default_link_flags` feature restores `-fobjc-link-runtime`.
 
-`--@xclang//bazel:stdlib=platform` builds against the [platform's C++ library](../targets/cross-compiling.md#the-platform-s-c-library) instead of xclang's `libc++`: Microsoft's STL for MSVC targets (where `@xclang//bazel:std` builds the STL's module) and the SDK's `/usr/lib/libc++.1.dylib` for macOS targets (where `@xclang//bazel:std` is unavailable). Linux, musl and MinGW targets reject the flag because their platform `libstdc++` is outside the toolchain.
+`--@xclang//bazel:stdlib=platform` builds against the [platform's C++ library](../guide/cross-compiling.md#the-platform-s-c-library) instead of xclang's `libc++`: Microsoft's STL for MSVC targets (where `@xclang//bazel:std` builds the STL's module) and the SDK's `/usr/lib/libc++.1.dylib` for macOS targets (where `@xclang//bazel:std` is unavailable). Linux, musl and MinGW targets reject the flag because their platform `libstdc++` is outside the toolchain.
 
 
 ## Features
@@ -157,25 +160,3 @@ git_override(
 ```
 
 To use a locally unpacked toolchain archive such as a CI build, pass `--repo_env=XCLANG_ROOT=<dir>`, and `XCLANG_LIBCLANG_ROOT` or `XCLANG_LIBCLANG_ASAN_ROOT` for an unpacked host `libclang`. Cross-compiled targets still download their `libclang` archive from the release.
-
-## Troubleshooting
-
-- **Paths too long on Windows**: set a short output root in `%USERPROFILE%\.bazelrc` ([on a Windows host](#on-a-windows-host)).
-- **`'Windows.h' file not found`** when building for MinGW targets from Linux or macOS: include Windows headers in lowercase ([case-sensitive headers](../targets/windows.md#case-sensitive-headers)).
-- **A build for an MSVC target, or for macOS off macOS, fails naming `xclang.windows_sdk` or `xclang.macos_sdk`**: add the SDK tag to the root `MODULE.bazel` ([vendor SDKs](#build-for-msvc-and-for-macos-anywhere)).
-- **Test registrations disappear in Windows release builds**: keep `gc_sections` off for targets that register tests in static initializers ([gc-sections and static initializers](../targets/windows.md#gc-sections-and-static-initializers)).
-- **The ThinLTO cache does nothing on Linux**: keep the cache directory outside `/tmp` and pass `--sandbox_writable_path=<dir>` ([the ThinLTO cache](../features/libclang.md#the-thinlto-cache)).
-- More symptoms are in [Troubleshooting](../guide/troubleshooting.md).
-
-## Known Limitations
-
-- C++20 modules require `--experimental_cpp_modules`, and header units are not supported.
-- Bazel runs Windows actions without a sandbox by default, so undeclared inputs go unnoticed on Windows hosts; Linux and macOS builds run in a sandbox and enforce input declarations.
-- On macOS hosts, the macOS toolchain uses the Xcode SDK path returned by `xcrun`, and the sanitizer features embed an absolute path to the toolchain's runtime directory. Only those links depend on the checkout path ([The Bazel Module](../design/bazel-module.md)).
-- [Fetched targets](../design/roadmap.md#fetched-targets-in-build-systems) in the Bazel module, [ASan, TSan and LSan for musl targets](../design/roadmap.md#musl-sanitizers), and [runtimes from source for the MSVC targets](../design/roadmap.md#runtimes-msvc) are on the roadmap.
-
-## See Also
-
-- [Bazel API](../reference/bazel-api.md): every rule, feature, platform and repository.
-- [The Bazel Module](../design/bazel-module.md): why the module is built the way it is.
-- [CI](ci.md): caching Bazel repositories, action outputs and ThinLTO objects between runs.

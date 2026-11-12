@@ -44,8 +44,8 @@ Every toolchain:
 | `x86_64-apple-darwin` | | macOS x64; off macOS hosts, with Apple's SDK |
 | `x86_64-pc-windows-msvc` | | Windows x64, MSVC ABI, with Microsoft's SDK |
 | `aarch64-pc-windows-msvc` | | Windows arm64, MSVC ABI, with Microsoft's SDK |
-| `x86_64-unknown-linux-musl` | `x86_64-linux-musl` | Linux x64, musl, static; from 23.1.2.10 on |
-| `aarch64-unknown-linux-musl` | `aarch64-linux-musl` | Linux arm64, musl, static; from 23.1.2.10 on |
+| `x86_64-unknown-linux-musl` | `x86_64-linux-musl` | Linux x64, musl, static |
+| `aarch64-unknown-linux-musl` | `aarch64-linux-musl` | Linux arm64, musl, static |
 
 Each has `@platforms//os`, `@platforms//cpu` and a C library,
 `@xclang//platforms/libc:glibc`, `:musl`, `:mingw`, `:macosx` or `:msvc`.
@@ -58,17 +58,17 @@ Windows unless it names one of those.
 
 | feature | default | |
 |---|---|---|
-| `asan`, `tsan`, `ubsan`, `lsan` | off | sanitizers, for the whole build (`--features=asan`); `asan` compiles and links with the ASan libc++, or with the runtimes from source instrumented by it. For the Windows targets `ubsan`, and `asan` for x64 (MinGW's since 23.1.3.4), whose DLL every program then has beside it; for the musl targets `ubsan`. Others are refused |
-| `msan` | off | MemorySanitizer, for the whole build, with the runtimes from source (`--@xclang//runtimes:source`), which then include its runtime; Linux targets (glibc). Refused without them, and for the other targets. Since 23.1.2.11 |
+| `asan`, `tsan`, `ubsan`, `lsan` | off | sanitizers, for the whole build (`--features=asan`); `asan` compiles and links with the ASan libc++, or with the runtimes from source instrumented by it. For the Windows targets `ubsan`, and `asan` for x64, whose DLL every program then has beside it; for the musl targets `ubsan`. Others are refused |
+| `msan` | off | MemorySanitizer, for the whole build, with the runtimes from source (`--@xclang//runtimes:source`), which then include its runtime; Linux targets (glibc). Refused without them, and for the other targets. |
 | `copy_dynamic_libraries_to_binary` | Windows targets: on | a program's DLLs beside it in `bazel-bin` and in its runfiles, ASan's among them, as Bazel's own Windows toolchains have it |
 | `cpp_modules` | off | C++20 modules: `module_interfaces` of a `cc_library`/`cc_binary`, scanned by clang-scan-deps; needs `--experimental_cpp_modules` |
-| `gc_sections` | Linux targets: on in `opt`; Windows targets: off | lld's `--gc-sections`, lld-link's `/opt:ref` for the MSVC targets ([why not for Windows](../targets/windows.md#gc-sections-and-static-initializers)) |
+| `gc_sections` | Linux targets: on in `opt`; Windows targets: off | lld's `--gc-sections`, lld-link's `/opt:ref` for the MSVC targets ([why not for Windows](../design/windows.md#gc-sections-and-static-initializers)) |
 | `thinlto_cache` | on | the linker's ThinLTO cache, with flags only when `XCLANG_THINLTO_CACHE` names a directory |
 | `generate_dsym_file` | off | macOS targets: the link makes `<name>.dSYM` (output group `dsyms`); `--apple_generate_dsym` turns it on for the build |
 | `supports_dynamic_linker` | off | Bazel's dynamic linking of libraries into tests and programs, for the Linux targets; off, they link statically, as they do for the others always |
 | `release_strip` | on | what `<name>.stripped` does: `--strip-unneeded` for ELF and COFF, `--strip-all` for Mach-O ([strip](../features/debugging.md#strip)) |
 | `modules_embed_all_files` | on | a C++20 module interface's file embeds its sources (`-Xclang -fmodules-embed-all-files`): an importer that reads them (with `-g`) has them in the sandbox |
-| `macos_default_link_flags` | off | rules_cc's: `-fobjc-link-runtime` in every link of a macOS target, which links Foundation and libobjc into each program and library; off, a target links the frameworks it names ([macOS links](../integrations/bazel.md#build-for-msvc-and-for-macos-anywhere)). On before 23.1.3.5 |
+| `macos_default_link_flags` | off | rules_cc's: `-fobjc-link-runtime` in every link of a macOS target, which links Foundation and libobjc into each program and library; off, a target links the frameworks it names ([macOS links](../integrations/bazel.md#build-for-msvc-and-for-macos-anywhere)). |
 | `no_exported_symbols` | macOS targets: on in `opt` | the program exports nothing (`-Wl,-no_exported_symbols`), so that its strip leaves no symbol to name a crash log's frames ([strip](../features/debugging.md#strip)); off for a program whose plugins bind to its symbols |
 | `generate_pdb_file` | MSVC targets: on in `dbg` | the link writes `<name>.pdb` (output group `pdb_file`), with paths relative to the execution root |
 | `dynamic_link_msvcrt` | off | MSVC targets: the VC runtime's DLLs (`/MD`) in place of the hybrid CRT |
@@ -84,11 +84,11 @@ A flag of the whole build:
 
 | flag | default | |
 |---|---|---|
-| `--@xclang//bazel:stdlib` | `libc++` | `platform`: the platform's C++ library in place of libc++, for the MSVC targets Microsoft's STL and for the macOS ones the SDK's libc++, from the same SDK; the config file `<target>-system.cfg` in place of the target's ([the system's C++ library](../targets/cross-compiling.md#the-platform-s-c-library)). `@xclang//bazel:std` follows it. The other targets refuse it, as does `--@xclang//runtimes:source` |
+| `--@xclang//bazel:stdlib` | `libc++` | `platform`: the platform's C++ library in place of libc++, for the MSVC targets Microsoft's STL and for the macOS ones the SDK's libc++, from the same SDK; the config file `<target>-system.cfg` in place of the target's ([the system's C++ library](../guide/cross-compiling.md#the-platform-s-c-library)). `@xclang//bazel:std` follows it. The other targets refuse it, as does `--@xclang//runtimes:source` |
 
 ## Runtimes from Source
 
-Since 23.1.2.11. Flags of the whole build, in `@xclang//runtimes`
+Flags of the whole build, in `@xclang//runtimes`
 ([runtimes from source](../features/runtimes-from-source.md)):
 
 | flag | default | |
@@ -118,7 +118,7 @@ target has not.
 
 | label | |
 |---|---|
-| `@xclang//bazel:std` | the `std` and `std.compat` modules of libc++, for the target platform, as a library to depend on; built with the `--cxxopt` of the build. For the MSVC targets with `--@xclang//bazel:stdlib=platform` (or a release before 23.1.2.10), those of Microsoft's STL; for the macOS targets with it, none (incompatible) |
+| `@xclang//bazel:std` | the `std` and `std.compat` modules of libc++, for the target platform, as a library to depend on; built with the `--cxxopt` of the build. For the MSVC targets with `--@xclang//bazel:stdlib=platform`, those of Microsoft's STL; for the macOS targets with it, none (incompatible) |
 | `xclang_debug_symbols(name, binary, gsymutil_args)` in `@xclang//bazel:debug_symbols.bzl` | `<binary>.gsym` for every target but the MSVC ones, by llvm-gsymutil with one thread (the same file each run; `gsymutil_args` come after `--num-threads=1`), and `<binary>.dSYM` for macOS ones (with `generate_dsym_file` on the `cc_binary`); llvm-gsymutil's output in the output group `gsym_log`. For an MSVC target, `<binary>.pdb` (with `generate_pdb_file`) |
 | `@xclang//bazel:llvm-gsymutil` | the llvm-gsymutil of the machine's toolchain, for `bazel run`: `bazel run @xclang//bazel:llvm-gsymutil -- <absolute .gsym> --address=0x<address>` |
 | `xclang_resource_dir(name, srcs)` in `@xclang//bazel:resource_dir.bzl` | clang's resource directory laid out as `lib/clang/<major>/` in the rule's package, for a program `bin/<name>` of that package; `@libclang`'s by default |

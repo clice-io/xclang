@@ -1,14 +1,10 @@
 # The xclang Command
 
-`xclang` fetches what the toolchain does not carry: the vendor SDKs that
-cannot be redistributed, and targets beyond the eight every toolchain has.
-Every toolchain archive carries it, as `bin/xclang` (`xclang.exe` on
-Windows), since 23.1.2.7. Why SDKs are fetched and not shipped is in
-[vendor SDKs](../targets/cross-compiling.md#vendor-sdks). No release publishes target
-archives yet, so `xclang target add` has nothing to add; target archives
-are [planned](../design/roadmap.md#target-archives). `xclang cargo`, since
-23.1.2.11, runs cargo with the toolchain as the C compiler and linker of
-its targets.
+`xclang` fetches what the toolchain does not carry, the vendor SDKs that
+cannot be redistributed, and runs cargo with the toolchain as the C
+compiler and linker of its targets. Every toolchain archive carries it, as
+`bin/xclang` (`xclang.exe` on Windows). Why SDKs are fetched and not
+shipped is in [cross-compiling](../guide/cross-compiling.md).
 
 ```text
 xclang sdk list [macos|windows]
@@ -32,13 +28,13 @@ download against the size and sha256 its version table pins, with three
 tries, since a download now and then comes short or damaged. A macOS
 SDK whose package Apple withdrew, it finds in another package Apple's
 catalogs list, checked by the SDK's content
-([why](../targets/macos.md#packages-apple-withdraws-and-content-digests)). Then it
+([why](../design/macos.md#packages-apple-withdraws-and-content-digests)). Then it
 unpacks the SDK into a directory of its own:
 
 | SDK | directory | use |
 |---|---|---|
-| macOS | `$XCLANG/sdk/macos-<version>` | `clang++ --target=arm64-apple-macos` on Linux and Windows hosts ([macOS](../targets/macos.md#on-linux-and-windows-hosts)); on macOS hosts, and for an SDK outside the toolchain, `-isysroot <dir>` |
-| MSVC and the Windows SDK | `$XCLANG/sdk/windows-msvc<version>-sdk<version>` | `clang++ --target=x86_64-pc-windows-msvc`, `clang-cl`: the [MSVC targets](../targets/windows.md#msvc-targets) |
+| macOS | `$XCLANG/sdk/macos-<version>` | `clang++ --target=arm64-apple-macos` on Linux and Windows hosts ([macOS](../guide/cross-compiling.md#on-linux-and-windows-hosts)); on macOS hosts, and for an SDK outside the toolchain, `-isysroot <dir>` |
+| MSVC and the Windows SDK | `$XCLANG/sdk/windows-msvc<version>-sdk<version>` | `clang++ --target=x86_64-pc-windows-msvc`, `clang-cl`: the [MSVC targets](../guide/cross-compiling.md#msvc-targets) |
 
 | command or option | |
 |---|---|
@@ -76,12 +72,12 @@ The MSVC targets' own config files read them through
 `bin/<arch>-pc-windows-msvc-clang-cl-sdk.cfg`, which `fetch`, `use` and
 `remove` rewrite: they include the files of the SDK in use, through
 `sdk/windows`, or say there is none for the architecture
-([why](../targets/windows.md#msvc-targets)). An update of a conda package
+([why](../guide/cross-compiling.md#msvc-targets)). An update of a conda package
 writes them anew, naming none; `sdk use` names the SDK again. On Linux and
 macOS hosts the config files read `sdk/windows` meanwhile all the same. On
 Linux and Windows hosts the
 macOS targets' config files name `sdk/macos` as their `-isysroot`
-([why](../targets/macos.md#on-linux-and-windows-hosts)); on macOS
+([why](../guide/cross-compiling.md#on-linux-and-windows-hosts)); on macOS
 hosts they use Xcode's SDK, and a fetched one takes `-isysroot`. An SDK
 fetched with `--sdk-dir` is outside the toolchain, where its config files
 do not look.
@@ -97,16 +93,14 @@ again after the move, or fetch it with `--links copy`, which makes none.
 `xclang/sdk-versions.json`, built into the program, lists every
 version the vendors offer:
 
-- 38 Windows SDKs from NuGet;
-- 20 MSVC toolsets from the Visual Studio channels;
-- 29 macOS SDK packages from Apple's software update catalogs;
+- the Windows SDKs on NuGet;
+- the MSVC toolsets of the Visual Studio channels;
+- the macOS SDK packages of Apple's software update catalogs;
 - presets: the versions GitHub's runner images build with, so a cross
   build matches what a workflow gets. `windows-2022` has MSVC 14.44, whose
   STL still serves Windows 7 SP1 and 8.1.
 
-With no version given, the preset's is taken, the macOS 27 SDK too: the
-releases that carry the command link against it
-([macOS](../targets/macos.md#on-macos-hosts)).
+With no version given, the preset's is taken.
 
 ### What Is Fetched
 
@@ -126,46 +120,10 @@ spellings Windows code uses. The download is 600 MB for x64 and arm64,
 
 ## Targets
 
-`xclang target add` unpacks the archive of a target into the toolchain:
-its sysroot and runtimes, its compiler-rt, and its config files. The
-archives of a release are listed in its index, as the channel manifests of
-rustup list components. No release has an index yet
-([planned](../design/roadmap.md#target-archives)); this one is
-illustrative:
-
-```json
-{
-  "schema": 1,
-  "version": "23.1.2.7",
-  "targets": {
-    "riscv64-unknown-linux-gnu": {
-      "description": "Linux riscv64, glibc 2.31",
-      "tier": 2,
-      "sdk": null,
-      "archive": "xclang-target-23.1.2.7-riscv64-unknown-linux-gnu.tar.xz",
-      "sha256": "…",
-      "size": 12345678,
-      "unpacked": 98765432
-    }
-  }
-}
-```
-
-- The index is `xclang-targets-<version>.json`, an asset of the release
-  of the toolchain. `--index` or `XCLANG_TARGET_INDEX` names another, a
-  URL or a file. The release of the toolchain comes from its CMake
-  package, and an index of another release is refused.
-- `archive` is a URL, or a name next to the index. `sdk` is `macos`,
-  `windows` or null; `target add` says which SDK to fetch.
-- An archive is a `.tar.xz` of regular files below `xclang/`, as the
-  toolchain archives are, without links. `target add` refuses to overwrite
-  a file that is not the target's own, unless given `--force`. It takes
-  back what it wrote when it fails.
-- What a target added is recorded in `lib/xclang/targets/<target>.json`.
-  `target remove` deletes those files, and the directories they leave
-  empty.
-- The targets every toolchain carries are listed as built in, and cannot
-  be removed.
+`xclang target list` lists the targets of the release, all of them built
+into the toolchain. `xclang target add` and `target remove` add and remove
+targets that the release publishes as archives of their own, and no
+release publishes any yet ([target archives](../design/roadmap.md#target-archives)).
 
 ## cargo
 
