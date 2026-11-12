@@ -678,6 +678,42 @@ if (windows && fs.existsSync(vswhere)) {
   if (!/VC\\\\Tools\\\\MSVC\\\\/.test(result.stderr ?? "")) failures.push(`clang++ ${args.join(" ")} finds no Visual Studio: ${result.stderr}`);
 }
 
+/// The MSVC targets' catchable types of a type thrown in a C++20 module,
+/// which an importer emits, name its copy constructor: the module's BMI
+/// carries the copy constructors of thrown types (patches/0019, from
+/// 23.1.5.2; xclang#27). The BMI comes from the compile that also emits the
+/// module's code, as xclang builds modules, and is the same bytes when
+/// built again: the table is written in declaration order, with 32 types
+/// in it.
+{
+  const types = Array.from({ length: 32 }, (_, i) => `t${i}`);
+  const module = write("throws.cppm", `module;
+struct gmf_error { gmf_error(); gmf_error(const gmf_error&); virtual ~gmf_error(); };
+${types.map((t) => `struct ${t} { ${t}(); ${t}(const ${t}&); virtual ~${t}(); };`).join("\n")}
+export module throws;
+export using ::gmf_error;
+export inline void call() { throw gmf_error(); }
+${types.map((t) => `export inline void throw_${t}() { throw ${t}(); }`).join("\n")}
+`);
+  const importer = write("throws-user.cpp", "import throws;\nvoid b() { call(); }\n");
+  for (const a of ["x86_64", "aarch64"]) {
+    const flags = [`--target=${a}-pc-windows-msvc`, "-std=c++23"];
+    const pcm = path.join(work, `throws-${a}.pcm`);
+    const build = () => run(tool("clang++"), [...flags, `-fmodule-output=${pcm}`, "-c", module, "-o", path.join(work, `throws-${a}.obj`)]);
+    if (build() === undefined) continue;
+    const first = fs.readFileSync(pcm);
+    if (build() === undefined) continue;
+    if (!first.equals(fs.readFileSync(pcm))) failures.push(`the BMI of throws.cppm for ${a}-pc-windows-msvc differs when built again`);
+    if (!since("23.1.5.2")) continue;
+    const object = path.join(work, `throws-user-${a}.obj`);
+    if (run(tool("clang++"), [...flags, `-fmodule-file=throws=${pcm}`, "-c", importer, "-o", object]) === undefined) continue;
+    const symbols = (run(tool("llvm-nm"), [object]) ?? "").split(/\r?\n/).filter((line) => line.includes("_CT??_R0?AUgmf_error@@@8"));
+    if (!symbols.some((line) => line.includes("??0gmf_error@@QEAA@AEBU0@@Z"))) {
+      failures.push(`${a}-pc-windows-msvc: the catchable type of gmf_error, thrown in a module, has no copy constructor: ${symbols.join(", ")}`);
+    }
+  }
+}
+
 /// The platform's C++ library (patches/0018, from 23.1.2.11): -stdlib=platform,
 /// and -stdlib=libstdc++, select every target's <triple>-system.cfg, for
 /// each spelling of the triple, and /clang:-stdlib=platform clang-cl's
