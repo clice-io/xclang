@@ -140,6 +140,7 @@ jobs:
         with:
           node-version: 24
       - run: node tests/docs/docs.ts
+      - run: node tests/docs/generate.ts --check
       - run: npm ci && npm run check
       # docs/zh a translation of docs/en, segment by segment, every pair
       # attested in docs/meta/translations (tests/docs/translations.ts runs
