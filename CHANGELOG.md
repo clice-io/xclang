@@ -8,6 +8,10 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+## [23.1.5.2](https://github.com/clice-io/xclang/releases/tag/23.1.5.2) — 2026-11-13
+
+Built by 23.1.5.1.
+
 - **MSVC targets: a type thrown in a C++20 module or a PCH keeps its copy
   constructor.** The catchable types that an importer emits for a throw
   of the module named none, so `std::current_exception` and
@@ -24,6 +28,10 @@ the [patches](docs/en/reference/patches.md) of its tag.
   `libclang_rt.asan_dynamic.dll` is the same bytes on a rebuild, as
   everything else built for Windows; it held the time of its link since
   23.1.3.4.
+- **Vendor SDKs: the version table of 11-13**: MSVC 14.53, Windows SDK
+  10.0.26100.9457 and 10.0.28000.2957, and the presets of GitHub's runner
+  images now (`windows-latest` takes MSVC 14.52 and SDK 10.0.26100.9457;
+  `windows-11-arm` is the Visual Studio 2026 image).
 
 ## [23.1.5.1](https://github.com/clice-io/xclang/releases/tag/23.1.5.1) — 2026-11-12
 
