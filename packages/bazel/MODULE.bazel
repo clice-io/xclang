@@ -13,10 +13,9 @@ module(
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "rules_cc", version = "0.2.25")
 
-# What rules_cc's unix toolchain config loads; xclang loads its own patched
-# copy of that file (bazel/repositories.bzl), which resolves them from here.
+# What xclang's copy of rules_cc's unix toolchain config loads
+# (bazel/unix_cc_toolchain_config.bzl), which resolves them from here.
 bazel_dep(name = "apple_support", version = "2.8.0")
-bazel_dep(name = "bazel_features", version = "1.50.0")
 bazel_dep(name = "bazel_skylib", version = "1.8.0")
 
 xclang = use_extension("//bazel:extensions.bzl", "xclang")
@@ -29,7 +28,6 @@ use_repo(
     "xclang_macos_sdk",
     "xclang_sdks",
     "xclang_thinlto_cache",
-    "xclang_unix_config",
     "xclang_windows_sdk_aarch64",
     "xclang_windows_sdk_x86_64",
     "xclang_x86_64-apple-darwin",

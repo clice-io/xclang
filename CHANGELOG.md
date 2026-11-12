@@ -14,6 +14,12 @@ the [patches](docs/en/reference/patches.md) of its tag.
   longer keeps a copy. The table has the package Apple put in its place,
   and SDK 27.2 for 27; Xcode 27's preset, whose SDK 27.0 Apple no longer
   serves, is gone ([vendor SDKs](docs/en/design/vendor-sdks.md)).
+- **Bazel: the module works with rules_cc 0.2.28**, and any rules_cc from
+  0.2.25 on. It patched the unix toolchain config of the build's rules_cc,
+  which failed to fetch with 0.2.28 (`CONTENT_DOES_NOT_MATCH_TARGET`), and
+  every build with it stopped; the module now carries its own copy of that
+  file, rules_cc 0.2.28's with xclang's changes
+  ([rules_cc's config, copied](docs/en/design/bazel-module.md#rules-cc-s-config-copied)).
 
 ## [23.1.3.6](https://github.com/clice-io/xclang/releases/tag/23.1.3.6) — 2026-10-29
 

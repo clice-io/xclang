@@ -4,7 +4,10 @@ as a consumer uses them, from the module in this checkout (packages/bazel)."""
 module(name = "xclang_tests")
 
 bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "rules_cc", version = "0.2.25")
+
+# A newer rules_cc than the module's own, the oldest it takes, which
+# tests/bazel/bazel.ts builds the programs with too.
+bazel_dep(name = "rules_cc", version = "0.2.28")
 bazel_dep(name = "xclang")
 local_path_override(
     module_name = "xclang",

@@ -1,8 +1,7 @@
 """The repositories of the xclang module (bazel/extensions.bzl): a host's
 toolchain, a target's libclang and the option tables from the release
-archives, rules_cc's unix toolchain config with xclang's changes, and the
-path of Xcode's macOS SDK (the vendor SDKs a project fetches are
-bazel/sdk.bzl's)."""
+archives, and the path of Xcode's macOS SDK (the vendor SDKs a project
+fetches are bazel/sdk.bzl's)."""
 
 load(":hosts.bzl", "TARGETS", "host_triple", "sdk_repository")
 load(":libclang.bzl", "libclang_aliases", "libclang_build")
@@ -264,41 +263,6 @@ xclang_option_inc = repository_rule(
     implementation = _option_inc_impl,
     attrs = _ARCHIVE_ATTRS,
     doc = "The option tables (llvm-option-inc) as a header-only cc_library.",
-)
-
-_UNIX_CONFIG = "cc/private/toolchain/unix_cc_toolchain_config.bzl"
-
-def _unix_config_impl(rctx):
-    rctx.file(_UNIX_CONFIG, rctx.read(Label("@rules_cc//cc/private/toolchain:unix_cc_toolchain_config.bzl")))
-    for patch in rctx.attr._patches:
-        rctx.patch(patch, strip = 1)
-    rctx.file("BUILD.bazel", "")
-    rctx.file("cc/private/toolchain/BUILD.bazel", "")
-
-xclang_unix_config = repository_rule(
-    implementation = _unix_config_impl,
-    attrs = {
-        "_patches": attr.label_list(default = [
-            Label("//bazel:rules_cc-mingw.patch"),
-            Label("//bazel:rules_cc-xclang.patch"),
-            Label("//bazel:rules_cc-msvc.patch"),
-        ]),
-    },
-    doc = """rules_cc's unix toolchain config, from the rules_cc of the build, with
-xclang's patches: Windows names for MinGW's executables and DLLs
-(rules_cc-mingw.patch), the MSVC targets' flags for lld-link, their PDB and
-their C runtimes, and no rpath for any Windows target (rules_cc-msvc.patch),
-and xclang's defaults (rules_cc-xclang.patch): static
-linking unless a target asks for the supports_dynamic_linker feature, macOS
-links without Foundation and libobjc unless one asks for
-macos_default_link_flags (-fobjc-link-runtime), other
-repositories' headers as system headers (external_include_paths), the
-sanitizer features' link flags (sanitizer_link_flags), a program of the
-links' own (link_tool), on macOS the libraries' defines in C++20 module
-compiles and scans (preprocessor_defines), the runtimes built from source
-(runtime_*, bazel/runtimes.bzl), and MemorySanitizer (msan). Its loads are rules_cc's
-public files, so a copy works from here; no consumer needs an override of
-rules_cc.""",
 )
 
 def _xcode_sdk_impl(rctx):

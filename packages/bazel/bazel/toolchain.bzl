@@ -1,5 +1,5 @@
 """The C++ toolchains of an xclang host, on rules_cc's unix toolchain config
-(xclang's patched copy, bazel/repositories.bzl): one for each target.
+(xclang's copy, bazel/unix_cc_toolchain_config.bzl): one for each target.
 
 They are instantiated in the host's repository, whose files are the inputs of
 the actions: the programs, clang's resource headers and the target's headers
@@ -14,10 +14,10 @@ only Bazel's and the SDK's.
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc/toolchains:cc_toolchain.bzl", "cc_toolchain")
-load("@xclang_unix_config//cc/private/toolchain:unix_cc_toolchain_config.bzl", "cc_toolchain_config")
 load(":asan_dll.bzl", "xclang_asan_dll", "xclang_cc_runtimes")
 load(":hosts.bzl", "MACOS_MIN", "TARGETS", "sdk_repository")
 load(":runtimes.bzl", "xclang_runtimes", "xclang_runtimes_check")
+load(":unix_cc_toolchain_config.bzl", "cc_toolchain_config")
 load(":unsupported.bzl", "xclang_unsupported_toolchain")
 
 def xclang_host_toolchains(host, clang_version, root, absolute_root, xcode_sdk = None):
@@ -357,7 +357,7 @@ def xclang_cc_toolchain(name, host, clang_version, root, absolute_root, xcode_sd
         # name and time, all 0 in Bazel's: it reads the first for both, and
         # the dSYM lacks the other's debug information.
         supports_start_end_lib = t.os != "windows",
-        # Bazel's name of MSVC's, which the patched config keys on.
+        # Bazel's name of MSVC's, which xclang's config keys on.
         target_libc = "msvcrt" if msvc else t.libc,
         target_system_name = target,
         tool_paths = tool_paths,

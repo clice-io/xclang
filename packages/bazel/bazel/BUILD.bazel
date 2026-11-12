@@ -6,7 +6,7 @@ load("@rules_cc//cc/toolchains:feature.bzl", "cc_feature")
 load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
 load(":hosts.bzl", "TARGETS", "constraints", "host_of")
 
-exports_files(glob(["*.bzl", "*.patch"]))
+exports_files(glob(["*.bzl"]))
 
 # The machine's toolchain, which @platforms//host, the default execution
 # platform, selects.
