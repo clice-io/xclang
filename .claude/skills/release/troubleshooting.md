@@ -207,4 +207,6 @@ Known, run again once; a second time is a bug to find:
   Linux; on macOS not found yet.
 - A ThinLTO link that aborts (`Linking libclang/targets_test.exe failed:
   (Aborted)`, a stack in `sccp`), met once.
-- An Intel Mac CMake 3.28.1 link that hangs (the job's timeout), met once.
+- test-cmake's `consumer (x86_64-apple-darwin, CMake 3.28.1)` hangs after
+  `[51/52] Linking CXX executable libclang/targets` until the job's
+  timeout: met twice (board issue ci/11-13#1, which says what to gather).
