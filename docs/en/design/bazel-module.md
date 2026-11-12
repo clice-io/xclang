@@ -125,10 +125,13 @@ in the root module, with patch files from the tree of the root module. So
 every project using xclang would have to carry xclang's patches, and the
 override would change the build's only rules_cc for everyone else in it.
 
-So the module copies `unix_cc_toolchain_config.bzl` from rules_cc into a
-repository of its own, and patches the copy. The copy loads only public
-files of rules_cc, so it works from there, and no consumer needs an
-override.
+So the module carries its own copy of rules_cc's
+`unix_cc_toolchain_config.bzl`, rules_cc 0.2.28's with xclang's changes
+(`bazel/unix_cc_toolchain_config.bzl`). The copy loads only public files of
+rules_cc, apple_support and bazel_skylib, so it works with whichever rules_cc
+the build has, 0.2.25 or later, and no consumer needs an override. Patching
+the build's own rules_cc file instead would break with every release of
+rules_cc that changes a line the patches touch, as 0.2.28 did.
 
 The newer rule-based toolchain API of rules_cc was the other option. It
 meant rewriting what the unix config already does (`--macos_minimum_os`,

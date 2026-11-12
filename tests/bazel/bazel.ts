@@ -47,6 +47,8 @@
 ///     in the sandbox (modules_embed_all_files), on Linux and macOS.
 /// 14. A macOS program and dylib load neither Foundation nor libobjc, on a
 ///     macOS host (and built elsewhere, tests/bazel/cross.ts).
+/// 15. The programs with the module's own rules_cc, the oldest it takes, in
+///     place of tests/bazel's newer one.
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -210,7 +212,7 @@ if (!values.previous) {
   values.previous = tags.reduce((a, b) => (older(a, b) ? b : a), tags[0] ?? common.fail(`no release before ${version}`));
   console.log(`the release before ${version}: ${values.previous}`);
 }
-function consumer(name: string, override: string, args: string[]): Processes {
+function consumer(name: string, override: string, args: string[], edit = (module: string) => module): Processes {
   const dir = path.join(path.dirname(copy), name);
   fs.cpSync(tests, dir, {
     recursive: true,
@@ -219,8 +221,8 @@ function consumer(name: string, override: string, args: string[]): Processes {
   const module = fs.readFileSync(path.join(dir, "MODULE.bazel"), "utf8").replaceAll("\r\n", "\n");
   const local = /^local_path_override\([^)]*\)\n/m;
   if (!local.test(module)) common.fail("no local_path_override in tests/bazel/MODULE.bazel");
-  fs.writeFileSync(path.join(dir, "MODULE.bazel"), module.replace(local, override)
-    .replace(/^bazel_dep\(name = "xclang"(, version = "[^"]*")?\)/m, `bazel_dep(name = "xclang", version = "${version}")`));
+  fs.writeFileSync(path.join(dir, "MODULE.bazel"), edit(module.replace(local, override)
+    .replace(/^bazel_dep\(name = "xclang"(, version = "[^"]*")?\)/m, `bazel_dep(name = "xclang", version = "${version}")`)));
   const processes = bazel(dir, args);
   run(dir, ["clean", "--expunge"]);
   return processes;
@@ -581,6 +583,30 @@ if (host.includes("apple")) {
     `macOS links: ${off.length ? `${off.join(" and ")} load Foundation or libobjc` : "hello and libplugin.dylib load neither Foundation nor libobjc"}, ` +
     `${on.length === 2 ? "and both do" : "and not both do"} with macos_default_link_flags`);
 }
+
+/// 15. The module with the oldest rules_cc it takes, its MODULE.bazel's,
+/// pinned in place of tests/bazel's newer one: its copy of rules_cc's unix
+/// toolchain config (bazel/unix_cc_toolchain_config.bzl) loads only public
+/// files of rules_cc, and builds the programs with either. (The checkout's
+/// module: the copy's versions.bzl may name the previous release by now.)
+const rulesCc = /^bazel_dep\(name = "rules_cc", version = "([^"]+)"\)$/m;
+const checkoutModule = path.join(common.ROOT, "packages", "bazel");
+const rulesCcOf = (file: string) => rulesCc.exec(fs.readFileSync(file, "utf8").replaceAll("\r\n", "\n"))?.[1];
+const oldest = rulesCcOf(path.join(checkoutModule, "MODULE.bazel"));
+const newer = rulesCcOf(path.join(tests, "MODULE.bazel"));
+if (!oldest || !newer) common.fail("no rules_cc in packages/bazel/MODULE.bazel or tests/bazel/MODULE.bazel");
+const pinned = consumer("rules_cc-consumer", `local_path_override(
+    module_name = "xclang",
+    path = "${checkoutModule.replaceAll("\\", "/")}",
+)
+
+single_version_override(
+    module_name = "rules_cc",
+    version = "${oldest}",
+)
+`, ["build", ...cache, ...PROGRAMS], (text) => text.replace(rulesCc, `bazel_dep(name = "rules_cc", version = "${oldest}")`));
+check(oldest !== newer && pinned.hits + pinned.executed > 0,
+  `rules_cc ${oldest}, the module's own, in place of ${newer}: ${pinned.hits} actions from the disk cache, ${pinned.executed} run`);
 
 if (process.env.GITHUB_STEP_SUMMARY) {
   fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Bazel: ${process.platform} ${process.arch}\n\n| | |\n|---|---|\n${report.join("\n")}\n\n`);

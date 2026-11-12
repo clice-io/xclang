@@ -5,7 +5,7 @@ downloads the toolchain by sha256 from the release of the module version,
 and libclang and the option tables as repositories. Every release is on the
 clice Bazel registry, [bazel.clice.io](https://bazel.clice.io).
 
-Requires: Bazel 9 and rules_cc 0.2.25. Run Bazel through
+Requires: Bazel 9 and rules_cc 0.2.25 or later. Run Bazel through
 [bazelisk](https://github.com/bazelbuild/bazelisk), which reads the version
 from `.bazelversion`: `npm install -g @bazel/bazelisk`, or `npx bazelisk`
 from a devDependency. conda-forge has no bazelisk, and its bazel runs only

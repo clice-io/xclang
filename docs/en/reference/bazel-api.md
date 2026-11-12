@@ -2,7 +2,7 @@
 
 Everything the `xclang` Bazel module offers. How to use it is in
 [Bazel](../integrations/bazel.md); this page is the list. The module needs
-Bazel 9 and rules_cc 0.2.25. It is `packages/bazel` of the repository, and
+Bazel 9 and rules_cc 0.2.25 or later. It is `packages/bazel` of the repository, and
 is published to [bazel.clice.io](https://bazel.clice.io) for every
 release.
 
