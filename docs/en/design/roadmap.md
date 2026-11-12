@@ -298,8 +298,9 @@ The training is widened between releases, not while one is pending
   hand, checks the rest at LLVM upgrades and bootstrap changes
   ([releasing](../dev/releasing.md#reproducible-rebuilds)). Since
   23.1.2.10, `clang --version` names LLVM's release commit, not xclang's,
-  nothing built for Windows holds a time, and the macOS sanitizers'
-  dylibs hold no file times. Since 23.1.3.2, the `xclang` command is the
+  nothing built for Windows holds a time (but the x64 MinGW ASan DLL,
+  since 23.1.3.4, below), and the macOS sanitizers' dylibs hold no file
+  times. Since 23.1.3.2, the `xclang` command is the
   same bytes in any directory, with any `CARGO_HOME`, at any time
   ([build](../dev/release-build.md#the-xclang-command)). The rebuilds
   checked:
@@ -320,6 +321,20 @@ The training is widened between releases, not while one is pending
     [38620234667](https://github.com/clice-io/xclang/actions/runs/38620234667)
     and [38621738784](https://github.com/clice-io/xclang/actions/runs/38621738784),
     had every archive the same, byte for byte, `bin/xclang` included.
+  - Two builds of 23.1.5.1, built by 23.1.3.6, from one profile, runs
+    [43195267300](https://github.com/clice-io/xclang/actions/runs/43195267300)
+    (the release's, packaging the compiler of
+    [43172641413](https://github.com/clice-io/xclang/actions/runs/43172641413))
+    and [43184455346](https://github.com/clice-io/xclang/actions/runs/43184455346)
+    (compared in
+    [43203240712](https://github.com/clice-io/xclang/actions/runs/43203240712)),
+    differed in three files. The x64 MinGW ASan DLL,
+    `libclang_rt.asan_dynamic.dll`, holds the time of its link, in every
+    release since 23.1.3.4: compiler-rt links it without
+    `--no-insert-timestamp`. The x64 Windows host's `llvm.exe` differs in
+    its build ID alone, and `TypeLoc.cpp.obj` of the x64 MinGW libclang
+    (ThinLTO bitcode) in the order of a few PHI operands, which the
+    bootstrap's clang wrote differently.
 
   What a rebuild needs:
   - **The release's profile.** Each training gives another profile, so
