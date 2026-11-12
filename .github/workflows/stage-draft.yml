@@ -99,7 +99,7 @@ jobs:
           fi
           status=$(retry gh api "repos/$GITHUB_REPOSITORY/compare/main...$base" -q .status)
           if [[ "$status" != behind && "$status" != identical ]]; then
-            echo "::error::the run's commit $base is not in main's history ($status): $branch is made at a commit of main (docs/en/dev/releasing.md, Troubleshooting)"
+            echo "::error::the run's commit $base is not in main's history ($status): $branch is made at a commit of main (.claude/skills/release/troubleshooting.md)"
             exit 1
           fi
           # `latest`, the tag of the release before, which published.yml

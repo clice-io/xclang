@@ -3,8 +3,10 @@
 How a release `<llvm version>.<revision>` is cut. The step list for
 maintainers is the release skill in
 [.claude/skills/release](https://github.com/clice-io/xclang/blob/main/.claude/skills/release/SKILL.md);
-this page is the same process, for people. What the pipeline does is in the
-[build pipeline](release-build.md).
+this page is the same process, for people, and the skill's
+[troubleshooting](https://github.com/clice-io/xclang/blob/main/.claude/skills/release/troubleshooting.md)
+lists every failure met so far, by its log line, with what to do. What the
+pipeline does is in the [build pipeline](release-build.md).
 
 ## Rules
 
@@ -41,9 +43,10 @@ again, byte for byte. That is checked, not guaranteed: a bug of the
 compiler or linker that builds xclang can break it
 ([reproducible builds](../design/roadmap.md#reproducible-builds)). Every
 release run checks the cheap part: each host's archives made twice, and
-the `xclang` command built twice, on two machines each. When LLVM or the
-bootstrap moves, a second full build, by hand, checks the rest before the
-release is published:
+the `xclang` command built twice, on two machines each. For every full
+rebuild, a second full build checks the rest before the release is
+published: the full run's `rebuild` stage starts it once the training is
+done, as
 
 ```sh
 gh workflow run release.yml -R clice-io/xclang --ref release/<version> \
@@ -58,6 +61,12 @@ first run's; what differs is a bug, listed with the rebuilds checked.
 
 ## Steps
 
+0. **Preflight**: `gh workflow run preflight.yml -R clice-io/xclang --ref main`
+   checks, changing nothing, that `main` and the weekly run are green, the
+   latest release is published everywhere, nothing of another release is
+   under way, and the version table of the vendor SDKs is what the vendors
+   offer; it says the next version, whether it is a full rebuild or a
+   repack, and the bootstrap or the run a repack reuses.
 1. **Bootstrap**, for a full rebuild. `toolchain/common.ts` pins the release
    that builds this one (`bootstrap-linux`, `bootstrap-macos`, with their
    sha256 from that release's `SHA256SUMS`). Move it to the previous
@@ -75,7 +84,7 @@ first run's; what differs is a bug, listed with the rebuilds checked.
 3. **Full run with a draft**, about three hours:
    ```sh
    gh workflow run release.yml -R clice-io/xclang --ref release/<version> \
-     -f stages=runtimes,instrumented,train,toolchain,asan,package,test,bazel,cmake,sdk,cli,release \
+     -f stages=runtimes,instrumented,train,toolchain,asan,package,test,bazel,cmake,sdk,cli,rebuild,release \
      -f revision=<n>
    ```
    A failed stage is run again with `reuse-run` and only the stages still
@@ -86,13 +95,12 @@ first run's; what differs is a bug, listed with the rebuilds checked.
      -f reuse-run=<full run> -f profile-run=<full run> \
      -f repack-of=<previous version> -f revision=<n>
    ```
-   `<full run>` is the run that built the compiler. Its toolchain and
-   runtimes artifacts last 14 days, its profile 30; after that, only a
-   full rebuild can make a release. With `repack-of`, the `test` stage
+   `<full run>` is the run that built the compiler. Its artifacts last 90
+   days; after that, only a full rebuild can make a release. With `repack-of`, the `test` stage
    checks each host's archives against that release's, file by file
    (`tests/release/repack.ts`): only the packaging's files may differ.
-   When LLVM or the bootstrap moved, the second full build of
-   [reproducible rebuilds](#reproducible-rebuilds) runs next to it.
+   A full rebuild's `rebuild` stage starts the second full build of
+   [reproducible rebuilds](#reproducible-rebuilds) next to it.
 4. **Check the draft**: 17 assets, every job of the run green, sizes
    against the previous release. Its commit is `bazel: the module
    of <version>`, which the `release` stage commits on the run's, with
@@ -112,7 +120,10 @@ first run's; what differs is a bug, listed with the rebuilds checked.
    `release/<version>` into `main`, whose diff is the module. Merged as a
    merge commit (not squashed, as every other pull request is), it brings
    the draft's commit into `main`'s history, and published.yml publishes
-   the draft, which tags that commit. Then it publishes the release
+   the draft, which tags that commit. The pull request's checks test the
+   module with the draft's archives, taken from the run its commit names
+   (`Archives-Run`), since a draft's assets cannot be downloaded. Then
+   published.yml publishes the release
    everywhere else: the Bazel module tested with the published archives
    and published to bazel.clice.io, `tests/cmake` built from the tag as a
    user's FetchContent does, the conda packages made, tested and

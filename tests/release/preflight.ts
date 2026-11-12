@@ -95,7 +95,7 @@ if (!lastPublished) {
   fail(`no published.yml run since ${L} was published`, `gh workflow run published.yml -R ${REPO} --ref main -f tag=${L} -f publish=true`);
 } else if (lastPublished.conclusion !== "success") {
   fail(`published.yml for ${L} failed: ${link(lastPublished.id)}`,
-    `each failed job explained (docs/en/dev/releasing.md, Troubleshooting); fixed, then gh workflow run published.yml -R ${REPO} --ref main -f tag=${L} -f publish=true`);
+    `each failed job explained (.claude/skills/release/troubleshooting.md); fixed, then gh workflow run published.yml -R ${REPO} --ref main -f tag=${L} -f publish=true`);
 } else ok(`published.yml passed for ${L}: ${link(lastPublished.id)}`);
 const text = async (url: string) => { const r = await fetchRetry(url); return r.ok ? r.text() : ""; };
 if ((await text("https://bazel.clice.io/modules/xclang/metadata.json")).includes(`"${L}"`)) ok(`bazel.clice.io has xclang ${L}`);
@@ -124,7 +124,7 @@ else if (!lastWeekly || !fresh(lastWeekly)) {
   fail(`no weekly.yml run on main within 8 days and after ${L} was published`, `gh workflow run weekly.yml -R ${REPO} --ref main; wait for it, then run this again`);
 } else if (lastWeekly.conclusion !== "success") {
   fail(`weekly.yml failed: ${link(lastWeekly.id)}`,
-    "each failed job explained (docs/en/dev/releasing.md, Troubleshooting): a stale example pin, a vendor's download, a flake; fix by a pull request, then weekly.yml again");
+    "each failed job explained (.claude/skills/release/troubleshooting.md): a stale example pin, a vendor's download, a flake; fix by a pull request, then weekly.yml again");
 } else ok(`weekly.yml passed on main: ${link(lastWeekly.id)}`);
 for (const file of fs.readdirSync(`${common.ROOT}/examples`).map((d) => `examples/${d}/MODULE.bazel`)) {
   if (!fs.existsSync(`${common.ROOT}/${file}`)) continue;
@@ -238,7 +238,7 @@ if (kind !== "full rebuild") {
 
 if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\`\`\`\n${report.join("\n")}\n\`\`\`\n`);
 if (failures.length) {
-  console.log(`\n${failures.length} failed: no release until each is resolved (docs/en/dev/releasing.md, Troubleshooting)`);
+  console.log(`\n${failures.length} failed: no release until each is resolved (.claude/skills/release/troubleshooting.md)`);
   process.exit(1);
 }
 console.log(`\nready for ${next} (${kind})`);

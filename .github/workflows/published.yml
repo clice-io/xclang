@@ -28,7 +28,7 @@ name: published
 # Run again (a failed job, or the whole run), it finishes what it began: a
 # draft published already by the first try is taken as published, and a
 # channel that has the release is not published to again. What a failed job
-# leaves published is in docs/en/dev/releasing.md, Troubleshooting.
+# leaves published is in .claude/skills/release/troubleshooting.md.
 
 on:
   # The draft's commit changes versions.bzl, to the release.
@@ -118,7 +118,7 @@ jobs:
             # commit, so that the tag would not be in main's history.
             version=$(sed -n 's/^VERSION = "\(.*\)"$/\1/p' packages/bazel/bazel/versions.bzl)
             if grep -qP "^\Q$version\E\ttrue\t" releases.tsv; then
-              echo "::error::main's packages/bazel names $version, a draft whose commit this push did not bring: was its pull request squashed? A pull request of release/$version into main, merged as a merge commit, brings it; then published.yml by hand, tag $version, publish (docs/en/dev/releasing.md, Troubleshooting)"
+              echo "::error::main's packages/bazel names $version, a draft whose commit this push did not bring: was its pull request squashed? A pull request of release/$version into main, merged as a merge commit, brings it; then published.yml by hand, tag $version, publish (.claude/skills/release/troubleshooting.md)"
               exit 1
             fi
             echo "no release's commit came into main's history" | tee -a "$GITHUB_STEP_SUMMARY"
