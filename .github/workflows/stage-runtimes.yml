@@ -81,5 +81,6 @@ jobs:
           name: runtimes-${{ matrix.name }}
           path: runtimes-${{ matrix.name }}.tar.zst
           compression-level: 0
-          retention-days: 14
+          # What a repack reuses: 90 days, GitHub's longest.
+          retention-days: 90
           if-no-files-found: error

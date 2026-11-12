@@ -90,7 +90,9 @@ jobs:
           name: dist-${{ inputs.host }}
           path: work/to-upload/*
           compression-level: 0
-          retention-days: 30
+          # The release pull request's checks, the second full build's
+          # comparison and bench.yml take them: 90 days, GitHub's longest.
+          retention-days: 90
           if-no-files-found: error
       # Kept as long as the archives: test-bazel.yml names the archives of
       # a run by their digests (the distdir action).
@@ -98,7 +100,7 @@ jobs:
         with:
           name: digests-${{ inputs.host }}-${{ matrix.again && 'again' || 'first' }}
           path: digests
-          retention-days: 30
+          retention-days: 90
 
   compare:
     needs: package
