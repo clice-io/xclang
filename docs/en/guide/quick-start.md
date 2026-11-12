@@ -1,21 +1,21 @@
 # Quick Start
 
-From one machine, you build a program for Linux, Windows and macOS
-targets, then a CMake project with `import std`, for the host and for
-another target.
+From one machine, you will cross-compile a C++ program for Linux, Windows
+and macOS targets, inspect its runtime dependencies, and build a CMake
+project that uses `import std` for the host and for Windows on Arm.
 
 ## Prerequisites
 
 - [pixi](https://pixi.sh) and git.
-- bash. On Windows, that is Git Bash.
-- On macOS, Xcode or the Command Line Tools. The macOS targets build
-  against their SDK.
-- For step 4, CMake 3.28 or later and Ninja 1.11 or later.
-  `pip install cmake ninja` gives both.
+- bash (Git Bash on Windows).
+- On macOS, Xcode or the Command Line Tools, whose SDK the macOS targets
+  build against.
+- For step 4, CMake 3.28 or later and Ninja 1.11 or later (`pip install
+  cmake ninja`).
 
 ## 1. Install
 
-The files are in the `examples/` directory of the repository:
+Clone the repository and enter `examples/quickstart`:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -23,7 +23,7 @@ git clone --depth 1 https://github.com/clice-io/xclang
 cd xclang/examples/quickstart
 ```
 
-`pixi.toml` is a pixi workspace with xclang from the
+`pixi.toml` configures a pixi workspace with xclang from the
 [clice conda channel](https://conda.clice.io):
 
 <!-- file: examples/quickstart/pixi.toml -->
@@ -42,12 +42,13 @@ xclang = "*"
 pixi install
 ```
 
-`pixi run` and `pixi shell` put xclang's `bin/` first in `PATH`. Other
-ways to get xclang are in [installation](install.md).
+`pixi run` and `pixi shell` put xclang's `bin/` first in `PATH`. Other ways
+to get xclang are in [installation](install.md).
 
 ## 2. Build a Program for Other Targets
 
-`hello.cpp` throws and catches an exception, which needs the C++ runtime:
+`hello.cpp` throws and catches an exception, which exercises the C++
+standard library and unwinder:
 
 <!-- file: examples/quickstart/hello.cpp -->
 ```cpp
@@ -64,8 +65,7 @@ int main() {
 }
 ```
 
-Build it for this machine, and for the glibc Linux and the MinGW Windows
-targets:
+Build it for the host, and for the glibc Linux and MinGW Windows targets:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -77,8 +77,9 @@ pixi run clang++ -O2 --target=x86_64-w64-mingw32 hello.cpp -o hello-windows-x64.
 pixi run clang++ -O2 --target=aarch64-w64-mingw32 hello.cpp -o hello-windows-arm64.exe
 ```
 
-`./hello` prints `hello from xclang`. On a macOS host, build the macOS
-targets too:
+`./hello` prints `hello from xclang`. On a Windows host, the first command
+writes `hello.exe` because a MinGW link appends `.exe` when the output name
+has no extension. On a macOS host, build the macOS targets too:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -86,25 +87,26 @@ pixi run clang++ -O2 --target=aarch64-apple-darwin hello.cpp -o hello-macos-arm6
 pixi run clang++ -O2 --target=x86_64-apple-darwin hello.cpp -o hello-macos-x64
 ```
 
-No sysroot to install, no `--sysroot`, no `-L`. For each `--target`, clang
-reads the config file of that target in xclang's `bin/`, which names its
-sysroot and runtimes ([cross-compiling](cross-compiling.md)). On a Windows
-host, the first command writes `hello.exe`, because a MinGW link adds
-`.exe` to a name without one. The musl targets, for static Linux programs,
-the MSVC targets, and macOS from Linux and Windows hosts are in
-[cross-compiling](cross-compiling.md).
+You do not need to install a sysroot or pass `--sysroot` or `-L`. For each
+`--target`, clang reads that target's config file in xclang's `bin/`, which
+points it to the bundled sysroot and runtimes. Building static Linux
+programs with musl, building for MSVC targets, and building for macOS from
+Linux and Windows hosts are covered in
+[cross-compiling](../targets/cross-compiling.md).
 
 ## 3. Check What the Programs Need
+
+Inspect the shared libraries that the Linux and Windows binaries load at
+run time:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 pixi run llvm-readobj --needed-libs hello-linux-x64 hello-windows-x64.exe
 ```
 
-On every host, this prints the libraries each program loads. The output is
-trimmed here:
+On every host, this prints only the OS's own libraries (trimmed here):
 
-```
+```text
 File: hello-linux-x64
 NeededLibraries [
   ld-linux-x86-64.so.2
@@ -123,16 +125,18 @@ NeededLibraries [
 ]
 ```
 
-A macOS program needs `/usr/lib/libSystem.B.dylib` alone. That is the whole
-list: glibc 2.17 or later on Linux, Windows 10 or later with its UCRT, macOS
-13 or later. There is no `libstdc++.so.6`, `libc++.dll`,
-`libgcc_s_seh-1.dll` or `libwinpthread-1.dll`. Each program runs on any
-machine of its target as a single file
+A macOS binary loads only `/usr/lib/libSystem.B.dylib`. None of the
+binaries depends on `libstdc++.so.6`, `libc++.dll`, `libgcc_s_seh-1.dll` or
+`libwinpthread-1.dll`. Each binary runs as a single file on any machine of
+its target: [glibc 2.17](../targets/linux.md) or later on Linux,
+[Windows 10](../targets/windows.md) or later, or
+[macOS 13](../targets/macos.md) or later
 ([hermeticity](../design/hermeticity.md)).
 
 ## 4. Build a CMake Project with `import std`
 
-The project is in `examples/cmake`:
+`examples/cmake` is a C++23 project that imports the standard library
+module:
 
 <!-- file: examples/cmake/CMakeLists.txt -->
 ```cmake
@@ -163,6 +167,8 @@ int main() {
 }
 ```
 
+Configure, build and run it for the host:
+
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 pixi run cmake -G Ninja -S ../cmake -B build -DCMAKE_CXX_COMPILER=clang++
@@ -170,13 +176,13 @@ pixi run cmake --build build
 ./build/hello
 ```
 
-It prints `hello from xclang: 3 targets, the first linux`. `xclang::std` is
-the `std` and `std.compat` modules of libc++, built for this build with its
-options, without an experimental CMake switch
+It prints `hello from xclang: 3 targets, the first linux`. `xclang::std`
+compiles the `std` and `std.compat` modules of libc++ for this build with
+its language options, without an experimental CMake switch
 ([C++20 modules](../features/modules.md)).
 
-Build the same project for Windows on Arm. `XCLANG` is the toolchain
-directory that pixi installed:
+Now cross-compile the same project for Windows on Arm using xclang's CMake
+toolchain file:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -186,18 +192,18 @@ pixi run cmake -G Ninja -S ../cmake -B build-aarch64-w64-mingw32 \
 pixi run cmake --build build-aarch64-w64-mingw32
 ```
 
-`XCLANG_TARGET` takes any target of the toolchain, the MSVC ones too. The
-MSVC targets, and the macOS ones on Linux and Windows hosts, need the SDK
-that the `xclang` command fetches
-([CMake](../integrations/cmake.md#build-for-another-target)). Copy
-`build-aarch64-w64-mingw32/hello.exe` to a Windows on
-Arm machine, and it runs there with nothing installed.
+`XCLANG_TARGET` accepts any target of the toolchain, including the MSVC
+targets and macOS targets from Linux and Windows once their SDK is fetched
+([CMake](../integrations/cmake.md)). Copy
+`build-aarch64-w64-mingw32/hello.exe` to a Windows on Arm machine, and it
+runs there with nothing installed.
 
 ## Next
 
-- [Cross-Compiling](cross-compiling.md): the targets, and running what you
-  built.
+- [Cross-Compiling](../targets/cross-compiling.md): all targets, vendor
+  SDKs, and running what you built.
 - [CMake](../integrations/cmake.md), [Bazel](../integrations/bazel.md),
   [Make and Meson](../integrations/clang.md),
   [Cargo](../integrations/cargo.md).
-- [Why xclang?](why-xclang.md): what the toolchain does for a build.
+- [What is xclang?](what-is-xclang.md): what the toolchain includes and
+  what it does for a build.

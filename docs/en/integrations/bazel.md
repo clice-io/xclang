@@ -438,7 +438,7 @@ Another target's libclang comes from the release.
   ([why](../design/windows.md#gc-sections-and-static-initializers)).
 - **The ThinLTO cache does nothing on Linux**: the directory is under
   `/tmp`, or lacks `--sandbox_writable_path`.
-- More symptoms are in the [FAQ](../guide/faq.md).
+- More symptoms are in the [FAQ](../guide/troubleshooting.md).
 
 ## Not Yet Supported
 

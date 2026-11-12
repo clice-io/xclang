@@ -16,7 +16,7 @@ fetched when a build needs them. That is in no release yet; the
 status.
 
 It aims to be close to the current best practice for hermetic, modern C++
-builds: [why xclang](https://docs.clice.io/xclang/guide/why-xclang) makes
+builds: [why xclang](https://docs.clice.io/xclang/guide/what-is-xclang) makes
 that case angle by angle.
 
 One directory holds the compiler, the linker, the binary tools and, for
@@ -162,10 +162,10 @@ At [docs.clice.io/xclang](https://docs.clice.io/xclang), from
   [Quick Start](https://docs.clice.io/xclang/guide/quick-start),
   [Installation](https://docs.clice.io/xclang/guide/install),
   [Cross-Compiling](https://docs.clice.io/xclang/guide/cross-compiling),
-  [Why xclang?](https://docs.clice.io/xclang/guide/why-xclang),
+  [Why xclang?](https://docs.clice.io/xclang/guide/what-is-xclang),
   [Comparisons](https://docs.clice.io/xclang/guide/comparisons) with zig cc,
   llvm-mingw, conda-forge and others,
-  [FAQ](https://docs.clice.io/xclang/guide/faq)
+  [FAQ](https://docs.clice.io/xclang/guide/troubleshooting)
 - Integrations: [CMake](https://docs.clice.io/xclang/integrations/cmake),
   [Bazel](https://docs.clice.io/xclang/integrations/bazel),
   [Make and Meson](https://docs.clice.io/xclang/integrations/clang),
@@ -182,7 +182,7 @@ At [docs.clice.io/xclang](https://docs.clice.io/xclang), from
   [Archive Layout](https://docs.clice.io/xclang/reference/layout),
   [CMake API](https://docs.clice.io/xclang/reference/cmake-api),
   [Bazel API](https://docs.clice.io/xclang/reference/bazel-api),
-  [Releases](https://docs.clice.io/xclang/reference/releases),
+  [Releases](https://docs.clice.io/xclang/guide/install),
   [LLVM Patches](https://docs.clice.io/xclang/reference/patches),
   [xclang Command](https://docs.clice.io/xclang/reference/xclang-command)
 - Design: [Hermeticity](https://docs.clice.io/xclang/design/hermeticity),

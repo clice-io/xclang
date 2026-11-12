@@ -280,7 +280,7 @@ The training is widened between releases, not while one is pending
   23.1.2.7.
 - **Immutable releases** keep an archive and its `SHA256SUMS` from being
   replaced together
-  ([releases](../reference/releases.md#checking-a-download)).
+  ([releases](../guide/install.md#checking-a-download)).
 - **SLSA provenance**: for each archive of a release, an attestation of
   the commit and the workflow run that built it, which a user can verify.
 - **Reproducible archives**, since 23.1.2.7: sorted entries, the commit's

@@ -69,7 +69,7 @@ tar -xf libclang-$v-$h.tar.xz
 ```
 
 On macOS, check with `shasum -a 256 -c --ignore-missing SHA256SUMS`. The
-other hosts are in [releases](../reference/releases.md#assets).
+other hosts are in [releases](../guide/install.md#assets).
 
 The tool finds libclang with `find_package(Clang)`. `find_package(xclang)`
 adds the [ThinLTO cache](thinlto-cache.md) to its links:

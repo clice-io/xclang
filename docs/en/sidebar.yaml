@@ -9,11 +9,8 @@ guide:
       label: Installation
     - file: cross-compiling
       label: Cross-Compiling
-    - file: why-xclang
-      label: Why xclang?
     - comparisons
-    - file: faq
-      label: FAQ
+    - troubleshooting
 
 integrations:
   label: Integrations
@@ -51,8 +48,6 @@ reference:
       label: Archive Layout
     - cmake-api
     - bazel-api
-    - file: releases
-      label: Releases
     - file: patches
       label: LLVM Patches
     - file: xclang-command

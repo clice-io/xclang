@@ -400,7 +400,7 @@ The compiler and runtimes are 23.1.2.7's.
   workspace, the toolchain and libclang from `releases/latest` (whose
   `SHA256SUMS` names the version), and `GIT_TAG latest` for CMake's
   FetchContent, a branch at the tag of the newest release
-  ([installing](docs/en/guide/install.md), [versions](docs/en/reference/releases.md#versions)).
+  ([installing](docs/en/guide/install.md), [versions](docs/en/guide/install.md#versions)).
   The docs and `examples/` use these; a release's version keeps it. The
   Bazel module's version stays the oldest release a project takes.
 - MSVC targets without a fetched SDK: the config files load, where every

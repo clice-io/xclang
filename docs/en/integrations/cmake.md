@@ -351,7 +351,7 @@ subdirectories ([the ThinLTO cache](../features/thinlto-cache.md)).
 - **A library is not found for another target**: CMake searches the
   sysroot only. Build the library for the target, and name it with
   `<Package>_DIR`.
-- More symptoms are in the [FAQ](../guide/faq.md).
+- More symptoms are in the [FAQ](../guide/troubleshooting.md).
 
 ## Not Yet Supported
 

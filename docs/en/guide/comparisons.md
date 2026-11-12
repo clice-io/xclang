@@ -41,12 +41,10 @@ work. It differs from xclang in how it gets there:
   (`x86_64-linux-gnu.2.17`), the BSDs and WASI. It also builds for macOS
   from any host, with Apple's libc headers and a `libSystem` stub
   ([0.17.0 release notes](https://ziglang.org/download/0.17.0/release-notes.html)).
-  xclang has musl in every archive since 23.1.2.10
-  ([musl targets](../reference/targets.md#musl-targets)); a newer
-  glibc and the BSDs are [considered](../design/roadmap.md#glibc-newer).
-  xclang builds for macOS from any host too, with Apple's own SDK, which
-  the user fetches
-  ([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)).
+  xclang has musl in every archive ([Linux targets](../targets/linux.md)),
+  and builds for macOS from any host against Apple's own SDK, which the
+  user fetches ([macOS targets](../targets/macos.md)). A newer glibc and the
+  BSDs are [considered](../design/roadmap.md#glibc-newer).
 - **Its clang is Zig's.** 0.17.0 has LLVM 22, with loop vectorization
   disabled to work around a regression since 0.16.0. xclang follows LLVM's
   releases with stock clang, built with PGO and ThinLTO.
@@ -56,11 +54,12 @@ work. It differs from xclang in how it gets there:
   ASan runtime ([#11403](https://github.com/ziglang/zig/issues/11403)),
   and its `windows-msvc` target uses an installed Visual Studio. xclang has
   ASan, TSan, LSan, UBSan and libFuzzer for its glibc Linux and macOS
-  targets, MemorySanitizer with the runtimes built from source, and its
-  MSVC targets build from every host against an SDK the user fetches,
-  with UBSan, and ASan and libFuzzer for x64.
+  targets, MemorySanitizer with the runtimes built from source, UBSan (and
+  ASan for x64) for its MinGW targets, and MSVC targets that build from
+  every host against a fetched SDK with UBSan, and ASan and libFuzzer for
+  x64 ([sanitizers](../features/sanitizers.md)).
 - **Integration.** zig cc is a drop-in `CC`. xclang adds a CMake package
-  with `import std`, a Bazel module, and libclang.
+  with `import std`, a Bazel module, `xclang cargo`, and libclang.
 
 Zig's issue tracker moved to Codeberg in November 2025; the GitHub issues
 above are as they were then.
@@ -80,10 +79,9 @@ reasons".
 xclang works with cargo as zig does for cargo-zigbuild, with stock clang
 and xclang's runtimes: `xclang cargo` sets cargo up for each target and
 links through `xclang` itself, as cargo-zigbuild does through its own
-program, since 23.1.2.11 ([Rust and Cargo](../integrations/cargo.md));
-with an older release, it is a documented recipe. Unlike
-cross-rs, xclang needs no container, and runs natively on Windows and
-macOS hosts. It also runs no tests under emulation.
+program ([Rust and Cargo](../integrations/cargo.md)). Unlike cross-rs,
+xclang needs no container, and runs natively on Windows and macOS hosts. It
+runs no tests under emulation.
 
 ## llvm-mingw
 
@@ -123,9 +121,9 @@ ThinLTO on Linux and macOS (`clang/cmake/caches/Release.cmake`), and with
 PGO but no LTO on Windows. They carry no sysroot for another target, so a
 cross build needs one from elsewhere. An archive is 0.9 to 2 GB.
 
-xclang 23.1.2.1 was built by them. xclang's archives are 92 to 101 MB,
-carry eight targets, and run on glibc 2.17. On compile speed they are close
-on Linux and macOS ([PGO](../design/pgo.md#what-it-buys) has the numbers).
+xclang's archives are about 100 MB, carry eight targets, and run on glibc
+2.17. On compile speed they are close on Linux and macOS, and faster on
+Windows ([PGO](../design/pgo.md)).
 
 ## Distribution Clang and GCC Cross Toolchains
 
@@ -151,7 +149,7 @@ targets.
   takes the target and API level in `--target=aarch64-linux-android21`, and
   its libc++ is static by default in CMake. Its
   [C++ library support](https://developer.android.com/ndk/guides/cpp-support)
-  page states a rule that xclang's static runtimes also follow. "You can
+  page states a rule that xclang's static runtimes also follow: "You can
   only use a static variant of the C++ runtime if you have one and only one
   shared library in your application." Android's own clang is built with
   PGO, LTO and BOLT.
@@ -172,20 +170,3 @@ xclang's [Bazel module](../integrations/bazel.md) brings the sysroots
 itself, and registers a toolchain per host and target. Its actions hold no
 absolute paths, and it adds `import std`, sanitizer features and
 libclang.
-
-## Not Yet Supported
-
-| | status | who has it |
-|---|---|---|
-| [Android](../design/roadmap.md#android), [WebAssembly](../design/roadmap.md#wasm), [the BSDs](../design/roadmap.md#freebsd), [bare metal](../design/roadmap.md#bare-metal) | Considered | the NDK, wasi-sdk, zig cc |
-| [iOS and Apple's other devices](../design/roadmap.md#ios) | In research | Xcode |
-| [Windows 7 and XP](../design/roadmap.md#windows-7) | In research | llvm-mingw's msvcrt variant |
-
-## Known Limitations
-
-- **No tests under emulation.** Programs built for another target run on a
-  machine of that target; xclang has nothing like `cross test`.
-- **No msvcrt.** The MinGW targets use UCRT, which needs Windows 10 or
-  later; an msvcrt variant is [not planned](../design/roadmap.md#msvcrt).
-- **No shared C++ runtime across shared libraries.** It is
-  [not planned](../design/roadmap.md#shared-runtime).
