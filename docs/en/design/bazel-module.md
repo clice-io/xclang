@@ -189,8 +189,7 @@ into the toolchain repository and must declare every SDK file as an input.
   `xclang sdk packages <vendor> --json` to query the pinned package URLs,
   sizes and `sha256` digests, downloads them with `rctx.download` into Bazel's
   shared repository cache (applying any configured Bazel mirror, proxy or
-  `--distdir`), and invokes `xclang sdk fetch <vendor> --accept-license
-  --cache downloads --sdk-dir sdk` to unpack the archive and create
+  `--distdir`), and invokes `xclang sdk fetch <vendor> --accept-license --cache downloads --sdk-dir sdk` to unpack the archive and create
   case-folding links on case-sensitive file systems. When Apple withdraws a
   pinned macOS Command Line Tools package, `xclang sdk fetch` locates the
   replacement package in Apple's catalogs and verifies the unpacked SDK by its

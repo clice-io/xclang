@@ -30,8 +30,7 @@ runs workloads matching both build systems and language servers:
   module (`shapes`, `detail`, `algorithms`), and their importers at
   `-std=c++23`. At `-O2`, modules build in two phases (`--precompile` to
   `.pcm`, then `.pcm` to `.o`); at `-O0 -g`, in one phase with reduced module
-  files (`-fmodules-reduced-bmi -fmodule-output=`). `clang-scan-deps
-  -format=p1689` scans individual compile commands (as CMake runs it) and a
+  files (`-fmodules-reduced-bmi -fmodule-output=`). `clang-scan-deps -format=p1689` scans individual compile commands (as CMake runs it) and a
   whole `compile_commands.json` database for Abseil.
 - **Code completion**: `-fsyntax-only -Xclang -code-completion-at=...` across
   Abseil sources, PCH users, preambles and module importers (`std::`,
@@ -88,8 +87,7 @@ instrumented builds or emulation.
 Frontend profiles look up each function by its mangled name, and fixed-width
 and pointer-sized integer types mangle differently across LP64 and
 LLP64/Darwin ABIs: `size_t` and `uint64_t` are `unsigned long` (`m`) on Linux
-but `unsigned long long` (`y`) on Windows (and `uint64_t` is `unsigned long
-long` on macOS), while `int64_t` is `long` (`l`) on Linux and `long long`
+but `unsigned long long` (`y`) on Windows (and `uint64_t` is `unsigned long long` on macOS), while `int64_t` is `long` (`l`) on Linux and `long long`
 (`x`) on Windows and macOS. Without remapping, functions taking `size_t` or
 `uint64_t` have different mangled names on Windows and macOS than in the Linux
 profile and receive no profile counts.

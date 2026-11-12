@@ -125,8 +125,7 @@ target has not.
 
 ## Tags
 
-Of the module extension, `use_extension("@xclang//bazel:extensions.bzl",
-"xclang")`, in the root module only: the vendor SDKs it fetches, from the
+Of the module extension, `use_extension("@xclang//bazel:extensions.bzl", "xclang")`, in the root module only: the vendor SDKs it fetches, from the
 vendor, accepting the vendor's license
 ([build for MSVC, and for macOS anywhere](../integrations/bazel.md#build-for-msvc-and-for-macos-anywhere)).
 The options are those of `xclang sdk fetch`
@@ -139,8 +138,7 @@ The options are those of `xclang sdk fetch`
 
 ## Repositories
 
-From the module extension, `use_extension("@xclang//bazel:extensions.bzl",
-"xclang")`; each is fetched only when a build uses it.
+From the module extension, `use_extension("@xclang//bazel:extensions.bzl", "xclang")`; each is fetched only when a build uses it.
 
 | repository | |
 |---|---|
