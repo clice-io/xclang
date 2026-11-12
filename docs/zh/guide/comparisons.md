@@ -2,7 +2,7 @@
 
 本页列出承担同类任务的各款工具链、它们各自的做法，以及 xclang 与它们的双向差异（优缺点均据实列出）。文中事实截至 2026-10-06，均附有各项目文档链接。如有出入，欢迎提交 [issue](https://github.com/clice-io/xclang/issues) 指正。
 
-## 一表总览 {#in-one-table}
+## 一表总览
 
 | | 定位 | 开箱即用的目标平台 | sysroot 与 SDK | 程序中的 C++ 运行时库 | Linux 产物运行环境 | 构建系统集成 | 编译器是否开启 PGO |
 |---|---|---|---|---|---|---|---|
@@ -19,7 +19,7 @@
 | **toolchains_llvm**（Bazel） | 封装 LLVM 官方二进制的规则 | 当前主机；交叉编译需用户自备 sysroot | 用户自备 | 本机编译时静态链接 libc++，交叉编译时使用 sysroot 的 libstdc++ | 取决于 sysroot | Bazel | 同 LLVM |
 | **hermetic_cc_toolchain**（Bazel） | 封装 zig cc 的规则 | Linux glibc 与 musl、windows-gnu、macOS「未充分测试」 | 由 zig 提供 | 静态链接 libc++ | 按目标指定 | Bazel | 同 zig |
 
-## zig cc {#zig-cc}
+## zig cc
 
 [`zig cc`](https://andrewkelley.me/post/zig-cc-powerful-drop-in-replacement-gcc-clang.html) 在设计理念上最为接近：一次下载，只传 `-target`，无需其他配置。它率先验证了无需单独安装 sysroot 即可用 clang 交叉编译的路线，但具体实现方式与 xclang 不同：
 
@@ -31,7 +31,7 @@
 
 Zig 的 issue 追踪器已于 2025 年 11 月迁移至 Codeberg，上述 GitHub issue 链接反映的是迁移前的状态。
 
-## cargo-zigbuild 与 cross-rs {#cargo-zigbuild-and-cross-rs}
+## cargo-zigbuild 与 cross-rs
 
 [cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild) 将 zig cc 配置为 cargo 的 C 编译器与链接器，其 README 列出了支持的 Linux 与 macOS 目标平台，并支持按目标指定 glibc 版本。
 
@@ -39,7 +39,7 @@ Zig 的 issue 追踪器已于 2025 年 11 月迁移至 Codeberg，上述 GitHub 
 
 xclang 配合 cargo 的方式与 cargo-zigbuild 使用 zig 类似，但底层是上游原版 clang 与 xclang 的运行时库：`xclang cargo` 会为各目标平台配置好 cargo 并通过 `xclang` 自身完成链接，正如 cargo-zigbuild 通过其自身程序代理链接一样（[Rust 与 Cargo](../integrations/cargo.md)）。与 cross-rs 不同，xclang 无需容器，在 Windows 和 macOS 主机上均可原生运行，但不在模拟器下运行测试。
 
-## llvm-mingw {#llvm-mingw}
+## llvm-mingw
 
 [llvm-mingw](https://github.com/mstorsjo/llvm-mingw) 是一套面向 Windows 目标平台的 clang、lld、mingw-w64 与 LLVM 运行时库，支持在 Linux、macOS 和 Windows 主机上运行。xclang 的 MinGW 目标平台思路相同，sysroot 同样基于 mingw-w64。
 
@@ -48,19 +48,19 @@ xclang 配合 cargo 的方式与 cargo-zigbuild 使用 zig 类似，但底层是
 - 它的发布版本同样开启了 PGO 与 ThinLTO 构建。
 - 它不包含 Linux 或 macOS 目标平台。
 
-## conda-forge 的编译器 {#conda-forge-s-compilers}
+## conda-forge 的编译器
 
 conda-forge 的 `cxx-compiler` 在 Linux 上是 GCC、在 macOS 上是 clang、在 Windows 上是 MSVC，专为构建 conda 软件包设计。C++ 运行时库由 `libstdcxx` 或 `libcxx` 软件包以共享库形式提供，并通过 `run_exports` 自动加入每个产物的运行时依赖；Linux 基线通过 `sysroot_linux-*` 包设定为 glibc 2.17（[知识库](https://conda-forge.org/docs/maintainer/knowledge_base/)）。
 
 这套机制适合由 conda 统一提供运行时库的环境，但一旦程序脱离 conda 环境就无法独立运行。xclang 虽然也提供 conda 包，但不是用来构建 conda-forge 软件包的编译器：它会将运行时库静态链接进每个程序，且不设置 `run_exports`。
 
-## LLVM 官方发布二进制 {#llvm-s-release-binaries}
+## LLVM 官方发布二进制
 
 [LLVM 官方发布版](https://github.com/llvm/llvm-project/releases/tag/llvmorg-23.1.5)包含面向当前主机的 clang、lld 与运行时库，在 Linux 和 macOS 上开启 PGO 与 ThinLTO 构建（`clang/cmake/caches/Release.cmake`），在 Windows 上开启 PGO 但未开启 LTO。它们不附带其他目标平台的 sysroot，交叉编译需要另行准备 sysroot。单个压缩包体积在 0.9 到 2 GB 之间。
 
 xclang 的压缩包约 100 MB，内置八个目标平台，且工具链自身可在 glibc 2.17 上运行。编译速度方面，xclang 在 Linux 与 macOS 上与上游相当，在 Windows 上更快（[PGO](../design/pgo.md)）。
 
-## 发行版自带的 Clang 与 GCC 交叉工具链 {#distribution-clang-and-gcc-cross-toolchains}
+## 发行版自带的 Clang 与 GCC 交叉工具链
 
 在 Debian 上，`crossbuild-essential-arm64` 提供 `aarch64-linux-gnu-g++` 以及与当前发行版同版本的 arm64 glibc（[packages.debian.org](https://packages.debian.org/trixie/crossbuild-essential-arm64)）；`g++-mingw-w64` 提供 MinGW GCC，apt.llvm.org 则提供各个版本的 clang。它们是 Linux 机器上的默认选择，维护良好，但存在以下限制：
 
@@ -69,14 +69,14 @@ xclang 的压缩包约 100 MB，内置八个目标平台，且工具链自身可
 - 每增加一个目标平台，都需要安装另一套软件包。
 - 仅在 Linux 主机上可用。
 
-## Android NDK 与 wasi-sdk：先例 {#android-ndk-and-wasi-sdk-the-precedents}
+## Android NDK 与 wasi-sdk：先例
 
 这两者都是「单个 clang 配内置 sysroot」的形态，xclang 将同样的结构带到了桌面与服务器目标平台。
 
 - [NDK](https://developer.android.com/ndk/guides/other_build_systems) 通过 `--target=aarch64-linux-android21` 同时指定目标架构与 API 级别，且在 CMake 中默认静态链接 libc++。其 [C++ 库支持](https://developer.android.com/ndk/guides/cpp-support)页面写明了一条 xclang 静态运行时库同样遵循的规则：「只有当应用中最多只有一个共享库时，才可以使用静态版 C++ 运行时库。」Android 自身的 clang 开启了 PGO、LTO 与 BOLT 构建。
 - [wasi-sdk](https://github.com/WebAssembly/wasi-sdk) 是「预先配置好默认目标平台与 sysroot 的构建版本」，这正是 xclang 中每个目标平台的配置文件所做的事。
 
-## Bazel 工具链 {#bazel-toolchains}
+## Bazel 工具链
 
 [toolchains_llvm](https://github.com/bazel-contrib/toolchains_llvm) 会下载当前主机的 LLVM 官方发布版；交叉编译时需要用户自备 sysroot，并链接这个 sysroot 中的 libstdc++。[hermetic_cc_toolchain](https://github.com/uber/hermetic_cc_toolchain) 基于 zig cc 构建并继承其目标平台，不含 macOS SDK，其 macOS 支持处于「未充分测试」状态。
 

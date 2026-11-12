@@ -7,7 +7,7 @@ xclang 是一套用于交叉编译的 clang 工具链，思路就像 Rust 里的
 clang++ --target=aarch64-w64-mingw32 hello.cpp -o hello.exe
 ```
 
-## 版本包含的内容 {#what-is-in-a-release}
+## 版本包含的内容
 
 - **clang、lld 与 LLVM 二进制工具**：基于上游 LLVM 加上少量正在合入上游的[补丁](../reference/patches.md)构建，打包为单个多合一可执行文件（`llvm`），并针对六个主机平台静态链接 xclang 自身的 libc++（[工具链结构](../design/toolchain.md)）。
 - **每个压缩包内置八个目标平台**：[Linux](../targets/linux.md) x64 与 arm64（glibc 2.17，以及用于静态程序的 musl 1.2.6）、[Windows](../targets/windows.md) x64 与 arm64（使用 UCRT 的 MinGW-w64）、[macOS](../targets/macos.md) arm64 与 x64。每个目标平台都带有预编译好的 sysroot、libc++、libc++abi、libunwind 和 compiler-rt，以及将 clang 指向这些目录的配置文件（[交叉编译](../targets/cross-compiling.md)）。
@@ -19,7 +19,7 @@ clang++ --target=aarch64-w64-mingw32 hello.cpp -o hello.exe
 
 尚未发布的其他目标平台与功能见[路线图](../design/roadmap.md)。
 
-## 它对构建的作用 {#what-it-does-for-a-build}
+## 它对构建的作用
 
 当 C++ 构建的产物只取决于声明的输入时，这样的构建就是*封闭的*（hermetic）：在任何机器、任何目录下，同样的源码和工具链都会产出同样的程序。这正是 xclang 的设计目标。
 
@@ -33,7 +33,7 @@ clang++ --target=aarch64-w64-mingw32 hello.cpp -o hello.exe
 - **供应链可追溯。** 每个压缩包都记录在 `SHA256SUMS` 中，基于 LLVM 官方源码包与公开记录的[补丁](../reference/patches.md)构建，在两台机器上各打包一次并逐字节比对，同时随包附带各组件的许可证与 SPDX 文档（[安装](install.md)、[压缩包目录结构](../reference/layout.md)）。厂商 SDK 绝不打包进压缩包，而是由用户直接从厂商下载，并锁定版本与 `sha256`（[`xclang` 命令](../reference/xclang-command.md)）。
 - **一套工具链通用于各种构建方式。** 同一个工具链目录既可用于[直接调用 clang、Make 与 Meson](../integrations/clang.md)，也可用于 [CMake](../integrations/cmake.md)、[Bazel](../integrations/bazel.md) 和 [cargo](../integrations/cargo.md)，无论它来自 pixi、压缩包、FetchContent 还是 Bazel registry（[安装](install.md)）。
 
-## 适用场景 {#who-it-is-for}
+## 适用场景
 
 - **向用户机器分发程序的项目**：命令行工具、语言服务器和构建工具，无需用户安装运行库安装包或 Homebrew，单文件即可运行。
 - **为多个目标平台构建的 CI**：在单一 runner 操作系统上用同一个编译器版本构建所有目标平台（[CI](../integrations/ci.md)）。
@@ -43,7 +43,7 @@ clang++ --target=aarch64-w64-mingw32 hello.cpp -o hello.exe
 
 xclang 是为 [clice](https://github.com/clice-io/clice) 开发的，clice 的发布构建是它的第一个用户。[catter](https://github.com/clice-io/catter) 同样使用它构建。xclang 的 CI 在 Linux 上将 [kotatsu](https://github.com/clice-io/kotatsu) 的测试交叉编译到 Windows，并在 Windows 上运行。[同类工具对比](comparisons.md)横向对比了 xclang 与承担类似任务的各工具链。
 
-## 它不是什么 {#what-it-is-not}
+## 它不是什么
 
 - **其他工具链编译的 C++ 库需要配套的 C++ 标准库。** xclang 默认使用 libc++ 并静态链接进每个程序，而用 GCC 的 libstdc++ 或微软的 STL 编译出的 C++ 库具有不同的 ABI。请用 xclang 为目标平台重新编译 C++ 依赖库，或者传入 `-stdlib=platform` 改用平台的 C++ 标准库（此时产物不再自包含，详见[直接使用 clang](../integrations/clang.md)）。C 语言库不受影响。
 - **每个共享库各自持有一份 libc++。** 每个共享库都链接了独立的 libc++，因此不应跨共享库边界传递 C++ 对象；在 Linux 与 macOS 上，一个共享库抛出的标准异常在另一个共享库中只能被 `catch (...)` 捕获（[封闭性](../design/hermeticity.md)）。
@@ -51,7 +51,7 @@ xclang 是为 [clice](https://github.com/clice-io/clice) 开发的，clice 的�
 - **不含 `clang-format`、`clang-tidy` 或 `clangd` 可执行文件。** xclang 是一套编译器工具链。
 - **不用于构建 conda-forge 软件包。** 构建 conda-forge 包请使用 conda-forge 自己的编译器，它们会按 `run_exports` 机制动态链接共享运行时库包；xclang 不这么做。
 
-## 下一步 {#next}
+## 下一步
 
 - [快速开始](quick-start.md)：为各个目标平台构建程序，再构建一个使用 `import std` 的 CMake 项目。
 - [安装](install.md)：pixi、压缩包、FetchContent 与 Bazel。

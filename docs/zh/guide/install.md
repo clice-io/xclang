@@ -11,7 +11,7 @@
 
 在本文档中，*工具链目录*（命令行中记作 `$XCLANG`）指安装或解压工具链的目录，其下的 `bin/` 存放 clang、lld 及其他工具（[压缩包目录结构](../reference/layout.md)）。
 
-## pixi 与 conda {#pixi-and-conda}
+## pixi 与 conda
 
 xclang 发布在 [clice conda 频道](https://conda.clice.io)。在 pixi 工作区中添加这个频道与 `xclang` 包：
 
@@ -37,7 +37,7 @@ pixi install
 
 xclang 不是用于构建 conda-forge 配方（recipe）的编译器（[封闭性](../design/hermeticity.md)）。
 
-## 压缩包 {#archives}
+## 压缩包
 
 每个 [GitHub 版本](https://github.com/clice-io/xclang/releases)都会为各主机平台发布一个工具链压缩包 `xclang-<version>-<host>.tar.xz`（约 100 MB）。将其解压到任意位置即可直接运行 `xclang/bin/` 下的工具。最新版本的 `SHA256SUMS` 文件中列出了压缩包文件名与版本号。在 Linux 上：
 
@@ -68,7 +68,7 @@ xclang\bin\clang++ --target=aarch64-unknown-linux-gnu hello.cpp -o hello
 
 如需锁定特定版本，将 `v` 设为对应的版本号并从 `releases/download/$v` 下载 `SHA256SUMS` 即可。`hello.cpp` 来自[快速开始](quick-start.md)。可以把 `xclang/bin` 加入 `PATH`，或直接按路径调用可执行文件。Windows 压缩包不含符号链接，无需管理员权限或开发者模式即可解压（[Windows](../targets/windows.md)）。在 Windows 上，`xclang sdk fetch` 下载的厂商 SDK 通过记录绝对路径的目录联接（junction）访问：移动工具链目录后，运行 `xclang sdk use <name>` 即可将其指向新位置，而 macOS SDK 则需重新下载（[`xclang` 命令](../reference/xclang-command.md)）。
 
-## CMake FetchContent {#cmake-fetchcontent}
+## CMake FetchContent
 
 CMake 项目可以在调用 `project()` 之前下载主机工具链，这样机器上只需安装 CMake、Ninja 和 Git 即可完成构建配置：
 
@@ -84,7 +84,7 @@ include(${xclang_SOURCE_DIR}/packages/cmake/xclang.cmake)
 
 `xclang.cmake` 会下载对应版本的主机压缩包，对照这个版本的 `SHA256SUMS` 校验后解压到用户缓存目录中，每个版本与主机平台组合只解压一次（[CMake](../integrations/cmake.md)）。
 
-## Bazel {#bazel}
+## Bazel
 
 clice 的 Bazel registry [bazel.clice.io](https://bazel.clice.io) 上有 `xclang` 模块。先在 `.bazelrc` 里加上这个 registry：
 
@@ -103,7 +103,7 @@ bazel_dep(name = "xclang", version = "23.1.5.1")
 
 这个模块会下载主机压缩包并校验锁定的 `sha256`，然后将其注册为所有目标平台的 C++ 工具链（[Bazel](../integrations/bazel.md)）。
 
-## 版本号 {#versions}
+## 版本号
 
 每个版本的标签格式均为 `<llvm version>.<revision>`。例如 `23.1.2.1` 是基于 LLVM 23.1.2 的第一次构建，`23.1.2.2` 是第二次。版本号直接标明上游 LLVM 版本，并在 conda、Bazel 和 CMake 中保持一致的排序顺序。
 
@@ -120,7 +120,7 @@ bazel_dep(name = "xclang", version = "23.1.5.1")
 | CMake FetchContent | 仓库标签 `<version>` | `GIT_TAG <version>` | `GIT_TAG latest`（指向最新发布标签的分支） |
 | [bazel.clice.io](https://bazel.clice.io) | 基于发布压缩包构建并测试通过后发布的 `xclang` Bazel 模块 | `version = "<version>"` | Bazel 自动解析依赖图中请求的最高版本 |
 
-## 发布文件 {#assets}
+## 发布文件
 
 每个 [GitHub 版本](https://github.com/clice-io/xclang/releases)都包含固定的 17 个发布文件：
 
@@ -135,7 +135,7 @@ bazel_dep(name = "xclang", version = "23.1.5.1")
 
 六个 `<host>` triple 分别为 `x86_64-unknown-linux-gnu`、`aarch64-unknown-linux-gnu`、`x86_64-w64-mingw32`、`aarch64-w64-mingw32`、`aarch64-apple-darwin` 和 `x86_64-apple-darwin`。
 
-## 校验下载文件 {#checking-a-download}
+## 校验下载文件
 
 发布工作流会根据上传的发布文件生成 `SHA256SUMS`。你可以对照 `SHA256SUMS` 校验任意下载的发布文件（如需指定版本，向 `gh release download` 传入 `<version>`）：
 
@@ -147,7 +147,7 @@ sha256sum -c --ignore-missing SHA256SUMS
 
 Bazel 模块会对照 `versions.bzl` 中锁定的 `sha256` 摘要校验每个下载的压缩包；CMake 的 `xclang.cmake` 则会对照这个版本的 `SHA256SUMS` 文件校验工具链压缩包。在 `versions.bzl` 或你自己的仓库中锁定摘要，还能防范 GitHub 上的压缩包与 `SHA256SUMS` 被同时替换；不可变（immutable）GitHub 版本目前在计划中（[路线图](../design/roadmap.md)）。
 
-## 验证安装 {#check-it-works}
+## 验证安装
 
 从 `PATH` 或工具链目录运行 `clang++ --version`，会输出编译器版本以及表示其所在 `bin/` 目录的 `InstalledDir`：
 
@@ -158,7 +158,7 @@ pixi run clang++ --version
 
 `xclang --version` 会输出其自身版本、工具链目录以及所属版本号 `<llvm version>.<revision>`。每个版本的变更记录在 [CHANGELOG](https://github.com/clice-io/xclang/blob/main/CHANGELOG.md) 中。
 
-## 下一步 {#next}
+## 下一步
 
 - [快速开始](quick-start.md)：为各个目标平台构建程序，并构建使用 `import std` 的 CMake 项目。
 - [交叉编译](../targets/cross-compiling.md)：目标平台、厂商 SDK 与构建系统参数。

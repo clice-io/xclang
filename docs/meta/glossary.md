@@ -12,11 +12,10 @@ xclang's: its page conventions and its terms.
   `<!-- excerpt: -->` and `<!-- not run: -->` markers, code spans, link
   targets and URLs are byte for byte the English page's. Comments inside
   code blocks stay English: they are part of the files CI runs.
-- **Headings** are translated, and every heading but the page's title ends
-  in `{#id}`, the id of the English heading in its place (its slug, as
-  `tests/docs/docs.ts` names it), so links and anchors work on both sites:
-  `## 构建其他目标平台的程序 {#build-for-another-target}`. A heading that is
-  an identifier (`xclang sdk fetch`, `toolchain.cmake`) stays as it is.
+- **Headings** are translated. A heading that is an identifier
+  (`xclang sdk fetch`, `toolchain.cmake`) stays as it is. Links keep the
+  English anchors (`#build-for-another-target`): the docs site gives each
+  Chinese heading the id of the English one in its place.
 - **Status words** in a table's status column (状态) are the roadmap's,
   translated one way: Supported → 已支持, Unreleased → 未发布, Planned → 计划中,
   In research → 研究中, Considered → 考虑中, Not planned → 不计划.

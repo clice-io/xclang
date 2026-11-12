@@ -23,10 +23,10 @@
 ///   not used;
 /// - prose holds no bare `<placeholder>`, which the docs site reads as an
 ///   HTML element;
-/// - docs/zh, the Chinese pages, keeps the English pages' anchors: every
-///   heading of a zh page but its title ends in `{#id}`, the id of the en page's heading
-///   in its place, so a link and an anchor mean the same on both sites (the
-///   rest of the pairing is tests/docs/translations.ts's).
+/// - docs/zh, the Chinese pages, are checked alike. Their links keep the
+///   English anchors, which the docs site gives the Chinese headings in
+///   their place, so an anchor into a zh page is one of its en page's (the
+///   pairing of the two pages is tests/docs/translations.ts's).
 ///
 ///   node tests/docs/docs.ts
 
@@ -63,13 +63,11 @@ function slug(heading: string): string {
     .toLowerCase();
 }
 
-/// The text of a page outside its code blocks, its headings' ids in order
-/// (a heading's own `{#id}`, or its slug), whether each was its own, and
-/// the ids of its headings and anchors.
-function parse(page: string): { lines: string[]; ids: Set<string>; headings: { id: string; own: boolean; line: number; level: number }[] } {
+/// The text of a page outside its code blocks, and its headings' and
+/// anchors' ids.
+function parse(page: string): { lines: string[]; ids: Set<string> } {
   const lines: string[] = [];
   const ids = new Set<string>();
-  const headings: { id: string; own: boolean; line: number; level: number }[] = [];
   const seen = new Map<string, number>();
   let fence = "";
   for (const line of fs.readFileSync(page, "utf8").split("\n")) {
@@ -85,27 +83,26 @@ function parse(page: string): { lines: string[]; ids: Set<string>; headings: { i
     }
     lines.push(line);
     for (const a of line.matchAll(/<a id="([^"]+)"><\/a>/g)) ids.add(a[1]);
-    const h = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
+    const h = /^#{1,6}\s+(.*?)\s*#*\s*$/.exec(line);
     if (h) {
-      const own = /\s*\{#([^}\s]+)\}$/.exec(h[2]!);
-      if (own) {
-        ids.add(own[1]!);
-        headings.push({ id: own[1]!, own: true, line: lines.length, level: h[1]!.length });
-        continue;
-      }
-      const id = slug(h[2]!);
+      const id = slug(h[1]);
       const n = seen.get(id) ?? 0;
       seen.set(id, n + 1);
       ids.add(n ? `${id}-${n}` : id);
-      headings.push({ id: n ? `${id}-${n}` : id, own: false, line: lines.length, level: h[1]!.length });
     }
   }
-  return { lines, ids, headings };
+  return { lines, ids };
 }
 
 const failures: string[] = [];
 const pages = [EN, ZH].filter((d) => fs.existsSync(d)).flatMap(markdown);
 const parsed = new Map(pages.map((p) => [p, parse(p)]));
+
+/// The anchors a link into a page may name: a zh page's are its en page's.
+function anchors(page: string): Set<string> {
+  const en = page.startsWith(ZH + path.sep) ? parsed.get(path.join(EN, path.relative(ZH, page))) : undefined;
+  return (en ?? parsed.get(page)!).ids;
+}
 
 /// Whether `block` is consecutive lines of `file`, all indented by what
 /// indents the first (a step's lines in a YAML `run: |`, a list item).
@@ -239,27 +236,10 @@ for (const [page, { lines }] of parsed) {
       links++;
       if (!doc) {
         failures.push(`${where}: ${target}: no such page`);
-      } else if (anchor && !doc.ids.has(anchor)) {
+      } else if (anchor && !anchors(resolved.endsWith(".md") ? resolved : `${resolved}.md`).has(anchor)) {
         failures.push(`${where}: ${target}: no such heading`);
       }
     }
-  });
-}
-
-/// The zh pages' headings: each but the title ends in `{#id}`, the id of
-/// the en page's heading in its place. (That the two pages have the same
-/// headings, in the same order and depth, is the translations check's.)
-/// The title has none: the site's sidebar reads it as it is written.
-for (const [page, zh] of parsed) {
-  if (!page.startsWith(ZH + path.sep)) continue;
-  const en = parsed.get(path.join(EN, path.relative(ZH, page)));
-  if (!en) continue;
-  zh.headings.forEach((h, i) => {
-    if (h.level === 1) return;
-    const where = `${path.relative(ROOT, page)}:${h.line}`;
-    const want = en.headings[i]?.id;
-    if (!h.own) failures.push(`${where}: a zh heading ends in {#id}, the en heading's id${want ? ` (${want})` : ""}`);
-    else if (want !== undefined && h.id !== want) failures.push(`${where}: {#${h.id}} is not the en heading's id, ${want}`);
   });
 }
 
@@ -289,10 +269,10 @@ for (const name of ["README.md", "README.zh-CN.md", "CHANGELOG.md", "CONTRIBUTIN
       }
       const [page, anchor] = target.split("#");
       if (/^docs\/(en|zh)\/?$/.test(page)) continue;
-      const doc = parsed.get(path.join(ROOT, page.endsWith(".md") ? page : `${page}.md`));
+      const doc = path.join(ROOT, page.endsWith(".md") ? page : `${page}.md`);
       links++;
-      if (!doc) failures.push(`${name}:${i + 1}: ${m[1]}: no such page`);
-      else if (anchor && !doc.ids.has(anchor)) failures.push(`${name}:${i + 1}: ${m[1]}: no such heading`);
+      if (!parsed.has(doc)) failures.push(`${name}:${i + 1}: ${m[1]}: no such page`);
+      else if (anchor && !anchors(doc).has(anchor)) failures.push(`${name}:${i + 1}: ${m[1]}: no such heading`);
     }
   });
 }
