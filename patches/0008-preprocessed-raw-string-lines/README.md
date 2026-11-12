@@ -24,5 +24,6 @@ comments.
 - Checked: the patched `PrintPreprocessedOutput.cpp` compiles against
   23.1.2's headers. The smoke test preprocesses a CRLF file with a two-line
   raw string, compiles the output, and runs it: the string is `a\nb` and the
-  line after it has its own number, on every host. Applies to 23.1.3 with
-  `patch -F0` after the patches before it; 23.1.3 changed none of its files.
+  line after it has its own number, on every host. Applies to 23.1.3 and
+  23.1.5 with `patch -F0` after the patches before it; 23.1.3, 23.1.4 and
+  23.1.5 changed none of its files.

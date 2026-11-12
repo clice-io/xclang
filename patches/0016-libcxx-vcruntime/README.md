@@ -28,5 +28,5 @@ and repeats another, which it links in its own tests (`libcpmt.lib` or
   `std::nothrow` and has both handlers (llvm-nm); kotatsu's tests link and
   run, tests/sdk/msvc.ts's `std::set_new_handler` program links and runs,
   and tests/cmake's `import std` builds, for both MSVC targets. Applies to
-  23.1.3 with `patch -F0` after the patches before it; 23.1.3 changed none
-  of its files.
+  23.1.3 and 23.1.5 with `patch -F0` after the patches before it; 23.1.3,
+  23.1.4 and 23.1.5 changed none of its files.

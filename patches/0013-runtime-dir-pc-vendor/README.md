@@ -30,4 +30,6 @@ The patch has clang look under the usual spelling too: for the vendor
   against `lib/clang/23/lib/arm64-*/libclang_rt.builtins.a`, which is not
   there. The smoke test builds a C program for `arm64-linux-gnu`,
   `arm64-pc-linux-gnu`, `arm64-w64-mingw32`, `arm64-pc-windows-gnu` and
-  `arm64-linux-musl` on every host and runs it where the host can.
+  `arm64-linux-musl` on every host and runs it where the host can. Applies
+  to 23.1.5 with `patch -F0` after the patches before it; 23.1.4 and 23.1.5
+  changed none of its files.

@@ -24,5 +24,5 @@ the integrated assembler (cc1as). Without its tests.
   LLVM 22.1.5 writes 0. The smoke test compiles one C file for
   `x86_64-w64-mingw32` and for `x86_64-pc-windows-msvc` on every host: the
   MinGW object's `TimeDateStamp` is 0, the MSVC one's is not. Applies to
-  23.1.3 with `patch -F0` after the patches before it; 23.1.3 changed none
-  of its files.
+  23.1.3 and 23.1.5 with `patch -F0` after the patches before it; 23.1.3,
+  23.1.4 and 23.1.5 changed none of its files.

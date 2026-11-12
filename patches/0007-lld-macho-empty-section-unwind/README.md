@@ -21,5 +21,6 @@ zero entry. It is upstream's fix, without its test.
   exp/lld-225055, runs 36519151429 and 36521671251, Linux and macOS arm64):
   a ThinLTO program linked with `-object_path_lto` catches its exception
   only with the fix. The smoke test's ThinLTO program, compiled and linked
-  by one command, throws and catches. Applies to 23.1.3 with `patch -F0`
-  after the patches before it; 23.1.3 changed none of its files.
+  by one command, throws and catches. Applies to 23.1.3 and 23.1.5 with
+  `patch -F0` after the patches before it; 23.1.3, 23.1.4 and 23.1.5 changed
+  none of its files.

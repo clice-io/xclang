@@ -8,6 +8,15 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+- **LLVM 23.1.5**, with 23.1.4's fixes. Among them: miscompiles in
+  InstCombine (llvm/llvm-project#231537), the loop vectorizer
+  (llvm/llvm-project#229929), loop unrolling (llvm/llvm-project#234202)
+  and x86's shifts of 128-bit vector elements (llvm/llvm-project#228840);
+  valid C++20 concepts that clang 23 rejected (llvm/llvm-project#236286,
+  llvm/llvm-project#236425); lld's `.eh_frame_hdr` computed from stale
+  addresses (llvm/llvm-project#232189); and llvm-objcopy's COFF
+  `--strip-unneeded`, which dropped the symbols of COMDAT sections, so
+  that lld dropped the sections (llvm/llvm-project#228783).
 - **The macOS SDK of `macos-latest` fetches again.** Apple withdrew the
   Command Line Tools package that the version table pinned for SDK 26.5
   and 27.0, and its CDN answers 403 for it, at first only where an edge no
