@@ -108,7 +108,7 @@ The compiler and runtimes are 23.1.3.1's.
   `$CARGO_HOME`. Each release builds it twice, on two machines, and
   checks that both are the same bytes, and a rebuild of a run must give
   `bin/xclang` again too
-  ([reproducible builds](docs/en/design/roadmap.md#reproducible-builds)).
+  ([reproducible builds](docs/en/reference/releases.md#reproducible-builds)).
 
 ## [23.1.3.1](https://github.com/clice-io/xclang/releases/tag/23.1.3.1) — 2026-10-13
 
@@ -142,7 +142,7 @@ Built by 23.1.2.12.
 - A rebuild of a revision with its profile gives the same archives again,
   the Windows hosts' `llvm.exe` too, which the bootstrap's lld-link links:
   23.1.2.12, the bootstrap now, has patch 0017
-  ([reproducible builds](docs/en/design/roadmap.md#reproducible-builds)).
+  ([reproducible builds](docs/en/reference/releases.md#reproducible-builds)).
 
 ## [23.1.2.12](https://github.com/clice-io/xclang/releases/tag/23.1.2.12) — 2026-10-12
 
@@ -383,7 +383,7 @@ Built by 23.1.2.6.
   (`https://github.com/llvm/llvm-project 85ac5602…`), not the commit of
   xclang's checkout, and a rebuild of a revision with its profile gives the
   same archives again, but for the Windows hosts' `llvm.exe`
-  ([reproducible builds](docs/en/design/roadmap.md#reproducible-builds)):
+  ([reproducible builds](docs/en/reference/releases.md#reproducible-builds)):
   the runtimes for Windows carry no compile or link time.
 - Patches: **0017** added, lld-link lays out a program the same way on
   every link: with a call graph profile (PGO), local functions of the same

@@ -1,9 +1,9 @@
 # Roadmap
 
-What xclang supports today, and the status of everything it does not. Every
-item that no release carries has one row here, with one status word. Other
-pages link to that row instead of restating the status. Nothing here has a
-date. What each release changed is in the
+Every target and feature that no release carries yet has one row on this page,
+with one status word. Other pages link to that row instead of restating the
+status. What is already in a release is documented on its own page, and what
+each release changed is in the
 [CHANGELOG](https://github.com/clice-io/xclang/blob/main/CHANGELOG.md).
 
 | status | meaning |
@@ -17,48 +17,31 @@ date. What each release changed is in the
 
 ## The Vision
 
-xclang's vision is what rustup, cross-rs and cargo-zigbuild do for Rust,
-for clang: one compiler for every target.
-
-- The common targets come with the toolchain, as the eight of every
-  archive do today.
-- Every other target is an archive of its own, fetched when a build needs
-  it: its sysroot, its prebuilt runtimes and its config file.
-- Vendor SDKs that no one may redistribute (Apple's, Microsoft's) are
-  fetched from the vendor by the user, who accepts their license. xclang
-  never redistributes them.
-- Runtimes can also be built from source on demand, for options the
-  prebuilt ones lack.
-
-Today, the first, the third and the fourth are in a release: the eight
-targets of every archive (the musl ones since 23.1.2.10), since 23.1.2.7
-Microsoft's and Apple's SDKs, which the user fetches with the
-[`xclang` command](#xclang-command), and since 23.1.2.11 the runtimes from
-source, for every target but the MSVC ones. The rest is planned, in
-research or considered, item by item, in the tables below.
-
-Every target keeps the [hermeticity](hermeticity.md) rule. A program
-depends at run time only on the libraries of its OS that cannot be
+xclang's goal is to give `clang` what `rustup`, `cross-rs` and
+`cargo-zigbuild` give Rust: one compiler for every target. The common targets
+ship in every host archive, vendor SDKs that cannot be redistributed are
+fetched from the vendor by the user, and C++ runtimes can be built from source
+on demand ([what is xclang?](../guide/what-is-xclang.md),
+[cross-compiling](../guide/cross-compiling.md)). Additional targets beyond the
+bundled set will be published as separate target archives fetched when a build
+needs them. Every target follows the [hermeticity](hermeticity.md) rule: a
+program depends at run time only on the OS libraries that cannot be
 redistributed, and links everything else statically.
 
 ## Targets
 
-A target's tier says how it is tested
-([tiers](../targets/cross-compiling.md#tiers)). For the targets here, tier 1 can
-also mean a runner that runs the target's programs: Windows x64 runs x86
-programs, wasmtime WebAssembly ones. A tier 3 target may get its runtimes
-[built on demand](#libc-on-demand) instead of prebuilt. "The user (SDK)"
-means the target needs a vendor SDK that the user fetches, accepting its
-license.
+A target's tier describes how CI tests it
+([targets and hosts](../guide/cross-compiling.md#targets-and-hosts)): Tier 1
+runs tests natively on a GitHub-hosted runner (including `x86` binaries on
+`x86_64` Windows and WebAssembly binaries under `wasmtime`), Tier 2 runs tests
+under emulation or virtualization, and Tier 3 compiles and links without
+running. A Tier 3 target may build its runtimes
+[from source on demand](../features/runtimes-from-source.md) rather than
+shipping prebuilt archives. "The user (SDK)" means the target requires a
+vendor SDK fetched by the user under the vendor's license.
 
 | target | C runtime | from | tier | status |
 |---|---|---|---|---|
-| <a id="linux"></a>Linux x64, arm64 | glibc 2.17 | the toolchain | 1 | Supported |
-| <a id="mingw"></a>Windows x64, arm64 (MinGW) | mingw-w64, UCRT | the toolchain | 1 | Supported |
-| <a id="macos"></a>macOS arm64, x64, from macOS hosts | Apple's SDK | Xcode | 1 | Supported |
-| <a id="msvc"></a>Windows x64, arm64 (MSVC), with their sanitizers | Microsoft's CRT, Windows SDK; libc++ or Microsoft's STL | the user (SDK) | 1 | Supported |
-| <a id="macos-any-host"></a>macOS arm64, x64, from Linux and Windows hosts | Apple's SDK | the user (SDK) | 1 | Supported |
-| <a id="musl"></a>Linux x64, arm64 (musl), in every archive | musl 1.2.6, static | the toolchain | 1 | Supported |
 | <a id="windows-x86-msvc"></a>Windows x86 (MSVC) | Microsoft's CRT and STL, Windows SDK | the user (SDK) | 1 | In research |
 | <a id="windows-7"></a>Windows 7 and XP (MSVC) | Microsoft's CRT, static, with YY-Thunks | the user (SDK) | 3 | In research |
 | <a id="windows-x86-mingw"></a>Windows x86 (MinGW) | mingw-w64, UCRT | xclang | 1 | Considered |
@@ -80,174 +63,78 @@ license.
 | <a id="ios"></a>iOS, tvOS, watchOS, visionOS, their simulators | Apple's SDKs | the user, from full Xcode (SDK) | 3 | In research |
 | <a id="emscripten"></a>Emscripten | Emscripten's own | emsdk | | Not planned |
 
-What sets these targets apart:
-
-- **MSVC targets.** First-class targets, as the MinGW ones are, since
-  23.1.2.7. The default C runtime is Microsoft's "hybrid CRT": the VC
-  runtime and the C++ library static, UCRT dynamic. xclang builds their
-  libc++ ([below](#libcxx-msvc)) and compiler-rt: the builtins, the
-  profile runtime and UBSan, and for x64 AddressSanitizer, whose runtime
-  is a DLL, and libFuzzer. The MSVC and
-  Windows SDK versions are pinned to ones the shipped clang accepts, and
-  the user fetches them with the [`xclang` command](#xclang-command),
-  which every toolchain archive carries
-  ([Windows](../targets/windows.md#msvc-targets)). CMake builds them, and so does the
-  Bazel module since 23.1.2.10 ([below](#msvc-bazel)).
-- **macOS from any host.** Since 23.1.2.7. Apple's macOS SDK is in the
-  Command Line Tools package on Apple's update servers, and needs no
-  Apple ID to download. The user fetches it with the
-  [`xclang` command](#xclang-command) into the toolchain, whose config
-  files then use it on Linux and Windows hosts; on macOS, Xcode's SDK
-  stays the one in use. The programs are those of a macOS host: xclang's
-  libc++ linked in, ld64.lld, dSYMs, the sanitizers
-  ([macOS](../targets/macos.md#on-linux-and-windows-hosts)). CMake builds
-  them, and so does the Bazel module since 23.1.2.10
-  ([below](#macos-any-host-bazel)).
-- **musl.** Static programs that take nothing from the system they run on,
-  in every archive since 23.1.2.10, as the glibc, MinGW and macOS targets
-  are: musl built by xclang, libc++ and every runtime linked in, UBSan the
-  only sanitizer, as the others need dynamic linking
-  ([targets](../targets/linux.md#musl-targets)). CMake, Bazel and cargo
-  build them.
-- **A newer glibc.** The same targets for programs that need what glibc
-  2.17 lacks, such as `-static-pie` and newer functions, with the same
-  runtimes.
-- **Other Linux architectures.** Each gets the oldest glibc it has; riscv64
-  and loongarch64 have nothing as old as 2.17. Their sanitizers are the
-  ones compiler-rt supports on them.
-- **WebAssembly.** `wasm32-wasip2` links with `wasm-component-ld`, which
-  each host's toolchain needs to carry. C++ exceptions are opt-in.
-- **Android.** The NDK's sysroot, with xclang's static libc++ in the NDK's
-  ABI namespace (`__ndk1`).
-- **iOS and Apple's other devices.** Their SDKs come only with full Xcode,
-  downloaded with an Apple ID; xclang cannot remove that limit. Their
-  runtimes are likely to be [built on demand](#libc-on-demand).
-- **Windows 7 and XP.** The MSVC target with the CRT linked statically, and
-  [YY-Thunks](https://github.com/Chuyu-Team/YY-Thunks) for the functions
-  the old systems lack. MinGW with libc++ cannot reach XP. The goal is to
-  find out how far hermeticity reaches there; Windows 9x is out of scope.
-- **msvcrt.** The MinGW targets use UCRT, which is part of Windows 10 and
-  later. A MinGW variant on the older msvcrt is not planned.
-- **Emscripten.** emsdk is its toolchain, so it is not an xclang target.
+- **A newer glibc**: `x86_64` and `aarch64` Linux targets for programs that
+  need features absent from glibc 2.17, such as `-static-pie` and newer C
+  library interfaces, paired with the same static `libc++` and `compiler-rt`.
+- **Other Linux architectures**: each uses the oldest glibc version available
+  for its architecture (`riscv64` and `loongarch64` have no glibc 2.17), with
+  the sanitizers `compiler-rt` supports on that architecture.
+- **WebAssembly**: `wasm32-wasip2` links with `wasm-component-ld` bundled in
+  each host archive; C++ exceptions are opt-in.
+- **Android**: builds against the NDK's sysroot with xclang's static `libc++`
+  configured in the NDK's inline ABI namespace (`__ndk1`).
+- **iOS and Apple's other device platforms**: their SDKs ship only in full
+  Xcode (which requires an Apple ID to download), and their C++ runtimes will
+  likely be built [from source on demand](../features/runtimes-from-source.md).
+- **Windows 7 and XP**: the MSVC target linked against the static CRT and
+  [YY-Thunks](https://github.com/Chuyu-Team/YY-Thunks) for APIs missing on
+  older Windows versions (`mingw-w64` with `libc++` cannot target XP; Windows
+  9x is out of scope).
+- **`msvcrt`**: xclang's MinGW targets use UCRT (Windows 10 and later); a
+  MinGW variant targeting the legacy `msvcrt.dll` is not planned.
+- **Emscripten**: `emsdk` provides its own complete toolchain, so Emscripten
+  is not an xclang target.
 
 ## The xclang Command
 
 | item | status |
 |---|---|
-| <a id="xclang-command"></a>The `xclang` command: `xclang sdk fetch` for the vendor SDKs | Supported |
 | <a id="target-archives"></a>Target archives and a release index, for `xclang target add` | Planned |
 | <a id="fetched-targets-in-build-systems"></a>Fetched targets in the CMake package and the Bazel module | Planned |
-| <a id="msvc-bazel"></a>The MSVC targets in the Bazel module, with the Windows SDK fetched by a repository rule | Supported |
-| <a id="macos-any-host-bazel"></a>macOS targets from Linux and Windows hosts in the Bazel module, with the macOS SDK fetched by a repository rule | Supported |
 
-`xclang` is a program in Rust (`xclang/`), built for every host with xclang as
-its C compiler and linker. Every toolchain archive carries it, as
-`bin/xclang`, since 23.1.2.7
-([the xclang command](../reference/xclang-command.md)).
-
-- `xclang sdk fetch` downloads a vendor SDK from the vendor, by version and
-  sha256, once the user accepts its license. It is in every release since
-  23.1.2.7.
-- `xclang target add` unpacks a target's archive of the same release into
-  the toolchain: its sysroot, its runtimes, compiler-rt, its config files
-  and the licenses of its C runtime. No release publishes target archives
-  yet, so it has nothing to add.
-- Each release gets an index of its target archives, as rustup's channel
-  manifests are: archive, sha256, size, tier and the SDK it needs.
-- The CMake package and the Bazel module take fetched targets as they
-  come. Today their toolchains build for the targets of the host's
-  archive, and also for the MSVC targets, and for macOS from Linux and
-  Windows hosts, with the vendor SDKs.
-- **The MSVC targets in the Bazel module**, since 23.1.2.10: a repository
-  rule fetches the Windows SDK once the root module accepts its license in
-  `MODULE.bazel`, and the targets build with the GNU-style clang of the
-  other toolchains
-  ([Bazel](../integrations/bazel.md#build-for-msvc-and-for-macos-anywhere)).
-- **macOS from Linux and Windows hosts in the Bazel module**, since
-  23.1.2.10: the same repository rule fetches the macOS SDK, which stands
-  in for the one a macOS host's rule finds with `xcrun`, and the macOS
-  toolchains are registered on every host.
+[`xclang target add`](../reference/xclang-command.md#targets) is built to
+unpack a per-target archive of the same release into the toolchain directory
+(sysroot, prebuilt runtimes, `compiler-rt`, config files and C runtime license
+notices) using a release manifest that records each target archive's URL,
+`sha256`, size, tier and required vendor SDK. Once releases publish target
+archives, the CMake package and the Bazel module will configure and register
+fetched targets alongside the bundled ones.
 
 ## Runtimes and Tools
 
 | item | status |
 |---|---|
-| <a id="libc-on-demand"></a>libc++, libc++abi and libunwind built from source on demand | Supported |
-| <a id="msan"></a>MemorySanitizer, through libc++ built on demand | Supported |
 | <a id="runtimes-msvc"></a>Runtimes from source for the MSVC targets | Planned |
 | <a id="runtimes-bazel-lto"></a>LTO of the runtimes from source with the program, in Bazel | Considered |
-| <a id="mingw-sanitizers"></a>Sanitizers for MinGW targets | Supported |
 | <a id="musl-sanitizers"></a>ASan, TSan, LSan and libFuzzer for musl targets, with a dynamically linked musl (Alpine's way) | Considered |
-| <a id="bazel-gsymutil"></a>`@xclang//bazel:llvm-gsymutil`, the toolchain's llvm-gsymutil for `bazel run` | Supported |
-| <a id="cargo-helper"></a>`xclang cargo`, cargo with the variables of xclang's targets set | Supported |
 | <a id="libgcc-s-script"></a>`libgcc_s.a` as a linker script naming libunwind, for Rust's Linux targets | Considered |
-| <a id="libcxx-msvc"></a>libc++ as the C++ library of MSVC targets | Supported |
 | <a id="openmp"></a>An OpenMP runtime | Not planned |
 | <a id="tool-binaries"></a>clang-format, clang-tidy and clangd programs | Not planned |
 | <a id="shared-runtime"></a>A shared C++ runtime across shared libraries | Not planned |
 | <a id="conda-forge"></a>A compiler for building conda-forge packages | Not planned |
 | <a id="libclang-msvc"></a>libclang for programs built with the MSVC ABI | Not planned |
 
-**libc++ built on demand** means libc++, libc++abi and libunwind built from
-source inside a CMake or Bazel build, from LLVM's runtime sources of the
-release, with its [patches](../reference/patches.md), which every toolchain
-carries in `libc++/src`
-([runtimes from source](../features/runtimes-from-source.md)). Since
-23.1.2.11, the CMake package's toolchain file (`XCLANG_RUNTIMES=source`)
-and the Bazel module (`--@xclang//runtimes:source`) build them for every
-target but the MSVC ones. They cover what the prebuilt runtimes cannot be:
-
-- **MemorySanitizer**, which needs every library instrumented, libc++ too,
-  and compiler-rt's runtime of it, built with them. ThreadSanitizer and
-  AddressSanitizer also report through an instrumented libc++.
-- **Hardening and ABI options**: a hardening mode checked inside the
-  library, libc++'s ABI version 2, bounded iterators, an ABI namespace of
-  one's own, and builds without exceptions or RTTI.
-- **LTO** of libc++ together with the program, in CMake builds. Bazel runs
-  ThinLTO's backends only for the objects of the libraries it knows, which
-  the runtimes, linked by the toolchain, are not: making them such
-  libraries is considered.
-- **Targets without prebuilt runtimes**: tier 3 ones and Apple's devices,
-  once they are targets.
-
-The MSVC targets' libc++ builds on Microsoft's C++ ABI library with
-clang-cl, against the fetched SDK; building it from source there is
-planned.
-
-The prebuilt runtimes stay the default.
-
-`xclang cargo`, since 23.1.2.11, sets cargo's variables of each target and
-runs cargo ([Rust and Cargo](../integrations/cargo.md)), as
-cargo-zigbuild does: the linker is `xclang` itself, which hands clang or
-lld-link what each target needs. With older releases, the same variables
-are a recipe set by hand
-([without xclang cargo](../integrations/cargo.md#without-xclang-cargo)).
-Making `libgcc_s.a` a linker script, `INPUT(-lunwind)`, instead of an
-empty archive is considered: Rust's Linux targets then link without
-`-l:libunwind.a`, by hand too. A test with 23.1.2.5's arm64 sysroot linked
-Rust, and C++ programs and shared libraries that name `-lgcc_s`.
-
-**Sanitizers for musl targets** beyond UBSan need dynamic linking: ASan,
-TSan and LSan find the C library's functions they intercept through
-`dlsym`, which a static program has not, and their runtimes do not link
-into one. A variant of the musl targets with musl's `libc.so`, as Alpine
-links, would have them, and its programs would need musl on the machine
-([sanitizers](../features/sanitizers.md#musl-targets)).
-
-**libc++ for MSVC targets**, since 23.1.2.10, gives them the C++ library
-of every other target, its `import std` included, as their default.
-Microsoft's STL stays a choice, `-stdlib=platform`, as the platform's C++
-library is on every target since 23.1.2.11: C++ types passed between a
-program and libraries built with MSVC need the same library on both sides
-([Windows](../targets/windows.md#libc-and-microsoft-s-stl)).
-
-The not-planned items follow from what xclang is. It is a compiler
-toolchain, and libclang has the libraries that tools on clang link. Its
-runtimes are linked into every program
-([one libc++ per shared object](hermeticity.md#one-libc-per-shared-object)).
-conda-forge's compilers link packaged runtimes dynamically, which xclang
-does not do. libclang is there for clice, which builds for MinGW on
-Windows, so no libclang is built with the MSVC ABI.
+- **Runtimes from source for MSVC targets, and ThinLTO in Bazel**: extending
+  [runtimes from source](../features/runtimes-from-source.md) to compile
+  `libc++` on `vcruntime` with `clang-cl` against the fetched Windows SDK; and
+  exposing source-built runtimes in Bazel as `cc_library` dependencies so
+  Bazel runs ThinLTO backend actions on their bitcode objects.
+- **Sanitizers for musl targets**: ASan, TSan and LSan intercept C library
+  functions through `dlsym`, which static musl executables do not have
+  ([sanitizers](../features/sanitizers.md#musl-targets)). Supporting them
+  requires a musl target variant that links dynamically against `libc.so` as
+  Alpine Linux does.
+- **`libgcc_s.a` as a linker script**: replacing the empty `libgcc_s.a` archive
+  in the Linux sysroots with `INPUT(-lunwind)` so manual Cargo configurations
+  for `*-unknown-linux-gnu` link without adding `-Clink-arg=-l:libunwind.a`
+  ([without `xclang cargo`](../integrations/cargo.md#without-xclang-cargo)).
+- **Not planned**: xclang is a compiler toolchain, and editor or linter tools
+  link [`libclang`](../features/libclang.md) directly; `libc++` is linked
+  statically into each binary rather than shared across dynamic libraries
+  ([one `libc++` per shared object](hermeticity.md#one-libc-per-shared-object));
+  conda-forge recipes use conda-forge's dynamically linked compiler packages;
+  and `libclang` is built for the six hosts (MinGW on Windows, for clice)
+  rather than the MSVC ABI.
 
 ## Speed
 
@@ -256,99 +143,25 @@ Windows, so no libclang is built with the MSVC ABI.
 | <a id="pgo-training"></a>A PGO training that covers Objective-C, clang-cl, Mach-O links and libclang's clang-tidy checks | Planned |
 | <a id="bolt"></a>BOLT for the Linux hosts' clang and lld, on top of PGO and ThinLTO | In research |
 
-The training is widened between releases, not while one is pending
-([PGO](pgo.md#the-training)).
+The [PGO training corpus](pgo.md#the-training) is widened between releases.
 
 ## Reproducibility and Supply Chain
 
 | item | status |
 |---|---|
 | <a id="cmake-relative-paths"></a>Relative paths in the debug information of CMake builds | Planned |
-| <a id="gsym-determinism"></a>The same GSYM file on every run (`xclang_debug_symbols` passing `--num-threads=1`) | Supported |
 | <a id="immutable-releases"></a>Immutable GitHub releases | Planned |
-| <a id="reproducible-archives"></a>Reproducible release archives | Supported |
-| <a id="reproducible-builds"></a>Reproducible toolchain builds: a rebuild of a revision with its profile gives the same archives, checked on rebuilds | Supported |
-| <a id="license-notices"></a>Third-party license notices in the archives | Supported |
 | <a id="slsa"></a>SLSA provenance attestations | Planned |
 
-- **CMake builds** write the build tree's absolute paths into debug
-  information. Bazel builds already use paths relative to the execution
-  root ([debugging](../features/debugging.md#paths-in-debug-information)).
-- **GSYM files** from llvm-gsymutil's default threads differ run to run,
-  with the same lookups. One thread is deterministic, about 1.4 times as
-  slow; `xclang_debug_symbols` passes `--num-threads=1` by default since
-  23.1.2.7.
-- **Immutable releases** keep an archive and its `SHA256SUMS` from being
-  replaced together
-  ([releases](../guide/install.md#checking-a-download)).
-- **SLSA provenance**: for each archive of a release, an attestation of
-  the commit and the workflow run that built it, which a user can verify.
-- **Reproducible archives**, since 23.1.2.7: sorted entries, the commit's
-  time and no owner in the `.tar.xz` files, xz in fixed blocks whatever
-  its threads; each host's archives are made twice, on two machines, and
-  compared.
-- **Reproducible builds**: a rebuild of a revision with its profile
-  (`xclang-<version>.profdata`, an asset of the release) is meant to give
-  every archive of every host again, byte for byte. Rebuilds are checked
-  to do so; that is no guarantee, as a bug of the compiler or linker that
-  builds xclang can break it, as lld-link's did. Every release makes each
-  host's archives twice and builds the `xclang` command twice, on two
-  machines each, and compares them. A second full build, by
-  hand, checks the rest at LLVM upgrades and bootstrap changes. Since
-  23.1.2.10, `clang --version` names LLVM's release commit, not xclang's,
-  nothing built for Windows holds a time (but the x64 MinGW ASan DLL,
-  since 23.1.3.4, below), and the macOS sanitizers' dylibs hold no file
-  times. Since 23.1.3.2, the `xclang` command is the
-  same bytes in any directory, with any `CARGO_HOME`, at any time. The rebuilds
-  checked:
-  - Two full builds of 23.1.2.10 differed only in the Windows hosts'
-    `llvm.exe`: the bootstrap's lld-link laid out PGO-built programs
-    differently from one link to the next, which
-    [patch 0017](../reference/patches.md) fixes.
-  - Two full builds of 23.1.3.1, built by 23.1.2.12, which has the patch,
-    runs
-    [38350485630](https://github.com/clice-io/xclang/actions/runs/38350485630)
-    and [38356990210](https://github.com/clice-io/xclang/actions/runs/38356990210),
-    had every file the same, `llvm.exe` too, but `bin/xclang` of the
-    Windows and macOS hosts, fixed in 23.1.3.2: the PE image held the
-    time of its link, and the Mach-O UUID hashed the path of a temporary
-    directory.
-  - Two repack runs of 23.1.3.2, which package 23.1.3.1's compiler and
-    runtimes and build the `xclang` command again, runs
-    [38620234667](https://github.com/clice-io/xclang/actions/runs/38620234667)
-    and [38621738784](https://github.com/clice-io/xclang/actions/runs/38621738784),
-    had every archive the same, byte for byte, `bin/xclang` included.
-  - Two builds of 23.1.5.1, built by 23.1.3.6, from one profile, runs
-    [43195267300](https://github.com/clice-io/xclang/actions/runs/43195267300)
-    (the release's, packaging the compiler of
-    [43172641413](https://github.com/clice-io/xclang/actions/runs/43172641413))
-    and [43184455346](https://github.com/clice-io/xclang/actions/runs/43184455346)
-    (compared in
-    [43203240712](https://github.com/clice-io/xclang/actions/runs/43203240712)),
-    differed in three files. The x64 MinGW ASan DLL,
-    `libclang_rt.asan_dynamic.dll`, holds the time of its link, in every
-    release since 23.1.3.4: compiler-rt links it without
-    `--no-insert-timestamp`. The x64 Windows host's `llvm.exe` differs in
-    its build ID alone, and `TypeLoc.cpp.obj` of the x64 MinGW libclang
-    (ThinLTO bitcode) in the order of a few PHI operands, which the
-    bootstrap's clang wrote differently.
-
-  What a rebuild needs:
-  - **The release's profile.** Each training gives another profile, so
-    the profile is part of the release. release.yml takes it from the run
-    that trained it (`profile-run`), whose artifact lasts 30 days;
-    `toolchain/toolchain.ts --profile` takes the release's
-    `xclang-<version>.profdata`, the same bytes.
-  - **GitHub's runners.** The programs and runtimes keep paths of the
-    build: libc++abi's assertions, linked into the tools, name its
-    sources, and the debug information of compiler-rt and of the MinGW
-    CRT its directories. What is built for macOS is built against the
-    runner's Xcode, whose SDK version it records (`LC_BUILD_VERSION`). A
-    build in another directory, or on a runner image with another Xcode,
-    differs there.
-- **License notices**, since 23.1.2.7: every archive has `share/licenses`,
-  each component's license files and an SPDX document
-  ([layout](../reference/layout.md#licenses)).
+- **Relative debug paths in CMake**: CMake builds currently record the build
+  directory's absolute paths in DWARF and Mach-O debug maps, whereas Bazel
+  builds record paths relative to the execution root
+  ([paths in debug information](../features/debugging.md#paths-in-debug-information)).
+- **Immutable GitHub releases and SLSA provenance**: preventing a published
+  archive and `SHA256SUMS` from being replaced together on GitHub
+  ([checking a download](../reference/releases.md#checking-a-download)), and
+  attaching verifiable build provenance attestations tying each release asset
+  to its commit and GitHub Actions workflow run.
 
 ## Following LLVM
 
@@ -356,29 +169,20 @@ The training is widened between releases, not while one is pending
 |---|---|
 | <a id="llvm-releases"></a>LLVM 24.x, and every 23.1 release still to come, each as it is released | Planned |
 
-Each LLVM release is built with the [patches](../reference/patches.md)
-checked against it; LLVM 23.1.3, in 23.1.3.1, took over two of them.
-
-## Documentation
-
-| item | status |
-|---|---|
-| <a id="zh-docs"></a>The docs in Chinese | Not planned |
-
-The docs are in English. The README has a Chinese version, kept in step
-with the English one; a translation of every page would be more to keep
-in step than it gives.
+Each upstream LLVM release is built with the
+[patch series](../reference/patches.md) checked against it, dropping patches
+that upstream has merged.
 
 ## Open Questions
 
-Questions inside the items above, not items of their own:
+Design choices inside the items above:
 
-- **Android's sysroot**: fetched by the user from Google's NDK (only the
-  files it needs), or redistributed by xclang.
-- **The runtimes of Apple's devices**: published prebuilt, or only built
-  on demand. Apple's license treats libraries for those platforms apart
-  from macOS ones.
-- **A glibc other than 2.17**: chosen with a named config file
-  (`--config=`), or with a spelling of the target.
-- **Where fetched targets go**: into the toolchain directory only, or also
-  into a directory of the user's.
+- **Android's sysroot**: whether `xclang sdk fetch` downloads only the needed
+  files from Google's NDK or xclang redistributes the sysroot directly.
+- **The runtimes of Apple's device platforms**: whether to publish prebuilt
+  archives or build them only from source on demand, since Apple's license
+  treats device platform libraries separately from macOS libraries.
+- **A glibc newer than 2.17**: whether a build selects it with a named config
+  file (`--config=`) or a distinct target triple spelling.
+- **Where fetched targets are stored**: inside the toolchain directory only,
+  or also in a user-selected directory.

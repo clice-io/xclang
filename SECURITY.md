@@ -34,7 +34,7 @@ elsewhere is not affected); there are no signed build attestations. See
 [releases](https://docs.clice.io/xclang/guide/quick-start). That a rebuild
 gives the same archives is checked, at LLVM upgrades and bootstrap changes,
 not guaranteed
-([reproducible builds](https://docs.clice.io/xclang/design/roadmap#reproducible-builds)).
+([reproducible builds](https://docs.clice.io/xclang/reference/releases#reproducible-builds)).
 
 ## Supported versions
 

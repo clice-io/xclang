@@ -1,219 +1,224 @@
 # The Bazel Module
 
-Bazel's promise is that the outputs of a build are a function of its
-declared inputs, cached by content and shared between machines. A C++
-toolchain breaks that promise easily: a compiler found on `PATH`, headers
-read from `/usr/include`, a sandbox path written into a dependency file.
-This page says how xclang's Bazel module keeps the promise, and what that
-costs.
-
-## Summary
-
-Every toolchain file an action reads is a declared input, and no command
-line or output holds an absolute path. A new release rebuilds everything;
-the same release in another checkout, or on another machine, hits the
-cache. Libraries link statically into tests and programs. How to use the
-module is in [Bazel](../integrations/bazel.md), and its rules and features
-are in the [Bazel API](../reference/bazel-api.md).
+xclang's Bazel module (`packages/bazel`) makes C++ builds hermetic and
+cacheable across checkouts and machines: every toolchain and SDK file an
+action reads is a declared Bazel input, no command line or build output
+contains an absolute path (except for Xcode's SDK and native sanitizer rpaths
+on macOS hosts), and `cc_library` dependencies link statically into programs
+and tests by default. How to set up and use the module is in
+[Bazel](../integrations/bazel.md), and its labels, flags and features are in
+the [Bazel API](../reference/bazel-api.md).
 
 ## Every Toolchain File Is an Input
 
-The module downloads the host archive by its sha256 into a repository.
-Every file of it that an action reads is declared: the programs, the clang
-resource headers and the target headers for compiling, the target
-libraries and compiler-rt for linking. Nothing comes from the machine
-except Xcode's macOS SDK on macOS hosts, which `xcrun` finds;
-`--macos_minimum_os` sets the deployment target. The vendor SDKs a project
-fetches are repositories too, their files inputs alike
-([below](#vendor-sdks-as-repositories)).
+The `xclang_toolchain` repository rule downloads the host toolchain archive by
+its pinned `sha256` from `bazel/versions.bzl`. Every file of the archive that
+a compile or link action reads is declared in its `cc_toolchain` filegroups:
+the binaries in `bin/`, `clang`'s resource headers, the target's sysroot
+headers and shared `libc++` / `mingw-w64` headers for compiling, and the
+target's sysroot libraries and `compiler-rt` for linking. Vendor SDKs fetched
+by the module extension are declared inputs in the same way
+([below](#vendor-sdks-as-repositories)); the only host path outside Bazel is
+Xcode's macOS SDK on macOS hosts, located by `xcrun --show-sdk-path`.
 
-Before the module, xclang's Bazel rules found clang on `PATH` and declared
-nothing, the common way to wrap a local compiler. Two things went wrong:
+Before the module existed, xclang's Bazel setup wrapped a `clang` found on
+`PATH` with no declared toolchain files, which broke caching in two ways:
 
-- A change of `PATH` refetched the toolchain repository and rebuilt
-  everything.
-- A new compiler version on `PATH` rebuilt nothing. The cache served
-  objects of the old compiler.
+- Any change to `PATH` invalidated the toolchain repository and rebuilt the
+  workspace.
+- Upgrading `clang` on `PATH` changed no action input, so the build cache
+  continued serving object files from the previous compiler.
 
-Declared inputs invert both. A new release changes the key of every action
-and rebuilds. The same release in another checkout, or on another machine,
-hits the cache.
+Declaring every toolchain file as an action input fixes both: upgrading the
+`xclang` module changes the input digests of every compile and link action and
+triggers a rebuild, while building with the same release in another directory
+or on another machine shares cache hits.
 
-The cost: thousands of declared files per action, which the Bazel sandbox
-lays out for every compile. A sandboxed action costs more than one without
-inputs. On a full build, this is a fraction of the compile time.
+The trade-off is sandbox staging: Bazel's sandbox creates links for thousands
+of declared toolchain files on every compile and link action. On Windows
+hosts, Bazel runs actions without a sandbox by default (unless
+`--experimental_use_windows_sandbox` is enabled), so missing input
+declarations are caught by Linux and macOS builds of the same targets instead;
+and because Bazel's default output root on Windows exceeds path length limits
+when staging deep toolchain and SDK trees, Windows hosts set
+`startup --output_user_root=C:/b`
+([on a Windows host](../integrations/bazel.md#on-a-windows-host)).
 
 ## No Absolute Paths
 
-A disk or remote cache serves an action to another machine only if its
-key is the same there, and the key holds the command line. A path into the
-checkout, the output base or the sandbox makes every machine's key its
-own. A path written into an output, such as a dependency file, debug
-information or a module file, makes the output differ. The module removes
-them:
+A disk or remote cache can reuse an action across directories and machines
+only when both the action command line and the action outputs contain no
+checkout-, output-base- or sandbox-specific paths. `packages/bazel` removes
+absolute paths from every compile, module and link action:
 
-- **Config files.** clang makes the directory of a config file absolute, and
-  that path reaches the dependency files. The module writes each target's
-  config file again with paths relative to the execution root
-  (`external/<repository>/...`, the host archive's repository), and passes
-  `--no-default-config --config=<file>`.
-- **clang's own paths**: `-no-canonical-prefixes`.
-- **Debug information**: `-ffile-compilation-dir=.`; on macOS
-  `-Wl,-oso_prefix,.`; on Windows `--no-insert-timestamp`
+- **Rewritten config files**: `clang` resolves `<CFGDIR>` in a config file to
+  an absolute path, which then enters `.d` dependency files. During repository
+  setup, `_bazel_cfg` (`bazel/repositories.bzl`) writes copies of each
+  target's config files into `cfg/` with `<CFGDIR>/..` replaced by
+  `external/<repository>` and `-resource-dir=external/<repository>/lib/clang/<major>`,
+  and the toolchain passes `--no-default-config --config=external/<repository>/cfg/<target>.cfg`.
+- **Relative tool prefixes**: `-no-canonical-prefixes` in compile and link
+  flags, and wrapper scripts (`scan_deps` and `dsym_link`) that locate tools
+  relative to their own directory.
+- **Debug information and binary timestamps**: `-ffile-compilation-dir=.` on
+  every compile; `-Wl,-oso_prefix,.` on macOS links;
+  `-Wl,--no-insert-timestamp` on MinGW links; and on MSVC targets
+  `-mno-incremental-linker-compatible` and `-gno-codeview-command-line` on
+  compiles (keeping Windows launcher paths out of CodeView records),
+  `-Wl,/Brepro` on links, `/pdbsourcepath:.` for PDB source paths, and PDB
+  names embedded without a directory prefix
   ([paths in debug information](../features/debugging.md#paths-in-debug-information)).
-- **Module files**: `-fmodule-file-home-is-cwd`, so a module file names its
-  inputs relative to the execution root, and is the same wherever it is
-  built.
-- **`__DATE__`, `__TIME__` and `__TIMESTAMP__`** are redacted.
+- **C++20 module files**: `-Xclang -fmodule-file-home-is-cwd` so `.pcm` files
+  record input paths relative to the execution root, and
+  `-Xclang -fmodules-embed-all-files` (`modules_embed_all_files`, on by
+  default) so importers compiled with `-g` read source text from the `.pcm`
+  itself inside the sandbox
+  ([build caches and modules](../features/modules.md#build-caches-and-modules)).
+- **Preprocessor timestamps**: `-Wno-builtin-macro-redefined` with `__DATE__`,
+  `__TIME__` and `__TIMESTAMP__` defined to `"redacted"`.
 
-Two absolute paths remain on macOS hosts: Xcode's SDK path, which comes
-from the machine, and the rpath of the sanitizer features to the
-toolchain's runtimes. Only those sanitizer links depend on the checkout.
-An MSVC target's PDB names its sources relative to the execution root
-(`/pdbsourcepath:.`), and its program names the PDB without a directory;
-its links are `/Brepro`, and its objects carry no time.
+Two absolute paths remain on macOS hosts: Xcode's SDK path (`-isysroot`),
+which comes from the host machine, and `-Wl,-rpath,<absolute_root>/lib/clang/<major>/lib/darwin`
+when a sanitizer feature is enabled for a native macOS build so the binary
+finds the sanitizer `.dylib` at run time.
 
 ## A Toolchain per Host and Target
 
-Each host archive carries every target. So the module registers, for every
-host, a toolchain for every target: `exec_compatible_with` the host,
-`target_compatible_with` the target. Bazel picks the one for the machine it
-runs on and the platform it builds for, and only that host archive is
-downloaded.
+Because every host archive contains the sysroots and runtimes for all bundled
+targets, the module registers a `cc_toolchain` for every `(host, target)`
+pair: `exec_compatible_with` the host OS and CPU, and `target_compatible_with`
+the target platform. Bazel selects the toolchain matching the host machine and
+the `--platforms` target, and downloads only that host's toolchain archive.
 
-A target that needs a vendor SDK the root module does not fetch, an MSVC
-target or a macOS one off macOS, gets a toolchain that fails at once and
-says which tag fetches it. That is clearer than a compiler error later, or
-"no toolchain found".
+For targets that require a vendor SDK (the MSVC targets, and the macOS targets
+on Linux and Windows hosts), a build without the corresponding tag in the root
+`MODULE.bazel` resolves to a toolchain that fails immediately at analysis time
+and prints the required `xclang.windows_sdk` or `xclang.macos_sdk` tag.
 
-The toolchains ask a platform for its os and cpu only. The platforms of the
-module add a C library constraint (`glibc`, `musl`, `mingw`, `macosx`,
-`msvc`) for `select()`. The musl targets share an os and cpu with the glibc
-ones, and the MSVC targets with the MinGW ones; they get toolchains of their
-own through that constraint: theirs ask for `@xclang//platforms/libc:musl`
-or `:msvc` too, and are registered ahead of the others, so a musl platform
-gets them, an MSVC one too, and a platform without a C library gets glibc
-on Linux and MinGW on Windows.
+The platforms in `@xclang//platforms:<target>` declare `@platforms//os`,
+`@platforms//cpu` and a C library constraint (`@xclang//platforms/libc:glibc`,
+`:musl`, `:mingw`, `:macosx` or `:msvc`). Because the musl toolchains
+(`//bazel/toolchains/musl:all`) and MSVC toolchains
+(`//bazel/toolchains/msvc:all`) require `:musl` or `:msvc` and are registered
+in `MODULE.bazel` ahead of `//bazel/toolchains:all` (which match on OS and CPU
+alone), a custom `platform` without a `libc` constraint defaults to `glibc` on
+Linux and MinGW on Windows.
 
 ## rules_cc's Config, Copied
 
-The toolchains are the unix toolchain config of rules_cc, with xclang's
-changes:
+Changing a `.bzl` file in another Bazel module through
+`single_version_override` patches only works when placed in the root
+`MODULE.bazel`, which would require every project using `xclang` to carry
+patch files in its own repository; and patching the build's `rules_cc`
+repository in place breaks whenever a new `rules_cc` version edits nearby
+lines (as `rules_cc` 0.2.28 did). Migrating to `rules_cc`'s rule-based
+toolchain API would have required reimplementing `--macos_minimum_os`,
+`libtool`, dead stripping and sanitizer features.
 
-- Windows names for MinGW and MSVC programs and shared libraries (`.exe`,
-  `.dll`);
-- for the MSVC targets, lld-link's spellings, no PIC, and features for the
-  PDB and the C runtimes;
-- static linking by default (below);
-- headers of other repositories as system headers (`-isystem`), whose
-  warnings are not the build's;
-- the link flags of the sanitizer features, and the ASan libc++ for `asan`;
-- `gc_sections` off for Windows targets
-  ([why](../targets/windows.md#gc-sections-and-static-initializers));
-- a link program of the toolchain's own, which makes the dSYM in the link
-  ([why](../features/debugging.md#why-a-dsym-comes-from-the-link)), with
-  dsymutil's classic DWARF linker: the parallel one, LLVM 23's default,
-  writes DWARF 5 line tables (macOS 15 and later) that atos crashes on;
-- macOS deployment targets no older than 13.0, which xclang's libc++
-  needs;
-- a strip for shipped binaries, by object format
-  ([strip](../features/debugging.md#strip)).
+`packages/bazel/bazel/unix_cc_toolchain_config.bzl` therefore carries xclang's
+own copy of `rules_cc` 0.2.28's `unix_cc_toolchain_config.bzl`. Because the
+copy loads only public files from `rules_cc`, `apple_support` and
+`bazel_skylib`, it works with any `rules_cc` 0.2.25 or later without a consumer
+override.
 
-The obvious way to change a file of another module is a
-`single_version_override` with patches. But Bazel honours an override only
-in the root module, with patch files from the tree of the root module. So
-every project using xclang would have to carry xclang's patches, and the
-override would change the build's only rules_cc for everyone else in it.
+Compared to upstream `rules_cc`, xclang's config and `bazel/toolchain.bzl`
+add:
 
-So the module carries its own copy of rules_cc's
-`unix_cc_toolchain_config.bzl`, rules_cc 0.2.28's with xclang's changes
-(`bazel/unix_cc_toolchain_config.bzl`). The copy loads only public files of
-rules_cc, apple_support and bazel_skylib, so it works with whichever rules_cc
-the build has, 0.2.25 or later, and no consumer needs an override. Patching
-the build's own rules_cc file instead would break with every release of
-rules_cc that changes a line the patches touch, as 0.2.28 did.
-
-The newer rule-based toolchain API of rules_cc was the other option. It
-meant rewriting what the unix config already does (`--macos_minimum_os`,
-libtool, dead stripping, the sanitizers), for no gain to users.
+- `.exe` and `.dll` output names for MinGW and MSVC targets, and no `rpath` on
+  Windows;
+- MSVC target support using the GNU-style `clang` driver with `lld-link`
+  flags, `-std=c++17` by default, no PIC, PDB generation
+  (`generate_pdb_file`), CRT selection (`dynamic_link_msvcrt`, `debug_msvcrt`),
+  and runtime DLL staging (`copy_dynamic_libraries_to_binary`);
+- static linking of `cc_library` dependencies by default
+  ([below](#static-by-default));
+- external repositories' headers passed via `-isystem`
+  (`external_include_paths` on by default) so dependency warnings do not fail
+  the build;
+- sanitizer flags, switching to the prebuilt ASan `libc++` under `asan`,
+  building `libc++`, `libc++abi` and `libunwind` from `libc++/src` under
+  `--@xclang//runtimes:source`, and supporting MemorySanitizer (`msan`) on the
+  glibc Linux targets
+  ([runtimes from source](../features/runtimes-from-source.md));
+- `gc_sections` enabled in `opt` on Linux and disabled by default on Windows
+  ([`gc-sections` and static initializers](windows.md#gc-sections-and-static-initializers));
+- macOS links without `-fobjc-link-runtime` unless `macos_default_link_flags`
+  is enabled, `--macos_minimum_os` clamped to at least `13.0`, library objects
+  passed between `--start-lib` and `--end-lib` on Linux and macOS (so
+  `dsymutil` never confuses same-named archive members with zeroed Bazel
+  timestamps), and `dsym_link` generating the `.dSYM` bundle during the link
+  with `dsymutil --linker classic` (avoiding DWARF 5 line tables from LLVM
+  23's parallel linker that crash `atos`;
+  [why a dSYM comes from the link](../features/debugging.md#why-a-dsym-comes-from-the-link));
+- format-specific binary stripping (`--strip-unneeded` for ELF and COFF,
+  `--strip-all` with `-Wl,-no_exported_symbols` in `opt` for Mach-O;
+  [strip](../features/debugging.md#strip));
+- library `defines` passed to C++20 module compiles and `clang-scan-deps`
+  scans on macOS as on Linux and Windows.
 
 ## Static by Default
 
-Bazel links the `cc_library` dependencies of a `cc_test` dynamically by
-default, one shared object per library. With xclang, every shared object
-carries its own libc++
-([one libc++ per shared object](hermeticity.md#one-libc-per-shared-object)).
-kotatsu's tests built that way crashed at start-up with a double free. On
-Windows, the default DLLs did not link at all.
+By default, `rules_cc` links `cc_library` dependencies of `cc_test` targets as
+separate shared libraries when `supports_dynamic_linker` is enabled. Because
+every shared library linked by xclang carries its own private static `libc++`
+([one `libc++` per shared object](hermeticity.md#one-libc-per-shared-object)),
+linking each `cc_library` as a shared object gave each library a separate
+`libc++` instance (causing `kotatsu`'s tests to crash at startup with a double
+free, and failing to link on Windows).
 
-So the patched config turns `supports_dynamic_linker` off. Libraries link
-statically into tests and programs. `cc_binary(linkshared = True)` still
-makes a shared library (`libfoo.so`, `libfoo.dylib`, `foo.dll`), and
-`features = ["supports_dynamic_linker"]` gives a Bazel target of a Linux
-target the dynamic linking back. rules_cc's configuration of the macOS
-targets has no such feature, and the Windows targets' DLLs do not link
-that way.
+The toolchain config therefore disables `supports_dynamic_linker` by default
+so `cc_library` targets link statically into executables and tests.
+`cc_binary(linkshared = True)` still produces shared libraries (`libfoo.so`,
+`libfoo.dylib`, `foo.dll`), and `features = ["supports_dynamic_linker"]`
+re-enables dynamic linking for Linux targets.
 
 ## Vendor SDKs as Repositories
 
-The MSVC targets need Microsoft's SDK, and the macOS targets off macOS
-Apple's. The [`xclang` command](../reference/xclang-command.md) fetches
-them for clang and CMake, into the toolchain. A Bazel build cannot write
-there, and its inputs must be declared, so each SDK is a repository of
-the module's extension.
+The MSVC targets require Microsoft's CRT, STL and Windows SDK, and the macOS
+targets on Linux and Windows hosts require Apple's macOS SDK. Whereas plain
+`clang` and CMake unpack fetched SDKs into `<toolchain>/sdk/` with the
+[`xclang` command](../reference/xclang-command.md), a Bazel build cannot write
+into the toolchain repository and must declare every SDK file as an input.
+`bazel/sdk.bzl` manages each vendor SDK as its own external repository:
 
-- **The license in `MODULE.bazel`.** A tag of the extension,
-  `xclang.windows_sdk(accept_license = True)`, is the project's acceptance
-  of the vendor's license, as `--accept-license` is the user's. Only the
-  root module's tags count: a library cannot accept it for the projects
-  that use it.
-- **Bazel downloads, the command unpacks.** `xclang sdk packages --json`
-  lists the packages the command's version table pins, by URL, size and
-  sha256. The repository rule downloads them with Bazel's own downloader,
-  so they land in the repository cache, shared by every workspace of the
-  machine, and a mirror or proxy configured for Bazel applies. Then
-  `xclang sdk fetch --cache` unpacks them: Apple's xar, pbzx and cpio and
-  Visual Studio's layout are the command's, and so are the links for the
-  spellings Windows code uses on a case-sensitive file system. The SDK
-  the command writes is the same one the CMake package uses.
-- **A config file per SDK.** The repository writes `sdk.cfg`, the SDK by
-  its path from the execution root: `-isysroot` for macOS, and for an
-  MSVC target the command's own config file, which names the MSVC and
-  Windows SDK versions too. clang finds those versions in the SDK's
-  include directories, which a link's sandbox does not have. The
-  toolchain's config file of the target includes `sdk.cfg` where the
-  archive's names the toolchain's `sdk/`.
-- **Lazy, per architecture.** The Windows SDK is a repository per
-  architecture, a download of 310 MB for x64 and 380 MB for arm64; a
-  build for other targets fetches none.
-- **Inputs, never outputs.** The SDK's files are inputs of the actions,
-  and none of their outputs. Bazel's sandbox needs every file declared, so
-  `glob()` lists the SDK, and the macOS SDK's links that point into their
-  own directories (`Ruby.framework`'s `ruby/ruby` is `.`) are removed,
-  which `glob()` would follow without end. A link reads the macOS SDK's
-  `.tbd` stubs only, by the install names of re-exported libraries too
-  (`Versions/A/`), and a compile the rest.
-
-The cost is the inputs, which the sandbox lays out for every action: a
-compile for an MSVC target declares the SDK's 7,300 headers and links, a
-link its 1,300 libraries; for macOS, 15,000 and 9,800 files, the
-frameworks' through their links counted again.
+- **License acceptance in the root `MODULE.bazel`**: only `xclang.windows_sdk`
+  and `xclang.macos_sdk` tags in the root module (`mod.is_root`) take effect,
+  so a dependency module cannot accept a vendor license on behalf of its
+  consumers.
+- **Bazel downloads, `xclang` unpacks**: the repository rule runs
+  `xclang sdk packages <vendor> --json` to query the pinned package URLs,
+  sizes and `sha256` digests, downloads them with `rctx.download` into Bazel's
+  shared repository cache (applying any configured Bazel mirror, proxy or
+  `--distdir`), and invokes `xclang sdk fetch <vendor> --accept-license
+  --cache downloads --sdk-dir sdk` to unpack the archive and create
+  case-folding links on case-sensitive file systems. When Apple withdraws a
+  pinned macOS Command Line Tools package, `xclang sdk fetch` locates the
+  replacement package in Apple's catalogs and verifies the unpacked SDK by its
+  content digest
+  ([packages Apple withdraws](macos.md#packages-apple-withdraws-and-content-digests)).
+- **Generated `sdk.cfg`**: each SDK repository writes `sdk.cfg` with paths
+  relative to the execution root (`-isysroot external/<repo>/sdk/<name>` for
+  macOS, and the rewritten `<arch>-pc-windows-msvc.cfg` naming the MSVC and
+  Windows SDK version directories for MSVC targets), which the toolchain's
+  `cfg/<target>.cfg` includes via `@../../<sdk_repo>/sdk.cfg`.
+- **Lazy per-architecture repositories**: `xclang_windows_sdk_x86_64` (310 MB
+  download), `xclang_windows_sdk_aarch64` (380 MB download) and
+  `xclang_macos_sdk` are fetched only when a build targets that platform.
+- **Split compile and link filegroups**: `BUILD.bazel` in the SDK repository
+  exports `:compiler_files` and `:linker_files` via `glob()`. For the macOS
+  SDK, `_unlink_cycles` removes directory symlink cycles (such as
+  `Ruby.framework`'s `Headers/ruby/ruby -> .`) before `glob()` runs;
+  `:compiler_files` stages the headers and frameworks (15,000 files) and
+  `:linker_files` stages the `.tbd` stubs and `SDKSettings.*` (9,800 files).
+  For an MSVC target, `:compiler_files` declares 7,300 headers and links and
+  `:linker_files` declares 1,300 libraries.
 
 ## The Registry
 
-The module of every release is published to
-[bazel.clice.io](https://bazel.clice.io), once published.yml has built and
-tested the tag of the release with the published archives. The registry
-archive of the module is made deterministically: sorted entries, no owners
-or times. It gives the same actions as the directory in the repository.
-
-## Known Limitations
-
-- **No sandbox on Windows by default.** Bazel runs actions on Windows
-  without a sandbox unless an experimental one is set up
-  (`--experimental_use_windows_sandbox`). An action there can read a file
-  it did not declare, and nothing notices. The Linux and macOS builds of
-  the same targets enforce the declarations.
-- **A short output root on Windows.** The default output root of Bazel is
-  too deep for the path length of Windows, hence
-  `startup --output_user_root=C:/b`.
+After `published.yml` builds and tests a release tag against the published
+release assets, `node packages/bazel/bazel.ts archive` builds
+`xclang-bazel-<version>.tar.gz` and publishes the module to
+[bazel.clice.io](https://bazel.clice.io). `bazel.ts` constructs the `ustar`
+archive deterministically in memory—sorted entries, `0755`/`0644` permissions,
+zeroed owner and timestamp fields, and gzip's OS header byte set to `255`—so
+the registry archive is identical byte for byte on every host.

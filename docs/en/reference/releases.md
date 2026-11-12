@@ -73,3 +73,16 @@ toolchain archive against the `SHA256SUMS` file of the release. Pinning a
 digest in `versions.bzl` or in your own repository also protects against an
 archive and `SHA256SUMS` being replaced together on GitHub
 ([immutable GitHub releases](../design/roadmap.md#immutable-releases)).
+
+## Reproducible Builds
+
+Every release makes each host's archives twice, on two machines, and builds
+the `xclang` command twice, and compares them byte for byte: the archives
+are sorted, carry the commit's time and no owner, and are compressed in
+fixed blocks. A rebuild of a revision with its profile,
+`xclang-<version>.profdata`, is meant to give every archive again; when
+LLVM or the bootstrap compiler moves, a second full build checks that it
+does before the release is published. That is checked, not guaranteed: a
+bug of the compiler or linker that builds xclang can break it. A rebuild
+also needs GitHub's runners, as the programs keep some paths of the build
+and the macOS builds record the runner's Xcode SDK version.

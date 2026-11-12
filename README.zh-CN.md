@@ -1,8 +1,6 @@
 # xclang
 
-[English](README.md) · [文档（英文）](https://docs.clice.io/xclang)
-
-> 文档只有英文版，只有这份 README 有中文版（[路线图](https://docs.clice.io/xclang/design/roadmap#zh-docs)）。
+[English](README.md) · [文档](https://docs.clice.io/zh/xclang)
 
 像 rustup、cross-rs 和 cargo-zigbuild 让 Rust 交叉编译那样，用 clang 交叉编译：一个编译器面向所有目标平台。现在每个工具链都预编译好了八个目标平台，交叉编译到它们只需要一个 `--target`。它的 `xclang` 命令下载不能再分发的厂商 SDK（微软的和 Apple 的），供 MSVC 目标平台、以及在 Linux 和 Windows 主机上构建 macOS 程序使用；它也能不写任何 cargo 配置，为 xclang 的目标平台运行 cargo。CMake 包和 Bazel 模块能构建所有这些目标平台，也能从源码构建 C++ 运行库，提供预编译运行库没有的选项（MSVC 目标平台暂不支持）。xclang 的方向是：更多目标平台，在构建需要时再下载。这还没有进入任何 release，每一项的状态见[路线图](https://docs.clice.io/xclang/design/roadmap)。
 
