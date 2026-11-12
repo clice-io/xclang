@@ -113,11 +113,30 @@ jobs:
       - name: Sizes
         if: matrix.shard == 1
         run: |
-          cd pgo/xclang
-          { echo "### ${{ matrix.host }}: unpacked sizes"; echo '```'
-            du -sh bin lib/clang/*/include lib/clang/*/lib *-* 2>/dev/null
-            echo; ls -lS bin | head -n 16
-            echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+          # exp: the sizes of both builds, in bytes: the archives, llvm, and
+          # libclang's libraries unpacked.
+          for kind in pgo nopgo; do
+            [[ -d dist/$kind ]] || continue
+            lib=$(ls dist/$kind/libclang-*-${{ matrix.host }}.tar.xz)
+            mkdir -p libclang-$kind
+            if [[ "$RUNNER_OS" == Windows ]]; then
+              /c/Windows/System32/tar.exe -C libclang-$kind -xf "$lib"
+            else
+              tar -C libclang-$kind -xf "$lib"
+            fi
+            node -e '
+              const fs = require("fs"), path = require("path");
+              const [kind, dist, tree, lib] = process.argv.slice(1);
+              const total = (d) => fs.readdirSync(d, { withFileTypes: true }).reduce((n, e) =>
+                n + (e.isDirectory() ? total(path.join(d, e.name)) : e.isFile() ? fs.statSync(path.join(d, e.name)).size : 0), 0);
+              for (const f of fs.readdirSync(dist)) console.log(`${kind} ${fs.statSync(path.join(dist, f)).size} ${f}`);
+              const bin = path.join(tree, "bin");
+              for (const f of ["llvm", "llvm.exe"]) if (fs.existsSync(path.join(bin, f))) console.log(`${kind} ${fs.statSync(path.join(bin, f)).size} bin/${f}`);
+              const root = path.join(lib, fs.readdirSync(lib)[0]);
+              console.log(`${kind} ${total(path.join(root, "lib"))} libclang lib/`);
+            ' "$kind" "dist/$kind" "$kind/xclang" "libclang-$kind"
+          done | tee sizes-${{ matrix.host }}.txt
+          { echo "### ${{ matrix.host }}: sizes"; echo '```'; cat sizes-${{ matrix.host }}.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - name: Benchmark
         run: |
           exe=""; [[ "$RUNNER_OS" == Windows ]] && exe=.exe
