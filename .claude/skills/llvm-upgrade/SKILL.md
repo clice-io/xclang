@@ -38,10 +38,25 @@ description: Move xclang to a new LLVM release (e.g. 23.1.2 → 23.1.3 or 24.1.0
    release build again (`bootstrap-linux`/`-macos` pointing at
    `llvm-linux-x64`/`llvm-macos-arm64`, as 23.1.2.1 did; see
    toolchain/bootstrap.ts).
-5. **CI** on `exp/<llvm version>`: the full release.yml run, revision 1,
-   without the `release` stage (a release is built from main). Fix on the
-   branch, rerun failed stages with `reuse-run`. The training and
-   the smoke tests are where a new version breaks most.
+5. **Validation run**, before the upgrade's pull request merges: the full
+   release.yml run on `exp/<llvm version>`, revision 1, every stage but
+   `release` (a release is built from main), with the second full build:
+   ```sh
+   gh workflow run release.yml -R clice-io/xclang --ref exp/<llvm version> \
+     -f stages=runtimes,instrumented,train,toolchain,asan,package,test,bazel,cmake,sdk,cli,rebuild \
+     -f revision=1
+   ```
+   It meets what a new LLVM breaks before a release does: the training and
+   the smoke tests most, and the tests' own premises (tests/cmake once
+   compared the runtimes built from source with the bootstrap's, object by
+   object, which a newer clang compiles differently). Fix on the branch;
+   rerun failed stages with `reuse-run`; every test stage green, and what
+   the second build's `test` shows differing listed (an issue each). The
+   pull request merges only then, with the branch's commit unchanged since
+   the run but for what a repack takes (docs, tests, workflows): the
+   release preflight (release skill, step 0) looks for this run, and the
+   release may reuse it (`reuse-run`, `profile-run`) instead of building
+   again.
 6. **Docs**: docs/en/dev/release-build.md and docs/en/reference/patches.md if the pipeline or the
    patches changed; CHANGELOG Unreleased: "LLVM <version>", patches dropped
    because upstream took them.

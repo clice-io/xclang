@@ -58,6 +58,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import * as common from "../../toolchain/common.ts";
+import { fetchRetry } from "../lib/net.ts";
 
 const { values } = parseArgs({
   options: {
@@ -203,8 +204,8 @@ const older = (a: string, b: string) => {
 };
 if (!values.previous) {
   const token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
-  const response = await fetch("https://api.github.com/repos/clice-io/xclang/releases?per_page=100", {
-    headers: { "User-Agent": "xclang/ci", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  const response = await fetchRetry("https://api.github.com/repos/clice-io/xclang/releases?per_page=100", {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!response.ok) common.fail(`the releases: ${response.status}`);
   const tags = (await response.json() as { tag_name: string; draft: boolean }[])
@@ -271,7 +272,7 @@ check(overridden.hits + overridden.executed > 0 && (!same || overridden.executed
   `${overridden.executed} run${same ? "" : " (HEAD names another release)"}`);
 
 const sums = path.join(copy, "SHA256SUMS");
-const response = await fetch(`https://github.com/clice-io/xclang/releases/download/${values.previous}/SHA256SUMS`);
+const response = await fetchRetry(`https://github.com/clice-io/xclang/releases/download/${values.previous}/SHA256SUMS`);
 if (!response.ok) common.fail(`no SHA256SUMS for ${values.previous}: ${response.status}`);
 fs.writeFileSync(sums, await response.text());
 common.run(process.execPath, [path.join(copy, "packages", "bazel", "bazel.ts"), "versions", sums]);

@@ -294,8 +294,8 @@ The training is widened between releases, not while one is pending
   builds xclang can break it, as lld-link's did. Every release makes each
   host's archives twice and builds the `xclang` command twice, on two
   machines each, and compares them
-  ([build](../dev/release-build.md#the-stages)). A second full build, by
-  hand, checks the rest at LLVM upgrades and bootstrap changes
+  ([build](../dev/release-build.md#the-stages)). A second full build,
+  started by the first, checks the rest for every full rebuild
   ([releasing](../dev/releasing.md#reproducible-rebuilds)). Since
   23.1.2.10, `clang --version` names LLVM's release commit, not xclang's,
   nothing built for Windows holds a time (but the x64 MinGW ASan DLL,

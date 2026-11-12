@@ -5,7 +5,11 @@ use lexopt::ValueExt;
 use crate::{Result, bail};
 
 /// Options that take no value.
+#[cfg(not(feature = "maintainer"))]
 const FLAGS: &[&str] = &["accept-license", "force", "help", "json"];
+/// Options that take no value, and update-table's --check.
+#[cfg(feature = "maintainer")]
+const FLAGS: &[&str] = &["accept-license", "check", "force", "help", "json"];
 /// Options every command takes.
 const GLOBAL: &[&str] = &["root", "sdk-dir", "table"];
 

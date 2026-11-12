@@ -46,9 +46,12 @@ jobs:
       BUILD: ${{ contains(fromJSON(inputs.build), matrix.name) }}
     steps:
       - uses: actions/checkout@v7
-        if: env.BUILD == 'true'
         with:
           persist-credentials: false
+      - uses: actions/setup-node@v5
+        if: env.BUILD != 'true'
+        with:
+          node-version: 24
       - uses: ./.github/actions/setup
         if: env.BUILD == 'true'
       # The MSVC targets' libc++ and compiler-rt are built against Microsoft's CRT and
@@ -71,11 +74,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           [[ -n "${{ inputs.reuse-run }}" ]] || { echo "::error::${{ matrix.name }} is neither built nor reused"; exit 1; }
-          gh run download "${{ inputs.reuse-run }}" -R "$GITHUB_REPOSITORY" -n runtimes-${{ matrix.name }}
+          node tests/lib/retry.ts bash -c 'rm -f "runtimes-$1.tar.zst"; gh run download "$0" -R "$GITHUB_REPOSITORY" -n "runtimes-$1"' \
+            "${{ inputs.reuse-run }}" "${{ matrix.name }}"
       - uses: actions/upload-artifact@v7
         with:
           name: runtimes-${{ matrix.name }}
           path: runtimes-${{ matrix.name }}.tar.zst
           compression-level: 0
-          retention-days: 14
+          # What a repack reuses: 30 days.
+          retention-days: 30
           if-no-files-found: error

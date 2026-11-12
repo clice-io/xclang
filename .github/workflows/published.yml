@@ -21,7 +21,14 @@ name: published
 #
 # By hand with a tag, it tests the release again; with publish, it also
 # publishes to each channel that does not have the version yet (a channel
-# refuses a version it has: conda's packages, made again, are other bytes).
+# refuses a version it has: conda's packages, made again, are other bytes),
+# and publishes the draft of the tag first, when its commit is in main's
+# history (a release pull request that was squashed, then merged again).
+#
+# Run again (a failed job, or the whole run), it finishes what it began: a
+# draft published already by the first try is taken as published, and a
+# channel that has the release is not published to again. What a failed job
+# leaves published is in .claude/skills/release/troubleshooting.md.
 
 on:
   # The draft's commit changes versions.bzl, to the release.
@@ -57,6 +64,12 @@ jobs:
       bazel-has: ${{ steps.channels.outputs.bazel-has }}
       conda-has: ${{ steps.channels.outputs.conda-has }}
     steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
       - id: tag
         env:
           GH_TOKEN: ${{ github.token }}
@@ -64,28 +77,56 @@ jobs:
           INPUT_PUBLISH: ${{ inputs.publish }}
           BEFORE: ${{ github.event.before }}
         run: |
+          retry() { node tests/lib/retry.ts "$@"; }
+          # <b> is in the history of <a>.
+          reaches() { local s; s=$(retry gh api "repos/$GITHUB_REPOSITORY/compare/$2...$1" -q .status) && [[ "$s" == ahead || "$s" == identical ]]; }
+          # Every release, draft or not, with its commit.
+          retry gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            -q '.[] | [.tag_name, (.draft | tostring), .target_commitish] | @tsv' > releases.tsv
+          publish() {  # <tag>: the draft published, which creates its tag at its commit
+            retry gh release edit "$1" -R "$GITHUB_REPOSITORY" --draft=false --latest
+            echo "published $1" | tee -a "$GITHUB_STEP_SUMMARY"
+          }
           if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            IFS=$'\t' read -r _ draft sha < <(grep -P "^\Q$INPUT_TAG\E\t" releases.tsv) \
+              || { echo "::error::no release $INPUT_TAG"; exit 1; }
+            if [[ "$draft" == true ]]; then
+              if [[ "$INPUT_PUBLISH" != true ]]; then echo "::error::$INPUT_TAG is a draft; publish=true publishes it"; exit 1; fi
+              if ! reaches "$(git rev-parse HEAD)" "$sha"; then
+                echo "::error::the draft's commit $sha is not in main's history: its pull request merges it (a merge commit)"
+                exit 1
+              fi
+              publish "$INPUT_TAG"
+            fi
             echo "tag=$INPUT_TAG" | tee -a "$GITHUB_OUTPUT"
             echo "publish=$INPUT_PUBLISH" | tee -a "$GITHUB_OUTPUT"
             exit 0
           fi
-          # <b> is in the history of <a>.
-          reaches() { local s; s=$(gh api "repos/$GITHUB_REPOSITORY/compare/$2...$1" -q .status) && [[ "$s" == ahead || "$s" == identical ]]; }
-          drafts=()
-          while IFS=$'\t' read -r tag sha; do
-            if [[ "$sha" =~ ^[0-9a-f]{40}$ ]] && reaches "$GITHUB_SHA" "$sha" && ! reaches "$BEFORE" "$sha"; then drafts+=("$tag"); fi
-          done < <(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" -q '.[] | select(.draft) | [.tag_name, .target_commitish] | @tsv')
-          if (( ${#drafts[@]} == 0 )); then
-            echo "no draft's commit came into main's history" | tee -a "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          if (( ${#drafts[@]} > 1 )); then
-            echo "::error::the commits of drafts ${drafts[*]} came into main's history at once; publish one by hand"
+          # The releases whose commit this push brought into main's history:
+          # a draft, published here, or one a try before published.
+          came=()
+          while IFS=$'\t' read -r tag draft sha; do
+            if [[ "$sha" =~ ^[0-9a-f]{40}$ ]] && ! reaches "$BEFORE" "$sha" && reaches "$GITHUB_SHA" "$sha"; then came+=("$tag:$draft"); fi
+          done < releases.tsv
+          if (( ${#came[@]} > 1 )); then
+            echo "::error::the commits of releases ${came[*]} came into main's history at once; publish one by hand"
             exit 1
           fi
-          gh release edit "${drafts[0]}" -R "$GITHUB_REPOSITORY" --draft=false --latest
-          echo "published ${drafts[0]}" | tee -a "$GITHUB_STEP_SUMMARY"
-          echo "tag=${drafts[0]}" | tee -a "$GITHUB_OUTPUT"
+          if (( ${#came[@]} == 0 )); then
+            # The module names a release that is still a draft: its pull
+            # request was squashed, which brings its files but not its
+            # commit, so that the tag would not be in main's history.
+            version=$(sed -n 's/^VERSION = "\(.*\)"$/\1/p' packages/bazel/bazel/versions.bzl)
+            if grep -qP "^\Q$version\E\ttrue\t" releases.tsv; then
+              echo "::error::main's packages/bazel names $version, a draft whose commit this push did not bring: was its pull request squashed? A pull request of release/$version into main, merged as a merge commit, brings it; then published.yml by hand, tag $version, publish (.claude/skills/release/troubleshooting.md)"
+              exit 1
+            fi
+            echo "no release's commit came into main's history" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          tag=${came[0]%:*}
+          if [[ "${came[0]##*:}" == true ]]; then publish "$tag"; else echo "$tag: published by a try before" | tee -a "$GITHUB_STEP_SUMMARY"; fi
+          echo "tag=$tag" | tee -a "$GITHUB_OUTPUT"
           echo "publish=true" | tee -a "$GITHUB_OUTPUT"
       # What a channel has already, which a re-run does not publish again:
       # the module's version on bazel.clice.io, the packages of every subdir
@@ -147,7 +188,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
+          node tests/lib/retry.ts gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP" --clobber
           node packages/bazel/bazel.ts archive "$RUNNER_TEMP/SHA256SUMS" dist
       - uses: clice-io/bazel@main
         with:
@@ -168,12 +209,18 @@ jobs:
     env:
       TAG: ${{ needs.release.outputs.tag }}
     steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
       - name: Move latest
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" -q .sha)
-          gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/latest" -f sha="$sha" -F force=false
+          sha=$(node tests/lib/retry.ts gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" -q .sha)
+          node tests/lib/retry.ts gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/latest" -f sha="$sha" -F force=false
           echo "latest: $TAG ($sha)" | tee -a "$GITHUB_STEP_SUMMARY"
       # The channel's index, which the conda action's publishing updates.
       - name: conda.clice.io serves it

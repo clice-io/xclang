@@ -58,7 +58,7 @@ jobs:
       - name: kotatsu
         if: inputs.kotatsu != ''
         run: |
-          git clone -q --filter=blob:none https://github.com/clice-io/kotatsu "$RUNNER_TEMP/kotatsu"
+          node tests/lib/retry.ts bash -c 'rm -rf "$0"; git clone -q --filter=blob:none https://github.com/clice-io/kotatsu "$0"' "$RUNNER_TEMP/kotatsu"
           git -C "$RUNNER_TEMP/kotatsu" checkout -q "${{ inputs.kotatsu }}"
           echo "KOTATSU_SRC=$RUNNER_TEMP/kotatsu" >> "$GITHUB_ENV"
       - name: Run
