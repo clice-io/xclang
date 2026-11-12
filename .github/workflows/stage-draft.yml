@@ -68,12 +68,12 @@ jobs:
             echo "::error::a release is drafted from its branch release/$version, made at a commit of main, not $GITHUB_REF"
             exit 1
           fi
-          status=$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$head" -q .status)
+          status=$(gh api "repos/$GITHUB_REPOSITORY/compare/rfm-test-main...$head" -q .status)
           if [[ "$status" != behind && "$status" != identical ]]; then
             echo "::error::the run's commit $head is not in main's history ($status): release/$version is made at a commit of main"
             exit 1
           fi
-          if git fetch -q --depth=1 origin refs/heads/latest; then
+          if git fetch -q --depth=1 origin refs/heads/rfm-test-latest; then
             latest=$(git rev-parse FETCH_HEAD)
             status=$(gh api "repos/$GITHUB_REPOSITORY/compare/$latest...$head" -q .status)
             if [[ "$status" != ahead && "$status" != identical ]]; then

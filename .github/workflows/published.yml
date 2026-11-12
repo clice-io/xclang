@@ -26,7 +26,7 @@ name: published
 on:
   # The draft's commit changes versions.bzl, to the release.
   push:
-    branches: [main]
+    branches: [rfm-test-main]
     paths: [packages/bazel/bazel/versions.bzl]
   workflow_dispatch:
     inputs:
@@ -83,7 +83,9 @@ jobs:
             echo "::error::the commits of drafts ${drafts[*]} came into main's history at once; publish one by hand"
             exit 1
           fi
-          gh release edit "${drafts[0]}" -R "$GITHUB_REPOSITORY" --draft=false --latest
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" -q ".[] | select(.draft and .tag_name == \"${drafts[0]}\") | .target_commitish")
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/${drafts[0]}" -f sha="$sha" > /dev/null
+          echo "TEST: tagged ${drafts[0]} at $sha instead of publishing"
           echo "published ${drafts[0]}" | tee -a "$GITHUB_STEP_SUMMARY"
           echo "tag=${drafts[0]}" | tee -a "$GITHUB_OUTPUT"
           echo "publish=true" | tee -a "$GITHUB_OUTPUT"
@@ -106,14 +108,14 @@ jobs:
 
   bazel:
     needs: release
-    if: needs.release.outputs.tag != ''
+    if: false
     uses: ./.github/workflows/test-bazel.yml
     with:
       release: ${{ needs.release.outputs.tag }}
 
   cmake:
     needs: release
-    if: needs.release.outputs.tag != ''
+    if: false
     uses: ./.github/workflows/test-cmake.yml
     with:
       release: ${{ needs.release.outputs.tag }}
@@ -121,7 +123,7 @@ jobs:
 
   conda:
     needs: release
-    if: needs.release.outputs.tag != ''
+    if: false
     uses: ./.github/workflows/conda.yml
     with:
       tag: ${{ needs.release.outputs.tag }}
@@ -131,7 +133,7 @@ jobs:
 
   bazel-registry:
     needs: [release, bazel]
-    if: needs.release.outputs.publish == 'true' && needs.release.outputs.bazel-has != 'true'
+    if: false
     runs-on: ubuntu-24.04
     env:
       TAG: ${{ needs.release.outputs.tag }}
@@ -173,18 +175,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" -q .sha)
-          gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/latest" -f sha="$sha" -F force=false
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/rfm-test-latest" -f sha="$sha" -F force=false
           echo "latest: $TAG ($sha)" | tee -a "$GITHUB_STEP_SUMMARY"
-      # The channel's index, which the conda action's publishing updates.
-      - name: conda.clice.io serves it
-        run: |
-          for i in $(seq 60); do
-            curl -sSfL -A "xclang/ci" https://conda.clice.io/linux-64/repodata.json | grep -q "\"xclang-$TAG-" && exit 0
-            sleep 30
-          done
-          echo "::error::conda.clice.io has no xclang $TAG after 30 minutes"; exit 1
 
   examples:
     needs: [release, latest]
-    if: ${{ !cancelled() && needs.release.outputs.tag != '' && (needs.latest.result == 'success' || needs.release.outputs.publish != 'true') }}
+    if: false
     uses: ./.github/workflows/examples.yml
