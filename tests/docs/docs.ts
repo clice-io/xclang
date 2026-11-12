@@ -22,7 +22,11 @@
 ///   unclear ("is to be", "being considered", a bare "**Missing.**") are
 ///   not used;
 /// - prose holds no bare `<placeholder>`, which the docs site reads as an
-///   HTML element.
+///   HTML element;
+/// - docs/zh, the Chinese pages, keeps the English pages' anchors: every
+///   heading of a zh page but its title ends in `{#id}`, the id of the en page's heading
+///   in its place, so a link and an anchor mean the same on both sites (the
+///   rest of the pairing is tests/docs/translations.ts's).
 ///
 ///   node tests/docs/docs.ts
 
@@ -31,6 +35,8 @@ import * as path from "node:path";
 
 const ROOT = path.resolve(import.meta.dirname, "..", "..");
 const DOCS = path.join(ROOT, "docs");
+const EN = path.join(DOCS, "en");
+const ZH = path.join(DOCS, "zh");
 
 function markdown(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -57,11 +63,13 @@ function slug(heading: string): string {
     .toLowerCase();
 }
 
-/// The text of a page outside its code blocks, and its headings' and
-/// anchors' ids.
-function parse(page: string): { lines: string[]; ids: Set<string> } {
+/// The text of a page outside its code blocks, its headings' ids in order
+/// (a heading's own `{#id}`, or its slug), whether each was its own, and
+/// the ids of its headings and anchors.
+function parse(page: string): { lines: string[]; ids: Set<string>; headings: { id: string; own: boolean; line: number; level: number }[] } {
   const lines: string[] = [];
   const ids = new Set<string>();
+  const headings: { id: string; own: boolean; line: number; level: number }[] = [];
   const seen = new Map<string, number>();
   let fence = "";
   for (const line of fs.readFileSync(page, "utf8").split("\n")) {
@@ -77,19 +85,26 @@ function parse(page: string): { lines: string[]; ids: Set<string> } {
     }
     lines.push(line);
     for (const a of line.matchAll(/<a id="([^"]+)"><\/a>/g)) ids.add(a[1]);
-    const h = /^#{1,6}\s+(.*?)\s*#*\s*$/.exec(line);
+    const h = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
     if (h) {
-      const id = slug(h[1]);
+      const own = /\s*\{#([^}\s]+)\}$/.exec(h[2]!);
+      if (own) {
+        ids.add(own[1]!);
+        headings.push({ id: own[1]!, own: true, line: lines.length, level: h[1]!.length });
+        continue;
+      }
+      const id = slug(h[2]!);
       const n = seen.get(id) ?? 0;
       seen.set(id, n + 1);
       ids.add(n ? `${id}-${n}` : id);
+      headings.push({ id: n ? `${id}-${n}` : id, own: false, line: lines.length, level: h[1]!.length });
     }
   }
-  return { lines, ids };
+  return { lines, ids, headings };
 }
 
 const failures: string[] = [];
-const pages = markdown(DOCS);
+const pages = [EN, ZH].filter((d) => fs.existsSync(d)).flatMap(markdown);
 const parsed = new Map(pages.map((p) => [p, parse(p)]));
 
 /// Whether `block` is consecutive lines of `file`, all indented by what
@@ -231,11 +246,30 @@ for (const [page, { lines }] of parsed) {
   });
 }
 
+/// The zh pages' headings: each but the title ends in `{#id}`, the id of
+/// the en page's heading in its place. (That the two pages have the same
+/// headings, in the same order and depth, is the translations check's.)
+/// The title has none: the site's sidebar reads it as it is written.
+for (const [page, zh] of parsed) {
+  if (!page.startsWith(ZH + path.sep)) continue;
+  const en = parsed.get(path.join(EN, path.relative(ZH, page)));
+  if (!en) continue;
+  zh.headings.forEach((h, i) => {
+    if (h.level === 1) return;
+    const where = `${path.relative(ROOT, page)}:${h.line}`;
+    const want = en.headings[i]?.id;
+    if (!h.own) failures.push(`${where}: a zh heading ends in {#id}, the en heading's id${want ? ` (${want})` : ""}`);
+    else if (want !== undefined && h.id !== want) failures.push(`${where}: {#${h.id}} is not the en heading's id, ${want}`);
+  });
+}
+
 /// Links into the docs from the repository's own pages, as files
-/// (docs/en/<group>/<page>.md#<id>) or as the published site
-/// (https://docs.clice.io/xclang/<group>/<page>#<id>); their links to other
-/// files of the repository, relative or on GitHub's main, reach a file.
+/// (docs/en/<group>/<page>.md#<id>, or docs/zh/...) or as the published
+/// site (https://docs.clice.io/xclang/<group>/<page>#<id>, or
+/// https://docs.clice.io/zh/xclang/...); their links to other files of the
+/// repository, relative or on GitHub's main, reach a file.
 const SITE = "https://docs.clice.io/xclang/";
+const SITE_ZH = "https://docs.clice.io/zh/xclang/";
 for (const name of ["README.md", "README.zh-CN.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "packages/README.md"]) {
   const file = path.join(ROOT, name);
   if (!fs.existsSync(file)) continue;
@@ -243,17 +277,18 @@ for (const name of ["README.md", "README.zh-CN.md", "CHANGELOG.md", "CONTRIBUTIN
     for (const m of line.matchAll(/\]\(([^)\s]+)\)/g)) {
       let target = m[1];
       if (target.startsWith(SITE)) target = `docs/en/${target.slice(SITE.length)}`;
+      else if (target.startsWith(SITE_ZH)) target = `docs/zh/${target.slice(SITE_ZH.length)}`;
       else if (REPO.test(target)) target = REPO.exec(target)![1]!;
       else if (/^[a-z]+:/.test(target)) continue;
       else target = path.relative(ROOT, path.resolve(path.dirname(file), target));
-      if (!target.startsWith("docs/en/")) {
+      if (!/^docs\/(en|zh)\//.test(target)) {
         links++;
         const there = target.split("#")[0]!;
         if (!fs.existsSync(path.join(ROOT, there))) failures.push(`${name}:${i + 1}: ${m[1]}: no ${there} in the repository`);
         continue;
       }
       const [page, anchor] = target.split("#");
-      if (page === "docs/en" || page === "docs/en/") continue;
+      if (/^docs\/(en|zh)\/?$/.test(page)) continue;
       const doc = parsed.get(path.join(ROOT, page.endsWith(".md") ? page : `${page}.md`));
       links++;
       if (!doc) failures.push(`${name}:${i + 1}: ${m[1]}: no such page`);
@@ -262,9 +297,11 @@ for (const name of ["README.md", "README.zh-CN.md", "CHANGELOG.md", "CONTRIBUTIN
   });
 }
 
-/// The roadmap's status words (docs/en/design/roadmap.md), and phrasings
-/// that state no status.
+/// The roadmap's status words (docs/en/design/roadmap.md), in a column
+/// `status` (`状态` in docs/zh, with the words' fixed translations), and
+/// phrasings that state no status.
 const STATUS = new Set(["Supported", "Unreleased", "Planned", "In research", "Considered", "Not planned"]);
+const STATUS_ZH = new Set(["已支持", "未发布", "计划中", "研究中", "考虑中", "不计划"]);
 const VAGUE: [RegExp, string][] = [
   [/\b(is|are) to be\b/i, '"is to be": say planned, in research or considered'],
   [/\bbeing considered\b/i, '"being considered": the status is "considered"'],
@@ -276,6 +313,8 @@ const VAGUE: [RegExp, string][] = [
 
 let statuses = 0;
 for (const [page, { lines }] of parsed) {
+  const zh = page.startsWith(ZH + path.sep);
+  const [header, words] = zh ? ["状态", STATUS_ZH] : ["status", STATUS];
   let column = -1;
   lines.forEach((line, i) => {
     const where = `${path.relative(ROOT, page)}:${i + 1}`;
@@ -286,14 +325,14 @@ for (const [page, { lines }] of parsed) {
     }
     const cells = line.replace(/^\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
     if (column === -1 && !/^\|[-|: ]+\|?\s*$/.test(line)) {
-      column = cells.findIndex((c) => c.toLowerCase() === "status");
+      column = cells.findIndex((c) => c.toLowerCase() === header);
       if (column === -1) column = -2;
       return;
     }
     if (column < 0 || /^\|[-|: ]+\|?\s*$/.test(line)) return;
     statuses++;
-    if (!STATUS.has(cells[column] ?? "")) {
-      failures.push(`${where}: status "${cells[column]}" is not one of ${[...STATUS].join(", ")}`);
+    if (!words.has(cells[column] ?? "")) {
+      failures.push(`${where}: status "${cells[column]}" is not one of ${[...words].join(", ")}`);
     }
   });
 }

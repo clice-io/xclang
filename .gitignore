@@ -30,3 +30,4 @@ node_modules/
 /examples/libclang/libclang/
 /examples/cargo/target/
 /examples/debug-symbols/tool-lines*
+/.cache/

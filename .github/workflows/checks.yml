@@ -141,6 +141,10 @@ jobs:
           node-version: 24
       - run: node tests/docs/docs.ts
       - run: npm ci && npm run check
+      # docs/zh a translation of docs/en, segment by segment, every pair
+      # attested in docs/meta/translations (tests/docs/translations.ts runs
+      # the same release locally). It sets up a node of its own: last.
+      - uses: clice-io/docs/check-translations@v1.0.0
 
   # docs.clice.io built with this pull request's docs in place of the
   # published ones (clice-io/docs's check mode, no token): what VitePress
