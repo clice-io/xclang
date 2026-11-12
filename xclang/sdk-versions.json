@@ -1861,7 +1861,8 @@
     "posted": "2026-10-29",
     "url": "https://swcdn.apple.com/content/downloads/53/49/142-50405-A_WOBLDDXP4W/wk3d2yw94ir1jieuddcu9b9tffxrb09bq8/CLTools_macOSNMOS_SDK.pkg",
     "size": 71479724,
-    "sha256": "1eb5196e069ad6e0abde1d750d967b7ea58f5b97f179dbf07aee2d00ca6c813e"
+    "sha256": "1eb5196e069ad6e0abde1d750d967b7ea58f5b97f179dbf07aee2d00ca6c813e",
+    "content": "96365216303ffbb0f6b542e3cf4af59a4688c75e918bc6d78dbfccbd16e61103"
    },
    {
     "sdk": "26.5",
@@ -1869,7 +1870,8 @@
     "posted": "2026-10-29",
     "url": "https://swcdn.apple.com/content/downloads/53/49/142-50405-A_WOBLDDXP4W/wk3d2yw94ir1jieuddcu9b9tffxrb09bq8/CLTools_macOSLMOS_SDK.pkg",
     "size": 61624678,
-    "sha256": "bc5740627396f791c6cb85556598d48f9d6b3d25f1cec0aa6927fd34881e7c6f"
+    "sha256": "bc5740627396f791c6cb85556598d48f9d6b3d25f1cec0aa6927fd34881e7c6f",
+    "content": "550f770754153d736b5589689515ff02b4e460169a4fa37a5308533b29ae1250"
    },
    {
     "sdk": "15.4",
@@ -1877,7 +1879,8 @@
     "posted": "2026-06-26",
     "url": "https://swcdn.apple.com/content/downloads/33/19/140-17812-A_21ZLMMLY4E/zu3xwktttpoe71qiawhzgzvqss6rovawsa/CLTools_macOSLMOS_SDK.pkg",
     "size": 55803148,
-    "sha256": "07835d08fcdc4a57b930c9a7f5c91df18666d4fa246ae994c8850cfe5aab9753"
+    "sha256": "07835d08fcdc4a57b930c9a7f5c91df18666d4fa246ae994c8850cfe5aab9753",
+    "content": "200a0120401b69c6ebfc57d995b2e50093826f3821af1171e5e6e39b8e84c84e"
    },
    {
     "sdk": "26.5",
@@ -1885,7 +1888,8 @@
     "posted": "2026-06-26",
     "url": "https://swcdn.apple.com/content/downloads/33/19/140-17812-A_21ZLMMLY4E/zu3xwktttpoe71qiawhzgzvqss6rovawsa/CLTools_macOSNMOS_SDK.pkg",
     "size": 61622368,
-    "sha256": "debe353b27a13cd678b26ab216a040acf07b62c0639d8ac522df4ca07d121eb2"
+    "sha256": "debe353b27a13cd678b26ab216a040acf07b62c0639d8ac522df4ca07d121eb2",
+    "content": "872a98355e9563643ca3aeee0e43e1e1e7fba9973ebfaa121c840329f69017f1"
    },
    {
     "sdk": "26.5",
@@ -1893,7 +1897,8 @@
     "posted": "2026-05-11",
     "url": "https://swcdn.apple.com/content/downloads/09/08/047-91568-A_Y1CFZWQCD4/4xekpyz43i26dbp4enxfro8eb1q7wiujh5/CLTools_macOSNMOS_SDK.pkg",
     "size": 61622368,
-    "sha256": "5f044578cd78a3a9b9c965a42d56bad609ee5d252e1d4e6aa7c42fc3f35fee7b"
+    "sha256": "5f044578cd78a3a9b9c965a42d56bad609ee5d252e1d4e6aa7c42fc3f35fee7b",
+    "content": "872a98355e9563643ca3aeee0e43e1e1e7fba9973ebfaa121c840329f69017f1"
    },
    {
     "sdk": "15.4",
@@ -1901,7 +1906,8 @@
     "posted": "2026-05-11",
     "url": "https://swcdn.apple.com/content/downloads/09/08/047-91568-A_Y1CFZWQCD4/4xekpyz43i26dbp4enxfro8eb1q7wiujh5/CLTools_macOSLMOS_SDK.pkg",
     "size": 55803146,
-    "sha256": "8dc4d13077c663a27f73cf970f1b1ba81a1a47ff8bcd4fdd6b7fa3612cacdafb"
+    "sha256": "8dc4d13077c663a27f73cf970f1b1ba81a1a47ff8bcd4fdd6b7fa3612cacdafb",
+    "content": "200a0120401b69c6ebfc57d995b2e50093826f3821af1171e5e6e39b8e84c84e"
    },
    {
     "sdk": "15.5",
@@ -1909,7 +1915,8 @@
     "posted": "2025-05-28",
     "url": "https://swcdn.apple.com/content/downloads/52/01/082-41241-A_0747ZN8FHV/dectd075r63pppkkzsb75qk61s0lfee22j/CLTools_macOSNMOS_SDK.pkg",
     "size": 58513026,
-    "sha256": "ba3453d62b3d2babf67f3a4a44e8073d6555c85f114856f4390a1f53bd76e24a"
+    "sha256": "ba3453d62b3d2babf67f3a4a44e8073d6555c85f114856f4390a1f53bd76e24a",
+    "content": "deaa9a6645522c80e5f8ee043d117a14997c8b328bacb2d7a2b71f2e440e5378"
    },
    {
     "sdk": "14.5",
@@ -1917,7 +1924,8 @@
     "posted": "2025-05-28",
     "url": "https://swcdn.apple.com/content/downloads/52/01/082-41241-A_0747ZN8FHV/dectd075r63pppkkzsb75qk61s0lfee22j/CLTools_macOSLMOS_SDK.pkg",
     "size": 59460733,
-    "sha256": "ee10f491e7c5518bb7346527c242ec34b2d431bb787a2ee00247553e9806ea45"
+    "sha256": "ee10f491e7c5518bb7346527c242ec34b2d431bb787a2ee00247553e9806ea45",
+    "content": "a0e12221debd4da643b12749a0f834d90abce2d2809c16c0ae55d2de34f833b8"
    },
    {
     "sdk": "15.2",
@@ -1925,7 +1933,8 @@
     "posted": "2025-04-14",
     "url": "https://swcdn.apple.com/content/downloads/61/45/072-44426-A_16242I3TPF/74lkhd4yt26hcrwgpibrqtltf7yth9kc5w/CLTools_macOSNMOS_SDK.pkg",
     "size": 57160029,
-    "sha256": "55c193b80f3b4c5ae20b3bd926abe20e11a2933cdd1aa918a63f7e89c16dce21"
+    "sha256": "55c193b80f3b4c5ae20b3bd926abe20e11a2933cdd1aa918a63f7e89c16dce21",
+    "content": "fca0d3d9513612e1d6c8091a8be0cd5b4dd56b62b4c4985d0f1f7ea094a963d0"
    },
    {
     "sdk": "14.5",
@@ -1933,7 +1942,8 @@
     "posted": "2025-04-14",
     "url": "https://swcdn.apple.com/content/downloads/61/45/072-44426-A_16242I3TPF/74lkhd4yt26hcrwgpibrqtltf7yth9kc5w/CLTools_macOSLMOS_SDK.pkg",
     "size": 59460856,
-    "sha256": "8a865a6766f4ffe4d969e2488cf8876dd751e9285161e5dfe52ce0d922294f92"
+    "sha256": "8a865a6766f4ffe4d969e2488cf8876dd751e9285161e5dfe52ce0d922294f92",
+    "content": "a0e12221debd4da643b12749a0f834d90abce2d2809c16c0ae55d2de34f833b8"
    },
    {
     "sdk": "14.4",
@@ -1941,7 +1951,8 @@
     "posted": "2024-03-05",
     "url": "https://swcdn.apple.com/content/downloads/14/48/052-59890-A_I0F5YGAY0Y/p9n40hio7892gou31o1v031ng6fnm9sb3c/CLTools_macOSNMOS_SDK.pkg",
     "size": 59320979,
-    "sha256": "6f35bd96401f2a07a8ab8f21321f2706a51d2309da7406fb81fbefd16af3c9d0"
+    "sha256": "6f35bd96401f2a07a8ab8f21321f2706a51d2309da7406fb81fbefd16af3c9d0",
+    "content": "8da41a90d8c82e5f521e300ddad918198286c2039df88ce8dc34f9ed83d0f634"
    },
    {
     "sdk": "13.3",
@@ -1949,7 +1960,8 @@
     "posted": "2024-03-05",
     "url": "https://swcdn.apple.com/content/downloads/14/48/052-59890-A_I0F5YGAY0Y/p9n40hio7892gou31o1v031ng6fnm9sb3c/CLTools_macOSLMOS_SDK.pkg",
     "size": 51079417,
-    "sha256": "4a98f94497f368211223e696c8f26c208eb2dc174b6cf89f3ea846f0a2a0e89b"
+    "sha256": "4a98f94497f368211223e696c8f26c208eb2dc174b6cf89f3ea846f0a2a0e89b",
+    "content": "a9730812969cc4ed811db45168251ed03d4a7c48f3b0e91fe7afd31ec6e01072"
    },
    {
     "sdk": "13.3",
@@ -1957,7 +1969,8 @@
     "posted": "2023-08-22",
     "url": "https://swcdn.apple.com/content/downloads/11/17/042-32697-A_1GOTVNQE4A/hy88qtn1sygbgxswlmbfdepd4pcg52xyrx/CLTools_macOSLMOS_SDK.pkg",
     "size": 50950150,
-    "sha256": "14be10d18d485566358b9ab8da3a84fccd7bbda6662e4ee24b16e4da0b1a6426"
+    "sha256": "14be10d18d485566358b9ab8da3a84fccd7bbda6662e4ee24b16e4da0b1a6426",
+    "content": "cea176e4883ba6931184f6dc6d159a9fb66632b9b48bbb750c8d585bd5111f4f"
    },
    {
     "sdk": "14.0",
@@ -1965,7 +1978,8 @@
     "posted": "2023-08-22",
     "url": "https://swcdn.apple.com/content/downloads/11/17/042-32697-A_1GOTVNQE4A/hy88qtn1sygbgxswlmbfdepd4pcg52xyrx/CLTools_macOSNMOS_SDK.pkg",
     "size": 57585554,
-    "sha256": "fa3eb19eceab6d27a3ff55860f6e7753bec8193845d03787fce9735e7efb7dc9"
+    "sha256": "fa3eb19eceab6d27a3ff55860f6e7753bec8193845d03787fce9735e7efb7dc9",
+    "content": "eac13aac1162364ceb4b485a57aaf9a2156f78e2c650da2b5c542776f4c87f93"
    },
    {
     "sdk": "13.3",
@@ -1973,7 +1987,8 @@
     "posted": "2023-06-01",
     "url": "https://swcdn.apple.com/content/downloads/15/62/032-84673-A_7A1TG1RF8Z/xpc8q44ggn2pkn82iwr0fi1zeb9cxi8ath/CLTools_macOSNMOS_SDK.pkg",
     "size": 50937907,
-    "sha256": "c33545d543a38911aee2a65d4bf7ff4932c12de1e6a042ae38e6415f65a10710"
+    "sha256": "c33545d543a38911aee2a65d4bf7ff4932c12de1e6a042ae38e6415f65a10710",
+    "content": "9a38ce3e75bcf35dc3412b289db132880c319ad65060c43da3c061fb7f92b47f"
    },
    {
     "sdk": "12.3",
@@ -1981,7 +1996,8 @@
     "posted": "2023-06-01",
     "url": "https://swcdn.apple.com/content/downloads/15/62/032-84673-A_7A1TG1RF8Z/xpc8q44ggn2pkn82iwr0fi1zeb9cxi8ath/CLTools_macOSLMOS_SDK.pkg",
     "size": 49691435,
-    "sha256": "f646b1c530dbb39cfeb6c2b7c1f4831ebcfe74212454026a4fbc317bfd7b676c"
+    "sha256": "f646b1c530dbb39cfeb6c2b7c1f4831ebcfe74212454026a4fbc317bfd7b676c",
+    "content": "fa10c8a9ad37d78222455d50cff2b5068a84b31f3bd5e90dcb83e649e2ae7322"
    },
    {
     "sdk": "13.1",
@@ -1989,7 +2005,8 @@
     "posted": "2022-12-13",
     "url": "https://swcdn.apple.com/content/downloads/03/28/012-92431-A_FKICGWU4EK/eflw1v4c64sgmvux4ljc083cfjj663wu9g/CLTools_macOSNMOS_SDK.pkg",
     "size": 51817937,
-    "sha256": "f3acebebdfa0e5bdedf3047a29bdcb76c01ff449d041406b765bdea3dc3ec866"
+    "sha256": "f3acebebdfa0e5bdedf3047a29bdcb76c01ff449d041406b765bdea3dc3ec866",
+    "content": "047fcf321e5bd36ecf03ee11f1c5ed820be61b0b196f45e90add6ea921848be1"
    },
    {
     "sdk": "12.3",
@@ -1997,7 +2014,8 @@
     "posted": "2022-12-13",
     "url": "https://swcdn.apple.com/content/downloads/03/28/012-92431-A_FKICGWU4EK/eflw1v4c64sgmvux4ljc083cfjj663wu9g/CLTools_macOSLMOS_SDK.pkg",
     "size": 49698902,
-    "sha256": "6a07978ffde65bf3472c1a5261a9166de6cfb8c63111f6414c6b294cbcce8183"
+    "sha256": "6a07978ffde65bf3472c1a5261a9166de6cfb8c63111f6414c6b294cbcce8183",
+    "content": "b5e68ed467325a7431ddf6b49896b44f28f5033caf588105f85c785c01bf1185"
    },
    {
     "sdk": "11.3",
@@ -2005,7 +2023,8 @@
     "posted": "2022-05-12",
     "url": "https://swcdn.apple.com/content/downloads/24/42/002-83793-A_74JRE8GVAT/rlnkct919wgc5c0pjq986z5bb9h62uvni2/CLTools_macOSLMOS_SDK.pkg",
     "size": 54906303,
-    "sha256": "998f584e5c93ba357a47cf5668d9a426b7ce41ab579e8496f202b19dac10cf94"
+    "sha256": "998f584e5c93ba357a47cf5668d9a426b7ce41ab579e8496f202b19dac10cf94",
+    "content": "2d5c2fe22769ea62f28b8e330b42e0c83057a615f2e6a3a67d77acb08667a074"
    },
    {
     "sdk": "12.3",
@@ -2013,7 +2032,8 @@
     "posted": "2022-05-12",
     "url": "https://swcdn.apple.com/content/downloads/24/42/002-83793-A_74JRE8GVAT/rlnkct919wgc5c0pjq986z5bb9h62uvni2/CLTools_macOSNMOS_SDK.pkg",
     "size": 49692505,
-    "sha256": "4ebf5509e08fe6e766874f54ff33d01b6738932d4b5ec701c0f7e0a51cbcb9db"
+    "sha256": "4ebf5509e08fe6e766874f54ff33d01b6738932d4b5ec701c0f7e0a51cbcb9db",
+    "content": "2469b7b05c926d6f77bb87b94efa69daeb9c3911436bec1111747cc859863e7d"
    },
    {
     "sdk": "11.3",
@@ -2021,7 +2041,8 @@
     "posted": "2021-12-13",
     "url": "https://swcdn.apple.com/content/downloads/52/17/002-41708-A_E8MFK7B2PK/6p55tbmh0qttgbt4cy94uuvnacy6tkw435/CLTools_macOSLMOS_SDK.pkg",
     "size": 54920394,
-    "sha256": "b075d3d2f3b066607209a5bbf7cf727a40b98fe65629c5b6abc17f156897af4a"
+    "sha256": "b075d3d2f3b066607209a5bbf7cf727a40b98fe65629c5b6abc17f156897af4a",
+    "content": "2d5c2fe22769ea62f28b8e330b42e0c83057a615f2e6a3a67d77acb08667a074"
    },
    {
     "sdk": "12.1",
@@ -2029,7 +2050,8 @@
     "posted": "2021-12-13",
     "url": "https://swcdn.apple.com/content/downloads/52/17/002-41708-A_E8MFK7B2PK/6p55tbmh0qttgbt4cy94uuvnacy6tkw435/CLTools_macOSNMOS_SDK.pkg",
     "size": 49815732,
-    "sha256": "991297bd677abf5fad22c52c30d4bc0bc5d2fd9be96facbaef9556d0a3d6f52f"
+    "sha256": "991297bd677abf5fad22c52c30d4bc0bc5d2fd9be96facbaef9556d0a3d6f52f",
+    "content": "a967a5b729bb778a54eaea980426cc164c6e7d19390a026f098788d3634a7d94"
    },
    {
     "sdk": "10.15.6",
@@ -2037,7 +2059,8 @@
     "posted": "2021-06-21",
     "url": "https://swcdn.apple.com/content/downloads/02/62/071-54303-A_EU2CL1YVT7/943i95dpeyi2ghlnj2mgyq3t202t5gf18b/CLTools_macOSLMOS_SDK.pkg",
     "size": 43293884,
-    "sha256": "d459ae8498deb77f290f7f3adc99a98fb488441818a90042091ee7bb78c817c3"
+    "sha256": "d459ae8498deb77f290f7f3adc99a98fb488441818a90042091ee7bb78c817c3",
+    "content": "536167e8811f4e745f6ae4e464ff806a06afd622f9318002357632dd2ac77b55"
    },
    {
     "sdk": "11.3",
@@ -2045,7 +2068,8 @@
     "posted": "2021-06-21",
     "url": "https://swcdn.apple.com/content/downloads/02/62/071-54303-A_EU2CL1YVT7/943i95dpeyi2ghlnj2mgyq3t202t5gf18b/CLTools_macOSNMOS_SDK.pkg",
     "size": 54904673,
-    "sha256": "ec0e70de35ac8c09868eee0a88b52c1c6992fb3ed825de5e3054c80ea5bb3481"
+    "sha256": "ec0e70de35ac8c09868eee0a88b52c1c6992fb3ed825de5e3054c80ea5bb3481",
+    "content": "37aa7e048a712029c3f8849051c903966f6da76549303ae9d7d91af98bd30eb8"
    },
    {
     "sdk": "10.15.6",
@@ -2053,7 +2077,8 @@
     "posted": "2021-04-27",
     "url": "https://swcdn.apple.com/content/downloads/46/21/001-89745-A_56FM390IW5/v1um2qppgfdnam2e9cdqcqu2r6k8aa3lis/CLTools_macOSLMOS_SDK.pkg",
     "size": 43286143,
-    "sha256": "edb4c8c65491dfb49acff7dbd80ac6cbddccb4908567cd5ce9f9513e549be7fa"
+    "sha256": "edb4c8c65491dfb49acff7dbd80ac6cbddccb4908567cd5ce9f9513e549be7fa",
+    "content": "536167e8811f4e745f6ae4e464ff806a06afd622f9318002357632dd2ac77b55"
    },
    {
     "sdk": "11.1",
@@ -2061,7 +2086,8 @@
     "posted": "2021-04-27",
     "url": "https://swcdn.apple.com/content/downloads/46/21/001-89745-A_56FM390IW5/v1um2qppgfdnam2e9cdqcqu2r6k8aa3lis/CLTools_macOSNMOS_SDK.pkg",
     "size": 52634181,
-    "sha256": "4e73e80b858430840417031b83f05adfbb21c6b4fc3ba4feea3b6022ab2e8258"
+    "sha256": "4e73e80b858430840417031b83f05adfbb21c6b4fc3ba4feea3b6022ab2e8258",
+    "content": "a9a9c8d8f3b85e474b7bc2123611e7cddc00f30aaf83410ccea4ea1f8e615a11"
    },
    {
     "sdk": "11.3",
@@ -2069,7 +2095,8 @@
     "posted": "2021-04-26",
     "url": "https://swcdn.apple.com/content/downloads/50/51/071-29699-A_YC8SX0OHH3/7479xojqghsvgtnt3dxjpnxuz9sjpmbmds/CLTools_macOSNMOS_SDK.pkg",
     "size": 54901737,
-    "sha256": "6faff385985c1dad1bfc4eb24bc83b779ff5ac8ebbd5055c9c6381386048df2d"
+    "sha256": "6faff385985c1dad1bfc4eb24bc83b779ff5ac8ebbd5055c9c6381386048df2d",
+    "content": "37aa7e048a712029c3f8849051c903966f6da76549303ae9d7d91af98bd30eb8"
    },
    {
     "sdk": "10.15.6",
@@ -2077,7 +2104,8 @@
     "posted": "2021-04-26",
     "url": "https://swcdn.apple.com/content/downloads/50/51/071-29699-A_YC8SX0OHH3/7479xojqghsvgtnt3dxjpnxuz9sjpmbmds/CLTools_macOSLMOS_SDK.pkg",
     "size": 43292373,
-    "sha256": "82656c924bb2199c578870552d80b74fb88bbc90f72a39162a9e191bcedbc550"
+    "sha256": "82656c924bb2199c578870552d80b74fb88bbc90f72a39162a9e191bcedbc550",
+    "content": "536167e8811f4e745f6ae4e464ff806a06afd622f9318002357632dd2ac77b55"
    },
    {
     "sdk": "10.14",
@@ -2085,7 +2113,8 @@
     "posted": "2019-10-14",
     "url": "https://swcdn.apple.com/content/downloads/41/57/061-26573-A_JMOA8GZGDR/lj8yrtu8dgs40fw9k8f5fkoviwkp0og6vs/CLTools_SDK_macOS1014.pkg",
     "size": 25703733,
-    "sha256": "3b65c623e29ad74a3cd4f4eaf8e7fa6fc4b887b07bdf7b83f9217caa5fd67f51"
+    "sha256": "3b65c623e29ad74a3cd4f4eaf8e7fa6fc4b887b07bdf7b83f9217caa5fd67f51",
+    "content": "525aab426cb17a96b9e4aa2a719deaa1e59c4998a51b84dae890eb13eb6593b7"
    }
   ]
  },

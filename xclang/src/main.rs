@@ -6,6 +6,7 @@
 
 mod args;
 mod cargo;
+mod catalog;
 mod http;
 mod link;
 mod links;
@@ -142,7 +143,9 @@ xclang: fetches what the toolchain does not carry.
       Apple's macOS SDK, from Apple, which the toolchain's macOS targets
       then use on Linux and Windows: clang++ --target=arm64-apple-macos
       (on macOS they use Xcode's; this one with
-      -isysroot \"$(xclang sdk path macos)\")
+      -isysroot \"$(xclang sdk path macos)\"); checked by the content the
+      table pins, also in the package Apple put in place of one it
+      withdrew
   xclang sdk fetch windows --accept-license [--preset P] [--msvc-version V]
           [--sdk-version V] [--arch x86_64,aarch64,x86]
       the MSVC runtime and STL and the Windows SDK, from Microsoft, as a
@@ -173,7 +176,9 @@ xclang: fetches what the toolchain does not carry.
 Options:
   --preset P         a GitHub runner image or its label (windows-2022,
                      macos-15, ...); default windows-latest, macos-latest
-  --version V        (macOS) the SDK version, whole or in part (26, 15.5)
+  --version V        (macOS) the SDK version, whole or in part (26, 15.5);
+                     latest: the newest Apple lists now, which no table
+                     pins (not reproducible)
   --msvc-version V   (Windows) MSVC's version, whole or in part (14.44)
   --sdk-version V    (Windows) the Windows SDK's version (10.0.26100)
   --arch A,...       (Windows) x86_64, aarch64, x86; default x86_64,aarch64;

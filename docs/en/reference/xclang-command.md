@@ -29,7 +29,10 @@ xclang --version
 
 `xclang sdk fetch` downloads an SDK from its vendor. It checks each
 download against the size and sha256 its version table pins, with three
-tries, since a download now and then comes short or damaged. Then it
+tries, since a download now and then comes short or damaged. A macOS
+SDK whose package Apple withdrew, it finds in another package Apple's
+catalogs list, checked by the SDK's content
+([why](../design/vendor-sdks.md#apple-s-packages-come-and-go)). Then it
 unpacks the SDK into a directory of its own:
 
 | SDK | directory | use |
@@ -41,13 +44,13 @@ unpacks the SDK into a directory of its own:
 |---|---|
 | `--accept-license` | without it, fetch prints the vendor's license terms and stops |
 | `sdk path` | prints the directory that fetch, given the same selection options (`--preset`, `--version`, `--msvc-version`, `--sdk-version`, `--arch`), fetches to: `-isysroot "$(xclang sdk path macos)"`. With `--arch`, it fails if the SDK there lacks one of those architectures |
-| `sdk packages` | prints what fetch, given the same selection options, downloads for an SDK not fetched yet: each package's sha256, size and URL, or with `--json` `{"name": <the SDK's directory>, "packages": [{"url", "size", "sha256", "file"}]}`. A build system downloads them itself, under the names `file`, into a directory that `fetch --cache` then takes them from; the Bazel module does ([Bazel](../integrations/bazel.md#vendor-sdks)) |
+| `sdk packages` | prints what fetch, given the same selection options, downloads for an SDK not fetched yet: each package's sha256, size and URL, or with `--json` `{"name": <the SDK's directory>, "packages": [{"url", "size", "sha256", "file"}]}`. A build system downloads them itself, under the names `file`, into a directory that `fetch --cache` then takes them from; the Bazel module does ([Bazel](../integrations/bazel.md#vendor-sdks)). What it cannot download, a package Apple withdrew or one with no sha256 (`--version latest` past the table), fetch downloads itself |
 | `--cache <dir>` | fetch keeps its downloads in the directory, and takes from it those already there, by their sha256 |
 | `sdk list` | the presets and versions xclang knows, the defaults marked, the fetched SDKs, and those in use; `.xclang-sdk.json`, written last, records what an SDK was fetched from, and a directory without it is listed as incomplete |
 | `sdk use <name>` | makes a fetched SDK the one in use (below) |
 | `sdk remove <name>` | removes a fetched SDK, and its link if it is in use |
 | `--preset <image>` | the SDK versions of a GitHub runner image or label (`windows-2022`, `macos-15`); by default `windows-latest` and `macos-latest` |
-| `--version`, `--sdk-version`, `--msvc-version` | a version, whole or in part (`15`, `10.0.26100`, `14.44`), in place of the preset's; the newest that matches is taken |
+| `--version`, `--sdk-version`, `--msvc-version` | a version, whole or in part (`15`, `10.0.26100`, `14.44`), in place of the preset's; the newest that matches is taken. `--version latest` takes the newest macOS SDK Apple's catalogs list now, which may be newer than the table, and is not reproducible |
 | `--arch <archs>` | the architectures of a Windows SDK, of `x86_64`, `aarch64` and `x86`; by default `x86_64,aarch64`. Fetched again, an SDK keeps the architectures it has: `--arch x86` adds x86 |
 | `--sdk-dir <dir>` | another directory for SDKs, for a toolchain installed read-only |
 | `--links <how>` | how fetch makes the macOS SDK's links: `junction`, junctions and hard links, the default on Windows; `symlink`, symbolic links, the default elsewhere; or `copy` |

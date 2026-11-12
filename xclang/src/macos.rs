@@ -7,6 +7,8 @@ use std::path::{MAIN_SEPARATOR, Path, PathBuf};
 use std::sync::{Mutex, mpsc};
 use std::time::Instant;
 
+use ring::digest::{SHA256, digest};
+
 use crate::links::{self, Links};
 use crate::pkg::{self, Cpio, S_IFDIR, S_IFLNK, S_IFMT, S_IFREG, Xar};
 use crate::{Context, Result, bail, mb};
@@ -256,38 +258,153 @@ fn copy_tree(src: &Path, dest: &Path) -> Result<()> {
     Ok(())
 }
 
-/// The version of the SDK a package carries (26.5), from the SDKSettings
-/// near the start of its payload; older packages name the SDK's directory
-/// MacOSX.sdk.
-#[cfg(feature = "maintainer")]
-pub fn sdk_version(package: &Path) -> Result<String> {
+/// What a package carries: its SDK's version and content digest.
+pub struct Examined {
+    pub version: String,
+    pub content: String,
+}
+
+/// The SDK's version (26.5) and content digest of a package, read whole.
+/// The digest is the sha256 of the SDK's manifest: a line for each file
+/// and symbolic link of the package's SDK directory, the files unpack
+/// leaves out too, sorted by path,
+///
+///   file <sha256 of its bytes> <path>
+///   link <sha256 of its target> <path>
+///
+/// the path below the SDK's directory, '/'-separated; neither directories,
+/// modes nor times count, nor how unpack makes the links. So an SDK that
+/// Apple packages and signs anew has the digest it had
+/// (docs/en/design/vendor-sdks.md).
+pub fn examine(package: &Path) -> Result<Examined> {
     let mut xar = Xar::open(package)?;
     let mut cpio = Cpio::new(pkg::payload(xar.member("Payload")?)?);
+    let (mut sdk, mut version) = (None::<String>, None::<String>);
+    let mut entries: Vec<(String, &str, String)> = vec![];
+    // A hard link's data may come with one of its names only.
+    let mut inodes: HashMap<(u64, u64), String> = HashMap::new();
+    let mut empties: Vec<(usize, (u64, u64))> = vec![];
+    while let Some(e) = cpio.next_entry()? {
+        let Some((dir, rel)) = sdk_member(&e.name) else {
+            continue;
+        };
+        match &sdk {
+            None => sdk = Some(dir.to_string()),
+            Some(s) if s != dir => continue,
+            Some(_) => {}
+        }
+        let kind = match e.mode & S_IFMT {
+            S_IFREG => "file",
+            S_IFLNK => "link",
+            _ => continue,
+        };
+        if rel.contains('\n') {
+            bail!("{}: a path with a newline: {:?}", package.display(), e.name);
+        }
+        let data = cpio.read_data()?;
+        if kind == "file" && version.is_none() {
+            version = settings_version(rel, &data)?;
+        }
+        let hash = crate::http::hex(digest(&SHA256, &data).as_ref());
+        if kind == "file" && e.nlink > 1 {
+            if e.size > 0 {
+                inodes.insert(e.inode, hash.clone());
+            } else if let Some(h) = inodes.get(&e.inode) {
+                entries.push((rel.to_string(), kind, h.clone()));
+                continue;
+            } else {
+                empties.push((entries.len(), e.inode));
+            }
+        }
+        entries.push((rel.to_string(), kind, hash));
+    }
+    for (i, inode) in empties {
+        if let Some(h) = inodes.get(&inode) {
+            entries[i].2 = h.clone();
+        }
+    }
+    let (Some(_), Some(version)) = (sdk, version) else {
+        bail!("{}: no SDK in the package", package.display())
+    };
+    Ok(Examined {
+        version,
+        content: manifest_digest(entries),
+    })
+}
+
+/// The sha256 of the manifest of (path, kind, sha256) entries.
+fn manifest_digest(mut entries: Vec<(String, &str, String)>) -> String {
+    entries.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut ctx = ring::digest::Context::new(&SHA256);
+    for (path, kind, hash) in &entries {
+        ctx.update(format!("{kind} {hash} {path}\n").as_bytes());
+    }
+    crate::http::hex(ctx.finish().as_ref())
+}
+
+/// The SDK's version, if `rel` is its SDKSettings (older SDKs have only
+/// the plist).
+fn settings_version(rel: &str, data: &[u8]) -> Result<Option<String>> {
+    Ok(match rel {
+        "SDKSettings.json" => {
+            let settings: serde_json::Value = serde_json::from_slice(data).context(rel)?;
+            settings["Version"].as_str().map(String::from)
+        }
+        "SDKSettings.plist" => {
+            let text = std::str::from_utf8(data).context(rel)?;
+            crate::xml::plist_string(text, "Version")?
+        }
+        _ => None,
+    })
+}
+
+/// The version of the SDK the package at url carries, from the start of
+/// its download: the SDKSettings near the start of its payload, a few MB
+/// in; the rest is not downloaded.
+pub fn peek_version(url: &str) -> Result<String> {
+    let body = crate::http::open(url)?;
+    let payload = pkg::stream_member(body.reader, "Payload", url)?;
+    let mut cpio = Cpio::new(pkg::payload(payload)?);
     while let Some(e) = cpio.next_entry()? {
         let Some((_, rel)) = sdk_member(&e.name) else {
             continue;
         };
-        if e.mode & S_IFMT != S_IFREG {
-            continue;
-        }
-        if rel == "SDKSettings.json" {
-            let settings: serde_json::Value = serde_json::from_slice(&cpio.read_data()?)?;
-            if let Some(v) = settings["Version"].as_str() {
-                return Ok(v.to_string());
-            }
-        } else if rel == "SDKSettings.plist" {
-            let text = String::from_utf8(cpio.read_data()?).context("SDKSettings.plist")?;
-            if let Some(v) = crate::update::plist_string(&text, "Version")? {
-                return Ok(v);
-            }
+        if e.mode & S_IFMT == S_IFREG
+            && rel.starts_with("SDKSettings.")
+            && let Some(v) = settings_version(rel, &cpio.read_data()?)?
+        {
+            return Ok(v);
         }
     }
-    bail!("{}: no SDK in the package", package.display())
+    bail!("{url}: no SDK in the package")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn manifest() {
+        let h = |c: char| c.to_string().repeat(64);
+        let entries = vec![
+            ("usr/lib/libc.tbd".to_string(), "file", h('2')),
+            (
+                "System/Library/Frameworks/A.framework/A".to_string(),
+                "link",
+                h('1'),
+            ),
+            ("SDKSettings.json".to_string(), "file", h('0')),
+        ];
+        // Sorted by path, byte by byte.
+        let text = format!(
+            "file {} SDKSettings.json\nlink {} System/Library/Frameworks/A.framework/A\nfile {} usr/lib/libc.tbd\n",
+            h('0'),
+            h('1'),
+            h('2')
+        );
+        let want = crate::http::hex(digest(&SHA256, text.as_bytes()).as_ref());
+        assert_eq!(manifest_digest(entries), want);
+    }
 
     #[test]
     fn members() {

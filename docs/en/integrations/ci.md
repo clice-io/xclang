@@ -53,9 +53,10 @@ Bazel. Keep `--repository_cache` with the disk cache (below).
 
 **Vendor SDKs.** Bazel keeps their packages in the repository cache too;
 `xclang sdk fetch` keeps them in its `--cache` directory, which a cache
-entry can hold. Apple stops serving a macOS SDK package now and then
-([vendor SDKs](../design/vendor-sdks.md#why-fetch-not-ship)), and a kept
-package still builds.
+entry can hold. Apple withdraws a macOS SDK package now and then, and
+xclang finds the SDK again in the one Apple puts in its place; a kept
+package still builds when Apple carries the SDK in no package any more
+([vendor SDKs](../design/vendor-sdks.md#apple-s-packages-come-and-go)).
 
 ## Keep Caches between Runs
 

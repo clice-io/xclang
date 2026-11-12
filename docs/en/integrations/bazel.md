@@ -161,12 +161,18 @@ bazel build --platforms=@xclang//platforms:aarch64-apple-darwin //:hello
   image's, and `msvc_version`, `sdk_version` (Windows) and `version`
   (macOS) name a version, as `xclang sdk fetch` takes them
   ([the xclang command](../reference/xclang-command.md#versions)).
+  `version = "latest"` takes the newest macOS SDK Apple lists when the
+  repository is fetched, which nothing pins.
 - **Fetched when first needed.** Each SDK is a repository, the Windows SDK
   one per architecture. Bazel downloads the vendor's packages into its
   repository cache, 310 MB for the MSVC x64 target, 380 MB for arm64 and
   62 MB for macOS, and the toolchain's `xclang` command unpacks them into
   the output base. A build for other targets fetches none. On macOS hosts the
-  macOS targets keep Xcode's SDK.
+  macOS targets keep Xcode's SDK. When Apple has withdrawn the macOS
+  package the table pins, the command finds the same SDK in the package
+  Apple put in its place, by its content, and downloads that itself, not
+  into the repository cache
+  ([vendor SDKs](../design/vendor-sdks.md#apple-s-packages-come-and-go)).
 - **Keep them to yourself.** The repository cache holds the vendor's
   packages, and remote execution uploads an action's inputs, the SDK's
   files among them. A shared or public cache of either passes the SDK on;

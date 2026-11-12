@@ -8,7 +8,9 @@
 ///       x86_64 macOS and for x64 and arm64 Windows (MSVC ABI), into
 ///       <dir>/<target>/cli-<host> (programs only: nothing of an SDK), which
 ///       tests/lib/on-target.ts runs on a machine of each target; target
-///       list, add and remove against a test index, and without one
+///       list, add and remove against a test index, and without one; a
+///       macOS SDK whose package Apple withdrew found again by its content,
+///       one it dropped refused, and --version latest
 ///
 /// The programs and what they check are the SDK probe's (tests/sdk).
 
@@ -48,6 +50,15 @@ function run(cmd: string, args: string[], expect: number | null = 0, cwd?: strin
     console.log(`  (exit ${r.status}, ${seconds} s)`);
   }
   return { status: r.status, out: r.stdout ?? "", err: r.stderr ?? "" };
+}
+
+/// The numbers of two versions compared in order: 26.5 < 27.2 < 27.10.
+function versionCmp(a: string, b: string): number {
+  const [x, y] = [a.split(".").map(Number), b.split(".").map(Number)];
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0);
+  }
+  return 0;
 }
 
 function check(ok: boolean, what: string): void {
@@ -251,7 +262,63 @@ if (release !== "unknown") {
 }
 summary.push("- target list, add, remove: against a test index");
 
-/// 5. sdk remove.
+/// 5. A macOS SDK whose package Apple withdrew. A table whose SDK 26.5 has
+/// only a package Apple's CDN does not serve (a 404 here; a withdrawn one
+/// answers 403), with the content of the 26.5 the built-in table pins, and
+/// whose 27.0 has only another such package, as when Apple withdrew a
+/// release of the Command Line Tools and put another in its place: fetch
+/// finds 26.5 in a package Apple's catalogs list now, by the start of its
+/// payload, and checks it by content; with another content pinned, or for
+/// 27.0, which no package carries now, it fails, naming the versions they
+/// carry. --version latest takes the newest the catalogs list. Into SDK
+/// directories of their own.
+{
+  type MacPackage = { sdk: string; product: string; posted: string; url: string; size: number; sha256: string; content: string };
+  const builtIn = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "..", "..", "xclang", "sdk-versions.json"), "utf8"));
+  const packages = builtIn.macos.packages as MacPackage[];
+  const pinned = packages.find((p) => p.sdk === "26.5")!;
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "xclang-cli-withdrawn-"));
+  const withdrawn = (sdk: string, content: string): MacPackage => ({
+    ...pinned, sdk, content, product: "000-00000", posted: "2026-11-12", sha256: "0".repeat(64),
+    url: `https://swcdn.apple.com/content/downloads/00/00/000-00000-A_XCLANGTEST/withdrawn/${path.basename(pinned.url)}`,
+  });
+  const table = (name: string, content: string) => {
+    const file = path.join(scratch, `${name}.json`);
+    const packagesNow = [withdrawn("26.5", content), withdrawn("27.0", "1".repeat(64)), ...packages.filter((p) => p.sdk !== "26.5")];
+    fs.writeFileSync(file, JSON.stringify({ ...builtIn, macos: { packages: packagesNow } }, null, 1));
+    return file;
+  };
+  const fetch = (version: string, more: string[], expect: number) =>
+    xclang(["sdk", "fetch", "macos", "--accept-license", "--version", version, "--sdk-dir", path.join(scratch, "sdk"), ...more], expect);
+  const carried = (err: string) => /they carry ([\d. ]+):/.exec(err)?.[1]?.trim().split(" ") ?? [];
+
+  const other = fetch("26.5", ["--table", table("other", "2".repeat(64))], 1);
+  check(/no longer serves it/.test(other.err) && /26\.5 with other content only/.test(other.err) && carried(other.err).length > 0,
+    "a withdrawn package: fetch refuses the SDK in another package with another content");
+  const start = Date.now();
+  const found = fetch("26.5", ["--table", table("found", pinned.content)], 0);
+  const dir = path.join(scratch, "sdk", "macos-26.5");
+  const record = fs.existsSync(path.join(dir, ".xclang-sdk.json")) ? JSON.parse(fs.readFileSync(path.join(dir, ".xclang-sdk.json"), "utf8")) : {};
+  const settings = fs.existsSync(path.join(dir, "SDKSettings.json")) ? JSON.parse(fs.readFileSync(path.join(dir, "SDKSettings.json"), "utf8")) : {};
+  check(found.status === 0 && record.content === pinned.content && record.packages?.[0]?.url.startsWith("https://swcdn.apple.com/") &&
+    !record.packages[0].url.includes("XCLANGTEST") && settings.Version === "26.5",
+    `a withdrawn package: fetch finds macOS SDK 26.5 by its content in ${record.packages?.[0]?.url}`);
+  summary.push(`- macOS SDK 26.5 found again by its content, its package withdrawn: ${((Date.now() - start) / 1000).toFixed(0)} s`);
+  const dropped = fetch("27.0", ["--table", table("dropped", pinned.content)], 1);
+  check(/macOS SDK 27\.0: Apple no longer serves its package/.test(dropped.err) && carried(dropped.err).length > 0 &&
+    !carried(dropped.err).includes("27.0"), `a version Apple dropped: fetch names those it carries, ${carried(dropped.err).join(" ")}`);
+
+  const newest = packages.map((p) => p.sdk).sort(versionCmp).at(-1)!;
+  const listed = JSON.parse(xclang(["sdk", "packages", "macos", "--version", "latest", "--json"]).out || "{}");
+  const latest = fetch("latest", [], 0);
+  const version = /--version latest: macOS SDK (\S+),/.exec(latest.err)?.[1] ?? "";
+  check(latest.status === 0 && versionCmp(version, newest) >= 0 && listed.name === `macos-${version}` &&
+    fs.existsSync(path.join(scratch, "sdk", `macos-${version}`, "SDKSettings.json")),
+    `--version latest: macOS SDK ${version}, the table's newest ${newest}`);
+  fs.rmSync(scratch, { recursive: true, force: true });
+}
+
+/// 6. sdk remove.
 xclang(["sdk", "remove", path.basename(sdks.macos!)]);
 check(!fs.existsSync(sdks.macos!), "sdk remove removes the SDK");
 finish();

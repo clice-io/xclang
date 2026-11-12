@@ -23,6 +23,14 @@ the [patches](docs/en/reference/patches.md) of its tag.
   longer keeps a copy. The table has the package Apple put in its place,
   and SDK 27.2 for 27; Xcode 27's preset, whose SDK 27.0 Apple no longer
   serves, is gone ([vendor SDKs](docs/en/design/vendor-sdks.md)).
+- **macOS SDKs outlast Apple's withdrawals.** The version table pins each
+  macOS SDK package by the content of its SDK too. When Apple withdraws
+  the package (its CDN answers 403), `xclang sdk fetch` and the Bazel
+  module find the same SDK in a package Apple's catalogs list now, checked
+  by that content; a version no package carries any more fails, naming the
+  versions they carry. `--version latest` (`version = "latest"` in Bazel)
+  takes the newest SDK the catalogs list, which is not reproducible
+  ([vendor SDKs](docs/en/design/vendor-sdks.md#apple-s-packages-come-and-go)).
 - **Bazel: the module works with rules_cc 0.2.28**, and any rules_cc from
   0.2.25 on. It patched the unix toolchain config of the build's rules_cc,
   which failed to fetch with 0.2.28 (`CONTENT_DOES_NOT_MATCH_TARGET`), and

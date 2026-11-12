@@ -1,5 +1,6 @@
 //! `xclang sdk`: vendor SDKs, fetched from the vendors by version and
-//! sha256 (the built-in version table) once the user accepts their license,
+//! sha256 (the built-in version table; a macOS SDK also by its content,
+//! when Apple withdrew its package) once the user accepts their license,
 //! each into a directory of its own under the SDK directory:
 //!
 //!   <sdk dir>/macos-<version>/                  -isysroot
@@ -20,6 +21,8 @@
 //! (windows::select_configs): its MSVC targets' config files then load
 //! without an SDK too.
 
+use std::cmp::Ordering;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -27,11 +30,12 @@ use std::time::Instant;
 use serde::{Deserialize, Serialize};
 
 use crate::args::Args;
+use crate::http::{self, Fetched};
 use crate::links::{self, Links};
-use crate::table::{self, MacPackage, Package, Preset, Table, Vendor, ms_arch, pick};
+use crate::table::{self, MacPackage, Package, Preset, Table, Vendor, ms_arch, pick, version_cmp};
 use crate::toolchain::Toolchain;
 use crate::windows::Kind;
-use crate::{Context, Result, bail, macos, mb, windows};
+use crate::{Context, Result, bail, catalog, macos, mb, windows};
 
 const RECORD: &str = ".xclang-sdk.json";
 
@@ -39,9 +43,11 @@ const RECORD: &str = ".xclang-sdk.json";
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Record {
     pub kind: String,
-    /// macOS: the SDK's version (26.5).
+    /// macOS: the SDK's version (26.5) and content digest (macos::examine).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
     /// Windows: MSVC's and the Windows SDK's versions in the table.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub msvc: Option<String>,
@@ -208,7 +214,7 @@ pub fn read_record(dir: &Path) -> Option<Record> {
 enum Choice<'a> {
     Macos {
         version: String,
-        package: &'a MacPackage,
+        package: Mac<'a>,
         preset: Option<(&'a str, &'a Preset)>,
     },
     Windows {
@@ -217,6 +223,14 @@ enum Choice<'a> {
         archs: Vec<String>,
         preset: Option<(&'a str, &'a Preset)>,
     },
+}
+
+/// The package of a macOS SDK: the table's, which pins it by its sha256 and
+/// its SDK's content, or for --version latest past the table's versions,
+/// one Apple's catalogs list now, which nothing pins.
+enum Mac<'a> {
+    Pinned(&'a MacPackage),
+    Listed(catalog::Listed),
 }
 
 impl Choice<'_> {
@@ -243,14 +257,27 @@ fn choose<'a>(a: &Args, table: &'a Table, vendor: Vendor) -> Result<Choice<'a>> 
                     "--sdk-version, --msvc-version and --arch are for windows; macOS takes --version"
                 );
             }
-            let versions = table.macos_versions();
             let given = a.value("version");
+            if given == Some("latest") {
+                let (version, package) = latest(table)?;
+                return Ok(Choice::Macos {
+                    version,
+                    package,
+                    preset: None,
+                });
+            }
+            let versions = table.macos_versions();
             let version = pick(
                 versions.keys(),
                 Some(given.unwrap_or(&preset.sdk)),
                 "macOS SDK",
-            )?;
-            let package = versions.get(&version).unwrap();
+            )
+            .map_err(|e| {
+                crate::Error(format!(
+                    "{e}; --version latest takes the newest Apple's catalogs list"
+                ))
+            })?;
+            let package = Mac::Pinned(versions.get(&version).unwrap());
             Ok(Choice::Macos {
                 version,
                 package,
@@ -316,21 +343,39 @@ pub struct Download {
     pub file: String,
 }
 
+fn base(url: &str) -> String {
+    url.rsplit('/').next().unwrap().to_string()
+}
+
+/// The name of a macOS SDK's package among the downloads (--cache): its
+/// product's and its own, CLTools_macOSLMOS_SDK.pkg in many.
+fn mac_file(product: &str, url: &str) -> String {
+    format!("{product}-{}", base(url))
+}
+
 /// What fetch downloads for the choice: the macOS SDK's Command Line Tools
-/// package; the MSVC and Windows SDK packages of the headers, then those
-/// of each architecture.
+/// package (with no sha256 for one nothing pins); the MSVC and Windows SDK
+/// packages of the headers, then those of each architecture.
 fn downloads(table: &Table, choice: &Choice) -> Vec<Download> {
-    let base = |url: &str| url.rsplit('/').next().unwrap().to_string();
     match choice {
-        Choice::Macos { package, .. } => vec![Download {
-            kind: Kind::Sdk,
-            package: Package {
-                url: package.url.clone(),
-                size: package.size,
-                sha256: package.sha256.clone(),
-            },
-            file: format!("{}-{}", package.product, base(&package.url)),
-        }],
+        Choice::Macos { package, .. } => {
+            let (product, package) = match package {
+                Mac::Pinned(p) => (&p.product, mac_package(p)),
+                Mac::Listed(l) => (
+                    &l.product,
+                    Package {
+                        url: l.url.clone(),
+                        size: l.size,
+                        sha256: String::new(),
+                    },
+                ),
+            };
+            vec![Download {
+                kind: Kind::Sdk,
+                file: mac_file(product, &package.url),
+                package,
+            }]
+        }
         Choice::Windows {
             msvc, sdk, archs, ..
         } => {
@@ -359,17 +404,20 @@ fn downloads(table: &Table, choice: &Choice) -> Vec<Download> {
 /// downloads them itself into a directory fetch then takes them from
 /// (--cache), such as the Bazel module's repository rule. With --json,
 /// {"name": <the SDK's directory>, "packages": [{"url", "size", "sha256",
-/// "file"}, ...]}; else a line of each.
+/// "file"}, ...]}, the sha256 null for a package nothing pins (--version
+/// latest past the table), which fetch downloads itself; else a line of
+/// each.
 fn packages(table: &Table, choice: &Choice, json: bool) -> Result<()> {
     let list = downloads(table, choice);
     if json {
         let packages: Vec<serde_json::Value> = list
             .iter()
             .map(|d| {
+                let sha256 = &d.package.sha256;
                 serde_json::json!({
                     "url": d.package.url,
                     "size": d.package.size,
-                    "sha256": d.package.sha256,
+                    "sha256": (!sha256.is_empty()).then_some(sha256),
                     "file": d.file,
                 })
             })
@@ -378,12 +426,11 @@ fn packages(table: &Table, choice: &Choice, json: bool) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&out)?);
     } else {
         for d in &list {
-            println!(
-                "{}  {:>9}  {}",
-                d.package.sha256,
-                mb(d.package.size),
-                d.package.url
-            );
+            let sha256 = match d.package.sha256.as_str() {
+                "" => "(no sha256: not in the table)",
+                s => s,
+            };
+            println!("{sha256}  {:>9}  {}", mb(d.package.size), d.package.url);
         }
     }
     Ok(())
@@ -452,34 +499,55 @@ fn fetch(a: &Args, table: &Table, vendor: Vendor) -> Result<()> {
         Choice::Macos {
             version, package, ..
         } => {
-            eprintln!("macOS SDK {version}: {}", package.url);
-            let file = match a.value("pkg") {
-                Some(pkg) => {
-                    let pkg = PathBuf::from(pkg);
-                    if crate::http::sha256_file(&pkg)? != package.sha256 {
+            let (file, used, content) = match package {
+                Mac::Pinned(p) => {
+                    eprintln!("macOS SDK {version}: {}", p.url);
+                    let (file, used) = match a.value("pkg") {
+                        Some(pkg) => (
+                            PathBuf::from(pkg),
+                            given_package(Path::new(pkg), version, p)?,
+                        ),
+                        None => pinned_package(table, version, p, &cache)?,
+                    };
+                    (file, used, p.content.clone())
+                }
+                Mac::Listed(l) => {
+                    if a.value("pkg").is_some() {
                         bail!(
-                            "{}: not the package of macOS SDK {version} (sha256)",
-                            pkg.display()
+                            "--pkg takes a package of a version the table has, which --version latest's is not"
                         );
                     }
-                    pkg
-                }
-                None => {
-                    let d = &downloads(table, &choice)[0];
-                    let file = cache.join(&d.file);
-                    crate::http::fetch_pinned(
-                        &d.package.url,
-                        &d.package.sha256,
-                        Some(d.package.size),
-                        &file,
-                    )?;
-                    file
+                    eprintln!(
+                        "macOS SDK {version}: {} ({}, posted {}), which the table has not",
+                        l.url,
+                        l.product,
+                        l.posted.get(..10).unwrap_or(&l.posted)
+                    );
+                    let file = cache.join(mac_file(&l.product, &l.url));
+                    let sha256 = match http::fetch(&l.url, None, Some(l.size), &file)? {
+                        Fetched::File(sha256) => sha256,
+                        Fetched::Gone(status) => bail!("{}: http status: {status}", l.url),
+                    };
+                    let examined = macos::examine(&file)?;
+                    if examined.version != *version {
+                        bail!("{}: macOS SDK {}, not {version}", l.url, examined.version);
+                    }
+                    eprintln!(
+                        "content {} (nothing pins it: --version latest is not reproducible)",
+                        examined.content
+                    );
+                    let used = Package {
+                        url: l.url.clone(),
+                        size: l.size,
+                        sha256,
+                    };
+                    (file, used, examined.content)
                 }
             };
             eprintln!(
                 "sha256 {}, {} in {:.1} s",
-                package.sha256,
-                mb(package.size),
+                used.sha256,
+                mb(used.size),
                 start.elapsed().as_secs_f64()
             );
             let how = Links::parse(a.value("links"))?;
@@ -488,16 +556,13 @@ fn fetch(a: &Args, table: &Table, vendor: Vendor) -> Result<()> {
                 let record = Record {
                     kind: "macos".into(),
                     version: Some(version.clone()),
+                    content: Some(content),
                     msvc: None,
                     sdk: None,
                     toolset: None,
                     sdk_directory: None,
                     archs: vec![],
-                    packages: vec![Package {
-                        url: package.url.clone(),
-                        size: package.size,
-                        sha256: package.sha256.clone(),
-                    }],
+                    packages: vec![used],
                 };
                 write_record(&dir, &record)
             })?;
@@ -517,7 +582,7 @@ fn fetch(a: &Args, table: &Table, vendor: Vendor) -> Result<()> {
             let packages = downloads(table, &choice);
             let files = crate::parallel(&packages, 4, |d| {
                 let file = cache.join(&d.file);
-                crate::http::fetch_pinned(
+                http::fetch_pinned(
                     &d.package.url,
                     &d.package.sha256,
                     Some(d.package.size),
@@ -540,6 +605,7 @@ fn fetch(a: &Args, table: &Table, vendor: Vendor) -> Result<()> {
                 let record = Record {
                     kind: "windows".into(),
                     version: None,
+                    content: None,
                     msvc: Some(msvc.clone()),
                     sdk: Some(sdk.clone()),
                     toolset: Some(unpacked.toolset),
@@ -576,6 +642,220 @@ fn fetch(a: &Args, table: &Table, vendor: Vendor) -> Result<()> {
     }
     println!("{d}");
     Ok(())
+}
+
+fn mac_package(p: &MacPackage) -> Package {
+    Package {
+        url: p.url.clone(),
+        size: p.size,
+        sha256: p.sha256.clone(),
+    }
+}
+
+/// --pkg: the table's package of the SDK, by its sha256, or another that
+/// carries the same SDK (one Apple put in its place), by its content.
+fn given_package(pkg: &Path, version: &str, p: &MacPackage) -> Result<Package> {
+    let sha256 = http::sha256_file(pkg)?;
+    if sha256 == p.sha256 {
+        return Ok(mac_package(p));
+    }
+    let examined = macos::examine(pkg)?;
+    if examined.content != p.content {
+        bail!(
+            "{}: not a package of macOS SDK {version}: neither its sha256 nor its SDK's content \
+             (macOS SDK {}, {}) is the table's",
+            pkg.display(),
+            examined.version,
+            examined.content
+        );
+    }
+    eprintln!("{}: macOS SDK {version}, by its content", pkg.display());
+    Ok(Package {
+        url: pkg.display().to_string(),
+        size: fs::metadata(pkg).context(pkg.display())?.len(),
+        sha256,
+    })
+}
+
+/// The table's package of a version, from the cache or Apple; when Apple no
+/// longer serves it, which it says with a 403 (it withdraws a release of
+/// the Command Line Tools now and then and puts a new one in its place),
+/// a package its catalogs list now that carries the same SDK (find_again).
+fn pinned_package(
+    table: &Table,
+    version: &str,
+    p: &MacPackage,
+    cache: &Path,
+) -> Result<(PathBuf, Package)> {
+    let file = cache.join(mac_file(&p.product, &p.url));
+    match http::fetch(&p.url, Some(&p.sha256), Some(p.size), &file)? {
+        Fetched::File(_) => Ok((file, mac_package(p))),
+        Fetched::Gone(status) => {
+            eprintln!(
+                "{}: http status: {status}: Apple no longer serves it; looking for macOS SDK {version} \
+                 in its software update catalogs",
+                p.url
+            );
+            find_again(table, version, p, cache)
+        }
+    }
+}
+
+/// A package Apple's catalogs list now that carries the SDK of the table's
+/// package `pinned`, which Apple no longer serves, by its content: first
+/// those of the table with that content, by their sha256; then those the
+/// table lacks, newest first, each that the start of its payload says is
+/// of the version downloaded and examined. An SDK no package carries any
+/// more fails, naming the versions they carry.
+fn find_again(
+    table: &Table,
+    version: &str,
+    pinned: &MacPackage,
+    cache: &Path,
+) -> Result<(PathBuf, Package)> {
+    let (listed, all) = catalog::list()?;
+    let now: HashSet<&str> = listed.iter().map(|l| l.url.as_str()).collect();
+    let mut carried: Vec<String> = vec![];
+    let mut other_content = false;
+    for p in table
+        .macos
+        .packages
+        .iter()
+        .filter(|p| now.contains(p.url.as_str()))
+    {
+        carried.push(p.sdk.clone());
+        if p.sdk != version || p.url == pinned.url {
+            continue;
+        }
+        if p.content != pinned.content {
+            other_content = true;
+            continue;
+        }
+        eprintln!("{} ({}) carries it", p.url, p.product);
+        let file = cache.join(mac_file(&p.product, &p.url));
+        match http::fetch(&p.url, Some(&p.sha256), Some(p.size), &file)? {
+            Fetched::File(_) => return Ok((file, mac_package(p))),
+            Fetched::Gone(status) => eprintln!("{}: http status: {status}", p.url),
+        }
+    }
+    let known: HashSet<&str> = table
+        .macos
+        .packages
+        .iter()
+        .map(|p| p.url.as_str())
+        .collect();
+    for l in listed.iter().filter(|l| !known.contains(l.url.as_str())) {
+        let v = match macos::peek_version(&l.url) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("{e}");
+                continue;
+            }
+        };
+        eprintln!("{} ({}): macOS SDK {v}", l.url, l.product);
+        carried.push(v.clone());
+        if v != version {
+            continue;
+        }
+        let file = cache.join(mac_file(&l.product, &l.url));
+        let sha256 = match http::fetch(&l.url, None, Some(l.size), &file)? {
+            Fetched::File(sha256) => sha256,
+            Fetched::Gone(status) => {
+                eprintln!("{}: http status: {status}", l.url);
+                continue;
+            }
+        };
+        let examined = macos::examine(&file)?;
+        if examined.content == pinned.content {
+            eprintln!("{}: the content the table pins", l.url);
+            let used = Package {
+                url: l.url.clone(),
+                size: l.size,
+                sha256,
+            };
+            return Ok((file, used));
+        }
+        eprintln!(
+            "{}: other content ({}), not the table's ({})",
+            l.url, examined.content, pinned.content
+        );
+        other_content = true;
+        let _ = fs::remove_file(&file);
+    }
+    carried.sort_by(|a, b| version_cmp(b, a));
+    carried.dedup();
+    bail!(
+        "macOS SDK {version}: Apple no longer serves its package, and none of those its catalogs \
+         list now carries this SDK{}{}; they carry {}: --version takes one of them that the table \
+         has (xclang sdk list macos), --version latest the newest",
+        if other_content {
+            format!(" (a {version} with other content only)")
+        } else {
+            String::new()
+        },
+        if all {
+            ""
+        } else {
+            " (a catalog could not be read)"
+        },
+        carried.join(" ")
+    )
+}
+
+/// --version latest: the newest SDK Apple's catalogs list now, by the
+/// table's packages and, for the others, the start of their payload; the
+/// table's package of it if the table has it, as --version takes it.
+fn latest(table: &Table) -> Result<(String, Mac<'_>)> {
+    let (listed, _) = catalog::list()?;
+    let known: HashMap<&str, &MacPackage> = table
+        .macos
+        .packages
+        .iter()
+        .map(|p| (p.url.as_str(), p))
+        .collect();
+    let others: Vec<&catalog::Listed> = listed
+        .iter()
+        .filter(|l| !known.contains_key(l.url.as_str()))
+        .collect();
+    let peeked = crate::parallel(&others, 4, |l| {
+        Ok(match macos::peek_version(&l.url) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                eprintln!("{e}");
+                None
+            }
+        })
+    })?;
+    let peeked: HashMap<&str, String> = others
+        .iter()
+        .zip(peeked)
+        .filter_map(|(l, v)| Some((l.url.as_str(), v?)))
+        .collect();
+    // Newest first: of the packages of a version, the newest is taken.
+    let mut newest: Option<(String, &catalog::Listed)> = None;
+    for l in &listed {
+        let Some(v) = known
+            .get(l.url.as_str())
+            .map(|p| &p.sdk)
+            .or_else(|| peeked.get(l.url.as_str()))
+        else {
+            continue;
+        };
+        if newest
+            .as_ref()
+            .is_none_or(|(n, _)| version_cmp(v, n) == Ordering::Greater)
+        {
+            newest = Some((v.clone(), l));
+        }
+    }
+    let Some((version, l)) = newest else {
+        bail!("Apple's catalogs list no macOS SDK now")
+    };
+    eprintln!("--version latest: macOS SDK {version}, the newest Apple's catalogs list now");
+    Ok(match table.macos_versions().get(&version) {
+        Some(p) => (version, Mac::Pinned(p)),
+        None => (version, Mac::Listed(l.clone())),
+    })
 }
 
 /// Unpack an SDK into dir, made empty, with `unpack`, which writes its
