@@ -134,7 +134,9 @@ pub fn run(file: &str, jobs: usize, check: bool) -> Result<()> {
         }
         let now = std::fs::read_to_string(file).context(file)?;
         if now != table.to_json()? {
-            bail!("{file} is not what the vendors offer now (above): run xclang sdk update-table, and commit it");
+            bail!(
+                "{file} is not what the vendors offer now (above): run xclang sdk update-table, and commit it"
+            );
         }
         eprintln!("{file}: what the vendors offer now");
         return Ok(());
