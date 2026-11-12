@@ -31,5 +31,5 @@ order of the walk.
   them 12 times on every host and wants one program: it has one with the
   patch on all six hosts (run 37897616656), where two rebuilds of the same
   revision otherwise came out the same but for `llvm.exe` (run 37897648275).
-  Applies to 23.1.3 with `patch -F0` after the patches before it; 23.1.3
-  changed none of its files.
+  Applies to 23.1.3 and 23.1.5 with `patch -F0` after the patches before it;
+  23.1.3, 23.1.4 and 23.1.5 changed none of its files.

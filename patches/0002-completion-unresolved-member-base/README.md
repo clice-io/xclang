@@ -11,5 +11,5 @@ types itself, as clice does, still gets to complete.
   context.
 - From: clice-llvm `patches/23.1.1/0002` (applies to 23.1.2 unchanged).
 - Checked: applies to 23.1.2; SemaCodeComplete.cpp compiles against xclang's
-  libclang. Applies to 23.1.3 with `patch -F0` after the patches before it;
-  23.1.3 changed none of its files.
+  libclang. Applies to 23.1.3 and 23.1.5 with `patch -F0` after the patches
+  before it; 23.1.3, 23.1.4 and 23.1.5 changed none of its files.

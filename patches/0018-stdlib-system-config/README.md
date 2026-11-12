@@ -39,5 +39,6 @@ replaces patches/0015, which made `-stdlib=platform` drop
   libstdc++ (Linux), linked `/usr/lib/libc++.1.dylib` (macOS, the fetched
   SDK) and Microsoft's STL (MSVC, the fetched SDK, clang and clang-cl);
   `config-file-stdlib.c` and the config-file, cl-options and
-  stdlibxx-isystem driver tests pass. Applies to 23.1.3 with `patch -F0`
-  after the patches before it; 23.1.3 changed none of its files.
+  stdlibxx-isystem driver tests pass. Applies to 23.1.3 and 23.1.5 with
+  `patch -F0` after the patches before it; 23.1.3, 23.1.4 and 23.1.5 changed
+  none of its files.

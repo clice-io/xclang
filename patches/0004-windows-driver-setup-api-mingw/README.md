@@ -27,7 +27,10 @@ on MinGW; without them a MinGW-built clang also fell back to a hard-coded
 list of Visual Studio 2010 to 2005 directories (clang's MSVC.cpp).
 
 - Upstream: [#226794](https://github.com/llvm/llvm-project/pull/226794),
-  this patch as sent (its head ab18226604ff). GCC needs no pragma of its
+  this patch as sent (its head ab18226604ff), merged into main for LLVM 24;
+  its backport to release/23.x,
+  [#236691](https://github.com/llvm/llvm-project/pull/236691), is open, so
+  23.1.5 does not have it. GCC needs no pragma of its
   own: LLVM turns on `-Wnon-virtual-dtor` only for clang. Separately, not
   reported: `sys::InitializeCOMRAII` calls `CoUninitialize` even when
   `CoInitializeEx` failed (a thread already in another apartment), which
@@ -41,5 +44,5 @@ list of Visual Studio 2010 to 2005 directories (clang's MSVC.cpp).
   2010's directories. The version from #226794's head: the whole series
   applies to 23.1.2 with `patch -F0`, and the smoke test's Setup API check
   passes on windows-2025 and windows-11-arm (run 37897616656). Applies to
-  23.1.3 with `patch -F0` after the patches before it; 23.1.3 changed none
-  of its files.
+  23.1.3 and 23.1.5 with `patch -F0` after the patches before it; 23.1.3,
+  23.1.4 and 23.1.5 changed none of its files.

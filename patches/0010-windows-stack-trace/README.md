@@ -47,5 +47,6 @@ dbghelp's own symbols alike, instead of once for each.
   `ntdll!RtlUserThreadStart`, and the tool's, from the comparator and from
   its signal handler, reach `main`; on windows-2025 the traces have the same
   frames as without it. MSVC compiles the patched `Signals.cpp` for x64 and
-  arm64 (run 37447339805). Applies to 23.1.3 with `patch -F0` after the
-  patches before it; 23.1.3 changed none of its files.
+  arm64 (run 37447339805). Applies to 23.1.3 and 23.1.5 with `patch -F0`
+  after the patches before it; 23.1.3, 23.1.4 and 23.1.5 changed none of its
+  files.

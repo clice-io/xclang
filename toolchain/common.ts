@@ -13,11 +13,11 @@ import type { ReadableStream as WebReadableStream } from "node:stream/web";
 export const ROOT = path.resolve(import.meta.dirname, "..");
 export const WORK = path.resolve(process.env.XCLANG_WORK ?? path.join(ROOT, "work"));
 
-export const LLVM_VERSION = "23.1.3";
+export const LLVM_VERSION = "23.1.5";
 /// The commit of llvmorg-<LLVM_VERSION>: the revision clang --version names,
 /// as LLVM's own release builds do (toolchain/toolchain.ts). Without it, LLVM
 /// records the commit of whatever git checkout holds the source, xclang's.
-export const LLVM_COMMIT = "0d261d1ca552c95a8f007e061c787ac7132fbcbc";
+export const LLVM_COMMIT = "392dfff97d29b59d77e5cac6d4b6ef2585fe7117";
 export const LLVM_MAJOR = LLVM_VERSION.split(".")[0];
 export const MINGW_VERSION = "14.0.0";
 export const MUSL_VERSION = "1.2.6";
@@ -34,19 +34,19 @@ const XCLANG = `${GH}/clice-io/xclang/releases/download`;
 export const SOURCES = {
   "llvm-project": {
     url: `${LLVM}/llvm-project-${LLVM_VERSION}.src.tar.xz`,
-    sha256: "c44186a7762ed28954be72e5ff6df9808e0779d4f1bf014ecc4e7e211d31ee34",
+    sha256: "fb50b1eac93ddeb3aa8dab4cfe324dff74f4a9c2bdee6160c9e36188f8d06a6e",
   },
   /// The bootstrap compiler: an xclang release, pinned and moved forward
   /// deliberately, whose Linux x64 and macOS arm64 toolchains build the next
   /// one. (23.1.2.1 itself was built by LLVM's own release builds,
   /// llvm-linux-x64 and llvm-macos-arm64.)
   "bootstrap-linux": {
-    url: `${XCLANG}/23.1.2.12/xclang-23.1.2.12-x86_64-unknown-linux-gnu.tar.xz`,
-    sha256: "11ee8b7113bc2f741e62fbe1c0c07ce371f088b792f98a76ef4a4682fc082bfe",
+    url: `${XCLANG}/23.1.3.6/xclang-23.1.3.6-x86_64-unknown-linux-gnu.tar.xz`,
+    sha256: "cdcb0975bfc7676f9d043c0fcee67ba00e700e6eed8bf2d9f6153def62c1316d",
   },
   "bootstrap-macos": {
-    url: `${XCLANG}/23.1.2.12/xclang-23.1.2.12-aarch64-apple-darwin.tar.xz`,
-    sha256: "189ff0fc6d56d0876d678a617fc063ff6b31f5a8bc72015246d4c13105005f47",
+    url: `${XCLANG}/23.1.3.6/xclang-23.1.3.6-aarch64-apple-darwin.tar.xz`,
+    sha256: "23c80ed7975bbdc94395ae82ed5dff0902439329b49763114b20a7e3c51044c2",
   },
   /// What builds xclang's own command (xclang/build.ts): a released
   /// toolchain, the C compiler and linker of every host's binary.
@@ -101,23 +101,23 @@ export const SOURCES = {
   },
   "llvm-linux-x64": {
     url: `${LLVM}/LLVM-${LLVM_VERSION}-Linux-X64.tar.zst`,
-    sha256: "14d2f701eb68fb799001bdea6231048f3990690fa2f406d563555ff8f744daba",
+    sha256: "c3107384835f788768f614db610e87fba7077f125ca950eb02a78bab0a308065",
   },
   "llvm-macos-arm64": {
     url: `${LLVM}/LLVM-${LLVM_VERSION}-macOS-ARM64.tar.zst`,
-    sha256: "a3f181b1176406893c097443e21b2a54b85afeac2d10eca3b6d251e6dca32eb3",
+    sha256: "503de30ef90311e0b143623801b19af2250adac6d69faed65ad0051170202e3b",
   },
   "llvm-linux-arm64": {
     url: `${LLVM}/LLVM-${LLVM_VERSION}-Linux-ARM64.tar.zst`,
-    sha256: "1154f37ec15b5654fcb8cc3a8a2352a4cc4eef44bdff7ddd47fb10ea85c82f01",
+    sha256: "830ceb70edf63849ce66e97bf85310a3bf2bdd04c860a9f2fa4ef1560e290cef",
   },
   "llvm-windows-x64": {
     url: `${LLVM}/clang+llvm-${LLVM_VERSION}-x86_64-pc-windows-msvc.tar.xz`,
-    sha256: "9ee6a2192fbb30c776415af529927f76ca6b5d1d55699bb1315f9878e610b5b8",
+    sha256: "62fdada7f6fa2b73856486dfbbdba3d2c1882991621615bcb55c60207611c6d4",
   },
   "llvm-windows-arm64": {
     url: `${LLVM}/clang+llvm-${LLVM_VERSION}-aarch64-pc-windows-msvc.tar.xz`,
-    sha256: "4a42903db59f990a10c245eb32999f1e3247c37ba66de87f8f8dc2338ed9a79b",
+    sha256: "f06382f2c99c68a4e80f7044446df1fcf52bc3cc05158626bd0b966d51a5369a",
   },
   "mingw-w64": {
     url: `${GH}/mingw-w64/mingw-w64/archive/refs/tags/v${MINGW_VERSION}.tar.gz`,
