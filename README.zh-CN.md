@@ -22,10 +22,10 @@ xclang/bin/clang++ --target=aarch64-w64-mingw32 main.cpp -o main.exe
 
 用户用工具链自带的 `xclang` 命令（`xclang sdk fetch`）下载 SDK 后，从 23.1.2.7 起还支持：
 
-- **MSVC ABI 的目标平台**：使用微软 CRT 和 Windows SDK 的 Windows x64 和 arm64，C++ 库是 libc++（从 23.1.2.10 起），也可以换成微软的 STL，可在任何主机上构建；在没有下载 SDK 的 Windows 主机上，使用本机安装的 Visual Studio（[MSVC targets](https://docs.clice.io/xclang/integrations/clang#msvc-targets)）。
+- **MSVC ABI 的目标平台**：使用微软 CRT 和 Windows SDK 的 Windows x64 和 arm64，C++ 库是 libc++（从 23.1.2.10 起），也可以换成微软的 STL，可在任何主机上构建；在没有下载 SDK 的 Windows 主机上，使用本机安装的 Visual Studio（[MSVC targets](https://docs.clice.io/xclang/targets/windows#msvc-targets)）。
 - **从 Linux 和 Windows 构建 macOS 程序**，使用 Apple 的 SDK（[macOS](https://docs.clice.io/xclang/targets/macos#on-linux-and-windows-hosts)）。
 
-从 23.1.2.11 起，`-stdlib=platform` 让上面任何一个目标平台改用平台自己的 C++ 库而不是 xclang 的 libc++，用于和用它构建的库之间的 C++ 接口：Linux 上是 libstdc++，macOS 上是 SDK 的 libc++，MSVC 上是微软的 STL，musl 和 MinGW 上是 `--sysroot` 里的 libstdc++（[the system's C++ library](https://docs.clice.io/xclang/integrations/clang#the-system-s-c-library)）。
+从 23.1.2.11 起，`-stdlib=platform` 让上面任何一个目标平台改用平台自己的 C++ 库而不是 xclang 的 libc++，用于和用它构建的库之间的 C++ 接口：Linux 上是 libstdc++，macOS 上是 SDK 的 libc++，MSVC 上是微软的 STL，musl 和 MinGW 上是 `--sysroot` 里的 libstdc++（[the system's C++ library](https://docs.clice.io/xclang/targets/cross-compiling#the-platform-s-c-library)）。
 
 还不支持的，各自在路线图里的状态：
 

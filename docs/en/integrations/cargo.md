@@ -1,31 +1,17 @@
 # Rust and Cargo
 
-`xclang cargo` runs cargo with xclang as the C and C++ compiler and the
-linker of the targets it builds for, the way cargo-zigbuild does it with
-zig: `xclang cargo build --target <Rust target>`, and `run`, `test`,
-`check` and cargo's other commands, with no cargo config. Crates' C and C++
-code (the `cc` and `cmake` crates, bindgen) and the link of Rust programs
-go through xclang's clang and lld, with its sysroots and static runtimes.
-The program then needs nothing but the OS
-([hermeticity](../design/hermeticity.md)).
+`xclang cargo` runs `cargo` with xclang's `clang` as the C and C++ compiler and xclang's `clang` or `lld-link` as the linker for each target, without a `.cargo/config.toml`. Use it with any `cargo` command (`xclang cargo build --target <Rust target>`, `run`, `test`, `check`). C and C++ code in crates (`cc`, `cmake`, `bindgen`) and the final Rust link use xclang's sysroots and static runtimes, so the resulting binaries depend only on the OS ([Hermeticity](../design/hermeticity.md)).
 
-`xclang cargo` is in every release since 23.1.2.11. With an older one, set
-cargo up by hand: [without xclang cargo](#without-xclang-cargo).
+When another build tool invokes `cargo` directly instead of `xclang cargo`, set Cargo's environment variables or `.cargo/config.toml` directly ([without `xclang cargo`](#without-xclang-cargo)).
 
 ## Prerequisites
 
-- xclang's `bin/` first in `PATH`, as `pixi shell` has it
-  ([installation](../guide/install.md)), or `xclang` run by its path: it
-  finds its toolchain by itself.
-- rustup. `xclang cargo` adds the standard library of a target that lacks
-  it, with `rustup target add`.
+- xclang's `bin/` first in `PATH`, as `pixi shell` sets it ([Install](../guide/install.md)), or `xclang` run by its path: it locates its toolchain from its own binary path.
+- `rustup`. When a target's Rust standard library is not installed, `xclang cargo` adds it with `rustup target add`.
 
 ## Build for Windows from Linux or macOS
 
-The example is a Rust program that calls a C function, in
-[examples/cargo](https://github.com/clice-io/xclang/tree/main/examples/cargo).
-Its commands run in that directory, in a `pixi shell` after `pixi install`.
-It has no `.cargo/config.toml`.
+The example in [examples/cargo](https://github.com/clice-io/xclang/tree/main/examples/cargo) is a Rust binary that compiles and calls a C function through the `cc` crate, with no `.cargo/config.toml`. Its commands run in that directory inside `pixi shell` after `pixi install`:
 
 <!-- file: examples/cargo/rust-toolchain.toml -->
 ```toml
@@ -101,133 +87,82 @@ xclang cargo build --release --target aarch64-pc-windows-gnullvm
 llvm-readobj --needed-libs target/x86_64-pc-windows-gnullvm/release/hello.exe
 ```
 
-The program needs only Windows DLLs and UCRT (`api-ms-win-crt-*`): no
-libunwind, libc++, libgcc or winpthread. Copied to Windows 10 or later, it
-prints this:
+The binary imports only Windows system DLLs and UCRT (`api-ms-win-crt-*`), no `libunwind`, `libc++`, `libgcc` or `libwinpthread`. Copied to Windows 10 or later, it prints:
 
 <!-- file: examples/cargo/expected.txt -->
 ```
 hello from C, linked by xclang
 ```
 
-The Windows targets of Rust for xclang are the `*-windows-gnullvm` ones.
-Their std links libunwind and UCRT, as xclang's MinGW sysroots have them.
-The `*-windows-gnu` targets link libgcc and msvcrt instead, and
-`xclang cargo` refuses them, naming the `*-windows-gnullvm` target.
+Rust's MinGW targets for xclang are `x86_64-pc-windows-gnullvm` and `aarch64-pc-windows-gnullvm`, whose standard library links `libunwind` and UCRT to match xclang's MinGW sysroots ([MinGW targets](../targets/windows.md#mingw-targets)). Rust's `*-pc-windows-gnu` targets link `libgcc` and `msvcrt` instead; `xclang cargo` rejects them and names the `*-pc-windows-gnullvm` target.
 
 ## Targets
 
-| Rust target | xclang target | from | status |
-|---|---|---|---|
-| `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu` | the same | any host | Supported |
-| `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl` | the same, [static](#static-programs-with-musl) | any host | Supported |
-| `x86_64-pc-windows-gnullvm`, `aarch64-pc-windows-gnullvm` | `x86_64-w64-mingw32`, `aarch64-w64-mingw32` | any host | Supported |
-| `aarch64-apple-darwin`, `x86_64-apple-darwin` | the same | macOS hosts | Supported |
-| `aarch64-apple-darwin`, `x86_64-apple-darwin` | the same | [Linux and Windows hosts](#macos-from-linux-and-windows) | Supported |
-| `x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc` | the same, [MSVC targets](#the-msvc-abi) | any host | Supported |
+| Rust target | xclang target | from |
+|---|---|---|
+| `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu` | the same | any host |
+| `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl` | the same, [static](#static-programs-with-musl) | any host |
+| `x86_64-pc-windows-gnullvm`, `aarch64-pc-windows-gnullvm` | `x86_64-w64-mingw32`, `aarch64-w64-mingw32` | any host |
+| `aarch64-apple-darwin`, `x86_64-apple-darwin` | the same | macOS hosts |
+| `aarch64-apple-darwin`, `x86_64-apple-darwin` | the same | [Linux and Windows hosts](#macos-from-linux-and-windows) |
+| `x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc` | the same, [MSVC targets](#the-msvc-abi) | any host |
 
-`xclang cargo` builds for these, and refuses another target. CI builds the
-example and a crate of C, C++ (exceptions, `std::format`), a CMake project
-and bindgen's bindings for each of them, from Linux, macOS and Windows
-hosts, and from Linux the `xclang` command itself, and runs the programs
-on a machine of their target.
+`xclang cargo` builds for these ten targets and rejects others.
 
 ## What xclang cargo Sets
 
-`xclang cargo` sets cargo's variables of each target in the environment
-of cargo, which it then runs. A variable the environment has already is
-left as it is, and the project's or the user's cargo config, and
-`RUSTFLAGS`, stay in effect. So does a variable of the configs' `[env]`,
-which cargo gives build scripts and rustc where the environment lacks it.
-`xclang cargo` reads `[env]` (of the config files and `--config`) for
-`XCLANG_STDLIB` too, and for what a variable had that it joins its value
-to (`BINDGEN_EXTRA_CLANG_ARGS`, `CFLAGS`).
+`xclang cargo` sets per-target variables in the environment of the `cargo` process it spawns. Any variable already set in the environment or in a Cargo config's `[env]` table is left unchanged, and the project's or user's `.cargo/config.toml` and `RUSTFLAGS` stay in effect. `xclang cargo` also reads `[env]` (from config files and `--config`) for `XCLANG_STDLIB`, and for existing values of `BINDGEN_EXTRA_CLANG_ARGS`, `CFLAGS` and `CXXFLAGS` that it appends to.
 
 | variable | |
 |---|---|
-| `CARGO_TARGET_<TARGET>_LINKER` | `xclang` itself, as `<Rust target>-linker` in xclang's cache: it runs the toolchain's clang with the target's `--target`, or for the MSVC targets lld-link with the Windows SDK in use (below) |
-| `CC_<target>`, `CXX_<target>`, `AR_<target>`, `RANLIB_<target>` | the toolchain's `clang`, `clang++`, `llvm-ar` (`llvm-lib` for MSVC) and `llvm-ranlib`. The `cc` crate passes them a `--target` of its own, whose config file has the sysroot and the runtimes |
-| `CXXSTDLIB_<target>` | `c++`: the `cc` crate links libc++ for C++ code, not libstdc++ (`stdc++` with `XCLANG_STDLIB=platform` for Linux and MinGW, [below](#the-system-s-c-library)) |
-| `CMAKE_TOOLCHAIN_FILE_<target>` | a file in xclang's cache that includes the toolchain's `lib/cmake/xclang/toolchain.cmake` for the target ([CMake](cmake.md)): the `cmake` crate's builds |
-| `CMAKE_GENERATOR_<target>` | On Windows, every target: Ninja, if it is in `PATH`. Without it nothing is set, and the `cmake` crate takes Visual Studio's generator, which compiles with `cl.exe`, not xclang: on Windows, the `cmake` crate builds with xclang only with Ninja. Off Windows, MSVC targets: Ninja, or Unix Makefiles without it, where the `cmake` crate would take Visual Studio's generator |
-| `BINDGEN_EXTRA_CLANG_ARGS_<target>` | `--target` and the header directories of the toolchain's clang for the target, for the libclang bindgen loads, the system's or another (`LIBCLANG_PATH`); followed by what the variable had |
-| `CARGO_TARGET_<TARGET>_RUSTFLAGS` | MSVC targets: `-Ctarget-feature=+crt-static`, so that build scripts see the static VC runtime, after what the variable had; nothing when the flags name `crt-static`. cargo takes a target's rustflags from the first of `RUSTFLAGS`, the target's (this variable, joined to the configs' `target.<target>.rustflags` and `target.'cfg(...)'.rustflags`) and `build.rustflags`. When no config has rustflags of the target (a `cfg(...)` table's count, whether it matches or not), the variable starts with `build.rustflags`, the configs' and `CARGO_BUILD_RUSTFLAGS`, which cargo would no longer take |
-| `MACOSX_DEPLOYMENT_TARGET` | macOS targets: 13.0, that of the toolchain's libc++ |
-| `SDKROOT` | macOS targets, on Linux and Windows hosts: the fetched SDK in use |
-| `PATH` | the toolchain's `bin/` first, for build scripts that run `clang` (ring, for arm64 Windows) |
+| `CARGO_TARGET_<TARGET>_LINKER` | `xclang` itself, linked as `<Rust target>-linker` in xclang's cache: it runs the toolchain's `clang` with `--target=<triple>`, or `lld-link` with the Windows SDK in use for MSVC targets |
+| `CC_<target>`, `CXX_<target>`, `AR_<target>`, `RANLIB_<target>` | the toolchain's `clang`, `clang++`, `llvm-ar` (`llvm-lib` for MSVC) and `llvm-ranlib`. The `cc` crate passes `--target`, whose config file selects the sysroot and runtimes |
+| `CXXSTDLIB_<target>` | `c++` so the `cc` crate links `libc++` (`stdc++` with `XCLANG_STDLIB=platform` for Linux, musl and MinGW, [below](#the-system-s-c-library)) |
+| `CMAKE_TOOLCHAIN_FILE_<target>` | a generated file in xclang's cache that sets `XCLANG_ROOT` and `XCLANG_TARGET` and includes `lib/cmake/xclang/toolchain.cmake` ([CMake](cmake.md)) for the `cmake` crate |
+| `CMAKE_GENERATOR_<target>` | on Windows hosts for every target: `Ninja` when `ninja` is in `PATH` (without Ninja, the `cmake` crate falls back to Visual Studio's generator, which compiles with `cl.exe`). Off Windows for MSVC targets: `Ninja`, or `Unix Makefiles` when `ninja` is not in `PATH` |
+| `BINDGEN_EXTRA_CLANG_ARGS_<target>` | `--target=<triple>`, `-nostdlibinc` and the header search directories of the toolchain's `clang` for the target, for the `libclang` that `bindgen` loads, followed by any existing value |
+| `CARGO_TARGET_<TARGET>_RUSTFLAGS` | for MSVC targets: appends `-Ctarget-feature=+crt-static` (unless `crt-static` is already named) so build scripts see the static VC runtime. When no config defines target-specific `rustflags`, the variable starts with `build.rustflags` and `CARGO_BUILD_RUSTFLAGS`, which Cargo would otherwise ignore |
+| `MACOSX_DEPLOYMENT_TARGET` | for macOS targets: `13.0` |
+| `SDKROOT` | for macOS targets on Linux and Windows hosts: the fetched macOS SDK in use |
+| `PATH`, `XCLANG_ROOT` | puts the toolchain's `bin/` first in `PATH` for build scripts that invoke `clang` directly, and sets `XCLANG_ROOT` for the linker wrapper |
 
-The linker passes rustc's arguments on, but for what rustc links of its
-own that xclang has in its place:
+When `<Rust target>-linker` runs, it forwards `rustc`'s arguments after adjusting flags that assume another C runtime or unwinder:
 
-- **Linux**: `-lgcc_s`, the unwinder Rust's std names (`-lgcc_eh` with
-  `+crt-static`), becomes `-l:libunwind.a`, as xclang's `libgcc_s.a` and
-  `libgcc_eh.a` are empty stubs; the `-B` to rustc's `gcc-ld`, which
-  makes clang link with rustc's rust-lld on x86_64, is dropped.
-- **musl**: rustc's own musl and startup files (`-Clink-self-contained`)
-  are dropped, so that the program links xclang's musl, whose headers
-  the crates' C code was compiled with.
-- **MSVC**: the hybrid CRT, as xclang's clang links it: the VC runtime
-  static, `libcmt` where rustc names `msvcrt`, and UCRT from Windows.
-- **MinGW and macOS**: nothing but `--target`.
+- **Linux (`glibc`)**: replaces `-lgcc_s` (and `-lgcc_eh` with `+crt-static`) with `-l:libunwind.a`, because xclang's `libgcc_s.a` and `libgcc_eh.a` are empty stubs; drops `-B<rustlib>/bin/gcc-ld` so `clang` does not invoke `rustc`'s `rust-lld` on x86_64.
+- **Linux (`musl`)**: drops `rustc`'s `self-contained` musl startup objects and `-L` directories, `-nostartfiles` and `-no-pie`, so the binary links xclang's `musl`, matching the headers that crates' C code compiled against.
+- **Windows (`MSVC`)**: links the [hybrid CRT](../targets/windows.md#the-hybrid-crt-and-c-runtime-flags) by replacing `/defaultlib:msvcrt` with `/defaultlib:libcmt` and passing `/nodefaultlib:libucrt.lib /defaultlib:ucrt.lib /ignore:4099` (plus `/winsysroot:<sdk>` when a fetched Windows SDK is present).
+- **Windows (`MinGW`) and macOS**: adds only `--target=<triple>`.
 
-Before cargo runs, `xclang cargo` checks each target. It adds a missing
-standard library with `rustup target add`, and names the
-`xclang sdk fetch` of a missing vendor SDK. For cargo's commands that
-build nothing (`metadata`, `tree`, `clean`, ...) it checks nothing.
-
-The targets are those of `--target`, else of `build.target` (in
-`--config`, a value or a file, `CARGO_BUILD_TARGET` or cargo's config
-files), else the host's. xclang's cache is `$XCLANG_CACHE_DIR`, or
-`xclang` in the user's cache directory (`~/.cache`, `~/Library/Caches`,
-`%LOCALAPPDATA%`): the linkers, which are symbolic links to `xclang` (on
-Windows hard links, or copies), and the CMake toolchain files, per
-toolchain.
+Before spawning `cargo`, `xclang cargo` determines the targets from `--target`, else `build.target` (from `--config`, `CARGO_BUILD_TARGET` or `.cargo/config.toml`), else `rustc -vV`'s host target. For compiling subcommands, it adds any missing Rust standard library with `rustup target add` (unless `-Zbuild-std` is set) and checks that any required vendor SDK has been fetched; for non-compiling subcommands (`metadata`, `tree`, `clean`, and so on) it skips both checks. Linker wrappers and generated CMake toolchain files are stored under `$XCLANG_CACHE_DIR/cargo/<hash>`, or `xclang/cargo/<hash>` in the user's cache directory (`~/.cache`, `~/Library/Caches`, `%LOCALAPPDATA%`).
 
 ## The System's C++ Library
 
-`XCLANG_STDLIB=platform` builds the crates' C++ code with the platform's
-C++ library in place of xclang's libc++, for C++ interfaces to libraries
-built with it ([the system's C++ library](clang.md#the-system-s-c-library)):
+Set `XCLANG_STDLIB=platform` to build C++ code in crates against the [platform's C++ library](../targets/cross-compiling.md#the-platform-s-c-library) instead of xclang's `libc++`:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 XCLANG_STDLIB=platform xclang cargo build --release
 ```
 
-- `-stdlib=platform` follows what the `cc` crate takes of
-  `CFLAGS_<target>` and `CXXFLAGS_<target>` (or `TARGET_CFLAGS`, for the
-  host's target `HOST_CFLAGS`, then `CFLAGS`, ...), and the linker passes
-  it to clang, for every target but MSVC, whose objects name the STL's
-  libraries themselves.
-- `CXXSTDLIB_<target>` is `stdc++` for the Linux and MinGW targets, whose
-  libstdc++ is the host's or that of a `--sysroot` the flags give.
-- On Linux, `-lgcc_s` stays: the program loads the machine's
-  `libgcc_s.so.1`, with its `libstdc++.so.6`.
-- The `cmake` crate's toolchain file sets `XCLANG_STDLIB` too
-  ([CMake](cmake.md#use-the-system-s-c-library)).
+- Appends `-stdlib=platform` to `CFLAGS_<target>` and `CXXFLAGS_<target>` (after any existing `CFLAGS_<target>`, `TARGET_CFLAGS` or `HOST_CFLAGS`, or `CFLAGS`), and passes `-stdlib=platform` in the linker wrapper for every non-MSVC target.
+- Sets `CXXSTDLIB_<target>` to `stdc++` for Linux, musl and MinGW targets, using the host's `libstdc++` or the `--sysroot` given in compiler flags.
+- Keeps `-lgcc_s` on Linux so the binary loads the system's `libgcc_s.so.1` alongside `libstdc++.so.6`.
+- Sets `XCLANG_STDLIB=platform` in the `cmake` crate's generated toolchain file ([CMake](cmake.md#use-the-system-s-c-library)).
 
 ## Static Programs with musl
 
-From 23.1.2.10 on, Rust's musl targets link against xclang's musl.
-`xclang cargo` drops the musl and the startup files that rustc ships, as
-`-Clink-self-contained=no` does: the crates' C code is compiled against
-the C library the program links. For `x86_64-unknown-linux-musl`:
+Rust's `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl` targets link against xclang's `musl` ([musl targets](../targets/linux.md#musl-targets)), dropping the bundled `self-contained` musl and startup files that `rustc` ships:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 xclang cargo build --release --target x86_64-unknown-linux-musl
 ```
 
-The program has no program interpreter and loads nothing. rustc links it
-with `-static-pie` for x64 and `-static` for arm64, its defaults for these
-targets, and names `-lunwind` itself.
+The resulting binary has no program interpreter and loads no shared libraries. `rustc` links it with `-static-pie` on x86_64 and `-static` on aarch64, and passes `-lunwind` itself.
 
 ## macOS from Linux and Windows
 
-macOS targets from Linux and Windows hosts need Apple's SDK, which
-`xclang sdk fetch macos --accept-license` fetches
-([macOS](../targets/macos.md#on-linux-and-windows-hosts)). On macOS
-hosts, the SDK is Xcode's. For `aarch64-apple-darwin`:
+Building for `aarch64-apple-darwin` or `x86_64-apple-darwin` from a Linux or Windows host requires Apple's SDK, fetched once with `xclang sdk fetch macos --accept-license` ([macOS on Linux and Windows hosts](../targets/macos.md#on-linux-and-windows-hosts)). On macOS hosts, Xcode's SDK is used:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -236,48 +171,32 @@ xclang cargo build --release --target aarch64-apple-darwin
 
 ## The MSVC ABI
 
-The MSVC targets need the Windows SDK, which
-`xclang sdk fetch windows --accept-license` fetches
-([MSVC targets](clang.md#msvc-targets)); on Windows hosts, Visual Studio
-serves without it. For `x86_64-pc-windows-msvc`:
+Building for `x86_64-pc-windows-msvc` or `aarch64-pc-windows-msvc` uses the Windows SDK fetched with `xclang sdk fetch windows --accept-license` ([MSVC targets](../targets/windows.md#msvc-targets)), or an installed Visual Studio on Windows hosts:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 xclang cargo build --release --target x86_64-pc-windows-msvc
 ```
 
-It uses the hybrid CRT: the VC runtime linked statically, and UCRT as a
-system DLL, the default of the MSVC targets. Built this way, `xclang/`
-loads the same Windows DLLs as the MinGW build, and no vcruntime.
+It links the [hybrid CRT](../targets/windows.md#the-hybrid-crt-and-c-runtime-flags): the VC runtime linked statically and UCRT loaded from Windows, with no `vcruntime140.dll` dependency.
 
 ## Build for the Machine You Are On
 
-Without `--target`, `xclang cargo build` builds for the host's target,
-with xclang as the linker of the build scripts and proc macros too: on
-Linux, the program needs glibc 2.17, with libc++ and libunwind linked in.
-cargo does the same with a `--target` that is the host's. For other
-targets, it links build scripts and proc macros with the host's linker:
-the system's `cc`, or on Windows Visual Studio's `link.exe`.
+Running `xclang cargo build` without `--target` (or with `--target` set to the host's triple) configures xclang for the host target, including linking build scripts and proc macros with xclang. On Linux, the resulting binary requires `glibc` 2.17 at most, with `libc++` and `libunwind` linked statically. When building only for another target, Cargo links build scripts and proc macros with the host's default linker (`cc`, or Visual Studio's `link.exe` on Windows).
 
 ## What the Programs Load
 
-xclang's own command, `xclang/`, with the C code of ring and liblzma, is
-built with xclang as its C compiler and linker for every host. It loads at
-run time:
+xclang's own CLI (`xclang/`, which compiles the C code of `ring` and `liblzma`) is built with xclang as its C compiler and linker for every host. At runtime it loads only:
 
 | target | loads |
 |---|---|
-| Linux | `libc.so.6`, `libdl.so.2`, `libpthread.so.0`, `librt.so.1`; glibc 2.17 at most |
-| Windows (MinGW) | Windows DLLs (`kernel32`, `ntdll`, `advapi32`, `ws2_32`, `bcrypt`, `crypt32`) and UCRT (`api-ms-win-crt-*`); no libunwind, libc++ or winpthreads |
-| macOS | `libSystem`, `libiconv`, the Security and CoreFoundation frameworks; macOS 13.0 |
+| Linux | `libc.so.6`, `libdl.so.2`, `libpthread.so.0`, `librt.so.1` (`glibc` 2.17) |
+| Windows (MinGW and MSVC) | Windows system DLLs (`kernel32`, `ntdll`, `advapi32`, `ws2_32`, `bcrypt`, `crypt32`) and UCRT (`api-ms-win-crt-*`); no `libunwind`, `libc++`, `vcruntime140` or `libwinpthread` |
+| macOS | `libSystem`, `libiconv`, and the `Security` and `CoreFoundation` frameworks (macOS 13.0) |
 
 ## Without xclang cargo
 
-Every target needs the linker, the `--target` of the linker, and the C
-compiler of its crates, as variables of cargo's environment or of a
-`.cargo/config.toml`. `RUSTFLAGS` in the environment replaces the
-rustflags of the configs. For Linux arm64, from a Linux x64 or macOS
-host:
+When a project or outer build system invokes `cargo` directly, set the linker, its `--target` flag and the `cc` crate's compiler variables in the environment or in `.cargo/config.toml`. Note that setting `RUSTFLAGS` in the environment overrides all `rustflags` entries in Cargo config files. For `aarch64-unknown-linux-gnu` from a Linux x64 or macOS host:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -288,33 +207,14 @@ export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-Clink-arg=--target=aar
 cargo build --release --target aarch64-unknown-linux-gnu
 ```
 
-The names follow the target: `CC_<target>` in lower case with `_`, and
-`CARGO_TARGET_<TARGET>_*` in upper case. What the other targets need:
+Variable names use the target triple in lowercase with `_` for `CC_<target>`, and in uppercase with `_` for `CARGO_TARGET_<TARGET>_*`. Per-target requirements:
 
-- **Linux**: `-Clink-arg=-l:libunwind.a`, as above. For
-  `x86_64-unknown-linux-gnu`, also `-Clinker-features=-lld`, or rustc
-  links with its own rust-lld there.
-- **musl**: `-Clink-arg=--target=<target> -Clink-self-contained=no`, and
-  no `-l:libunwind.a`.
-- **Windows (MinGW)**: `-Clink-arg=--target=<arch>-w64-mingw32`.
-- **macOS**: `-Clink-arg=--target=<target>` and
-  `MACOSX_DEPLOYMENT_TARGET=13.0`; on Linux and Windows hosts also
-  `SDKROOT=$(xclang sdk path macos)`.
-- **MSVC**: `lld-link` as the linker, with
-  `-Ctarget-feature=+crt-static` and the link arguments
-  `/winsysroot:<the SDK, xclang sdk path windows>`,
-  `/nodefaultlib:libucrt.lib`, `/defaultlib:ucrt.lib` and `/ignore:4099`;
-  `clang` as the C compiler, with `-Xmicrosoft-windows-sys-root <the SDK>`
-  in `CFLAGS_<target>` and `CXXFLAGS_<target>`, and `llvm-lib` as the
-  archiver.
+- **Linux (`glibc`)**: `-Clink-arg=--target=<target> -Clink-arg=-l:libunwind.a`. On `x86_64-unknown-linux-gnu`, also pass `-Clinker-features=-lld` so `rustc` does not invoke its bundled `rust-lld`.
+- **Linux (`musl`)**: `-Clink-arg=--target=<target> -Clink-self-contained=no`, without `-l:libunwind.a`.
+- **Windows (`MinGW`)**: `-Clink-arg=--target=<arch>-w64-mingw32`.
+- **macOS**: `-Clink-arg=--target=<target>` and `MACOSX_DEPLOYMENT_TARGET=13.0`; on Linux and Windows hosts also set `SDKROOT=$(xclang sdk path macos)`.
+- **Windows (`MSVC`)**: `lld-link` as the linker, `-Ctarget-feature=+crt-static`, and `-Clink-arg=` for `/winsysroot:<sdk>`, `/nodefaultlib:libucrt.lib`, `/defaultlib:ucrt.lib` and `/ignore:4099` (where `<sdk>` is `$(xclang sdk path windows)`); `clang` and `clang++` as the C and C++ compilers with `-Xmicrosoft-windows-sys-root <sdk>` in `CFLAGS_<target>` and `CXXFLAGS_<target>`, and `llvm-lib` as `AR_<target>`.
 
-Build scripts get the rustflags of `CARGO_TARGET_<TARGET>_RUSTFLAGS` only
-when no `--target` is given: for the target of the machine itself, build
-without `--target`, with the flags in `RUSTFLAGS`.
+Cargo applies `CARGO_TARGET_<TARGET>_RUSTFLAGS` to build scripts only when `--target` is passed; when building for the host without `--target`, pass those flags in `RUSTFLAGS`.
 
-## Not Yet Supported
-
-| | status |
-|---|---|
-| [Rust targets for other Linux architectures](../design/roadmap.md#linux-architectures) | Considered |
-| [`libgcc_s.a` as a linker script](../design/roadmap.md#libgcc-s-script), so Linux targets need no `-l:libunwind.a` | Considered |
+[Rust targets for other Linux architectures](../design/roadmap.md#linux-architectures) and [shipping `libgcc_s.a` as a linker script](../design/roadmap.md#libgcc-s-script) (so Linux targets do not need `-l:libunwind.a` when configuring Cargo by hand) are on the roadmap.

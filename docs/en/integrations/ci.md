@@ -1,15 +1,12 @@
 # CI
 
-xclang on GitHub Actions. This page gets the toolchain onto a runner, and
-keeps what is slow to rebuild between runs. It also builds for a target on
-one runner, and runs the result on a runner of that target.
+Set up xclang on GitHub Actions, cache downloaded toolchains, Bazel repositories and ThinLTO objects between runs, and cross-compile on one runner to run tests on another.
 
-Requires: a GitHub Actions workflow, with the hosted runners of
-[targets](../targets/cross-compiling.md#targets-and-hosts).
+Requires: a GitHub Actions workflow using the hosted runners listed in [Cross-Compiling](../targets/cross-compiling.md#targets-and-hosts).
 
 ## Get the Toolchain
 
-**pixi.** With the workspace of the [quick start](../guide/quick-start.md):
+**pixi.** With the `pixi.toml` from the [quick start](../guide/quick-start.md):
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```yaml
@@ -23,10 +20,7 @@ Requires: a GitHub Actions workflow, with the hosted runners of
     pixi run clang++ --version
 ```
 
-**CMake with FetchContent.** The project downloads the toolchain itself
-([CMake](cmake.md#without-xclang-installed)). Keep the download between
-runs by putting `XCLANG_CACHE_DIR` in a cache entry keyed on the release,
-which the newest release's `SHA256SUMS` names:
+**CMake with FetchContent.** The project downloads the host toolchain at configure time ([Without xclang Installed](cmake.md#without-xclang-installed)). Cache `XCLANG_CACHE_DIR` keyed on the release version from `SHA256SUMS` to keep the unpacked toolchain between runs:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```yaml
@@ -48,27 +42,15 @@ which the newest release's `SHA256SUMS` names:
     cmake --build build
 ```
 
-**Bazel.** The module downloads the toolchain into the repository cache of
-Bazel. Keep `--repository_cache` with the disk cache (below).
+**Bazel.** The `xclang` module downloads the toolchain archive into Bazel's repository cache. Cache `--repository_cache` alongside `--disk_cache` ([below](#keep-caches-between-runs)).
 
-**Vendor SDKs.** Bazel keeps their packages in the repository cache too;
-`xclang sdk fetch` keeps them in its `--cache` directory, which a cache
-entry can hold. Apple withdraws a macOS SDK package now and then, and
-xclang finds the SDK again in the one Apple puts in its place; a kept
-package still builds when Apple carries the SDK in no package any more
-([vendor SDKs](../targets/macos.md#packages-apple-withdraws-and-content-digests)).
+**Vendor SDKs.** Bazel caches vendor SDK archives in `--repository_cache`, and `xclang sdk fetch` caches them in the directory given as its `--cache`, which an `actions/cache` step can persist across runs. Keeping a cached macOS SDK package also protects builds if Apple later withdraws that package from its catalog ([packages Apple withdraws](../targets/macos.md#packages-apple-withdraws-and-content-digests)).
 
 ## Keep Caches between Runs
 
-With xclang, the caches of a build are correct to share. In Bazel, every
-toolchain file is an input of every action that reads it. So a new release
-misses the cache, and does not get the outputs of the old one.
+With xclang, build caches are safe to share across runs. In Bazel, every toolchain file is a declared input of the actions that use it, so moving to a new xclang release misses the cache cleanly instead of reusing outputs from the previous release.
 
-**Bazel's disk and repository caches, and the ThinLTO cache.** clice's CI
-([native-test.yml](https://github.com/clice-io/clice/blob/main/.github/workflows/native-test.yml))
-restores them on every run, and saves them only on `main`, once per merge.
-Pull requests then do not churn the cache space of the repository. For a
-matrix of targets and build types:
+**Bazel's disk and repository caches, and the ThinLTO cache.** Restore the caches on every run and save them only on `main`, once per merge (as [clice's CI](https://github.com/clice-io/clice/blob/main/.github/workflows/native-test.yml) does), so pull requests do not churn the repository's cache quota. For a matrix of targets and build types:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```yaml
@@ -95,14 +77,9 @@ matrix of targets and build types:
     key: bazel-${{ matrix.target }}-${{ matrix.build_type }}-${{ github.sha }}
 ```
 
-The ThinLTO cache directory is the one the `.bazelrc` of the project names
-([Bazel](bazel.md#speed-up-libclang-links)). On `main`, clice also prunes
-from the disk cache every file the build did not read. Bazel refreshes the
-time of an entry when it uses it, so the cache holds what the current tree
-needs.
+The ThinLTO cache path matches the one configured in the project's `.bazelrc` ([the ThinLTO cache](../features/libclang.md#the-thinlto-cache)). On `main`, you can also prune disk cache files that were not accessed during the build, since Bazel updates the modification time of each cache entry it reads.
 
-**The ThinLTO cache alone**, for CMake, or for a project without the disk
-cache: key it on the xclang release, as the step above finds it.
+**The ThinLTO cache alone**, for CMake or for projects without a Bazel disk cache: include the xclang release version (from the `SHA256SUMS` step above) in the cache key:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```yaml
@@ -113,25 +90,13 @@ cache: key it on the xclang release, as the step above finds it.
     restore-keys: thinlto-${{ runner.os }}-${{ runner.arch }}-xclang-${{ steps.xclang.outputs.version }}-
 ```
 
-Restoring a cache sets the last access of every file to the time of the
-restore. So the linker never prunes, and the entry only grows, by what new
-code adds: 350 to 650 MB for clice and its tests. A new xclang release
-changes the input of every link, so none of the old entries can be used.
-With the version in the key, its entry starts empty
-([the ThinLTO cache](../features/libclang.md#the-thinlto-cache)).
+Restoring from `actions/cache` sets every file's access time to the restore time, so age-based linker pruning does not remove old entries, and a new xclang release changes the bitcode hash of every link. Including the xclang version in `key` and `restore-keys` starts an empty cache entry on each compiler upgrade ([the ThinLTO cache](../features/libclang.md#the-thinlto-cache)).
 
-**ccache** is safe for code without C++20 modules. With modules, check what
-your ccache version does first
-([build caches and modules](../features/modules.md#build-caches-and-modules)).
+**ccache** is safe for code that does not use C++20 modules. Before enabling `ccache` on a build with C++20 modules, see [build caches and modules](../features/modules.md#build-caches-and-modules).
 
 ## Build on One Runner, Run on Another
 
-A Linux runner builds for every Linux and MinGW target, and with the
-vendor SDKs for the MSVC and macOS ones. The programs and
-tests then run on a runner of their target, with nothing installed there:
-they need nothing but the OS. One job builds the program of the
-[quick start](../guide/quick-start.md), in `examples/quickstart`, for
-Windows on Arm, and uploads it:
+A single runner (such as `ubuntu-24.04`) can build for every Linux and MinGW target, and with the vendor SDKs for the MSVC and macOS targets as well. Upload the compiled programs or test binaries as artifacts and run them on a runner of the target platform, with no compiler installed there. Here, the `build` job cross-compiles `examples/quickstart` for Windows on Arm64 on Ubuntu and uploads `hello.exe`:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```yaml
@@ -155,7 +120,7 @@ build:
         path: examples/quickstart/hello.exe
 ```
 
-Another job, on a runner of the target, downloads and runs it:
+The `run` job downloads and runs it on `windows-11-arm`:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```yaml
@@ -170,11 +135,7 @@ run:
       shell: bash
 ```
 
-In Bazel, the build job uses `--platforms=@xclang//platforms:<target>`
-and uploads the test binaries with their runfiles. xclang's own CI runs
-every example of these docs this way: what each host built for another
-target runs on a runner of that target. The runners for each
-target:
+In Bazel, the build job passes `--platforms=@xclang//platforms:<target>` and uploads the test binaries together with their runfiles. xclang's own CI tests every example in these docs this way. The GitHub-hosted runner for each target:
 
 | target | runner |
 |---|---|
@@ -189,15 +150,8 @@ target:
 | `aarch64-apple-darwin` | `macos-15` |
 | `x86_64-apple-darwin` | `macos-15-intel` |
 
-The MSVC targets build on every runner, and the macOS targets on Linux
-and Windows runners too, with the SDK the `xclang` command fetches
-([MSVC targets](clang.md#msvc-targets),
-[macOS](../targets/macos.md#on-linux-and-windows-hosts)), and
-in Bazel with the SDK the module fetches
-([Bazel](bazel.md#build-for-msvc-and-for-macos-anywhere)). x86_64 macOS
-programs also run on arm64 runners through Rosetta, and x86_64 Windows
-programs on `windows-11-arm`.
+MSVC targets and macOS targets build on any runner once the vendor SDK is fetched with `xclang sdk fetch` ([MSVC targets](../targets/windows.md#msvc-targets), [macOS](../targets/macos.md#on-linux-and-windows-hosts)) or via the Bazel module extension ([Bazel](bazel.md#build-for-msvc-and-for-macos-anywhere)). `x86_64-apple-darwin` binaries also run on `macos-15` under Rosetta, and `x86_64` Windows binaries run on `windows-11-arm`.
 
 ## See Also
 
-- [CMake](cmake.md) and [Bazel](bazel.md): the builds these jobs run.
+- [CMake](cmake.md) and [Bazel](bazel.md): setting up the builds run in these workflows.

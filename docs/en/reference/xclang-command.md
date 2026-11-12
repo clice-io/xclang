@@ -38,13 +38,13 @@ unpacks the SDK into a directory of its own:
 | SDK | directory | use |
 |---|---|---|
 | macOS | `$XCLANG/sdk/macos-<version>` | `clang++ --target=arm64-apple-macos` on Linux and Windows hosts ([macOS](../targets/macos.md#on-linux-and-windows-hosts)); on macOS hosts, and for an SDK outside the toolchain, `-isysroot <dir>` |
-| MSVC and the Windows SDK | `$XCLANG/sdk/windows-msvc<version>-sdk<version>` | `clang++ --target=x86_64-pc-windows-msvc`, `clang-cl`: the [MSVC targets](../integrations/clang.md#msvc-targets) |
+| MSVC and the Windows SDK | `$XCLANG/sdk/windows-msvc<version>-sdk<version>` | `clang++ --target=x86_64-pc-windows-msvc`, `clang-cl`: the [MSVC targets](../targets/windows.md#msvc-targets) |
 
 | command or option | |
 |---|---|
 | `--accept-license` | without it, fetch prints the vendor's license terms and stops |
 | `sdk path` | prints the directory that fetch, given the same selection options (`--preset`, `--version`, `--msvc-version`, `--sdk-version`, `--arch`), fetches to: `-isysroot "$(xclang sdk path macos)"`. With `--arch`, it fails if the SDK there lacks one of those architectures |
-| `sdk packages` | prints what fetch, given the same selection options, downloads for an SDK not fetched yet: each package's sha256, size and URL, or with `--json` `{"name": <the SDK's directory>, "packages": [{"url", "size", "sha256", "file"}]}`. A build system downloads them itself, under the names `file`, into a directory that `fetch --cache` then takes them from; the Bazel module does ([Bazel](../integrations/bazel.md#vendor-sdks)). What it cannot download, a package Apple withdrew or one with no sha256 (`--version latest` past the table), fetch downloads itself |
+| `sdk packages` | prints what fetch, given the same selection options, downloads for an SDK not fetched yet: each package's sha256, size and URL, or with `--json` `{"name": <the SDK's directory>, "packages": [{"url", "size", "sha256", "file"}]}`. A build system downloads them itself, under the names `file`, into a directory that `fetch --cache` then takes them from; the Bazel module does ([Bazel](../integrations/bazel.md#build-for-msvc-and-for-macos-anywhere)). What it cannot download, a package Apple withdrew or one with no sha256 (`--version latest` past the table), fetch downloads itself |
 | `--cache <dir>` | fetch keeps its downloads in the directory, and takes from it those already there, by their sha256 |
 | `sdk list` | the presets and versions xclang knows, the defaults marked, the fetched SDKs, and those in use; `.xclang-sdk.json`, written last, records what an SDK was fetched from, and a directory without it is listed as incomplete |
 | `sdk use <name>` | makes a fetched SDK the one in use (below) |

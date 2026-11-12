@@ -1,17 +1,12 @@
 # CMake
 
-xclang's CMake package makes the toolchain the compiler of a build, for
-the host or another target. It gives the build `import std`, without
-CMake's experimental switches.
+xclang's CMake package sets the toolchain as a build's compiler for the host or another target, and provides `xclang::std` for `import std` without CMake's experimental switches.
 
-Requires: CMake 3.28 or later, Ninja 1.11 or later, and the Ninja or Ninja
-Multi-Config generator.
+Requires: CMake 3.28 or later, Ninja 1.11 or later, and the Ninja or Ninja Multi-Config generator.
 
 ## Set Up a Project
 
-The project is
-[examples/cmake](https://github.com/clice-io/xclang/tree/main/examples/cmake),
-which the [quick start](../guide/quick-start.md) also builds:
+Call `find_package(xclang REQUIRED CONFIG)` after `project()` and link `xclang::std` to use `import std`. The project is [examples/cmake](https://github.com/clice-io/xclang/tree/main/examples/cmake), which the [quick start](../guide/quick-start.md) also builds:
 
 <!-- file: examples/cmake/CMakeLists.txt -->
 ```cmake
@@ -42,8 +37,7 @@ int main() {
 }
 ```
 
-With xclang's `bin/` first in `PATH`, as `pixi shell` has it, name the
-compiler and build:
+With xclang's `bin/` first in `PATH`, as `pixi shell` sets it, name the compiler and build:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -54,12 +48,7 @@ cmake --build build
 
 It prints `hello from xclang: 3 targets, the first linux`.
 
-CMake does not pick clang by itself, so the compiler has to be named; a
-project with C names `-DCMAKE_C_COMPILER=clang` too.
-`find_package(xclang)` comes after `project()`, and finds the package
-through `PATH`. Without `PATH`, use the toolchain file of the toolchain
-directory, `$XCLANG` below. It sets the compilers, the binary tools and the
-location of the package at once:
+CMake does not pick `clang` by itself, so pass `-DCMAKE_CXX_COMPILER=clang++`, and `-DCMAKE_C_COMPILER=clang` for a project with C. `find_package(xclang)` finds the package through `PATH`. When xclang is not in `PATH`, pass the toolchain file from the toolchain directory (`$XCLANG` below). It sets the compilers, the binary tools and the package location at once:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -68,7 +57,7 @@ cmake -G Ninja -B build --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake
 
 ## Build for Another Target
 
-`XCLANG_TARGET` names the target, with the toolchain file:
+Pass `-DXCLANG_TARGET=<target>` with the toolchain file to cross-compile:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -77,38 +66,16 @@ cmake -G Ninja -B build-aarch64-w64-mingw32 --toolchain $XCLANG/lib/cmake/xclang
 cmake --build build-aarch64-w64-mingw32
 ```
 
-- Linux and MinGW targets build on every host. So do the
-  [MSVC targets](#build-for-msvc-targets), with the Windows SDK that the
-  toolchain's `xclang` fetched (or, on a Windows host, the installed Visual
-  Studio), and the macOS targets: with Xcode's SDK on
-  macOS hosts ([why](../targets/macos.md#on-macos-hosts)), and with the
-  fetched SDK on [Linux and Windows hosts](#build-for-macos-from-linux-or-windows).
-  On a macOS host, the other macOS architecture is
-  `CMAKE_OSX_ARCHITECTURES` to CMake, not cross-compiling.
-- The musl targets, `x86_64-unknown-linux-musl` and
-  `aarch64-unknown-linux-musl` from 23.1.2.10 on, build static programs on
-  every host. On a Linux host of their architecture, which runs those, they
-  are no cross build: `try_run` and the tests run there.
-- CMake looks for the libraries, headers and packages of another target
-  in its sysroot only. Name a dependency built for the target with
-  `<Package>_DIR`, or add its prefix to `CMAKE_FIND_ROOT_PATH`. A library
-  found on the host has the wrong architecture or OS. The link then fails
-  late or, worse, succeeds against the wrong headers.
-- `xclang::std` is built for the target too.
-- Tests built for another target run on a machine of that target, not on
-  the host.
-- A build directory keeps the target of its first configure, as CMake
-  does. Another `XCLANG_TARGET` later stops the configure: use a new build
-  directory, or configure this one again with `cmake --fresh`.
+- The ten supported targets and what each needs on the host are listed in [Cross-Compiling](../targets/cross-compiling.md#targets-and-hosts).
+- On a macOS host, building for the other macOS architecture sets `CMAKE_OSX_ARCHITECTURES` rather than `CMAKE_SYSTEM_NAME`, so CMake does not treat the build as cross-compiling.
+- On a Linux host of the same architecture, a [musl target](../targets/linux.md#musl-targets) (`x86_64-unknown-linux-musl` or `aarch64-unknown-linux-musl`) is not a cross build to CMake either, because the static programs it produces run on the host. `try_run` and `ctest` run there.
+- When cross-compiling (`CMAKE_CROSSCOMPILING` is true), CMake searches only the target's sysroot for libraries, headers and packages. Point CMake to dependencies built for the target with `<Package>_DIR`, or add their prefix to `CMAKE_FIND_ROOT_PATH`.
+- `xclang::std` is built for the target of the build.
+- A build directory keeps the target of its first configure. Passing another `XCLANG_TARGET` later stops the configure; use a new build directory, or re-configure with `cmake --fresh`.
 
 ## Build for MSVC Targets
 
-`x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc` build with the
-Windows SDK that the toolchain's `xclang` fetched,
-`$XCLANG/bin/xclang sdk fetch windows --accept-license`
-([MSVC targets](clang.md#msvc-targets)). On a Windows host without it,
-clang finds the installed Visual Studio; on Linux and macOS hosts, the
-toolchain file stops and says how to fetch it:
+Set `XCLANG_TARGET` to `x86_64-pc-windows-msvc` or `aarch64-pc-windows-msvc` after fetching the Windows SDK with `$XCLANG/bin/xclang sdk fetch windows --accept-license` ([MSVC targets](../targets/windows.md#msvc-targets)). On a Windows host without a fetched SDK, `clang` uses an installed Visual Studio; on Linux and macOS hosts without the SDK, the toolchain file stops and prints the `xclang sdk fetch` command:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -117,29 +84,14 @@ cmake -G Ninja -B build-msvc --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmak
 cmake --build build-msvc
 ```
 
-- The compilers are clang and clang++, not clang-cl. `WIN32` is true,
-  `MSVC` false, and `CMAKE_CXX_SIMULATE_ID` is `MSVC`, so a project's
-  `if(MSVC)` options, written for cl's command line, stay out
-  ([why](../targets/windows.md#msvc-targets)).
-- The C runtime is the hybrid CRT in every configuration:
-  `CMAKE_MSVC_RUNTIME_LIBRARY` is `MultiThreaded` unless set. Other values
-  work too; CMake's own default would load the VC runtime's DLLs.
-- The C++ library is libc++, and `xclang::std` its `std` and
-  `std.compat`, as for the other targets. `-DXCLANG_STDLIB=platform`
-  selects Microsoft's STL instead, for C++ interfaces to libraries built
-  with MSVC; `xclang::std` is then the STL's
-  ([the system's C++ library](#use-the-system-s-c-library)).
-- A link writes a PDB when it has `-g`: Debug and RelWithDebInfo do; a
-  target given `-g` in another configuration needs it in
-  `target_link_options` too.
+- The compilers are `clang` and `clang++`, not `clang-cl`. `WIN32` is true, `MSVC` is false, and `CMAKE_CXX_SIMULATE_ID` is `MSVC`, so a project's `if(MSVC)` options written for `cl.exe` stay out ([MSVC targets](../targets/windows.md#msvc-targets)).
+- `CMAKE_MSVC_RUNTIME_LIBRARY` defaults to `MultiThreaded` in every configuration, which links the [hybrid CRT](../targets/windows.md#the-hybrid-crt-and-c-runtime-flags). Other `CMAKE_MSVC_RUNTIME_LIBRARY` values work too.
+- The default C++ library is `libc++`, and `xclang::std` builds its `std` and `std.compat` modules. `-DXCLANG_STDLIB=platform` switches to Microsoft's STL and builds `xclang::std` from the STL's module manifest ([the system's C++ library](#use-the-system-s-c-library)).
+- Links in `Debug` and `RelWithDebInfo` pass `-g` and write a `.pdb`. A target that adds `-g` in another configuration must also add `-g` to `target_link_options` to write a PDB.
 
 ## Build for macOS from Linux or Windows
 
-`aarch64-apple-darwin` and `x86_64-apple-darwin` build on Linux and Windows
-hosts with Apple's SDK that the toolchain's `xclang` fetched,
-`$XCLANG/bin/xclang sdk fetch macos --accept-license`
-([macOS](../targets/macos.md#on-linux-and-windows-hosts)). Without
-it, the toolchain file stops and says how to fetch it:
+Set `XCLANG_TARGET` to `aarch64-apple-darwin` or `x86_64-apple-darwin` after fetching Apple's SDK with `$XCLANG/bin/xclang sdk fetch macos --accept-license` ([macOS on Linux and Windows hosts](../targets/macos.md#on-linux-and-windows-hosts)). Without the SDK, the toolchain file stops and prints the `xclang sdk fetch` command:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -148,29 +100,15 @@ cmake -G Ninja -B build-macos --toolchain $XCLANG/lib/cmake/xclang/toolchain.cma
 cmake --build build-macos
 ```
 
-- `APPLE` is true, `CMAKE_SYSTEM_NAME` is `Darwin`, and
-  `CMAKE_OSX_ARCHITECTURES` is the target's architecture. No CMake step
-  needs `xcrun` or Xcode: `install_name_tool`, `lipo` and `libtool` are
-  the toolchain's `llvm-install-name-tool`, `llvm-lipo` and
-  `llvm-libtool-darwin`, and `xclang_debug_symbols` makes the dSYM with
-  its `dsymutil`.
-- `CMAKE_OSX_SYSROOT` is the SDK, as on a macOS host: the one given, else
-  `SDKROOT`, else the toolchain's `sdk/macos`. CMake passes it as
-  `-isysroot`, and looks for libraries, headers and packages in it only.
-- `CMAKE_OSX_DEPLOYMENT_TARGET` works as on a macOS host; without it,
-  programs run on macOS 13.0 and later.
-- One build is one architecture, since each has its config file. A
-  universal program is two builds and `llvm-lipo -create`.
-- Objective-C (`OBJC`, `OBJCXX`) compiles with the toolchain's clang.
-- Tests run on a Mac, not on the host.
+- `APPLE` is true, `CMAKE_SYSTEM_NAME` is `Darwin`, and `CMAKE_OSX_ARCHITECTURES` is the target's architecture. `install_name_tool`, `lipo` and `libtool` are set to the toolchain's `llvm-install-name-tool`, `llvm-lipo` and `llvm-libtool-darwin`, so no CMake step requires `xcrun` or Xcode.
+- `CMAKE_OSX_SYSROOT` is the SDK path: the value given, else `SDKROOT`, else the toolchain's `sdk/macos`. CMake passes it as `-isysroot` and searches only the SDK for libraries, headers and packages.
+- `CMAKE_OSX_DEPLOYMENT_TARGET` sets the deployment target as on a macOS host; when unset, binaries target macOS 13.0.
+- Each build directory targets one architecture, because each architecture has its own config file ([two architectures](../targets/macos.md#two-architectures)).
+- Objective-C (`OBJC`, `OBJCXX`) compiles with the toolchain's `clang` and `clang++`.
 
 ## Without xclang Installed
 
-A project can download the toolchain itself, before `project()`, so it
-configures on a machine with nothing but CMake and Ninja. FetchContent
-fetches this repository at `latest`, a branch at the tag of the newest
-release, and `packages/cmake/xclang.cmake` downloads the host toolchain of
-that release. A release's tag, as `GIT_TAG`, keeps that release:
+Include `packages/cmake/xclang.cmake` via `FetchContent` before `project()` so CMake downloads the host toolchain itself on a machine with only CMake and Ninja. `latest` is a branch pointing at the newest release tag, or you can pin a specific release tag in `GIT_TAG`. The project is [examples/cmake-fetch](https://github.com/clice-io/xclang/tree/main/examples/cmake-fetch):
 
 <!-- file: examples/cmake-fetch/CMakeLists.txt -->
 ```cmake
@@ -201,10 +139,7 @@ cmake --build build
 ./build/hello
 ```
 
-`xclang.cmake` checks the archive against the `SHA256SUMS` of the release,
-and unpacks it into the cache of the user, once per release and host.
-Another build tree of the same release and host downloads nothing but the
-checkout. `-DXCLANG_TARGET=<target>` builds for another target here too:
+`xclang.cmake` verifies the archive against the release's `SHA256SUMS` and unpacks it into the user cache once per release and host. `-DXCLANG_TARGET=<target>` cross-compiles here too:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -214,61 +149,16 @@ cmake --build build-x86_64-w64-mingw32
 
 | variable | |
 |---|---|
-| `XCLANG_CACHE_DIR` | where toolchains are unpacked; also an environment variable |
+| `XCLANG_CACHE_DIR` | directory where toolchains are unpacked; also read from the environment |
 | `XCLANG_ROOT` | an unpacked toolchain to use instead of downloading one |
-| `XCLANG_URL` | a mirror of the release |
+| `XCLANG_URL` | base URL of a release mirror |
+| `XCLANG_VERSION` | release version to download when `GIT_TAG` names a commit rather than a release tag |
 
-The rest is in the [CMake API](../reference/cmake-api.md#xclang-cmake).
-`GIT_TAG` may also name a later commit, with `XCLANG_VERSION` the release
-whose toolchain it downloads; an earlier release works too.
-
-## Use C++20 Modules and `import std`
-
-`xclang::std` is a static library of the `std` and `std.compat` modules of
-libc++, compiled from the sources that the module manifest of the compiler
-names, for the target of the build. Link it, and `import std` works.
-The C++ modules of the program are a `FILE_SET CXX_MODULES`, scanned by
-clang-scan-deps. `cmake_minimum_required(VERSION 3.28)` turns on the
-scanning of C++20 targets (CMP0155):
-
-<!-- excerpt: examples/modules/CMakeLists.txt -->
-```cmake
-add_library(math STATIC)
-target_sources(math PUBLIC FILE_SET CXX_MODULES FILES math.cppm math-ops.cppm)
-target_link_libraries(math PUBLIC xclang::std)
-```
-
-[C++20 modules](../features/modules.md#cmake) has the whole project.
-
-clang refuses a module file built with other language options than its
-importer's ([matching options](../features/modules.md#behavior)). So:
-
-- `xclang::std` is built with the settings of the directory that called
-  `find_package(xclang)`, as they are at the end of its `CMakeLists.txt`:
-  `CMAKE_CXX_STANDARD`, `CMAKE_CXX_EXTENSIONS`, `CMAKE_CXX_FLAGS` and
-  `add_compile_options()`. Set them project-wide, not per CMake target.
-- It asks its importers for its standard: C++23, or the
-  `CMAKE_CXX_STANDARD` it was built with if that is 20 or later.
-- A CMake target with other language options links a `std` of its own,
-  whose `PUBLIC` options reach its importers. It links `std_noexcept`
-  instead of `xclang::std`:
-
-  <!-- excerpt: tests/cmake/noexcept/CMakeLists.txt -->
-  ```cmake
-  xclang_add_std(std_noexcept)
-  target_compile_options(std_noexcept PUBLIC -fno-exceptions)
-  ```
-
-Before putting ccache in front of the compiler, read
-[build caches and modules](../features/modules.md#build-caches-and-modules).
+See the [CMake API](../reference/cmake-api.md) for the full variable list.
 
 ## Use the System's C++ Library
 
-`-DXCLANG_STDLIB=platform` builds with the platform's C++ library in
-place of xclang's libc++, for C++ interfaces to libraries built with it:
-GCC's libstdc++ on Linux, Microsoft's STL for the MSVC targets, the SDK's
-libc++ for macOS ([the system's C++ library](clang.md#the-system-s-c-library)).
-The toolchain file adds `-stdlib=platform` to every compile and link:
+Pass `-DXCLANG_STDLIB=platform` with the toolchain file to build against the [platform's C++ library](../targets/cross-compiling.md#the-platform-s-c-library) instead of xclang's `libc++`. The toolchain file adds `-stdlib=platform` to every compile and link:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -276,101 +166,34 @@ cmake -G Ninja -B build-system --toolchain $XCLANG/lib/cmake/xclang/toolchain.cm
     -DXCLANG_STDLIB=platform
 ```
 
-- For Linux targets the sysroot is then the machine's, or
-  `CMAKE_SYSROOT`; for the musl and MinGW targets `CMAKE_SYSROOT` is
-  required, a sysroot that has their libstdc++ (an Alpine root, MSYS2's
-  `ucrt64`).
-- `xclang::std` is the STL's for the MSVC targets, and the platform
-  library's where it has a module manifest (GCC 15's libstdc++).
-  `find_package(xclang)` fails where it has none.
-- Not with `XCLANG_RUNTIMES=source`, which builds libc++; and
-  `XCLANG_SANITIZER=address` takes no ASan libc++.
+- For Linux (`glibc`) targets, the sysroot is the host's `/` or `CMAKE_SYSROOT`. For musl and MinGW targets, `CMAKE_SYSROOT` is required and must point to a sysroot containing their `libstdc++` ([the platform's C++ library](../targets/cross-compiling.md#the-platform-s-c-library)).
+- `xclang::std` is built from the platform library's module manifest, such as Microsoft's STL on MSVC targets or GCC 15's `libstdc++`. `find_package(xclang)` fails when the platform library has no module manifest.
+- `XCLANG_STDLIB=platform` cannot be combined with `XCLANG_RUNTIMES=source`, and `XCLANG_SANITIZER=address` does not link an ASan-instrumented `libc++`.
 
-## Build the C++ Runtimes from Source
 
-With the toolchain file, `-DXCLANG_RUNTIMES=source` builds libc++,
-libc++abi and libunwind from the toolchain's sources at the first
-configure, with options the prebuilt ones lack: MemorySanitizer
-(`-DXCLANG_SANITIZER=memory`), libc++'s hardening modes, ABI options, no
-exceptions. The whole build, `xclang::std` included, is then against
-them. Since 23.1.2.11, and not for the MSVC targets
-([runtimes from source](../features/runtimes-from-source.md#cmake)).
-With the prebuilt runtimes, `-DXCLANG_SANITIZER=address` gives the whole
-build ASan and the prebuilt ASan libc++
-([sanitizers](../features/sanitizers.md#cmake)); for x64 Windows, a
-program loads ASan's DLL from beside itself or from `PATH`
-([MinGW targets](../features/sanitizers.md#mingw-targets)).
+## Features
 
-## Ship Debug Symbols
-
-`xclang_debug_symbols(<program>)` makes the debug symbols of a program
-after each of its links: `<program>.gsym` next to it, and for a macOS
-target `<program>.dSYM` too.
-
-<!-- excerpt: examples/debug-symbols/CMakeLists.txt -->
-```cmake
-add_executable(tool tool.cpp)
-target_compile_options(tool PRIVATE -g)
-xclang_debug_symbols(tool)
-```
-
-`GSYM_ARGS --merged-functions` keeps every name of the functions that
-identical code folding merged. For a macOS target, the link keeps the
-objects of ThinLTO in `<build dir>/tool.lto`, which dsymutil reads.
-[Debugging](../features/debugging.md#cmake) has the whole example.
-
-## Link libclang
-
-A tool on libclang finds it with `find_package(Clang)`, with
-`CMAKE_PREFIX_PATH` naming the unpacked libclang archive
-([libclang](../features/libclang.md#cmake)).
-
-## Speed Up libclang Links
-
-Name a directory for the ThinLTO cache when configuring,
-`-DXCLANG_THINLTO_CACHE=/var/tmp/xclang-thinlto`, and a link after the
-first takes seconds ([libclang](../features/libclang.md#cmake) has a whole
-tool built this way). `find_package(xclang)` makes the directory at
-configure time. It adds the
-cache flag to every link of the directory that called it, and of its
-subdirectories ([the ThinLTO cache](../features/libclang.md#the-thinlto-cache)).
+- **C++20 modules and `import std`**: Link `xclang::std` for `import std`, declare project module interfaces with `FILE_SET CXX_MODULES`, and call `xclang_add_std` when a target needs its own language flags ([C++20 Modules](../features/modules.md#cmake)).
+- **Sanitizers**: Pass `-DXCLANG_SANITIZER=address`, `undefined`, `thread`, `leak` or `memory` with the toolchain file to instrument the build and link the matching runtime ([Sanitizers](../features/sanitizers.md#cmake)).
+- **Runtimes from source**: Pass `-DXCLANG_RUNTIMES=source` with the toolchain file to build `libc++`, `libc++abi` and `libunwind` at configure time with hardening modes, custom ABI options, `-fno-exceptions`, or MemorySanitizer ([Runtimes from Source](../features/runtimes-from-source.md#cmake)).
+- **Debug symbols**: Call `xclang_debug_symbols(<program>)` to generate `<program>.gsym` after linking, and `<program>.dSYM` for macOS targets ([Debugging](../features/debugging.md#cmake)).
+- **libclang and the ThinLTO cache**: Find an unpacked `libclang` archive with `find_package(Clang)`, and pass `-DXCLANG_THINLTO_CACHE=<dir>` to cache ThinLTO objects across links ([libclang](../features/libclang.md#cmake), [the ThinLTO cache](../features/libclang.md#the-thinlto-cache)).
 
 ## Troubleshooting
 
-- **`C++26 was disabled in precompiled file`**: a CMake target asks for a
-  newer standard, or other language options, than `xclang::std` was built
-  with. Set them project-wide, or use `xclang_add_std`.
-- **A toolchain file is already set**: `xclang.cmake` stops if the build
-  has one, such as vcpkg's. Chain-load xclang's from vcpkg instead, with
-  `VCPKG_CHAINLOAD_TOOLCHAIN_FILE`.
-- **Configured with another xclang**: a build directory keeps the
-  toolchain of its first configure. When `latest` moves to a new release,
-  or `XCLANG_VERSION`, `XCLANG_ROOT` or `XCLANG_CACHE_DIR` changes,
-  `xclang.cmake` stops before downloading anything. Use a new build
-  directory, or configure this one again with `cmake --fresh`.
-- **A library is not found for another target**: CMake searches the
-  sysroot only. Build the library for the target, and name it with
-  `<Package>_DIR`.
-- More symptoms are in the [FAQ](../guide/troubleshooting.md).
-
-## Not Yet Supported
-
-| | status |
-|---|---|
-| [Relative paths in debug information](../design/roadmap.md#cmake-relative-paths), as Bazel builds have | Planned |
-| [Fetched targets](../design/roadmap.md#fetched-targets-in-build-systems) beyond those of the toolchain | Planned |
-| [Runtimes from source for the MSVC targets](../design/roadmap.md#runtimes-msvc) | Planned |
+- **`C++26 was disabled in precompiled file`**: a CMake target uses a newer standard or different language flags than `xclang::std` was built with. Set language flags project-wide before `find_package(xclang)`, or create a separate `std` target with `xclang_add_std` ([C++20 Modules](../features/modules.md#cmake)).
+- **A toolchain file is already set**: `xclang.cmake` stops if `CMAKE_TOOLCHAIN_FILE` is already set, such as by vcpkg. Chain-load xclang's toolchain file from vcpkg instead with `VCPKG_CHAINLOAD_TOOLCHAIN_FILE`.
+- **Configured with another xclang**: a build directory keeps the toolchain of its first configure. When `latest` moves to a new release, or `XCLANG_VERSION`, `XCLANG_ROOT` or `XCLANG_CACHE_DIR` changes, `xclang.cmake` stops before downloading anything. Use a new build directory, or re-configure with `cmake --fresh`.
+- **A library is not found for another target**: CMake searches only the target's sysroot when cross-compiling. Build the library for the target and point CMake to it with `<Package>_DIR` or `CMAKE_FIND_ROOT_PATH`.
+- More symptoms are in [Troubleshooting](../guide/troubleshooting.md).
 
 ## Known Limitations
 
-- C++20 modules build only with the Ninja and Ninja Multi-Config
-  generators.
-- ccache never caches a module interface, and before 4.14 it serves the
-  stale object of an importer
-  ([build caches and modules](../features/modules.md#build-caches-and-modules)).
+- C++20 modules build only with the Ninja and Ninja Multi-Config generators.
+- ccache never caches a module interface, and before 4.14 it can serve a stale object for an importer ([build caches and modules](../features/modules.md#build-caches-and-modules)).
+- [Relative paths in debug information](../design/roadmap.md#cmake-relative-paths), [fetched targets](../design/roadmap.md#fetched-targets-in-build-systems) beyond the ten built-in targets, and [runtimes from source for the MSVC targets](../design/roadmap.md#runtimes-msvc) are on the roadmap.
 
 ## See Also
 
-- [CMake API](../reference/cmake-api.md): every variable and function.
-- [CI](ci.md): the downloaded toolchain and the ThinLTO cache kept between
-  runs.
+- [CMake API](../reference/cmake-api.md): every variable, target and function.
+- [CI](ci.md): keeping the downloaded toolchain and the ThinLTO cache between workflow runs.

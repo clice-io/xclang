@@ -28,7 +28,7 @@ must be xclang's `clang++`. It finds the package through `PATH`
 
 | name | kind | |
 |---|---|---|
-| `xclang::std` | CMake target | a static library of the `std` and `std.compat` modules of libc++ (with `-stdlib=platform`, `XCLANG_STDLIB=platform`, the platform library's: Microsoft's STL for an MSVC target), for the build's target; built only when something links it ([language options](../integrations/cmake.md#use-c-20-modules-and-import-std)) |
+| `xclang::std` | CMake target | a static library of the `std` and `std.compat` modules of libc++ (with `-stdlib=platform`, `XCLANG_STDLIB=platform`, the platform library's: Microsoft's STL for an MSVC target), for the build's target; built only when something links it ([language options](../features/modules.md#cmake)) |
 | `xclang_add_std(<name>)` | function | another such library; its `PUBLIC` options reach its importers |
 | `xclang_debug_symbols(<program> [GSYM_ARGS <option>...])` | function | after each link of the CMake target `<program>`: `<program>.gsym` next to it, by llvm-gsymutil with one thread (the same file each run; `GSYM_ARGS` come after `--num-threads=1`), with its output in `<program>.gsym.log`; for a macOS target, `<program>.dSYM` first ([debugging](../features/debugging.md#usage)); nothing for an MSVC target, whose link writes a PDB |
 | `XCLANG_ROOT` | variable | the toolchain directory |

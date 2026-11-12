@@ -47,7 +47,7 @@ With the SDKs the user fetches with the toolchain's `xclang` command
   and Windows SDK, from every host, with libc++ (since 23.1.2.10) or
   Microsoft's STL; on a Windows host with no SDK fetched, with the
   installed Visual Studio
-  ([MSVC targets](https://docs.clice.io/xclang/integrations/clang#msvc-targets)).
+  ([MSVC targets](https://docs.clice.io/xclang/targets/windows#msvc-targets)).
 - **macOS targets from Linux and Windows**, with Apple's SDK
   ([macOS](https://docs.clice.io/xclang/targets/macos#on-linux-and-windows-hosts)).
 
@@ -56,7 +56,7 @@ the platform's C++ library in place of xclang's libc++, for C++ interfaces
 to libraries built with it: libstdc++ on Linux, the SDK's libc++ for macOS,
 Microsoft's STL for MSVC, and for musl and MinGW the libstdc++ of a
 `--sysroot`
-([the system's C++ library](https://docs.clice.io/xclang/integrations/clang#the-system-s-c-library)).
+([the system's C++ library](https://docs.clice.io/xclang/targets/cross-compiling#the-platform-s-c-library)).
 
 Not supported yet, each with its status in the roadmap:
 

@@ -71,7 +71,7 @@ The switch picks a file, as nothing after a config file can take back
 what it gave. `-stdlib++-isystem` stands for the C++ library's headers
 whatever `-stdlib=` says, a macOS `-L` finds `libc++.a` before the SDK's
 `libc++.tbd`, and the Linux sysroot has no libstdc++
-([the system's C++ library](../integrations/clang.md#the-system-s-c-library)).
+([the system's C++ library](../targets/cross-compiling.md#the-platform-s-c-library)).
 
 ### Why Not Built-In Defaults
 

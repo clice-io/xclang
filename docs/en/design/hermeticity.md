@@ -197,7 +197,7 @@ A program that passes C++ types to a library built with the platform's C++
 library cannot keep the rule: both sides need the same C++ library, and
 the platform's is a shared one, or Microsoft's STL. `-stdlib=platform`
 leaves the rule for such a program, knowingly
-([the system's C++ library](../integrations/clang.md#the-system-s-c-library)).
+([the system's C++ library](../targets/cross-compiling.md#the-platform-s-c-library)).
 It then loads the platform's C++ runtime where it runs:
 
 | target | at run time, from the system, besides the left column above |
