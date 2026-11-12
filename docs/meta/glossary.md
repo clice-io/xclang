@@ -56,6 +56,7 @@ Translate, one way within a page:
 | linker; link | 链接器；链接 |
 | the platform's C++ library | 平台的 C++ 标准库 |
 | known limitations | 已知限制 |
+| registry (Bazel's); repository (Bazel's) | registry；仓库 |
 
 ## Style
 
@@ -63,7 +64,8 @@ Natural technical Chinese, as a developer writes it, not translated
 English:
 
 - Say what the English says, not word for word. Split long English
-  clauses; drop "这个" as an article, 进行/对于/通过……的方式 stacks and
+  clauses; drop "这个" as an article and "该" as a demonstrative (该版本 →
+  这个版本, or 它), 进行/对于/通过……的方式 stacks and
   passive chains.
 - No calques: 服务所有的 checkout → 所有机器共用一份缓存; 相同的字节 → 逐字节相同;
   导入者 → import 它的文件; 这意味着 → 也就是说; 为了做到这一点 → 做法是.
