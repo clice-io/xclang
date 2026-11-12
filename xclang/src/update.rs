@@ -11,6 +11,10 @@
 //! with them the content digest of the SDK each Apple package carries
 //! (macos::examine), by which fetch finds it again when Apple withdraws
 //! the package.
+//!
+//! With --check it downloads no package and writes nothing: it says what a
+//! run would add and drop, and fails if anything (the preflight of a
+//! release, tests/release/preflight.ts, through preflight.yml).
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::File;
@@ -104,13 +108,37 @@ fn content_length(url: &str) -> Result<u64> {
     length.ok_or_else(|| crate::Error(format!("{url}: no Content-Length")))
 }
 
-pub fn run(file: &str, jobs: usize) -> Result<()> {
+pub fn run(file: &str, jobs: usize, check: bool) -> Result<()> {
     let mut table = Table::load(Some(file))?;
     let mut defaults = HashMap::new();
-    update_msvc(&mut table, jobs, &mut defaults)?;
-    update_winsdk(&mut table, jobs)?;
-    update_macos(&mut table, jobs)?;
+    update_msvc(&mut table, jobs, &mut defaults, check)?;
+    update_winsdk(&mut table, jobs, check)?;
+    update_macos(&mut table, jobs, check)?;
     update_presets(&mut table, &defaults)?;
+    if check {
+        // A preset that the image's version alone sets apart (GitHub moves
+        // it every week) is the table's. The new entries hold no digests:
+        // only whether the table would change is told.
+        let old = Table::load(Some(file))?;
+        for (key, preset) in table.presets.0.iter_mut() {
+            if let Some(was) = old.presets.get(key) {
+                let moved = Preset {
+                    image_version: was.image_version.clone(),
+                    read: was.read.clone(),
+                    ..preset.clone()
+                };
+                if moved == *was {
+                    *preset = was.clone();
+                }
+            }
+        }
+        let now = std::fs::read_to_string(file).context(file)?;
+        if now != table.to_json()? {
+            bail!("{file} is not what the vendors offer now (above): run xclang sdk update-table, and commit it");
+        }
+        eprintln!("{file}: what the vendors offer now");
+        return Ok(());
+    }
     std::fs::write(file, table.to_json()?).context(file)?;
     let w = &table.windows;
     eprintln!(
@@ -147,6 +175,7 @@ fn update_msvc(
     table: &mut Table,
     jobs: usize,
     defaults: &mut HashMap<String, (String, Option<String>)>,
+    check: bool,
 ) -> Result<()> {
     let headers = re(r"^microsoft\.vc\.(\d+\.\d+(?:\.\d+\.\d+)?)\.crt\.headers\.base$");
     for channel in CHANNELS {
@@ -231,7 +260,11 @@ fn update_msvc(
                 }
             }
         }
-        let sizes = crate::parallel(&slots, jobs, |s| content_length(&s.3))?;
+        let sizes = if check {
+            vec![0; slots.len()]
+        } else {
+            crate::parallel(&slots, jobs, |s| content_length(&s.3))?
+        };
         for version in &new {
             let mut entry: Option<Msvc> = None;
             for ((v, arch, part, url, sha), size) in slots.iter().zip(&sizes) {
@@ -290,7 +323,7 @@ fn update_msvc(
     Ok(())
 }
 
-fn update_winsdk(table: &mut Table, jobs: usize) -> Result<()> {
+fn update_winsdk(table: &mut Table, jobs: usize, check: bool) -> Result<()> {
     let mut offered: HashMap<&str, HashSet<String>> = HashMap::new();
     for (part, pkg) in NUGET_PACKAGES {
         let (data, _) = fetch(&format!("{NUGET}/{pkg}/index.json"))?;
@@ -325,7 +358,11 @@ fn update_winsdk(table: &mut Table, jobs: usize) -> Result<()> {
             }
         }
     }
-    let hashes = crate::parallel(&slots, jobs, |(_, _, url)| hash_url(url, None))?;
+    let hashes = if check {
+        slots.iter().map(|_| (0, String::new())).collect()
+    } else {
+        crate::parallel(&slots, jobs, |(_, _, url)| hash_url(url, None))?
+    };
     for v in new {
         let mut parts: HashMap<&str, Package> = HashMap::new();
         for ((w, part, url), (size, sha)) in slots.iter().zip(&hashes) {
@@ -356,7 +393,7 @@ fn update_winsdk(table: &mut Table, jobs: usize) -> Result<()> {
     Ok(())
 }
 
-fn update_macos(table: &mut Table, jobs: usize) -> Result<()> {
+fn update_macos(table: &mut Table, jobs: usize, check: bool) -> Result<()> {
     let known: HashSet<String> = table.macos.packages.iter().map(|p| p.url.clone()).collect();
     let (listed, all) = catalog::list()?;
     let found: Vec<&catalog::Listed> = listed.iter().filter(|l| !known.contains(&l.url)).collect();
@@ -364,6 +401,13 @@ fn update_macos(table: &mut Table, jobs: usize) -> Result<()> {
     let tmp = std::env::temp_dir().join(format!("xclang-update-{}", std::process::id()));
     std::fs::create_dir_all(&tmp)?;
     let examined = crate::parallel(&found, jobs, |l| {
+        if check {
+            let unread = crate::macos::Examined {
+                version: "?".into(),
+                content: format!("unread {}", l.url),
+            };
+            return Ok((0, format!("unread {}", l.url), unread));
+        }
         let pkg = tmp.join(format!("{}.pkg", sha256(l.url.as_bytes())));
         let (size, sha) = hash_url(&l.url, Some(&pkg))?;
         let examined = crate::macos::examine(&pkg).context(&l.url);

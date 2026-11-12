@@ -13,16 +13,7 @@
 /// (gh release download --clobber), an API call that reads or sets.
 
 import { spawn } from "node:child_process";
-
-/// What a failure's output says when the network, not the request, failed.
-export const TRANSIENT = new RegExp([
-  String.raw`\bHTTP[/ ]?(?:[\d.]+ )?5\d\d\b`, String.raw`\b50[0234]\b.*(?:Error|Gateway|Unavailable|Timeout)`,
-  "Service Unavailable", "Bad Gateway", "Gateway Time-?out", "Internal Server Error",
-  "timed? ?out", "ETIMEDOUT", "ECONNRESET", "ECONNREFUSED", "EAI_AGAIN", "ENOTFOUND", "socket hang up",
-  "connection reset", "unexpected EOF", "TLS handshake", "Could not resolve host", "fetch failed",
-  "secondary rate limit", "API rate limit exceeded", "early EOF", "RPC failed",
-].join("|"), "i");
-const WAITS = [15, 45, 90, 180];
+import { TRANSIENT, WAITS } from "./net.ts";
 
 const [command, ...args] = process.argv.slice(2);
 if (!command) {
