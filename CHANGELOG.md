@@ -8,6 +8,24 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+- **MSVC targets: a type thrown in a C++20 module or a PCH keeps its copy
+  constructor.** The catchable types that an importer emits for a throw
+  of the module named none, so `std::current_exception` and
+  `std::exception_ptr` copied the object bit by bit, and a
+  `std::runtime_error` freed its message twice; `import std;` was enough
+  (xclang#27). [Patch 0019](docs/en/reference/patches.md) is
+  llvm/llvm-project#114075 with the fixes of its review: the BMI is the
+  same bytes on every build.
+- **`llvm_unreachable` traps**, in clang, lld, the tools, libclang and its
+  ASan build, and in code built against libclang's headers: LLVM reaching
+  a path it holds unreachable stops there, where the optimizer turned it
+  into an endless loop or a run into unrelated code
+  (`LLVM_UNREACHABLE_OPTIMIZE=OFF`).
+- **The x64 MinGW ASan DLL holds no link time**:
+  `libclang_rt.asan_dynamic.dll` is the same bytes on a rebuild, as
+  everything else built for Windows; it held the time of its link since
+  23.1.3.4.
+
 ## [23.1.5.1](https://github.com/clice-io/xclang/releases/tag/23.1.5.1) — 2026-11-12
 
 Built by 23.1.3.6.

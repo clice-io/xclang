@@ -211,6 +211,7 @@ host was linked from, without the parts a tool does not link:
 | resource directory | `lib/clang/<major>`: the clang headers, and the compiler-rt headers (`sanitizer/`, `fuzzer/`, ...), as the toolchain has them; a tool hands it to every compiler it stands in for |
 | clang-tidy | its headers, and `clang-tidy/clang-tidy-config.h`, which they include, as xclang configures it: no static analyzer, no query-based checks |
 | every target's MC layer | TargetInfo, MC descriptions, assembly parser and disassembler of every LLVM target |
+| `llvm_unreachable` traps | `LLVM_UNREACHABLE_OPTIMIZE` is off: an `llvm_unreachable` that is reached stops the program, in the libraries and, through `llvm/Config/llvm-config.h`, in a tool's own code built against them with `NDEBUG`; without `NDEBUG`, as in the ASan build, it prints its message and aborts |
 | no code generators | `InitializeAllTargets()`, `InitializeAllAsmPrinters()` and `InitializeNativeTarget()` do not link |
 | build record | `lib/cmake/xclang/libclang.cmake`: `XCLANG_LLVM_VERSION`, `XCLANG_LTO`, `XCLANG_PGO`, `XCLANG_PATCHES` and the like |
 

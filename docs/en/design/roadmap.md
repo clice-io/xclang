@@ -299,7 +299,7 @@ The training is widened between releases, not while one is pending
   ([releasing](../dev/releasing.md#reproducible-rebuilds)). Since
   23.1.2.10, `clang --version` names LLVM's release commit, not xclang's,
   nothing built for Windows holds a time (but the x64 MinGW ASan DLL,
-  since 23.1.3.4, below), and the macOS sanitizers' dylibs hold no file
+  from 23.1.3.4 to 23.1.5.1, below), and the macOS sanitizers' dylibs hold no file
   times. Since 23.1.3.2, the `xclang` command is the
   same bytes in any directory, with any `CARGO_HOME`, at any time
   ([build](../dev/release-build.md#the-xclang-command)). The rebuilds
@@ -330,7 +330,7 @@ The training is widened between releases, not while one is pending
     [43203240712](https://github.com/clice-io/xclang/actions/runs/43203240712)),
     differed in three files. The x64 MinGW ASan DLL,
     `libclang_rt.asan_dynamic.dll`, holds the time of its link, in every
-    release since 23.1.3.4: compiler-rt links it without
+    release from 23.1.3.4 to 23.1.5.1: compiler-rt linked it without
     `--no-insert-timestamp`. The x64 Windows host's `llvm.exe` differs in
     its build ID alone, and `TypeLoc.cpp.obj` of the x64 MinGW libclang
     (ThinLTO bitcode) in the order of a few PHI operands, which the

@@ -12,6 +12,8 @@
 ///   musl's qsort and `import std;` too;
 /// - the MinGW targets' UBSan, and x64's ASan with libc++'s ASan build and
 ///   its DLL, from 23.1.3.4;
+/// - the MSVC targets' catchable types name the copy constructor of a type
+///   thrown in a C++20 module, and its BMI is the same bytes when built again;
 /// - natively also `import std;`, a precompiled header and ThinLTO;
 /// - dSYM and GSYM debug symbols by the tree's dsymutil and llvm-gsymutil;
 /// - share/licenses names every component.
