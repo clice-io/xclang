@@ -26,8 +26,10 @@
 ///    tests/cmake/runtimes for this host's target once per variant, through
 ///    the toolchain file. With no options they are the prebuilt runtimes
 ///    again: the same __config_site, and for Linux and MinGW the same
-///    objects, the compiler's name in .comment aside. Once through this
-///    checkout's toolchain file, with XCLANG_ROOT. Linux x64 adds
+///    objects, the compiler's name in .comment aside (the same members,
+///    when the prebuilt ones' compiler, the bootstrap, is another LLVM's
+///    than this tree's clang, which may compile some differently). Once
+///    through this checkout's toolchain file, with XCLANG_ROOT. Linux x64 adds
 ///    MemorySanitizer, ThreadSanitizer and libc++ with ThinLTO; Linux x64,
 ///    arm64 macOS and x64 Windows, AddressSanitizer. With --programs <dir>, the
 ///    hardening variant for other targets too (from Linux x64: Linux arm64
@@ -409,7 +411,9 @@ console.log(`\nall builds passed, xclang ${version} on ${native.triple}`);
 /// __config_site and module sources; for ELF and COFF targets, the objects
 /// of their archives, once without .comment, which names the compiler that
 /// built them (the prebuilt ones, the bootstrap's), or else their code: an
-/// assertion's __FILE__ (libunwind's) is the path of its source.
+/// assertion's __FILE__ (libunwind's) is the path of its source. When the
+/// two .comment name different compilers, as when LLVM moved since the
+/// bootstrap, only the members: the code of some may differ (logged).
 function samePrebuilt(t: common.Target, install: string): string[] {
   const differ: string[] = [];
   /// Text files the same but for line ends: CMake writes the configured
@@ -433,12 +437,22 @@ function samePrebuilt(t: common.Target, install: string): string[] {
   const exe = windows ? ".exe" : "";
   const code = (file: string) => common.capture(path.join(tree, "bin", `llvm-objdump${exe}`), ["-d", "--no-show-raw-insn", file])
     .split("\n").slice(2).join("\n");
+  /// The strings of an object's .comment, "" without one.
+  const comment = (file: string): string => {
+    const result = spawnSync(path.join(tree, "bin", `llvm-readobj${exe}`), ["--string-dump=.comment", file], { encoding: "utf8" });
+    if (result.status !== 0) return "";
+    return [...result.stdout.matchAll(/^\[\s*[0-9a-f]+\] (.*)$/gm)].map((m) => m[1]!.trim()).join("; ");
+  };
   for (const archive of ["libc++.a", "libc++abi.a", "libunwind.a", "libc++experimental.a"]) {
+    /// The compiler of each side, from its first member's .comment.
+    const compilers: string[] = [];
     const members = (which: string, file: string): Map<string, Buffer> => {
       const dir = path.join(work, "compare", archive, which);
       fs.mkdirSync(dir, { recursive: true });
       common.run(path.join(tree, "bin", `llvm-ar${exe}`), ["x", `--output=${dir}`, file]);
-      return new Map(fs.readdirSync(dir).map((m) => {
+      const names = fs.readdirSync(dir).sort();
+      compilers.push(names.length ? comment(path.join(dir, names[0]!)) : "");
+      return new Map(names.map((m) => {
         common.run(path.join(tree, "bin", `llvm-objcopy${exe}`), ["--remove-section=.comment", path.join(dir, m)]);
         return [m, fs.readFileSync(path.join(dir, m))];
       }));
@@ -447,9 +461,15 @@ function samePrebuilt(t: common.Target, install: string): string[] {
     const theirs = members("prebuilt", path.join(lib, archive));
     const names = [...new Set([...ours.keys(), ...theirs.keys()])].sort();
     const dir = (which: string) => path.join(work, "compare", archive, which);
+    const both = (m: string) => ours.has(m) && theirs.has(m);
     const unlike = names.filter((m) => !ours.get(m)?.equals(theirs.get(m) ?? Buffer.alloc(0)) &&
-      !(ours.has(m) && theirs.has(m) && code(path.join(dir("source"), m)) === code(path.join(dir("prebuilt"), m))));
-    if (unlike.length) differ.push(`${archive}: ${unlike.length} of ${names.length} members differ from ${lib}: ${unlike.join(", ")}`);
+      !(both(m) && code(path.join(dir("source"), m)) === code(path.join(dir("prebuilt"), m))));
+    const failing = compilers[0] === compilers[1] ? unlike : unlike.filter((m) => !both(m));
+    if (failing.length) differ.push(`${archive}: ${failing.length} of ${names.length} members differ from ${lib}: ${failing.join(", ")}`);
+    if (failing.length < unlike.length) {
+      console.log(`${archive}: the code of ${unlike.filter(both).join(", ")} differs from ${lib}'s, ` +
+        `whose compiler is another: ${compilers[1]}, not ${compilers[0]}`);
+    }
   }
   return differ;
 }

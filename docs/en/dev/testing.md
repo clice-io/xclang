@@ -190,7 +190,8 @@ Ninja 1.11, and with the newest of both:
    and once through this checkout's, with `XCLANG_ROOT`.
    With no options they are the prebuilt runtimes again: the same
    `__config_site` and module sources, and for Linux and MinGW the same
-   code. A hardening mode traps on a read past a vector's end; an ABI
+   code, or the same objects where the bootstrap that built the prebuilt
+   ones is another LLVM's than the tree's clang. A hardening mode traps on a read past a vector's end; an ABI
    namespace and ABI macros of its own, without exceptions and RTTI, name
    the code of `import std` in the program; on Linux x64, MemorySanitizer
    reports a use of uninitialized memory inside libc++ and nothing of what
