@@ -35,8 +35,18 @@ runs:
           names+=(-n "digests-$h-first")
         done
         for h in $hosts; do names+=(-n "dist-$h"); done
-        gh run download "$RUN" -R "$GITHUB_REPOSITORY" -D "$dir" "${names[@]}"
+        # Tried again from nothing: gh refuses to overwrite a file.
+        node tests/lib/retry.ts bash -c 'rm -rf "$0"; gh run download "$1" -R "$GITHUB_REPOSITORY" -D "$0" "${@:2}"' \
+          "$dir" "$RUN" "${names[@]}"
         cat "$dir"/digests-*-first/first.txt > "$dir/SHA256SUMS"
         node packages/bazel/bazel.ts versions "$dir/SHA256SUMS"
+        # A commit whose module names this release already (its draft's
+        # commit) names these archives.
+        if git show HEAD:packages/bazel/bazel/versions.bzl | grep -qxF "$(grep '^VERSION = ' packages/bazel/bazel/versions.bzl)" \
+          && ! git diff --quiet HEAD -- packages/bazel; then
+          git diff HEAD -- packages/bazel
+          echo "::error::this commit's module names the release of run $RUN with other archives than that run's"
+          exit 1
+        fi
         for h in $hosts; do echo "common --distdir=$dir/dist-$h" >> "$rc"; done
         cat "$rc"

@@ -26,6 +26,7 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import * as common from "../../toolchain/common.ts";
 import { runtimesSources } from "../../toolchain/runtimes-src.ts";
+import { fetchRetry } from "./net.ts";
 
 const { values } = parseArgs({
   options: { host: { type: "string" }, out: { type: "string" }, dist: { type: "string" }, release: { type: "string" } },
@@ -41,7 +42,7 @@ const REPO = "https://github.com/clice-io/xclang/releases";
 
 async function download(url: string, file: string): Promise<void> {
   console.log(`downloading ${url}`);
-  const response = await fetch(url, { headers: { "User-Agent": "xclang/ci" } });
+  const response = await fetchRetry(url);
   if (!response.ok) common.fail(`${url}: HTTP ${response.status}`);
   fs.writeFileSync(file, Buffer.from(await response.arrayBuffer()));
 }

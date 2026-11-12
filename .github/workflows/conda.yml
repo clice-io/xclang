@@ -61,13 +61,15 @@ jobs:
           node-version: 24
       - name: rattler-build
         run: |
-          curl -fsSL -o rattler-build "https://github.com/prefix-dev/rattler-build/releases/download/$RATTLER_BUILD/rattler-build-x86_64-unknown-linux-musl"
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 15 -o rattler-build "https://github.com/prefix-dev/rattler-build/releases/download/$RATTLER_BUILD/rattler-build-x86_64-unknown-linux-musl"
           echo "$RATTLER_BUILD_SHA256  rattler-build" | sha256sum -c
           chmod +x rattler-build
       - name: Release assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release download "${{ inputs.tag }}" -R "$GITHUB_REPOSITORY" -D dist -p "xclang-*-${{ matrix.host }}.tar.xz" -p 'llvm-option-inc-*.tar.xz'
+        run: |
+          node tests/lib/retry.ts gh release download "${{ inputs.tag }}" -R "$GITHUB_REPOSITORY" -D dist --clobber \
+            -p "xclang-*-${{ matrix.host }}.tar.xz" -p 'llvm-option-inc-*.tar.xz'
       # llvm-option-inc (noarch) comes with Linux x64's package.
       - name: Package
         run: |

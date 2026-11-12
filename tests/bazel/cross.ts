@@ -37,6 +37,7 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import * as common from "../../toolchain/common.ts";
 import { host, writePrograms, type Program } from "../lib/on-target.ts";
+import { fetchRetry } from "../lib/net.ts";
 
 const windows = process.platform === "win32";
 
@@ -329,7 +330,7 @@ async function registry(argv: string[]): Promise<void> {
   if (!name || !dir) common.fail("registry <module> <ws>");
   const url = `https://bazel.clice.io/modules/${name}`;
   const get = async (file: string) => {
-    const response = await fetch(file);
+    const response = await fetchRetry(file);
     if (!response.ok) common.fail(`${file}: ${response.status}`);
     return response;
   };
