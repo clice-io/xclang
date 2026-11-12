@@ -160,7 +160,7 @@ What the numbers say, read loosely:
   which then starts `llvm.exe`, is a visible part of that time: up to 12%
   more on x64 and 25% more on arm64 than running `llvm.exe clang++`
   directly. On C++ with real work per file, it does not show
-  ([the launchers](windows.md#the-launchers)).
+  ([the launchers](../targets/windows.md#the-launchers)).
 - **Apple's clang** takes 17 to 29% more time than xclang on fmt, on both
   macOS architectures. On lua's C, it takes between 25% less and 5% more.
 

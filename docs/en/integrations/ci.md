@@ -5,7 +5,7 @@ keeps what is slow to rebuild between runs. It also builds for a target on
 one runner, and runs the result on a runner of that target.
 
 Requires: a GitHub Actions workflow, with the hosted runners of
-[targets](../reference/targets.md#hosts).
+[targets](../targets/cross-compiling.md#targets-and-hosts).
 
 ## Get the Toolchain
 
@@ -56,7 +56,7 @@ Bazel. Keep `--repository_cache` with the disk cache (below).
 entry can hold. Apple withdraws a macOS SDK package now and then, and
 xclang finds the SDK again in the one Apple puts in its place; a kept
 package still builds when Apple carries the SDK in no package any more
-([vendor SDKs](../design/vendor-sdks.md#apple-s-packages-come-and-go)).
+([vendor SDKs](../targets/macos.md#packages-apple-withdraws-and-content-digests)).
 
 ## Keep Caches between Runs
 
@@ -192,7 +192,7 @@ target:
 The MSVC targets build on every runner, and the macOS targets on Linux
 and Windows runners too, with the SDK the `xclang` command fetches
 ([MSVC targets](clang.md#msvc-targets),
-[macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)), and
+[macOS](../targets/macos.md#on-linux-and-windows-hosts)), and
 in Bazel with the SDK the module fetches
 ([Bazel](bazel.md#build-for-msvc-and-for-macos-anywhere)). x86_64 macOS
 programs also run on arm64 runners through Rosetta, and x86_64 Windows

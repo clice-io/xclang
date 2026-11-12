@@ -22,12 +22,12 @@ clang++ -O2 --target=aarch64-w64-mingw32 hello.cpp -o hello-windows-arm64.exe
 
 `--target=x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl`
 build static programs
-([musl targets](../reference/targets.md#musl-targets)).
+([musl targets](../targets/linux.md#musl-targets)).
 On macOS hosts, `--target=aarch64-apple-darwin` and
 `--target=x86_64-apple-darwin` build against Xcode's SDK, found by `xcrun`
 or given with `-isysroot`. On Linux and Windows hosts they build against
 the SDK that `xclang sdk fetch macos` fetched into the toolchain
-([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)). clang's
+([macOS](../targets/macos.md#on-linux-and-windows-hosts)). clang's
 other spellings of the targets, such as
 `x86_64-pc-linux-gnu` or `arm64-apple-macos`, reach the same config files.
 
@@ -100,14 +100,14 @@ Without one, clang on Windows finds an installed Visual Studio, as
 upstream clang does. On Linux and macOS it finds no header of Microsoft's,
 and a compile that includes one stops (`'stdio.h' file not found`); one
 that needs none, such as `-ffreestanding`, works
-([why](../design/windows.md#msvc-targets)).
+([why](../targets/windows.md#msvc-targets)).
 
 The C++ library is libc++, as on every other target, `import std`
 included (since 23.1.2.10; before, Microsoft's STL). `-stdlib=platform`
 (clang-cl: `/clang:-stdlib=platform`) selects Microsoft's STL instead, for
 C++ interfaces to libraries built with MSVC, whose types are the STL's
 ([the system's C++ library](#the-system-s-c-library),
-[why](../design/windows.md#libc-and-the-stl)).
+[why](../targets/windows.md#libc-and-microsoft-s-stl)).
 
 clang's default standard for MSVC targets is C++14, where libc++ has
 none of the C++17 library that the STL offers early, such as
@@ -116,7 +116,7 @@ none of the C++17 library that the STL offers early, such as
 By default a program links libc++ and the VC runtime statically, and
 UCRT from Windows: it loads Windows' DLLs and UCRT's API sets
 (`api-ms-win-crt-*`), no `vcruntime140.dll` or `msvcp140.dll`. That is
-Microsoft's hybrid CRT ([why](../design/windows.md#msvc-targets)). The
+Microsoft's hybrid CRT ([why](../targets/windows.md#msvc-targets)). The
 other C runtimes are explicit, with either C++ library:
 
 | C runtime | clang, clang++ | clang-cl |

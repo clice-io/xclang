@@ -109,7 +109,7 @@ changes:
   warnings are not the build's;
 - the link flags of the sanitizer features, and the ASan libc++ for `asan`;
 - `gc_sections` off for Windows targets
-  ([why](windows.md#gc-sections-and-static-initializers));
+  ([why](../targets/windows.md#gc-sections-and-static-initializers));
 - a link program of the toolchain's own, which makes the dSYM in the link
   ([why](../features/debugging.md#why-a-dsym-comes-from-the-link)), with
   dsymutil's classic DWARF linker: the parallel one, LLVM 23's default,

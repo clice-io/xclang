@@ -226,7 +226,7 @@ targets, and names `-lunwind` itself.
 
 macOS targets from Linux and Windows hosts need Apple's SDK, which
 `xclang sdk fetch macos --accept-license` fetches
-([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)). On macOS
+([macOS](../targets/macos.md#on-linux-and-windows-hosts)). On macOS
 hosts, the SDK is Xcode's. For `aarch64-apple-darwin`:
 
 <!-- excerpt: .github/workflows/examples.yml -->

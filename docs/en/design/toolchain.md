@@ -42,10 +42,10 @@ Each says this
 | target | options |
 |---|---|
 | Linux | `--sysroot` of the target, `-rtlib=compiler-rt -unwindlib=libunwind -stdlib=libc++`, `-static-libstdc++ -static-libgcc`, `-fuse-ld=lld` |
-| Linux (musl) | the same, and `-static`: musl is linked in too ([musl targets](../reference/targets.md#musl-targets)) |
+| Linux (musl) | the same, and `-static`: musl is linked in too ([musl targets](../targets/linux.md#musl-targets)) |
 | Windows (MinGW) | `--sysroot` of the target, `-rtlib=compiler-rt -unwindlib=libunwind -stdlib=libc++`, `-fuse-ld=lld`; the sysroot has static libraries only |
 | macOS | xclang's libc++ headers (`-stdlib++-isystem`) and `libc++.a` ahead of the SDK's `libc++.tbd` (`-L`), `-mmacos-version-min=13.0`, `-fuse-ld=lld` |
-| Windows (MSVC) | `@<target>-sdk.cfg`, which includes the file of the SDK in use that names it, from `sdk/windows`; on Linux and macOS hosts `sdk/windows` as the sysroot; xclang's libc++ headers (`-stdlib++-isystem`); `-fuse-ld=lld`; the builtins and the hybrid CRT named in every object ([MSVC targets](windows.md#msvc-targets)) |
+| Windows (MSVC) | `@<target>-sdk.cfg`, which includes the file of the SDK in use that names it, from `sdk/windows`; on Linux and macOS hosts `sdk/windows` as the sysroot; xclang's libc++ headers (`-stdlib++-isystem`); `-fuse-ld=lld`; the builtins and the hybrid CRT named in every object ([MSVC targets](../targets/windows.md#msvc-targets)) |
 
 Paths are relative to the file (`<CFGDIR>`), so the toolchain directory
 works wherever it is unpacked. The config files apply to native builds
@@ -117,7 +117,7 @@ for the vendor SDKs too.
 clang, lld and most tools (`llvm-ar`, `llvm-objcopy`, `dsymutil`,
 `llvm-gsymutil`, ...) are one program, `llvm`, built with LLVM's
 `LLVM_TOOL_LLVM_DRIVER_BUILD`. Each name is a link to it, or on Windows a
-small [launcher](windows.md#the-launchers). The program dispatches on the
+small [launcher](../targets/windows.md#the-launchers). The program dispatches on the
 name it was started by. Otherwise every tool carries its own copy of the
 LLVM libraries.
 

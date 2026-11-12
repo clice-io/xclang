@@ -215,7 +215,7 @@ and later) that Apple's `atos` crashes on.
 `-object_path_lto` is also what the clang driver passes when it compiles and
 links in one command. It exposed an lld bug, which
 [patch 0007](../reference/patches.md) fixes
-([macOS](../design/macos.md#the-patch-it-took)).
+([macOS](../targets/macos.md)).
 
 ### Strip
 

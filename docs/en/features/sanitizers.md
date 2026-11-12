@@ -346,7 +346,7 @@ container-overflow; `ubsan.exe` reports
 
 ## musl Targets
 
-The [musl targets](../reference/targets.md#musl-targets), from 23.1.2.10
+The [musl targets](../targets/linux.md#musl-targets), from 23.1.2.10
 on, link statically, and of the sanitizers only UBSan works in a static
 program: its standalone runtime (`-fsanitize=undefined`, `--features=ubsan`
 in Bazel) and its minimal one (`-fsanitize-minimal-runtime`), or none with

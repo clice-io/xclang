@@ -52,7 +52,7 @@ Their compiler-rt and libc++ are in `lib/clang/<major>/lib/windows`, the
 directory lld-link searches by itself: `libc++-<arch>.lib`,
 `libc++experimental-<arch>.lib` and, for x64, `libc++asan-x86_64.lib`,
 which the target's `__config_site` names in every object that includes
-libc++ ([Windows](../design/windows.md#libc-and-the-stl)). Their
+libc++ ([Windows](../targets/windows.md#libc-and-microsoft-s-stl)). Their
 `<target>/` holds libc++'s module sources (`share/libc++/v1`), its module
 manifest (`lib/libc++.modules.json`), which
 `-print-library-module-manifest-path` does not report for them, and the
@@ -62,7 +62,7 @@ ASan build's `__config_site` (`lib/asan/include`).
 
 | | Linux | Linux (musl) | Windows (MinGW) | macOS |
 |---|---|---|---|---|
-| C library | glibc 2.17's headers in `usr/include`, its startup files and libraries in `lib64`, `usr/lib64` | musl 1.2.6's headers in `usr/include`, its startup files and `libc.a` in `usr/lib`, and its empty `libm.a`, `libpthread.a`, ... | mingw-w64 (UCRT) and winpthreads: the libraries in `lib`, the headers in the shared `mingw-w64/include` | none: Apple's SDK, Xcode's, or on Linux and Windows hosts `sdk/macos` ([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)) |
+| C library | glibc 2.17's headers in `usr/include`, its startup files and libraries in `lib64`, `usr/lib64` | musl 1.2.6's headers in `usr/include`, its startup files and `libc.a` in `usr/lib`, and its empty `libm.a`, `libpthread.a`, ... | mingw-w64 (UCRT) and winpthreads: the libraries in `lib`, the headers in the shared `mingw-w64/include` | none: Apple's SDK, Xcode's, or on Linux and Windows hosts `sdk/macos` ([macOS](../targets/macos.md#on-linux-and-windows-hosts)) |
 | kernel headers | Linux 3.10's (x64), 4.18's (arm64), in `usr/include` | Linux 6.18's, in `usr/include` | | |
 | libc++, libc++abi, libunwind | `usr/lib`; the headers in the shared `libc++/include/c++/v1` | `usr/lib`; the same | `lib`; the same | `lib` (no libunwind: the system's, in libSystem); the same |
 | libc++ module sources | `usr/share/libc++/v1` | `usr/share/libc++/v1` | `share/libc++/v1` | `share/libc++/v1` |
@@ -146,7 +146,7 @@ has it, and `mingw-w64` on Windows hosts), the option tables `xclang` and
 On Linux and macOS hosts, the tool names in `bin/` are symbolic links to
 `llvm`. The Windows archives hold no symbolic links, so they unpack without
 extra rights, and conda can package them; every tool name is a small
-[launcher](../design/windows.md#the-launchers) instead. The Linux sysroots
+[launcher](../targets/windows.md#the-launchers) instead. The Linux sysroots
 hold no links either: soname links are the files themselves, and `libfoo.so`
 links are linker scripts
 ([why glibc 2.17](../design/hermeticity.md#why-glibc-2-17)).

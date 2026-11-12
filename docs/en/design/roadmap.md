@@ -44,7 +44,7 @@ redistributed, and links everything else statically.
 ## Targets
 
 A target's tier says how it is tested
-([tiers](../reference/targets.md#tiers)). For the targets here, tier 1 can
+([tiers](../targets/cross-compiling.md#tiers)). For the targets here, tier 1 can
 also mean a runner that runs the target's programs: Windows x64 runs x86
 programs, wasmtime WebAssembly ones. A tier 3 target may get its runtimes
 [built on demand](#libc-on-demand) instead of prebuilt. "The user (SDK)"
@@ -91,7 +91,7 @@ What sets these targets apart:
   Windows SDK versions are pinned to ones the shipped clang accepts, and
   the user fetches them with the [`xclang` command](#xclang-command),
   which every toolchain archive carries
-  ([Windows](windows.md#msvc-targets)). CMake builds them, and so does the
+  ([Windows](../targets/windows.md#msvc-targets)). CMake builds them, and so does the
   Bazel module since 23.1.2.10 ([below](#msvc-bazel)).
 - **macOS from any host.** Since 23.1.2.7. Apple's macOS SDK is in the
   Command Line Tools package on Apple's update servers, and needs no
@@ -100,14 +100,14 @@ What sets these targets apart:
   files then use it on Linux and Windows hosts; on macOS, Xcode's SDK
   stays the one in use. The programs are those of a macOS host: xclang's
   libc++ linked in, ld64.lld, dSYMs, the sanitizers
-  ([macOS](macos.md#the-sdk-on-linux-and-windows-hosts)). CMake builds
+  ([macOS](../targets/macos.md#on-linux-and-windows-hosts)). CMake builds
   them, and so does the Bazel module since 23.1.2.10
   ([below](#macos-any-host-bazel)).
 - **musl.** Static programs that take nothing from the system they run on,
   in every archive since 23.1.2.10, as the glibc, MinGW and macOS targets
   are: musl built by xclang, libc++ and every runtime linked in, UBSan the
   only sanitizer, as the others need dynamic linking
-  ([targets](../reference/targets.md#musl-targets)). CMake, Bazel and cargo
+  ([targets](../targets/linux.md#musl-targets)). CMake, Bazel and cargo
   build them.
 - **A newer glibc.** The same targets for programs that need what glibc
   2.17 lacks, such as `-static-pie` and newer functions, with the same
@@ -239,7 +239,7 @@ of every other target, its `import std` included, as their default.
 Microsoft's STL stays a choice, `-stdlib=platform`, as the platform's C++
 library is on every target since 23.1.2.11: C++ types passed between a
 program and libraries built with MSVC need the same library on both sides
-([Windows](windows.md#libc-and-the-stl)).
+([Windows](../targets/windows.md#libc-and-microsoft-s-stl)).
 
 The not-planned items follow from what xclang is. It is a compiler
 toolchain, and libclang has the libraries that tools on clang link. Its

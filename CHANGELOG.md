@@ -26,7 +26,7 @@ Built by 23.1.3.6.
   and 27.0, and its CDN answers 403 for it, at first only where an edge no
   longer keeps a copy. The table has the package Apple put in its place,
   and SDK 27.2 for 27; Xcode 27's preset, whose SDK 27.0 Apple no longer
-  serves, is gone ([vendor SDKs](docs/en/design/vendor-sdks.md)).
+  serves, is gone ([vendor SDKs](docs/en/targets/cross-compiling.md#vendor-sdks)).
 - **macOS SDKs outlast Apple's withdrawals.** The version table pins each
   macOS SDK package by the content of its SDK too. When Apple withdraws
   the package (its CDN answers 403), `xclang sdk fetch` and the Bazel
@@ -34,7 +34,7 @@ Built by 23.1.3.6.
   by that content; a version no package carries any more fails, naming the
   versions they carry. `--version latest` (`version = "latest"` in Bazel)
   takes the newest SDK the catalogs list, which is not reproducible
-  ([vendor SDKs](docs/en/design/vendor-sdks.md#apple-s-packages-come-and-go)).
+  ([vendor SDKs](docs/en/targets/macos.md#packages-apple-withdraws-and-content-digests)).
 - **Bazel: the module works with rules_cc 0.2.28**, and any rules_cc from
   0.2.25 on. It patched the unix toolchain config of the build's rules_cc,
   which failed to fetch with 0.2.28 (`CONTENT_DOES_NOT_MATCH_TARGET`), and
@@ -288,7 +288,7 @@ Built by 23.1.2.6.
   libc++ has none of the C++17 library the STL offers early
   (`std::is_integral_v`): build with `-std=c++17` or later
   ([MSVC targets](docs/en/integrations/clang.md#msvc-targets),
-  [Windows](docs/en/design/windows.md#msvc-targets)).
+  [Windows](docs/en/targets/windows.md#msvc-targets)).
 - **0015** added: clang's MSVC toolchain takes `-stdlib=libc++` (libc++
   installed with the compiler, or the directories of `-stdlib++-isystem`)
   and `-stdlib=platform` (Microsoft's STL). **0016** added: libc++ on
@@ -303,7 +303,7 @@ Built by 23.1.2.6.
   `aarch64-unknown-linux-musl`, in every toolchain archive: static programs
   with no program interpreter and no shared library, which take nothing
   from the system they run on
-  ([musl targets](docs/en/reference/targets.md#musl-targets)). musl 1.2.6
+  ([musl targets](docs/en/targets/linux.md#musl-targets)). musl 1.2.6
   with the patches of its security advisories and Linux 6.18's UAPI
   headers, built by xclang; libc++, libc++abi, libunwind, compiler-rt and
   `import std` as for the other Linux targets; of the sanitizers UBSan, as
@@ -481,7 +481,7 @@ Built by 23.1.2.6.
   `clang++ --target=arm64-apple-macos` (or x86_64) builds against Apple's
   macOS SDK, which the toolchain's own
   `xclang sdk fetch macos --accept-license` fetches into its `sdk/macos`
-  ([macOS](docs/en/design/macos.md#the-sdk-on-linux-and-windows-hosts)).
+  ([macOS](docs/en/targets/macos.md#on-linux-and-windows-hosts)).
   On those hosts the macOS targets' config files begin with
   `-isysroot <CFGDIR>/../sdk/macos`: an `-isysroot` on the command line
   replaces it, and clang no longer reads `SDKROOT` there. On macOS hosts

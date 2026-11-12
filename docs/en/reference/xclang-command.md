@@ -4,7 +4,7 @@
 cannot be redistributed, and targets beyond the eight every toolchain has.
 Every toolchain archive carries it, as `bin/xclang` (`xclang.exe` on
 Windows), since 23.1.2.7. Why SDKs are fetched and not shipped is in
-[vendor SDKs](../design/vendor-sdks.md). No release publishes target
+[vendor SDKs](../targets/cross-compiling.md#vendor-sdks). No release publishes target
 archives yet, so `xclang target add` has nothing to add; target archives
 are [planned](../design/roadmap.md#target-archives). `xclang cargo`, since
 23.1.2.11, runs cargo with the toolchain as the C compiler and linker of
@@ -32,12 +32,12 @@ download against the size and sha256 its version table pins, with three
 tries, since a download now and then comes short or damaged. A macOS
 SDK whose package Apple withdrew, it finds in another package Apple's
 catalogs list, checked by the SDK's content
-([why](../design/vendor-sdks.md#apple-s-packages-come-and-go)). Then it
+([why](../targets/macos.md#packages-apple-withdraws-and-content-digests)). Then it
 unpacks the SDK into a directory of its own:
 
 | SDK | directory | use |
 |---|---|---|
-| macOS | `$XCLANG/sdk/macos-<version>` | `clang++ --target=arm64-apple-macos` on Linux and Windows hosts ([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)); on macOS hosts, and for an SDK outside the toolchain, `-isysroot <dir>` |
+| macOS | `$XCLANG/sdk/macos-<version>` | `clang++ --target=arm64-apple-macos` on Linux and Windows hosts ([macOS](../targets/macos.md#on-linux-and-windows-hosts)); on macOS hosts, and for an SDK outside the toolchain, `-isysroot <dir>` |
 | MSVC and the Windows SDK | `$XCLANG/sdk/windows-msvc<version>-sdk<version>` | `clang++ --target=x86_64-pc-windows-msvc`, `clang-cl`: the [MSVC targets](../integrations/clang.md#msvc-targets) |
 
 | command or option | |
@@ -76,12 +76,12 @@ The MSVC targets' own config files read them through
 `bin/<arch>-pc-windows-msvc-clang-cl-sdk.cfg`, which `fetch`, `use` and
 `remove` rewrite: they include the files of the SDK in use, through
 `sdk/windows`, or say there is none for the architecture
-([why](../design/windows.md#msvc-targets)). An update of a conda package
+([why](../targets/windows.md#msvc-targets)). An update of a conda package
 writes them anew, naming none; `sdk use` names the SDK again. On Linux and
 macOS hosts the config files read `sdk/windows` meanwhile all the same. On
 Linux and Windows hosts the
 macOS targets' config files name `sdk/macos` as their `-isysroot`
-([why](../design/macos.md#the-sdk-on-linux-and-windows-hosts)); on macOS
+([why](../targets/macos.md#on-linux-and-windows-hosts)); on macOS
 hosts they use Xcode's SDK, and a fetched one takes `-isysroot`. An SDK
 fetched with `--sdk-dir` is outside the toolchain, where its config files
 do not look.
@@ -106,7 +106,7 @@ version the vendors offer:
 
 With no version given, the preset's is taken, the macOS 27 SDK too: the
 releases that carry the command link against it
-([macOS](../design/macos.md#the-sdk-is-xcode-s)).
+([macOS](../targets/macos.md#on-macos-hosts)).
 
 ### What Is Fetched
 

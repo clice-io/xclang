@@ -7,10 +7,18 @@ guide:
       label: Quick Start
     - file: install
       label: Installation
-    - file: cross-compiling
-      label: Cross-Compiling
     - comparisons
     - troubleshooting
+
+targets:
+  label: Targets
+  items:
+    - file: cross-compiling
+      label: Cross-Compiling
+    - linux
+    - windows
+    - file: macos
+      label: macOS
 
 integrations:
   label: Integrations
@@ -41,9 +49,6 @@ features:
 reference:
   label: Reference
   items:
-    - file: targets
-      label: Targets
-    - compatibility
     - file: layout
       label: Archive Layout
     - cmake-api
@@ -60,9 +65,6 @@ design:
     - file: toolchain
       label: Toolchain Structure
     - pgo
-    - macos
-    - windows
     - file: bazel-module
       label: Bazel Module
-    - vendor-sdks
     - roadmap

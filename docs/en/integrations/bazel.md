@@ -155,7 +155,7 @@ bazel build --platforms=@xclang//platforms:aarch64-apple-darwin //:hello
   build that needs the SDK prints the vendor's terms and stops. Apple's
   terms allow the SDK's use on Apple hardware; building for macOS from
   Linux or Windows with it is the project's decision
-  ([vendor SDKs](../design/vendor-sdks.md)).
+  ([vendor SDKs](../targets/cross-compiling.md#vendor-sdks)).
 - **Versions are pinned.** By default the SDKs of `windows-latest` and
   `macos-latest`; `preset = "windows-2022"` takes another GitHub runner
   image's, and `msvc_version`, `sdk_version` (Windows) and `version`
@@ -173,7 +173,7 @@ bazel build --platforms=@xclang//platforms:aarch64-apple-darwin //:hello
   package the table pins, the command finds the same SDK in the package
   Apple put in its place, by its content, and downloads that itself, not
   into the repository cache
-  ([vendor SDKs](../design/vendor-sdks.md#apple-s-packages-come-and-go)).
+  ([vendor SDKs](../targets/macos.md#packages-apple-withdraws-and-content-digests)).
 - **Keep them to yourself.** The repository cache holds the vendor's
   packages, and remote execution uploads an action's inputs, the SDK's
   files among them. A shared or public cache of either passes the SDK on;
@@ -181,7 +181,7 @@ bazel build --platforms=@xclang//platforms:aarch64-apple-darwin //:hello
 
 The MSVC targets link the hybrid CRT, as the config files have it: the VC
 runtime and the C++ library linked in, UCRT from Windows
-([Windows](../design/windows.md#msvc-targets)). Their C++ compiles are
+([Windows](../targets/windows.md#msvc-targets)). Their C++ compiles are
 C++17 unless `--cxxopt` or `copts` say otherwise, as for the other
 targets: clang's own default for them, C++14, is older than libc++ takes
 there. Their features:
@@ -428,14 +428,14 @@ Another target's libclang comes from the release.
   ([on a Windows host](#on-a-windows-host)).
 - **`'Windows.h' file not found`** when building for the MinGW targets
   from Linux or macOS: include Windows headers in lower case
-  ([case-sensitive headers](../design/windows.md#case-sensitive-headers)).
+  ([case-sensitive headers](../targets/windows.md#case-sensitive-headers)).
   The MSVC targets' SDK has links for Windows' spellings.
 - **A build for an MSVC target, or for macOS off macOS, fails at once,
   naming `xclang.windows_sdk` or `xclang.macos_sdk`**: the root module
   needs the tag ([vendor SDKs](#vendor-sdks)).
 - **Test registrations disappear in Windows release builds**: leave
   `gc_sections` off for them
-  ([why](../design/windows.md#gc-sections-and-static-initializers)).
+  ([why](../targets/windows.md#gc-sections-and-static-initializers)).
 - **The ThinLTO cache does nothing on Linux**: the directory is under
   `/tmp`, or lacks `--sandbox_writable_path`.
 - More symptoms are in the [FAQ](../guide/troubleshooting.md).

@@ -62,7 +62,7 @@ Windows unless it names one of those.
 | `msan` | off | MemorySanitizer, for the whole build, with the runtimes from source (`--@xclang//runtimes:source`), which then include its runtime; Linux targets (glibc). Refused without them, and for the other targets. Since 23.1.2.11 |
 | `copy_dynamic_libraries_to_binary` | Windows targets: on | a program's DLLs beside it in `bazel-bin` and in its runfiles, ASan's among them, as Bazel's own Windows toolchains have it |
 | `cpp_modules` | off | C++20 modules: `module_interfaces` of a `cc_library`/`cc_binary`, scanned by clang-scan-deps; needs `--experimental_cpp_modules` |
-| `gc_sections` | Linux targets: on in `opt`; Windows targets: off | lld's `--gc-sections`, lld-link's `/opt:ref` for the MSVC targets ([why not for Windows](../design/windows.md#gc-sections-and-static-initializers)) |
+| `gc_sections` | Linux targets: on in `opt`; Windows targets: off | lld's `--gc-sections`, lld-link's `/opt:ref` for the MSVC targets ([why not for Windows](../targets/windows.md#gc-sections-and-static-initializers)) |
 | `thinlto_cache` | on | the linker's ThinLTO cache, with flags only when `XCLANG_THINLTO_CACHE` names a directory |
 | `generate_dsym_file` | off | macOS targets: the link makes `<name>.dSYM` (output group `dsyms`); `--apple_generate_dsym` turns it on for the build |
 | `supports_dynamic_linker` | off | Bazel's dynamic linking of libraries into tests and programs, for the Linux targets; off, they link statically, as they do for the others always |

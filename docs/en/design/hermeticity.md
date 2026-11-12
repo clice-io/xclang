@@ -122,7 +122,7 @@ builds on CentOS 7 for it). A program from xclang runs on CentOS 7, Debian
 8, Ubuntu 14.04 and anything later.
 
 The floor has costs, listed in
-[compatibility](../reference/compatibility.md#known-limitations): no
+[compatibility](../targets/linux.md#limitations): no
 `-static-pie`, `-pg` only with `-no-pie`, no `quadmath.h`. glibc 2.17 also
 lacks `__cxa_thread_atexit_impl`, which arrived in 2.18, so libc++abi is
 built with its own fallback for `thread_local` destructors. A newer glibc,
@@ -179,7 +179,7 @@ glibc targets loads it. musl can be linked in, and the musl targets
 (`x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`) do: a program
 has no program interpreter and no dynamic section, and takes nothing from
 the system it runs on, glibc's version included
-([musl targets](../reference/targets.md#musl-targets)). The rule holds
+([musl targets](../targets/linux.md#musl-targets)). The rule holds
 with nothing in the left column. The price:
 
 - **Size**: musl's code in every program, little next to libc++'s. A C++
@@ -189,7 +189,7 @@ with nothing in the left column. The price:
   for a musl system, and only UBSan of the sanitizers
   ([sanitizers](../features/sanitizers.md#musl-targets)).
 - **musl's behavior where it differs from glibc**: `malloc` under threads,
-  locales, name lookup ([compatibility](../reference/compatibility.md#known-limitations)).
+  locales, name lookup ([compatibility](../targets/linux.md#limitations)).
 
 ## The Platform's C++ Library
 
@@ -217,13 +217,13 @@ Every target keeps the same rule, also those not yet supported
 - **Sanitizer runtimes.** On macOS they are dylibs, which a program loads
   from the toolchain or from its own directory. For the Windows targets,
   ASan's runtime is a DLL, which a program loads from its own directory or
-  from `PATH` ([ASan's DLL](windows.md#asan-s-dll)). An ASan build is for
+  from `PATH` ([ASan's DLL](../targets/windows.md#asan-s-dll)). An ASan build is for
   testing, not for shipping.
 - **The macOS SDK.** Apple's SDK cannot be redistributed, so on macOS
   hosts the macOS targets build against Xcode's, found by `xcrun`. It is
   an input from outside the toolchain, and xclang does not pin it. On
   Linux and Windows hosts, the SDK the user fetches is pinned by version
-  and sha256 ([macOS](macos.md#the-sdk-on-linux-and-windows-hosts)).
+  and sha256 ([macOS](../targets/macos.md#on-linux-and-windows-hosts)).
 - **Visual Studio.** On a Windows host with no fetched SDK, the MSVC
   targets build against the installed Visual Studio, which xclang does not
-  pin; a fetched SDK takes its place ([Windows](windows.md#msvc-targets)).
+  pin; a fetched SDK takes its place ([Windows](../targets/windows.md#msvc-targets)).

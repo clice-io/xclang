@@ -81,7 +81,7 @@ cmake --build build-aarch64-w64-mingw32
   [MSVC targets](#build-for-msvc-targets), with the Windows SDK that the
   toolchain's `xclang` fetched (or, on a Windows host, the installed Visual
   Studio), and the macOS targets: with Xcode's SDK on
-  macOS hosts ([why](../design/macos.md#the-sdk-is-xcode-s)), and with the
+  macOS hosts ([why](../targets/macos.md#on-macos-hosts)), and with the
   fetched SDK on [Linux and Windows hosts](#build-for-macos-from-linux-or-windows).
   On a macOS host, the other macOS architecture is
   `CMAKE_OSX_ARCHITECTURES` to CMake, not cross-compiling.
@@ -120,7 +120,7 @@ cmake --build build-msvc
 - The compilers are clang and clang++, not clang-cl. `WIN32` is true,
   `MSVC` false, and `CMAKE_CXX_SIMULATE_ID` is `MSVC`, so a project's
   `if(MSVC)` options, written for cl's command line, stay out
-  ([why](../design/windows.md#msvc-targets)).
+  ([why](../targets/windows.md#msvc-targets)).
 - The C runtime is the hybrid CRT in every configuration:
   `CMAKE_MSVC_RUNTIME_LIBRARY` is `MultiThreaded` unless set. Other values
   work too; CMake's own default would load the VC runtime's DLLs.
@@ -138,7 +138,7 @@ cmake --build build-msvc
 `aarch64-apple-darwin` and `x86_64-apple-darwin` build on Linux and Windows
 hosts with Apple's SDK that the toolchain's `xclang` fetched,
 `$XCLANG/bin/xclang sdk fetch macos --accept-license`
-([macOS](../design/macos.md#the-sdk-on-linux-and-windows-hosts)). Without
+([macOS](../targets/macos.md#on-linux-and-windows-hosts)). Without
 it, the toolchain file stops and says how to fetch it:
 
 <!-- excerpt: .github/workflows/examples.yml -->
