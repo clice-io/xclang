@@ -16,14 +16,18 @@ name: checks
 #                       runtimes' sources (toolchain/runtimes-src.ts) and
 #                       CMake caches
 #   test-bazel.yml      packages/bazel, tests/bazel, the runtimes' sources
-#   test-sdk.yml        tests/sdk, toolchain/config, packages/cmake
+#   test-sdk.yml        tests/sdk, toolchain/config, packages/cmake, xclang
+#                       (the vendor SDKs are fetched by this checkout's
+#                       command)
 #   cli.yml             xclang, tests/cli, tests/sdk, packages/cmake (the
 #                       toolchain file xclang cargo gives the cmake crate)
-#   examples.yml        examples
+#   examples.yml        examples (the docs' commands against the published
+#                       release, as users run them)
 #
 # A change to one of these workflows, to on-target.yml, to the archives
-# action, to tests/lib or to toolchain/common.ts runs what uses it. The release's own pipeline
-# (release.yml) is not among them: its stages build for hours.
+# action, to tests/lib or to toolchain/common.ts runs what uses it;
+# examples.yml uses none of them but on-target.yml. The release's own
+# pipeline (release.yml) is not among them: its stages build for hours.
 #
 # Every run also checks that the Bazel module names the latest release, or
 # a newer one (the bazel-version job), and the docs and the scripts' types
@@ -75,15 +79,15 @@ jobs:
           # toolchain/common.ts writes the config files, the shared headers
           # and the CMake package into the release's tree (tests/lib).
           shared='^(tests/lib/|toolchain/common\.ts|\.github/workflows/(checks|on-target)\.yml|\.github/actions/archives/)'
-          area() {  # <name> <regex>
-            if grep -qE "$2|$shared" changed.txt; then echo "$1=true"; else echo "$1=false"; fi | tee -a "$GITHUB_OUTPUT"
+          area() {  # <name> <regex> [shared]
+            if grep -qE "$2|${3-$shared}" changed.txt; then echo "$1=true"; else echo "$1=false"; fi | tee -a "$GITHUB_OUTPUT"
           }
           area archives '^(tests/toolchain/|tests/libclang/|toolchain/config/|\.github/workflows/test-archives\.yml)'
           area cmake '^(packages/cmake/|tests/cmake/|tests/libclang/|toolchain/runtimes-src\.ts|toolchain/cmake/caches/|\.github/workflows/test-cmake\.yml)'
-          area bazel '^(packages/bazel/|tests/bazel/|toolchain/runtimes-src\.ts|\.github/workflows/test-bazel\.yml)'
-          area sdk '^(tests/sdk/|toolchain/config/|packages/cmake/|\.github/workflows/test-sdk\.yml)'
+          area bazel '^(packages/bazel/|tests/bazel/|toolchain/runtimes-src\.ts|\.github/workflows/test-bazel\.yml|\.github/actions/distdir/)'
+          area sdk '^(tests/sdk/|toolchain/config/|packages/cmake/|xclang/|\.github/workflows/(test-sdk|cli)\.yml)'
           area cli '^(xclang/|tests/cli/|tests/sdk/|packages/cmake/|\.github/workflows/cli\.yml)'
-          area examples '^(examples/|\.github/workflows/examples\.yml)'
+          area examples '^(examples/|\.github/workflows/(examples|on-target|checks)\.yml|tests/lib/(on-target|retry)\.ts)' '^$'
 
   # packages/bazel names the latest release or a newer one, with its
   # digests (packages/bazel/bazel.ts check): a git_override of this commit
@@ -102,7 +106,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
+          node tests/lib/retry.ts gh release download -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
           node packages/bazel/bazel.ts check "$RUNNER_TEMP/SHA256SUMS"
 
   archives:
@@ -129,6 +133,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.examples == 'true'
     uses: ./.github/workflows/examples.yml
+    with:
+      command: true
 
   docs:
     runs-on: ubuntu-24.04

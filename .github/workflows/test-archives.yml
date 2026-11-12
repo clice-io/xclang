@@ -127,16 +127,16 @@ jobs:
         run: |
           mkdir previous
           if [[ "${{ inputs.repack-of }}" =~ ^[0-9]+$ ]]; then
-            gh run download "${{ inputs.repack-of }}" -R "$GITHUB_REPOSITORY" -n "dist-${{ matrix.host }}" -D previous
+            node tests/lib/retry.ts gh run download "${{ inputs.repack-of }}" -R "$GITHUB_REPOSITORY" -n "dist-${{ matrix.host }}" -D previous
             exit 0
           fi
           for file in dist/*.tar.xz; do
             name=$(basename "$file" | sed -E "s/-[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+([-.])/-${{ inputs.repack-of }}\1/")
-            gh release download "${{ inputs.repack-of }}" -R "$GITHUB_REPOSITORY" -p "$name" -D previous
+            node tests/lib/retry.ts gh release download "${{ inputs.repack-of }}" -R "$GITHUB_REPOSITORY" -p "$name" -D previous --clobber
           done
           # Every archive of the host the release has, which the run must
           # have too.
-          gh release download "${{ inputs.repack-of }}" -R "$GITHUB_REPOSITORY" -D previous --skip-existing \
+          node tests/lib/retry.ts gh release download "${{ inputs.repack-of }}" -R "$GITHUB_REPOSITORY" -D previous --skip-existing \
             -p "*-${{ inputs.repack-of }}-${{ matrix.host }}.tar.xz" -p "*-${{ inputs.repack-of }}-${{ matrix.host }}-asan.tar.xz"
       - name: Compare
         run: node tests/release/repack.ts --previous previous --dist dist

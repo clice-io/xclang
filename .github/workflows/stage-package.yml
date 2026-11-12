@@ -90,6 +90,8 @@ jobs:
           name: dist-${{ inputs.host }}
           path: work/to-upload/*
           compression-level: 0
+          # The release pull request's checks, the second full build's
+          # comparison and bench.yml take them: 30 days.
           retention-days: 30
           if-no-files-found: error
       # Kept as long as the archives: test-bazel.yml names the archives of

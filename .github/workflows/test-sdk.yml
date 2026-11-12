@@ -8,9 +8,13 @@ name: test-sdk
 # programs then run on Windows x64 and arm64 and on both Macs
 # (on-target.yml). Only programs leave a job, never anything of an SDK.
 #
-#   release.yml     a run's archives (dist-run), before they are released
+#   release.yml     a run's archives (dist-run), before they are released,
+#                   with their own command
 #   checks.yml      the latest release's archives, with this checkout's
-#                   config files and CMake package
+#                   config files, CMake package and xclang command (built
+#                   here by cli.yml): a pull request is tested with the
+#                   version table it has, not the release's, which Apple
+#                   may have outdated (only a release changes that one)
 #   by hand         either
 
 on:
@@ -44,8 +48,18 @@ env:
   KOTATSU: d3b82f79499bd8e2e5e557f7bf7eca7a27b928b7
 
 jobs:
+  # This checkout's xclang command, for a published release's toolchain.
+  cli:
+    if: ${{ !inputs.dist-run }}
+    uses: ./.github/workflows/cli.yml
+    with:
+      build-only: true
+      artifact: sdk-cli
+
   msvc:
     name: msvc (${{ matrix.host }})
+    needs: cli
+    if: ${{ !cancelled() && (inputs.dist-run || needs.cli.result == 'success') }}
     strategy:
       fail-fast: false
       matrix:
@@ -68,10 +82,21 @@ jobs:
           host: ${{ matrix.host }}
           dist-run: ${{ inputs.dist-run }}
           release: ${{ inputs.release }}
+      - uses: actions/download-artifact@v8
+        if: ${{ !inputs.dist-run }}
+        with:
+          pattern: sdk-cli-*
+          path: built
+          merge-multiple: true
+      - name: The command built
+        if: ${{ !inputs.dist-run }}
+        run: |
+          cp built/cli-${{ matrix.host }}/xclang* "$XCLANG_TREE/bin/"
+          chmod +x "$XCLANG_TREE"/bin/xclang*
       - name: kotatsu
         if: matrix.host == 'x86_64-unknown-linux-gnu'
         run: |
-          git clone -q --filter=blob:none https://github.com/clice-io/kotatsu "$RUNNER_TEMP/kotatsu"
+          node tests/lib/retry.ts bash -c 'rm -rf "$0"; git clone -q --filter=blob:none https://github.com/clice-io/kotatsu "$0"' "$RUNNER_TEMP/kotatsu"
           git -C "$RUNNER_TEMP/kotatsu" checkout -q "$KOTATSU"
           echo "KOTATSU_ARGS=--kotatsu $RUNNER_TEMP/kotatsu" >> "$GITHUB_ENV"
       - name: Build
@@ -85,6 +110,8 @@ jobs:
 
   macos:
     name: macos (${{ matrix.host }})
+    needs: cli
+    if: ${{ !cancelled() && (inputs.dist-run || needs.cli.result == 'success') }}
     strategy:
       fail-fast: false
       matrix:
@@ -107,6 +134,17 @@ jobs:
           host: ${{ matrix.host }}
           dist-run: ${{ inputs.dist-run }}
           release: ${{ inputs.release }}
+      - uses: actions/download-artifact@v8
+        if: ${{ !inputs.dist-run }}
+        with:
+          pattern: sdk-cli-*
+          path: built
+          merge-multiple: true
+      - name: The command built
+        if: ${{ !inputs.dist-run }}
+        run: |
+          cp built/cli-${{ matrix.host }}/xclang* "$XCLANG_TREE/bin/"
+          chmod +x "$XCLANG_TREE"/bin/xclang*
       - name: Build
         run: node tests/sdk/macos.ts --tree "$XCLANG_TREE" --out "$RUNNER_TEMP/programs"
       - uses: actions/upload-artifact@v7

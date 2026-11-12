@@ -1,0 +1,66 @@
+name: preflight
+
+# What is checked before a release is begun (the release skill, step 0), on
+# main's head, changing nothing:
+#
+#   state   tests/release/preflight.ts: main and weekly.yml green, the
+#           latest release published everywhere, nothing under way, the
+#           next version and whether it is a full rebuild or a repack, the
+#           bootstrap or the artifacts a repack reuses
+#   table   xclang sdk update-table --check: the version table of the
+#           vendor SDKs is what Apple and Microsoft offer now (no package
+#           withdrawn, none new); with update-table, the table updated
+#           (packages downloaded and read) as the artifact sdk-versions,
+#           for a pull request
+#
+# By hand: gh workflow run preflight.yml -R clice-io/xclang --ref main
+
+on:
+  workflow_dispatch:
+    inputs:
+      update-table:
+        description: Also make the updated version table (downloads the new packages), as the artifact sdk-versions
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  state:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Preflight
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tests/release/preflight.ts
+
+  table:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: The version table against the vendors'
+        working-directory: xclang
+        run: cargo run --release --locked --features maintainer -- sdk update-table --check --table sdk-versions.json
+      - name: The version table updated
+        if: ${{ !cancelled() && inputs.update-table }}
+        working-directory: xclang
+        run: |
+          cargo run --release --locked --features maintainer -- sdk update-table --table sdk-versions.json
+          git diff --stat
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() && inputs.update-table }}
+        with:
+          name: sdk-versions
+          path: xclang/sdk-versions.json

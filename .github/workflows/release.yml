@@ -1,5 +1,5 @@
 name: release
-run-name: "release: revision ${{ inputs.revision }}, ${{ inputs.stages }}"
+run-name: "release: revision ${{ inputs.revision }}, ${{ inputs.stages }}${{ inputs.repack-of && format(', against {0}', inputs.repack-of) || '' }}"
 
 # The release pipeline: a full build of a release, or a repack, up to a
 # draft. By hand on purpose: a full build takes three hours and about a
@@ -26,6 +26,12 @@ run-name: "release: revision ${{ inputs.revision }}, ${{ inputs.stages }}"
 #                  Windows hosts, with the SDKs the archives' own command
 #                  fetches (test-sdk.yml; needs cli)
 #   cli            the archives' own command (cli.yml)
+#   rebuild        once train is done, the second full build: this
+#                  workflow run again on the same commit, every stage but
+#                  the training (its profile this run's) and the tests of
+#                  the archives, which compare every file with this run's
+#                  (repack-of=<this run>); started once, also when this run
+#                  runs again
 #   release        a draft release of everything (stage-draft.yml; needs
 #                  the profile), only on release/<version>, a branch made
 #                  at the commit of main the release is built from
@@ -46,7 +52,7 @@ on:
   workflow_dispatch:
     inputs:
       stages:
-        description: "Comma-separated stages: runtimes, instrumented, train, toolchain, asan, package, test, bazel, cmake, sdk, cli, release"
+        description: "Comma-separated stages: runtimes, instrumented, train, toolchain, asan, package, test, bazel, cmake, sdk, cli, rebuild, release"
         type: string
         default: runtimes,instrumented,train,toolchain,asan,package,test,bazel,cmake,sdk,cli
       runtimes:
@@ -200,6 +206,48 @@ jobs:
     with:
       dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
 
+  # Started from here so that no release forgets it; what differs is a bug
+  # to list, not a failure of this run (the release skill, 3b). A run of
+  # release.yml with `against <this run>` in its name is it.
+  rebuild:
+    needs: train
+    if: ${{ !cancelled() && contains(inputs.stages, 'rebuild') && needs.train.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: The second full build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVISION: ${{ inputs.revision }}
+          HOSTS: ${{ inputs.hosts }}
+          CLI: ${{ inputs.cli }}
+        run: |
+          retry() { node tests/lib/retry.ts "$@"; }
+          title="release: revision $REVISION, runtimes,toolchain,asan,package,test, against $GITHUB_RUN_ID"
+          found=$(retry gh api "repos/$GITHUB_REPOSITORY/actions/workflows/release.yml/runs?branch=$GITHUB_REF_NAME&per_page=50" \
+            -q ".workflow_runs[] | select(.display_title == \"$title\") | .id" | head -n 1)
+          if [[ -z "$found" ]]; then
+            retry gh workflow run release.yml -R "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME" \
+              -f stages=runtimes,toolchain,asan,package,test -f hosts="$HOSTS" -f cli="$CLI" \
+              -f profile-run="$GITHUB_RUN_ID" -f repack-of="$GITHUB_RUN_ID" -f revision="$REVISION"
+            for i in $(seq 20); do
+              sleep 15
+              found=$(retry gh api "repos/$GITHUB_REPOSITORY/actions/workflows/release.yml/runs?branch=$GITHUB_REF_NAME&event=workflow_dispatch&per_page=20" \
+                -q ".workflow_runs[] | select(.display_title == \"$title\") | .id" | head -n 1)
+              [[ -n "$found" ]] && break
+            done
+          fi
+          [[ -n "$found" ]] || { echo "::error::the second full build did not start"; exit 1; }
+          echo "the second full build: https://github.com/$GITHUB_REPOSITORY/actions/runs/$found" | tee -a "$GITHUB_STEP_SUMMARY"
+
   release:
     needs: [train, package, test, bazel, cmake, sdk, cli-test]
     if: ${{ !cancelled() && contains(inputs.stages, 'release') && !contains(needs.*.result, 'failure') && (needs.package.result == 'success' || !contains(inputs.stages, 'package')) && (needs.train.result == 'success' || !contains(inputs.stages, 'train')) }}
@@ -211,3 +259,5 @@ jobs:
       revision: ${{ inputs.revision }}
       dist-run: ${{ needs.package.result == 'success' && github.run_id || inputs.reuse-run }}
       profile-run: ${{ needs.train.result == 'success' && github.run_id || inputs.profile-run }}
+      # The package stage's (of reuse-run when package did not run here).
+      toolchain-run: ${{ contains(inputs.stages, 'toolchain') && needs.package.result == 'success' && github.run_id || inputs.reuse-run }}

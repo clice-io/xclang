@@ -22,9 +22,11 @@ name: test-bazel
 #                   so that all of it runs as for the published release;
 #                   the vendor SDKs' targets with the archives' own command
 #   checks.yml,     with a published release's archives (the latest by
-#   weekly.yml,     default), versions.bzl made from its SHA256SUMS
-#   published.yml,
-#   by hand
+#   weekly.yml,     default), versions.bzl made from its SHA256SUMS; or,
+#   published.yml,  when this commit's module names a release still a
+#   by hand         draft (a release's pull request, main between its merge
+#                   and published.yml), the archives of the run its
+#                   draft's commit names, as release.yml has them
 #
 # Publishing the module to bazel.clice.io is published.yml's.
 
@@ -55,8 +57,45 @@ env:
   RELEASE: ${{ inputs.release != 'latest' && inputs.release || '' }}
 
 jobs:
+  # Whose archives: dist-run's; without it, when the module of this commit
+  # names a release that is not published, those of the run whose archives
+  # its draft holds (the Archives-Run of the draft's commit, which
+  # stage-draft.yml made): the release's git_override (bazel.ts §3) would
+  # download them from a draft, which answers 404. Else the release's.
+  source:
+    runs-on: ubuntu-24.04
+    outputs:
+      dist-run: ${{ steps.source.outputs.dist-run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: source
+        env:
+          DIST_RUN: ${{ inputs.dist-run }}
+          INPUT_RELEASE: ${{ inputs.release }}
+        run: |
+          if [[ -n "$DIST_RUN" ]]; then echo "dist-run=$DIST_RUN" | tee -a "$GITHUB_OUTPUT"; exit 0; fi
+          [[ "$INPUT_RELEASE" == latest ]] || exit 0
+          file=packages/bazel/bazel/versions.bzl
+          version=$(sed -n 's/^VERSION = "\(.*\)"$/\1/p' "$file")
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -L --retry 5 --retry-delay 15 -A "xclang/ci" \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$version/SHA256SUMS")
+          if [[ "$code" == 200 ]]; then echo "packages/bazel names $version, published"; exit 0; fi
+          if [[ "$code" != 404 ]]; then echo "::error::the SHA256SUMS of $version: HTTP $code"; exit 1; fi
+          commit=$(git log -1 --format=%H -S "VERSION = \"$version\"" -- "$file")
+          run=$(git log -1 --format='%(trailers:key=Archives-Run,valueonly)' "$commit" | head -n 1)
+          if [[ ! "$run" =~ ^[0-9]+$ ]]; then
+            echo "::error::packages/bazel names $version, which is not published, and $commit, which made it so, names no Archives-Run"
+            exit 1
+          fi
+          echo "packages/bazel names $version, a draft: the archives of run $run, which $commit names" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "dist-run=$run" | tee -a "$GITHUB_OUTPUT"
+
   module:
     name: module (${{ matrix.host }})
+    needs: source
     strategy:
       fail-fast: false
       matrix:
@@ -83,18 +122,18 @@ jobs:
       # The release's digests, which a tree before its own draft's commit
       # (main before a release's, tags before 23.1.2.12) does not name.
       - name: Release digests
-        if: ${{ !inputs.dist-run }}
+        if: ${{ !needs.source.outputs.dist-run }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download $RELEASE -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
+          node tests/lib/retry.ts gh release download $RELEASE -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP" --clobber
           node packages/bazel/bazel.ts versions "$RUNNER_TEMP/SHA256SUMS"
       # A run's: the host's archives, those of bazel.ts's target of another
       # os (its libclang), and the option tables (Linux x64's).
       - uses: ./.github/actions/distdir
-        if: inputs.dist-run
+        if: needs.source.outputs.dist-run
         with:
-          dist-run: ${{ inputs.dist-run }}
+          dist-run: ${{ needs.source.outputs.dist-run }}
           hosts: >-
             ${{ matrix.host }} x86_64-unknown-linux-gnu
             ${{ fromJSON('{"x86_64-unknown-linux-gnu":"x86_64-w64-mingw32","aarch64-unknown-linux-gnu":"aarch64-w64-mingw32","x86_64-w64-mingw32":"x86_64-unknown-linux-gnu","aarch64-w64-mingw32":"aarch64-unknown-linux-gnu","aarch64-apple-darwin":"aarch64-unknown-linux-gnu","x86_64-apple-darwin":"x86_64-unknown-linux-gnu"}')[matrix.host] }}
@@ -143,7 +182,7 @@ jobs:
       - uses: ./.github/actions/archives
         with:
           host: ${{ matrix.host }}
-          dist-run: ${{ inputs.dist-run }}
+          dist-run: ${{ needs.source.outputs.dist-run }}
           release: ${{ inputs.release }}
       - name: Runtimes from source
         env:
@@ -169,6 +208,7 @@ jobs:
   # macOS targets from other hosts than macOS are sdk's.
   cross:
     name: cross (${{ matrix.host }} to ${{ matrix.target }})
+    needs: source
     strategy:
       fail-fast: false
       matrix:
@@ -209,18 +249,18 @@ jobs:
           node-version: 24
       - run: npm install -g @bazel/bazelisk
       - name: Release digests
-        if: ${{ !inputs.dist-run }}
+        if: ${{ !needs.source.outputs.dist-run }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download $RELEASE -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
+          node tests/lib/retry.ts gh release download $RELEASE -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP" --clobber
           node packages/bazel/bazel.ts versions "$RUNNER_TEMP/SHA256SUMS"
       # A run's: the host's toolchain, the target's libclang, the option
       # tables (Linux x64's).
       - uses: ./.github/actions/distdir
-        if: inputs.dist-run
+        if: needs.source.outputs.dist-run
         with:
-          dist-run: ${{ inputs.dist-run }}
+          dist-run: ${{ needs.source.outputs.dist-run }}
           hosts: ${{ matrix.host }} ${{ matrix.target }} x86_64-unknown-linux-gnu
       - name: Build
         run: node tests/bazel/cross.ts build "${{ matrix.target }}" "$RUNNER_TEMP/out/${{ matrix.host }}/tests"
@@ -244,7 +284,8 @@ jobs:
   # module lists a vendor SDK's packages with it (xclang sdk packages). A
   # run's archives carry their own.
   cli:
-    if: ${{ !inputs.dist-run }}
+    needs: source
+    if: ${{ !needs.source.outputs.dist-run }}
     uses: ./.github/workflows/cli.yml
     with:
       build-only: true
@@ -254,8 +295,8 @@ jobs:
   # and this checkout's command and config files, or a run's archives, run
   # on a machine of the target by on-target.yml.
   sdk:
-    needs: cli
-    if: ${{ !cancelled() && (inputs.dist-run || needs.cli.result == 'success') }}
+    needs: [source, cli]
+    if: ${{ !cancelled() && needs.source.result == 'success' && (needs.source.outputs.dist-run || needs.cli.result == 'success') }}
     name: sdk (${{ matrix.host }} to ${{ matrix.target }})
     strategy:
       fail-fast: false
@@ -289,31 +330,31 @@ jobs:
           node-version: 24
       - run: npm install -g @bazel/bazelisk
       - name: Release digests
-        if: ${{ !inputs.dist-run }}
+        if: ${{ !needs.source.outputs.dist-run }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download $RELEASE -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP"
+          node tests/lib/retry.ts gh release download $RELEASE -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP" --clobber
           node packages/bazel/bazel.ts versions "$RUNNER_TEMP/SHA256SUMS"
       # A run's: a macOS target's libclang, the option tables (Linux x64's).
       - uses: ./.github/actions/distdir
-        if: inputs.dist-run
+        if: needs.source.outputs.dist-run
         with:
-          dist-run: ${{ inputs.dist-run }}
+          dist-run: ${{ needs.source.outputs.dist-run }}
           hosts: ${{ contains(matrix.target, 'apple') && matrix.target || '' }} x86_64-unknown-linux-gnu
       - uses: ./.github/actions/archives
         with:
           host: ${{ matrix.host }}
-          dist-run: ${{ inputs.dist-run }}
+          dist-run: ${{ needs.source.outputs.dist-run }}
           release: ${{ inputs.release }}
       - uses: actions/download-artifact@v8
-        if: ${{ !inputs.dist-run }}
+        if: ${{ !needs.source.outputs.dist-run }}
         with:
           pattern: bazel-cli-*
           path: built
           merge-multiple: true
       - name: The command built
-        if: ${{ !inputs.dist-run }}
+        if: ${{ !needs.source.outputs.dist-run }}
         run: |
           cp built/cli-${{ matrix.host }}/xclang* "$XCLANG_TREE/bin/"
           chmod +x "$XCLANG_TREE"/bin/xclang*

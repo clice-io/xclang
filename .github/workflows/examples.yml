@@ -12,7 +12,11 @@ name: examples
 # their target, with nothing installed there.
 #
 #   checks.yml      a push or pull request that changes examples/ or this
-#                   file
+#                   file; the vendor SDKs fetched by this checkout's
+#                   xclang command in the release's toolchain (command),
+#                   so that a pull request is tested with the version
+#                   table it has, not the release's, which a vendor may
+#                   have outdated and only a release changes
 #   published.yml   a release, once conda.clice.io has it and `latest`
 #                   names it
 #   weekly.yml      every week: the runners' images and the channels change
@@ -21,7 +25,17 @@ name: examples
 
 on:
   workflow_call:
+    inputs:
+      command:
+        description: Fetch the vendor SDKs with this checkout's xclang command, built here, in place of the release's
+        type: boolean
+        default: false
   workflow_dispatch:
+    inputs:
+      command:
+        description: Fetch the vendor SDKs with this checkout's xclang command, built here, in place of the release's
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -974,8 +988,18 @@ jobs:
   # fetches from Microsoft and Apple, accepting their licenses, as a user
   # does. Only programs leave the job, never anything of an SDK: it caches
   # nothing and uploads the programs alone.
+  # This checkout's xclang command, with command.
+  cli:
+    if: inputs.command
+    uses: ./.github/workflows/cli.yml
+    with:
+      build-only: true
+      artifact: examples-cli
+
   sdk:
     name: sdk (${{ matrix.host }})
+    needs: cli
+    if: ${{ !cancelled() && (!inputs.command || needs.cli.result == 'success') }}
     strategy:
       fail-fast: false
       matrix:
@@ -1019,6 +1043,18 @@ jobs:
           fi
           echo "XCLANG=$XCLANG" >> "$GITHUB_ENV"
           echo "$XCLANG/bin" >> "$GITHUB_PATH"
+      - uses: actions/download-artifact@v8
+        if: inputs.command
+        with:
+          pattern: examples-cli-*
+          path: ${{ runner.temp }}/built
+          merge-multiple: true
+      - name: This checkout's command
+        if: inputs.command
+        run: |
+          cp "$RUNNER_TEMP"/built/cli-${{ matrix.host }}/xclang* "$XCLANG/bin/"
+          chmod +x "$XCLANG"/bin/xclang*
+          xclang --version
       - name: MSVC targets
         run: |
           xclang sdk fetch windows --accept-license
