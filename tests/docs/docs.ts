@@ -243,6 +243,20 @@ for (const [page, { lines }] of parsed) {
   });
 }
 
+/// The home pages' frontmatter links (`link: ./guide/quick-start`), which
+/// VitePress resolves as it does a page's links.
+for (const [page] of parsed) {
+  const front = /^---\n([\s\S]*?)\n---/.exec(fs.readFileSync(page, "utf8"));
+  if (!front) continue;
+  for (const m of front[1]!.matchAll(/^\s*link: (\.{1,2}\/\S+)$/gm)) {
+    const [file, anchor] = m[1]!.split("#");
+    const target = path.resolve(path.dirname(page), `${file}.md`);
+    links++;
+    if (!parsed.has(target)) failures.push(`${path.relative(ROOT, page)}: ${m[1]}: no such page`);
+    else if (anchor && !anchors(target).has(anchor)) failures.push(`${path.relative(ROOT, page)}: ${m[1]}: no such heading`);
+  }
+}
+
 /// Links into the docs from the repository's own pages, as files
 /// (docs/en/<group>/<page>.md#<id>, or docs/zh/...) or as the published
 /// site (https://docs.clice.io/xclang/<group>/<page>#<id>, or

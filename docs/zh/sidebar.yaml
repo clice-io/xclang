@@ -1,0 +1,71 @@
+guide:
+  label: 指南
+  items:
+    - file: what-is-xclang
+      label: 什么是 xclang？
+    - file: quick-start
+      label: 快速开始
+    - file: cross-compiling
+      label: 交叉编译
+
+integrations:
+  label: 构建系统
+  items:
+    - file: cmake
+      label: CMake
+    - file: bazel
+      label: Bazel
+    - file: clang
+      label: Make 与 Meson
+    - file: cargo
+      label: Cargo
+    - file: ci
+      label: CI
+
+features:
+  label: 功能
+  items:
+    - file: modules
+      label: 模块
+    - file: sanitizers
+      label: Sanitizer
+    - file: runtimes-from-source
+      label: 从源码构建运行时库
+    - file: debugging
+      label: 调试
+    - file: libclang
+      label: libclang
+
+reference:
+  label: 参考
+  items:
+    - file: xclang-command
+      label: xclang 命令
+    - file: cmake-api
+      label: CMake API
+    - file: bazel-api
+      label: Bazel API
+    - file: layout
+      label: 压缩包目录结构
+    - file: patches
+      label: LLVM 补丁
+    - file: releases
+      label: 版本发布
+
+design:
+  label: 设计
+  items:
+    - file: hermeticity
+      label: 封闭性
+    - file: toolchain
+      label: 工具链结构
+    - file: windows
+      label: Windows
+    - file: macos
+      label: macOS
+    - file: pgo
+      label: PGO
+    - file: bazel-module
+      label: Bazel 模块
+    - file: roadmap
+      label: 路线图

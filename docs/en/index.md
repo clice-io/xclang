@@ -13,19 +13,19 @@ hero:
       text: Quick Start
       link: ./guide/quick-start
     - theme: alt
-      text: Installation
-      link: ./guide/install
+      text: Cross-Compiling
+      link: ./guide/cross-compiling
 
 features:
   - title: Cross-Compiling
     details: A --target flag is all it takes. The sysroots, libc++ and lld for all eight targets come with the toolchain.
-    link: ./targets/cross-compiling
+    link: ./guide/cross-compiling
   - title: Self-Contained Programs
     details: "A program loads only what its OS has: glibc 2.17 or later, the Windows DLLs, or libSystem. Everything else is linked in."
     link: ./design/hermeticity
   - title: musl Targets
     details: Fully static Linux programs for x64 and arm64, which need nothing from the system they run on, in every archive.
-    link: ./targets/linux#musl-targets
+    link: ./guide/cross-compiling#musl-targets
   - title: Fast Compiles
     details: clang and lld are built with PGO and ThinLTO on every host, Windows included.
     link: ./design/pgo
@@ -34,16 +34,16 @@ features:
     link: ./features/modules
   - title: Every Build System
     details: CMake, Bazel, Meson, Make and cargo, with xclang from pixi, an archive, FetchContent or the Bazel registry.
-    link: ./guide/install
+    link: ./guide/quick-start
   - title: Reproducible Builds
     details: Every release is pinned by sha256. Bazel builds carry no absolute paths, so one cache serves every checkout.
     link: ./design/bazel-module
   - title: MSVC-ABI Targets
     details: Windows x64 and arm64 with Microsoft's CRT and libc++ (or the STL), from every host, with their sanitizers. The xclang command fetches the SDK from Microsoft.
-    link: ./targets/windows#msvc-targets
+    link: ./guide/cross-compiling#msvc-targets
   - title: macOS from Any Host
     details: arm64 and x64 macOS programs from Linux and Windows too, with Apple's SDK fetched from Apple by the xclang command.
-    link: ./targets/macos#on-linux-and-windows-hosts
+    link: ./guide/cross-compiling#on-linux-and-windows-hosts
   - title: The xclang Command
     details: Fetches Apple's and Microsoft's SDKs from the vendor, by a pinned version and digest, and runs cargo for xclang's targets with no cargo config.
     link: ./reference/xclang-command
