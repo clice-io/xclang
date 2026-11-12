@@ -13,9 +13,10 @@
 ///       (published.yml publishes it); prints its integrity
 ///
 /// A release's archives are built before their digests exist, so its draft
-/// is made at a commit of its own (stage-draft.yml): the run's, with the
-/// module at the release (versions). Its tag, and main fast-forwarded to
-/// it, name the release: a git_override of either downloads its archives.
+/// is made at a commit of its own (stage-draft.yml): the run's, of main,
+/// with the module at the release (versions). Its tag, and main once the
+/// release's pull request merges it, name the release: a git_override of
+/// either downloads its archives.
 
 import { createHash } from "node:crypto";
 import fs from "node:fs";

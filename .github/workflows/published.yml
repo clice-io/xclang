@@ -1,7 +1,12 @@
 name: published
 
-# What follows publishing a release, the last thing done by hand: the
-# release as its users get it, on every channel.
+# Publishing a release, and what follows: the release as its users get it,
+# on every channel. A release is published by merging its pull request,
+# release/<version> into main as a merge commit: that push brings the
+# draft's commit (stage-draft.yml) onto main, and the release job
+# publishes the draft, which tags that commit. So every tag is in main's
+# history, and a draft deleted before its pull request merges leaves
+# nothing on main.
 #
 #   1. test-bazel.yml with the release's archives, then the module of its
 #      tag (packages/bazel/bazel.ts archive) published to the clice Bazel
@@ -19,8 +24,10 @@ name: published
 # refuses a version it has: conda's packages, made again, are other bytes).
 
 on:
-  release:
-    types: [published]
+  # The draft's commit changes versions.bzl, to the release.
+  push:
+    branches: [main]
+    paths: [packages/bazel/bazel/versions.bzl]
   workflow_dispatch:
     inputs:
       tag:
@@ -36,25 +43,57 @@ permissions:
   contents: read
   actions: read
 
-env:
-  TAG: ${{ inputs.tag || github.event.release.tag_name }}
-  PUBLISH: ${{ github.event_name == 'release' || inputs.publish }}
-
 jobs:
-  # The release's version, for the calls (which read no env).
+  # The release: by hand, the tag given; on a push, the draft whose commit
+  # the push brought into main's history, published here. Its version goes
+  # to the other jobs (and the calls, which read no env) as an output.
   release:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     outputs:
-      tag: ${{ env.TAG }}
-      publish: ${{ env.PUBLISH }}
+      tag: ${{ steps.tag.outputs.tag }}
+      publish: ${{ steps.tag.outputs.publish }}
       bazel-has: ${{ steps.channels.outputs.bazel-has }}
       conda-has: ${{ steps.channels.outputs.conda-has }}
     steps:
-      - run: echo "$TAG, publish $PUBLISH"
+      - id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            echo "tag=$INPUT_TAG" | tee -a "$GITHUB_OUTPUT"
+            echo "publish=$INPUT_PUBLISH" | tee -a "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # <b> is in the history of <a>.
+          reaches() { local s; s=$(gh api "repos/$GITHUB_REPOSITORY/compare/$2...$1" -q .status) && [[ "$s" == ahead || "$s" == identical ]]; }
+          drafts=()
+          while IFS=$'\t' read -r tag sha; do
+            if [[ "$sha" =~ ^[0-9a-f]{40}$ ]] && reaches "$GITHUB_SHA" "$sha" && ! reaches "$BEFORE" "$sha"; then drafts+=("$tag"); fi
+          done < <(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" -q '.[] | select(.draft) | [.tag_name, .target_commitish] | @tsv')
+          if (( ${#drafts[@]} == 0 )); then
+            echo "no draft's commit came into main's history" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if (( ${#drafts[@]} > 1 )); then
+            echo "::error::the commits of drafts ${drafts[*]} came into main's history at once; publish one by hand"
+            exit 1
+          fi
+          gh release edit "${drafts[0]}" -R "$GITHUB_REPOSITORY" --draft=false --latest
+          echo "published ${drafts[0]}" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "tag=${drafts[0]}" | tee -a "$GITHUB_OUTPUT"
+          echo "publish=true" | tee -a "$GITHUB_OUTPUT"
       # What a channel has already, which a re-run does not publish again:
       # the module's version on bazel.clice.io, the packages of every subdir
       # on conda.clice.io.
       - id: channels
+        if: steps.tag.outputs.tag != ''
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
         run: |
           has() { local body; body=$(curl -sSfL --retry 3 --retry-all-errors -A "xclang/ci" "$1") && grep -qF "$2" <<< "$body"; }
           bazel=false; has "https://bazel.clice.io/modules/xclang/metadata.json" "\"$TAG\"" && bazel=true
@@ -67,12 +106,14 @@ jobs:
 
   bazel:
     needs: release
+    if: needs.release.outputs.tag != ''
     uses: ./.github/workflows/test-bazel.yml
     with:
       release: ${{ needs.release.outputs.tag }}
 
   cmake:
     needs: release
+    if: needs.release.outputs.tag != ''
     uses: ./.github/workflows/test-cmake.yml
     with:
       release: ${{ needs.release.outputs.tag }}
@@ -80,6 +121,7 @@ jobs:
 
   conda:
     needs: release
+    if: needs.release.outputs.tag != ''
     uses: ./.github/workflows/conda.yml
     with:
       tag: ${{ needs.release.outputs.tag }}
@@ -91,10 +133,12 @@ jobs:
     needs: [release, bazel]
     if: needs.release.outputs.publish == 'true' && needs.release.outputs.bazel-has != 'true'
     runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ needs.release.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ needs.release.outputs.tag }}
           persist-credentials: false
       - uses: actions/setup-node@v5
         with:
@@ -111,16 +155,18 @@ jobs:
           token: ${{ secrets.UPLOAD_BAZEL }}
 
   # Forward only: a release is never older than the one before it, and its
-  # tag merges `latest` (stage-draft.yml); FetchContent rebases a `latest`
-  # checkout onto it, which a forced move would break. Not after a failed
-  # test of the module either, which skips bazel-registry and is no
-  # failure of it.
+  # tag descends from the one before through main (stage-draft.yml);
+  # FetchContent rebases a `latest` checkout onto it, which a forced move
+  # would break. Not after a failed test of the module either, which skips
+  # bazel-registry and is no failure of it.
   latest:
     needs: [release, bazel, cmake, conda, bazel-registry]
     if: ${{ !cancelled() && needs.release.outputs.publish == 'true' && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+    env:
+      TAG: ${{ needs.release.outputs.tag }}
     steps:
       - name: Move latest
         env:
@@ -140,5 +186,5 @@ jobs:
 
   examples:
     needs: [release, latest]
-    if: ${{ !cancelled() && (needs.latest.result == 'success' || needs.release.outputs.publish != 'true') }}
+    if: ${{ !cancelled() && needs.release.outputs.tag != '' && (needs.latest.result == 'success' || needs.release.outputs.publish != 'true') }}
     uses: ./.github/workflows/examples.yml
