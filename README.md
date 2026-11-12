@@ -16,8 +16,8 @@ fetched when a build needs them. That is in no release yet; the
 status.
 
 It aims to be close to the current best practice for hermetic, modern C++
-builds: [why xclang](https://docs.clice.io/xclang/guide/what-is-xclang) makes
-that case angle by angle.
+builds: [what is xclang?](https://docs.clice.io/xclang/guide/what-is-xclang)
+says what that gives a build.
 
 One directory holds the compiler, the linker, the binary tools and, for
 the eight targets, the sysroot and the runtimes:
@@ -155,18 +155,15 @@ xclang cargo build --target x86_64-pc-windows-gnullvm
 ## Documentation
 
 At [docs.clice.io/xclang](https://docs.clice.io/xclang), from
-[docs/en](docs/en):
+[docs/en](docs/en), and in Chinese at
+[docs.clice.io/zh/xclang](https://docs.clice.io/zh/xclang), from
+[docs/zh](docs/zh):
 
 - Guide:
   [What is xclang?](https://docs.clice.io/xclang/guide/what-is-xclang),
   [Quick Start](https://docs.clice.io/xclang/guide/quick-start),
-  [Installation](https://docs.clice.io/xclang/guide/quick-start),
-  [Cross-Compiling](https://docs.clice.io/xclang/guide/cross-compiling),
-  [Why xclang?](https://docs.clice.io/xclang/guide/what-is-xclang),
-  [Comparisons](https://docs.clice.io/xclang/guide/what-is-xclang) with zig cc,
-  llvm-mingw, conda-forge and others,
-  [FAQ](https://docs.clice.io/xclang/guide/what-is-xclang)
-- Integrations: [CMake](https://docs.clice.io/xclang/integrations/cmake),
+  [Cross-Compiling](https://docs.clice.io/xclang/guide/cross-compiling)
+- Build systems: [CMake](https://docs.clice.io/xclang/integrations/cmake),
   [Bazel](https://docs.clice.io/xclang/integrations/bazel),
   [Make and Meson](https://docs.clice.io/xclang/integrations/clang),
   [Cargo](https://docs.clice.io/xclang/integrations/cargo),
@@ -175,16 +172,14 @@ At [docs.clice.io/xclang](https://docs.clice.io/xclang), from
   [Sanitizers](https://docs.clice.io/xclang/features/sanitizers),
   [Runtimes from Source](https://docs.clice.io/xclang/features/runtimes-from-source),
   [Debugging](https://docs.clice.io/xclang/features/debugging),
-  [libclang](https://docs.clice.io/xclang/features/libclang),
-  [ThinLTO Cache](https://docs.clice.io/xclang/features/libclang#the-thinlto-cache)
-- Reference: [Targets](https://docs.clice.io/xclang/guide/cross-compiling),
-  [Compatibility](https://docs.clice.io/xclang/guide/cross-compiling),
-  [Archive Layout](https://docs.clice.io/xclang/reference/layout),
+  [libclang](https://docs.clice.io/xclang/features/libclang)
+- Reference:
+  [xclang Command](https://docs.clice.io/xclang/reference/xclang-command),
   [CMake API](https://docs.clice.io/xclang/reference/cmake-api),
   [Bazel API](https://docs.clice.io/xclang/reference/bazel-api),
-  [Releases](https://docs.clice.io/xclang/guide/quick-start),
+  [Archive Layout](https://docs.clice.io/xclang/reference/layout),
   [LLVM Patches](https://docs.clice.io/xclang/reference/patches),
-  [xclang Command](https://docs.clice.io/xclang/reference/xclang-command)
+  [Releases](https://docs.clice.io/xclang/reference/releases)
 - Design: [Hermeticity](https://docs.clice.io/xclang/design/hermeticity),
   [PGO](https://docs.clice.io/xclang/design/pgo),
   [Roadmap](https://docs.clice.io/xclang/design/roadmap), and more
