@@ -43,8 +43,6 @@ features:
       label: Debugging
     - file: libclang
       label: libclang
-    - file: thinlto-cache
-      label: ThinLTO Cache
 
 reference:
   label: Reference

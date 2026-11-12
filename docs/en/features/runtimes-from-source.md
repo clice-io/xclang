@@ -1,34 +1,33 @@
 # C++ Runtimes from Source
 
-xclang's prebuilt C++ runtimes are one build of libc++, libc++abi and
-libunwind per target: no hardening mode, ABI version 1, exceptions and
-RTTI, no instrumentation but the ASan libc++
-([sanitizers](sanitizers.md)). A CMake or Bazel build can instead compile
-them from the sources every toolchain carries, with options of its own, and
-link its programs against those. This is for what the prebuilt runtimes
-cannot be:
+xclang's prebuilt C++ runtimes provide one build of `libc++`, `libc++abi` and
+`libunwind` per target: no hardening mode, ABI version 1, exceptions and RTTI
+enabled, and no sanitizer instrumentation beyond the prebuilt ASan `libc++`
+([sanitizers](sanitizers.md)). A CMake or Bazel build can instead compile the
+runtimes from the sources bundled in every toolchain archive (`libc++/src`),
+with options of its own, and link its programs against that variant. Use
+runtimes from source when a build needs:
 
-- **MemorySanitizer**, which needs every library instrumented, libc++ too,
-  and compiler-rt's runtime of it, which the toolchain does not carry.
-  ThreadSanitizer and AddressSanitizer report through an instrumented
-  libc++ too.
-- **libc++'s hardening modes**, checked inside the library as well as in
-  its headers.
-- **ABI options**: libc++'s ABI version 2, bounded iterators, an inline
-  namespace of one's own.
-- **No exceptions, no RTTI** in libc++ and libc++abi.
-- **LTO of libc++ with the program** (CMake).
+- **MemorySanitizer**, which requires every library in the program (`libc++`
+  and `libc++abi` included) to be instrumented with `-fsanitize=memory`, along
+  with `compiler-rt`'s MSan runtime. ThreadSanitizer and AddressSanitizer also
+  instrument `libc++` and `libc++abi` when built from source.
+- **`libc++` hardening modes** (`fast`, `extensive`, `debug`), checked inside
+  the compiled library as well as in its headers.
+- **ABI options**: `libc++` ABI version 2, bounded iterators, or a custom
+  inline ABI namespace.
+- **No exceptions or no RTTI** in `libc++` and `libc++abi`.
+- **ThinLTO of `libc++` together with the program** (CMake).
 
-The prebuilt runtimes stay the default. Runtimes from source are in every
-release since 23.1.2.11, whose toolchains carry the sources, for every
-target but the MSVC ones.
+The prebuilt runtimes remain the default. Runtimes from source are supported
+for every target except the MSVC targets.
 
 ## Usage
 
 ### CMake
 
-The option is the toolchain file's, `XCLANG_RUNTIMES=source`, with
-libc++'s options next to it:
+Pass `-DXCLANG_RUNTIMES=source` with xclang's toolchain file, together with any
+`libc++` or sanitizer options:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -37,12 +36,15 @@ cmake -G Ninja -B build --toolchain "$XCLANG/lib/cmake/xclang/toolchain.cmake" \
 cmake --build build
 ```
 
-The first configure builds the variant, about half a minute on four cores,
-into `build/xclang-runtimes/<target>-<digest>`; later configures use it, and
-other options make another variant beside it. Every compile and link of the
-build is against it, CMake's own checks too, and `xclang::std` is built
-from its modules. A MemorySanitizer build, which builds compiler-rt's
-runtime of it first:
+The first configure builds the runtime variant (about half a minute on four
+cores) into `build/xclang-runtimes/<target>-<digest>`; later configures reuse
+it, and changing options creates another variant directory alongside it (or in
+`XCLANG_RUNTIMES_DIR` when shared across build trees). Every compile and link
+in the build uses that variant, CMake's compiler checks and `xclang::std`
+included.
+
+For a MemorySanitizer build, which compiles `compiler-rt`'s MSan runtime before
+`libc++`:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -50,19 +52,22 @@ cmake -G Ninja -B build-msan --toolchain "$XCLANG/lib/cmake/xclang/toolchain.cma
     -DXCLANG_RUNTIMES=source -DXCLANG_SANITIZER=memory -DCMAKE_BUILD_TYPE=RelWithDebInfo
 ```
 
-`XCLANG_SANITIZER` gives the whole build its `-fsanitize=` and runtimes
-that suit it, so the project's flags need no `-fsanitize=` of their own.
-With the prebuilt runtimes it works too, for the sanitizers they have:
-`address` then links the prebuilt ASan libc++.
+`XCLANG_SANITIZER` (`address`, `memory`, `thread`, `undefined`, `leak`) adds
+`-fsanitize=<sanitizer>` to the whole build and selects matching runtimes, so
+the project's own flags do not need `-fsanitize=`. `XCLANG_SANITIZER` works
+with the prebuilt runtimes as well for the sanitizers they support: `address`
+links the prebuilt ASan `libc++` ([sanitizers](sanitizers.md#cmake)), and on
+`x86_64` Windows the program loads the ASan DLL from beside itself or from
+`PATH` ([MinGW Targets](sanitizers.md#mingw-targets)).
 
-For another target, add `-DXCLANG_TARGET=<target>`: the variant is built for
-it, by the same toolchain file.
+To cross-compile a runtime variant for another target, add
+`-DXCLANG_TARGET=<target>` with the same toolchain file.
 
 ### Bazel
 
-The example is
-[examples/runtimes](https://github.com/clice-io/xclang/tree/main/examples/runtimes),
-a test of the C++ library, on a module of 23.1.2.11 or later:
+The example in
+[examples/runtimes](https://github.com/clice-io/xclang/tree/main/examples/runtimes)
+tests `libc++` with runtimes built from source:
 
 <!-- file: examples/runtimes/BUILD.bazel -->
 ```python
@@ -106,25 +111,27 @@ bazel_dep(name = "xclang", version = "23.1.2.11")
 
 :::
 
-The flags of the whole build are in `@xclang//runtimes`:
+Configure the build's runtime variant with flags in `@xclang//runtimes`:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 bazel build --@xclang//runtimes:source --@xclang//runtimes:hardening=fast //...
 ```
 
-The sanitizers are the features they always were, MemorySanitizer for the
-Linux targets:
+Combine `--@xclang//runtimes:source` with `--features=msan` (for the glibc
+Linux targets), `asan`, `tsan`, `ubsan` or `lsan` to instrument `libc++` and
+`libc++abi` with the build's sanitizer:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 bazel test --@xclang//runtimes:source --features=msan //...
 ```
 
-The runtimes are libraries of the toolchain's repository, compiled for the
-target platform with the build's features (a sanitizer's instrumentation)
-and `--copt`, and cached as any other action. A `.bazelrc` names the
-variants a project uses:
+In Bazel, the runtimes are `cc_library` targets inside the toolchain
+repository, compiled for the target platform with the build's sanitizer
+features and `--copt` flags and cached in Bazel's action cache like any other
+target. Define named configurations in `.bazelrc` for the variants a project
+uses:
 
 ```text
 build:msan --@xclang//runtimes:source --features=msan
@@ -135,75 +142,81 @@ build:hardened --@xclang//runtimes:source --@xclang//runtimes:hardening=extensiv
 
 | | CMake (toolchain file) | Bazel |
 |---|---|---|
-| runtimes from source | `XCLANG_RUNTIMES=source` | `--@xclang//runtimes:source` |
-| libc++'s hardening mode: `none`, `fast`, `extensive`, `debug` | `XCLANG_LIBCXX_HARDENING` | `--@xclang//runtimes:hardening` |
-| libc++'s ABI version, `1` or `2` | `XCLANG_LIBCXX_ABI_VERSION` | `--@xclang//runtimes:abi_version` |
-| libc++'s inline namespace, `__<name>` | `XCLANG_LIBCXX_ABI_NAMESPACE` | `--@xclang//runtimes:abi_namespace` |
-| libc++'s ABI macros, `_LIBCPP_ABI_*` | `XCLANG_LIBCXX_ABI_DEFINES` (a list) | `--@xclang//runtimes:abi_defines` (comma-separated) |
-| libc++ and libc++abi without exceptions | `XCLANG_RUNTIMES_EXCEPTIONS=OFF` | `--@xclang//runtimes:exceptions=false` |
-| libc++ without RTTI (and without exceptions) | `XCLANG_RUNTIMES_RTTI=OFF` | `--@xclang//runtimes:rtti=false` |
-| sanitizers: `address`, `memory`, `thread`, `undefined`, `leak` | `XCLANG_SANITIZER` | `--features=asan`, `msan`, `tsan`, `ubsan`, `lsan` |
-| more compile options of libc++ and libc++abi | `XCLANG_RUNTIMES_FLAGS` | the build's `--copt` |
-| LTO of libc++ with the program | `XCLANG_RUNTIMES_FLAGS=-flto=thin` | not available |
-| more options of LLVM's CMake build | `XCLANG_RUNTIMES_CMAKE_ARGS` | |
-| where the variants are built | `XCLANG_RUNTIMES_DIR` | Bazel's output base and caches |
+| Build runtimes from source | `XCLANG_RUNTIMES=source` | `--@xclang//runtimes:source` |
+| `libc++` hardening mode: `none`, `fast`, `extensive`, `debug` | `XCLANG_LIBCXX_HARDENING` | `--@xclang//runtimes:hardening` |
+| `libc++` ABI version: `1` or `2` | `XCLANG_LIBCXX_ABI_VERSION` | `--@xclang//runtimes:abi_version` |
+| `libc++` inline ABI namespace (`__<name>`) | `XCLANG_LIBCXX_ABI_NAMESPACE` | `--@xclang//runtimes:abi_namespace` |
+| `libc++` ABI macros (`_LIBCPP_ABI_*`) | `XCLANG_LIBCXX_ABI_DEFINES` (semicolon list) | `--@xclang//runtimes:abi_defines` (comma-separated) |
+| `libc++` and `libc++abi` without exceptions | `XCLANG_RUNTIMES_EXCEPTIONS=OFF` | `--@xclang//runtimes:exceptions=false` |
+| `libc++` without RTTI (and without exceptions) | `XCLANG_RUNTIMES_RTTI=OFF` | `--@xclang//runtimes:rtti=false` |
+| Sanitizers: `address`, `memory`, `thread`, `undefined`, `leak` | `XCLANG_SANITIZER` | `--features=asan`, `msan`, `tsan`, `ubsan`, `lsan` |
+| Extra compile flags for `libc++` and `libc++abi` | `XCLANG_RUNTIMES_FLAGS` | the build's `--copt` |
+| ThinLTO of `libc++` with the program | `XCLANG_RUNTIMES_FLAGS=-flto=thin` | not available |
+| Extra CMake arguments for LLVM's runtimes build | `XCLANG_RUNTIMES_CMAKE_ARGS` | |
+| Directory where runtime variants are stored | `XCLANG_RUNTIMES_DIR` | Bazel's output base and action cache |
 
-The program's own options are its own: a build without exceptions passes
-`-fno-exceptions` (`CMAKE_CXX_FLAGS`, `--copt`) as well. The
-[CMake API](../reference/cmake-api.md#runtimes-from-source) and the
-[Bazel API](../reference/bazel-api.md#runtimes-from-source) list them again.
+The runtime options configure `libc++` and `libc++abi`; pass matching language
+flags such as `-fno-exceptions` or `-fno-rtti` in the project's own compile
+flags (`CMAKE_CXX_FLAGS`, `--copt` or `--cxxopt`) as well. Full option lists
+are in the [CMake API](../reference/cmake-api.md) and the
+[Bazel API](../reference/bazel-api.md).
 
 ## Behavior
 
-- **The same build as the prebuilt runtimes.** CMake builds LLVM's
-  `runtimes/` with the CMake cache and options of xclang's own build of
-  the runtimes, by the toolchain file and the config file of the target.
-  With no options, the result is the prebuilt runtimes: the same
-  `__config_site`, and the same code. Bazel compiles the same translation
-  units with the same flags, which `packages/bazel/runtimes.ts` takes from
-  LLVM's CMake build of every target.
-- **What is built**: libc++ with libc++abi in it, libc++experimental, and
-  libunwind (none for macOS, which unwinds with the system's). With
-  MemorySanitizer, compiler-rt's runtime of it.
-- **In place of the prebuilt ones.** The variant's `__config_site` comes
-  before libc++'s other headers, and its libraries are linked instead of
-  the prebuilt ones (`-nostdlib++`). `import std` follows the variant:
-  `xclang::std` and `@xclang//bazel:std` are built from it.
-- **libunwind stays uninstrumented** with sanitizers, as in the prebuilt
-  ASan libc++: the sanitizers' runtimes unwind with it, and MemorySanitizer
-  would report the registers it reads.
-- **MemorySanitizer is for the Linux targets** (glibc), x64 and arm64. Its
-  runtime is linked into executables as clang links the others, whole, with
-  its interface exported.
-- **Every library of a program must use the same variant.** A library
-  built against the prebuilt runtimes, with another ABI namespace, ABI
-  version or set of ABI macros, does not link, or breaks at run time; under
-  MemorySanitizer, its code reports what it was not instrumented to see.
-- **Bazel builds them for the target's build only.** The tools a build
-  runs (`cfg = "exec"`) are built for the host with the prebuilt runtimes,
-  whatever the variant. The runtimes follow the sanitizer features of the
-  whole build (`--features=asan`), not those a single target turns on or
-  off with `features`.
-- **Bazel does not run ThinLTO on the runtimes**: `--features=thin_lto`
-  links programs of ThinLTO against runtimes of native code. Bazel's ThinLTO
-  backends compile the objects of the libraries it knows, and the toolchain
-  links the runtimes' by their paths.
-- **CMake needs Python 3**, as LLVM's build of the runtimes does. Bazel
-  needs nothing more.
+- **Same build configuration as the prebuilt runtimes**: CMake builds LLVM's
+  `runtimes/` directory with the CMake cache variables and target config file
+  used to build xclang's prebuilt runtimes. With default options, it produces
+  the same `__config_site` and library code. Bazel compiles the same source
+  files with the same per-target flags, extracted from LLVM's CMake build by
+  `packages/bazel/runtimes.ts`.
+- **What is built**: `libc++` (with `libc++abi` merged into `libc++.a`),
+  `libc++experimental.a`, and `libunwind.a` (except on macOS, which unwinds
+  with `libSystem`). With MemorySanitizer, `compiler-rt`'s MSan runtime
+  (`libclang_rt.msan.a` and `libclang_rt.msan_cxx.a`) is built as well.
+- **Replaces the prebuilt runtimes**: the variant's `__config_site` directory
+  is placed before `libc++`'s shared headers on the include path, and links
+  pass `-nostdlib++` and link the variant's libraries instead of the prebuilt
+  ones. `import std` (`xclang::std` and `@xclang//bazel:std`) compiles from
+  the variant.
+- **`libunwind` stays uninstrumented**: under sanitizers, `libunwind` is
+  compiled without sanitizer instrumentation, just as in the prebuilt ASan
+  `libc++`, because sanitizer runtimes unwind stack traces through it and
+  MemorySanitizer would report uninitialized registers read during unwinding.
+- **MemorySanitizer is for the glibc Linux targets** (`x86_64` and `aarch64`).
+  Its runtime is linked into executables with `--whole-archive` and
+  `--export-dynamic`, matching how `clang` links prebuilt sanitizer runtimes.
+- **Every library in a program must use the same variant**: linking a library
+  compiled against the prebuilt runtimes into a program that uses another ABI
+  namespace, ABI version, set of ABI macros or MemorySanitizer fails to link or
+  misbehaves at run time.
+- **Target configuration only in Bazel**: host tools executed during the build
+  (`cfg = "exec"`) are always built with the prebuilt host runtimes, regardless
+  of `@xclang//runtimes:*` settings. The runtimes follow the sanitizer features
+  of the overall build (`--features=asan`), not `features` attributes set on a
+  single Bazel target.
+- **Host requirements**: CMake's runtime build runs LLVM's CMake scripts and
+  requires Python 3 on the host; Bazel needs no additional host tools.
 
-## The Sources
+### The Sources
 
-Every toolchain directory has the sources once, for every target, in
-`libc++/src`, next to libc++'s headers: llvm-project's own layout
-(`runtimes/`, `cmake/`, `llvm/cmake/`, `libcxx/`, `libcxxabi/`,
-`libunwind/`, `compiler-rt/`, and the headers of LLVM's libc that libc++
-includes), without tests and documentation, with xclang's
-[patches](../reference/patches.md) of libc++ applied. They are 35 MB
-unpacked, 2.3 MB of each archive.
+Every toolchain archive includes the runtime sources once for all targets in
+`libc++/src`, alongside `libc++/include`: `llvm-project`'s `runtimes/`,
+`cmake/`, `llvm/cmake/`, `libcxx/`, `libcxxabi/`, `libunwind/`, `compiler-rt/`,
+and the internal `libc` headers that `libc++` includes, without tests or
+documentation and with xclang's `libc++` [patches](../reference/patches.md)
+applied. They occupy 35 MB unpacked (2.3 MB in each compressed archive).
 
-## Not Yet Supported
+## Limitations
 
-| | status |
-|---|---|
-| [Runtimes from source for the MSVC targets](../design/roadmap.md#runtimes-msvc) | Planned |
-| [LTO of the runtimes with the program in Bazel](../design/roadmap.md#runtimes-bazel-lto) | Considered |
+- **MSVC targets**: building runtimes from source for `x86_64-pc-windows-msvc`
+  and `aarch64-pc-windows-msvc` is not yet supported and is
+  [planned](../design/roadmap.md#runtimes-msvc); CMake and Bazel reject
+  `XCLANG_RUNTIMES=source` and `--@xclang//runtimes:source` for MSVC targets.
+- **`-stdlib=platform`** (`XCLANG_STDLIB=platform`,
+  `--@xclang//bazel:stdlib=platform`) takes the platform's C++ library, and
+  runtimes from source build `libc++`: a build has one or the other.
+- **ThinLTO of runtimes in Bazel**: `--features=thin_lto` compiles the program
+  with ThinLTO and links it against native-code runtimes from source, because
+  Bazel runs ThinLTO backends only on `cc_library` targets in `deps` rather
+  than libraries linked by the toolchain; LTO of runtimes from source in Bazel
+  is [considered](../design/roadmap.md#runtimes-bazel-lto).

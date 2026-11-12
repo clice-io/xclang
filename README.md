@@ -176,7 +176,7 @@ At [docs.clice.io/xclang](https://docs.clice.io/xclang), from
   [Runtimes from Source](https://docs.clice.io/xclang/features/runtimes-from-source),
   [Debugging](https://docs.clice.io/xclang/features/debugging),
   [libclang](https://docs.clice.io/xclang/features/libclang),
-  [ThinLTO Cache](https://docs.clice.io/xclang/features/thinlto-cache)
+  [ThinLTO Cache](https://docs.clice.io/xclang/features/libclang#the-thinlto-cache)
 - Reference: [Targets](https://docs.clice.io/xclang/targets/cross-compiling),
   [Compatibility](https://docs.clice.io/xclang/targets/cross-compiling),
   [Archive Layout](https://docs.clice.io/xclang/reference/layout),

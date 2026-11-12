@@ -333,7 +333,7 @@ first takes seconds ([libclang](../features/libclang.md#cmake) has a whole
 tool built this way). `find_package(xclang)` makes the directory at
 configure time. It adds the
 cache flag to every link of the directory that called it, and of its
-subdirectories ([the ThinLTO cache](../features/thinlto-cache.md)).
+subdirectories ([the ThinLTO cache](../features/libclang.md#the-thinlto-cache)).
 
 ## Troubleshooting
 

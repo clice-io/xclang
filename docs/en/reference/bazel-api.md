@@ -155,7 +155,7 @@ Given with `--repo_env=<name>=<value>`:
 
 | variable | |
 |---|---|
-| `XCLANG_THINLTO_CACHE` | an absolute directory for the ThinLTO cache of the linker; the module makes it ([the ThinLTO cache](../features/thinlto-cache.md#usage)) |
+| `XCLANG_THINLTO_CACHE` | an absolute directory for the ThinLTO cache of the linker; the module makes it ([the ThinLTO cache](../features/libclang.md#the-thinlto-cache)) |
 | `XCLANG_ROOT` | an unpacked host toolchain to use instead of the release's |
 | `XCLANG_LIBCLANG_ROOT`, `XCLANG_LIBCLANG_ASAN_ROOT` | an unpacked host libclang, or its ASan build, to use instead of the release's |
 | `BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1` | rules_cc's: turns its detection of a local compiler off. Needed unless `xclang`'s `bazel_dep` comes before `rules_cc`'s: Bazel tries the toolchains of the modules in the order of their `bazel_dep`s, and rules_cc's of the local compiler takes the host's builds, and on Windows those of every Windows platform |

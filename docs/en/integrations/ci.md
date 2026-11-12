@@ -118,7 +118,7 @@ restore. So the linker never prunes, and the entry only grows, by what new
 code adds: 350 to 650 MB for clice and its tests. A new xclang release
 changes the input of every link, so none of the old entries can be used.
 With the version in the key, its entry starts empty
-([the ThinLTO cache](../features/thinlto-cache.md)).
+([the ThinLTO cache](../features/libclang.md#the-thinlto-cache)).
 
 **ccache** is safe for code without C++20 modules. With modules, check what
 your ccache version does first

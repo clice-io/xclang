@@ -357,7 +357,7 @@ try-import %workspace%/user.bazelrc
   seconds.
 - The path is part of the key of every link, so keep it the same on every
   machine. Do not put it under `/tmp`
-  ([why one fixed path](../features/thinlto-cache.md#why-one-fixed-path)).
+  ([why one fixed path](../features/libclang.md#why-one-fixed-path)).
 
 ## Link libclang
 

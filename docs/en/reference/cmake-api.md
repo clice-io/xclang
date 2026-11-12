@@ -32,7 +32,7 @@ must be xclang's `clang++`. It finds the package through `PATH`
 | `xclang_add_std(<name>)` | function | another such library; its `PUBLIC` options reach its importers |
 | `xclang_debug_symbols(<program> [GSYM_ARGS <option>...])` | function | after each link of the CMake target `<program>`: `<program>.gsym` next to it, by llvm-gsymutil with one thread (the same file each run; `GSYM_ARGS` come after `--num-threads=1`), with its output in `<program>.gsym.log`; for a macOS target, `<program>.dSYM` first ([debugging](../features/debugging.md#usage)); nothing for an MSVC target, whose link writes a PDB |
 | `XCLANG_ROOT` | variable | the toolchain directory |
-| `XCLANG_THINLTO_CACHE` | cache variable | an absolute directory for the ThinLTO cache of the linker; its first value comes from the environment variable of the same name ([the ThinLTO cache](../features/thinlto-cache.md#usage)) |
+| `XCLANG_THINLTO_CACHE` | cache variable | an absolute directory for the ThinLTO cache of the linker; its first value comes from the environment variable of the same name ([the ThinLTO cache](../features/libclang.md#the-thinlto-cache)) |
 
 `xclang::std` asks its importers for C++23, or for the `CMAKE_CXX_STANDARD`
 it was built with if that is 20 or later. With `XCLANG_RUNTIMES=source`, it
