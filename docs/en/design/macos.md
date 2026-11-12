@@ -70,7 +70,7 @@ universal programs and sanitizers. ld64.lld signs arm64 programs ad hoc,
 as Apple's `ld` does, so they run on Apple silicon without `codesign`;
 `llvm-install-name-tool` signs them again when it changes them. CI builds
 them on Linux and Windows hosts, x64 and arm64, and runs them on arm64 and
-x64 Macs ([testing](../dev/testing.md#macos-from-linux-and-windows)).
+x64 Macs.
 
 ## xclang's libc++, Not the System's
 

@@ -1,8 +1,6 @@
 # Contributing to xclang
 
-Thanks for helping. The full guide is
-[docs.clice.io/xclang/dev/contributing](https://docs.clice.io/xclang/dev/contributing)
-([source](docs/en/dev/contributing.md)); in short:
+Thanks for helping. In short:
 
 - **Builds run on CI.** A release run is about three hours on
   GitHub-hosted runners; run `release.yml` on a branch of your own
@@ -24,11 +22,10 @@ Thanks for helping. The full guide is
 - **Docs** are `docs/en/<group>/<page>.md`, published to
   [docs.clice.io/xclang](https://docs.clice.io/xclang) from `main`. Plain
   and precise: what is, and why. What is not in a release has one status in
-  the roadmap; tests and CI runs are named on the testing page
-  ([the docs](docs/en/dev/contributing.md#the-docs)).
+  the roadmap.
 - **Changes to LLVM** are patches in `patches/`, each with a README and a
   check that fails without it
-  ([patching LLVM](docs/en/dev/llvm-patches.md)).
+  ([LLVM patches](docs/en/reference/patches.md)).
 
 Bugs and requests: [issues](https://github.com/clice-io/xclang/issues).
 Security issues: [SECURITY.md](SECURITY.md).

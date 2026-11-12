@@ -68,9 +68,7 @@ the release run tests them with the new archives.
    - CHANGELOG.md: Unreleased becomes `## [<version>](https://github.com/clice-io/xclang/releases/tag/<version>) — <date>`
      (the UTC date the run starts) with "Built by <bootstrap>." (a
      repack: "The compiler and runtimes are <previous>'s."), and a new
-     empty Unreleased;
-   - docs/en/dev/release-build.md: the release's row in the bootstrap
-     chain table (a repack: "<previous>'s compiler, repacked").
+     empty Unreleased.
    Nothing else names a release by hand: the docs, READMEs and examples/
    reach the newest by themselves (pixi `xclang = "*"`, `releases/latest`,
    the `latest` branch for FetchContent), the Bazel `bazel_dep` versions
@@ -131,13 +129,11 @@ the release run tests them with the new archives.
    included.
 
    **When LLVM or the bootstrap moved**, a second full build checks that
-   the revision rebuilds to the same bytes (docs/en/dev/releasing.md,
-   Reproducible Rebuilds), started next to the first, on release/<version>
+   the revision rebuilds to the same bytes, started next to the first, on release/<version>
    too, once its `train` stage is done: `-f stages=runtimes,toolchain,asan,package,test -f
    profile-run=<full run> -f repack-of=<full run> -f revision=<n>`. The
-   release is the first run's; what differs is a bug, and goes into the
-   roadmap's list of the rebuilds checked (docs/en/design/roadmap.md,
-   reproducible builds) with the two runs. Nothing else rebuilds a full
+   release is the first run's; what differs is a bug, fixed as any other
+   (a patch, or the build's own fix). Nothing else rebuilds a full
    run: each release run makes every host's archives twice
    (stage-package.yml) and builds the xclang command twice (cli.yml,
    same-bytes), on two machines each.

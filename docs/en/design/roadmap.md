@@ -286,23 +286,20 @@ The training is widened between releases, not while one is pending
 - **Reproducible archives**, since 23.1.2.7: sorted entries, the commit's
   time and no owner in the `.tar.xz` files, xz in fixed blocks whatever
   its threads; each host's archives are made twice, on two machines, and
-  compared ([build](../dev/release-build.md#the-stages)).
+  compared.
 - **Reproducible builds**: a rebuild of a revision with its profile
   (`xclang-<version>.profdata`, an asset of the release) is meant to give
   every archive of every host again, byte for byte. Rebuilds are checked
   to do so; that is no guarantee, as a bug of the compiler or linker that
   builds xclang can break it, as lld-link's did. Every release makes each
   host's archives twice and builds the `xclang` command twice, on two
-  machines each, and compares them
-  ([build](../dev/release-build.md#the-stages)). A second full build, by
-  hand, checks the rest at LLVM upgrades and bootstrap changes
-  ([releasing](../dev/releasing.md#reproducible-rebuilds)). Since
+  machines each, and compares them. A second full build, by
+  hand, checks the rest at LLVM upgrades and bootstrap changes. Since
   23.1.2.10, `clang --version` names LLVM's release commit, not xclang's,
   nothing built for Windows holds a time (but the x64 MinGW ASan DLL,
   since 23.1.3.4, below), and the macOS sanitizers' dylibs hold no file
   times. Since 23.1.3.2, the `xclang` command is the
-  same bytes in any directory, with any `CARGO_HOME`, at any time
-  ([build](../dev/release-build.md#the-xclang-command)). The rebuilds
+  same bytes in any directory, with any `CARGO_HOME`, at any time. The rebuilds
   checked:
   - Two full builds of 23.1.2.10 differed only in the Windows hosts'
     `llvm.exe`: the bootstrap's lld-link laid out PGO-built programs

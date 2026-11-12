@@ -106,8 +106,7 @@ is tested, and so how much a release promises about it.
 - **Tier 3**: programs are compiled and linked for it, not run.
 
 For the targets of every archive, that means programs built on every host
-run on a runner of their target, with no emulator
-([testing](../dev/testing.md#cross-compiling)).
+run on a runner of their target, with no emulator.
 
 ## Not Yet Supported
 

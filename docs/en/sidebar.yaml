@@ -71,16 +71,3 @@ design:
       label: Bazel Module
     - vendor-sdks
     - roadmap
-
-dev:
-  label: Development
-  collapsed: true
-  items:
-    - contributing
-    - file: release-build
-      label: Build Pipeline
-    - file: testing
-      label: Testing
-    - file: llvm-patches
-      label: Patching LLVM
-    - releasing

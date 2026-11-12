@@ -173,8 +173,7 @@ run:
 In Bazel, the build job uses `--platforms=@xclang//platforms:<target>`
 and uploads the test binaries with their runfiles. xclang's own CI runs
 every example of these docs this way: what each host built for another
-target runs on a runner of that target
-([testing](../dev/testing.md#cross-compiling)). The runners for each
+target runs on a runner of that target. The runners for each
 target:
 
 | target | runner |
@@ -202,5 +201,3 @@ programs on `windows-11-arm`.
 ## See Also
 
 - [CMake](cmake.md) and [Bazel](bazel.md): the builds these jobs run.
-- [Testing](../dev/testing.md): how xclang's own CI tests every host and
-  target.

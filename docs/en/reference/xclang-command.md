@@ -200,6 +200,3 @@ Mozilla's roots.
 | `XCLANG_STDLIB` | `platform`: `xclang cargo` builds C++ with the platform's C++ library ([Rust and Cargo](../integrations/cargo.md#the-system-s-c-library)) |
 | `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`, `NO_PROXY` | honoured |
 | `SSL_CERT_FILE` | a CA file, read on Linux |
-
-How the command is built, tested and maintained is in the
-[build pipeline](../dev/release-build.md#the-xclang-command).

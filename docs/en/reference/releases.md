@@ -79,6 +79,3 @@ Immutable releases are [planned](../design/roadmap.md#immutable-releases).
   ([Bazel](../integrations/bazel.md)).
 - **CMake**: FetchContent checks out the tag itself
   ([CMake](../integrations/cmake.md#without-xclang-installed)).
-
-How a release is built and tested is in the
-[build pipeline](../dev/release-build.md).

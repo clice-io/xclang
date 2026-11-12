@@ -205,8 +205,7 @@ The module of every release is published to
 [bazel.clice.io](https://bazel.clice.io), once published.yml has built and
 tested the tag of the release with the published archives. The registry
 archive of the module is made deterministically: sorted entries, no owners
-or times. It gives the same actions as the directory in the repository
-([testing](../dev/testing.md#bazel-module)).
+or times. It gives the same actions as the directory in the repository.
 
 ## Known Limitations
 

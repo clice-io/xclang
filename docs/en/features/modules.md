@@ -237,8 +237,7 @@ object it had before the interface changed.
 CI runs the command lines CMake gives a module and its importer
 (`-fmodule-output=a.pcm`, and `-fmodule-file=a=a.pcm` in `@b.modmap`) three
 times, under two ccache versions: as is, again, and after the exported
-constant of the module changed from 1 to 2
-([testing](../dev/testing.md#c-20-modules)):
+constant of the module changed from 1 to 2:
 
 | | module interface | importer, unchanged | importer, after the interface changed |
 |---|---|---|---|

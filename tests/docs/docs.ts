@@ -6,9 +6,8 @@
 ///   `<!-- excerpt: <path> -->` must be consecutive lines of it, indented
 ///   alike: a command block is a step of .github/workflows/examples.yml, a
 ///   fragment a part of a file in examples/;
-/// - every command block (sh, powershell, yaml) of a page outside dev/ has
-///   one of those markers, or `<!-- not run: <why> -->` saying why CI does
-///   not run it;
+/// - every command block (sh, powershell, yaml) has one of those markers,
+///   or `<!-- not run: <why> -->` saying why CI does not run it;
 /// - every directory of examples/ is built by examples.yml and shown by a
 ///   page, and its pixi.toml and .bazelversion are those of the quick start
 ///   and the Bazel example, so a release changes one version of each;
@@ -121,7 +120,6 @@ let unrun = 0;
 const shown = new Set<string>();
 for (const page of pages) {
   const lines = fs.readFileSync(page, "utf8").split("\n");
-  const dev = path.relative(DOCS, page).split(path.sep).includes("dev");
   let fence = "";
   for (let i = 0; i < lines.length; i++) {
     const where = `${path.relative(ROOT, page)}:${i + 1}`;
@@ -136,7 +134,7 @@ for (const page of pages) {
       let k = i - 1;
       while (k >= 0 && lines[k]!.trim() === "") k--;
       const marked = k >= 0 && /^\s*<!-- (file|excerpt|not run): .*-->\s*$/.test(lines[k]!);
-      if (!dev && COMMANDS.has(open[3]!.toLowerCase()) && !marked) {
+      if (COMMANDS.has(open[3]!.toLowerCase()) && !marked) {
         failures.push(`${where}: a ${open[3]} block without a file, excerpt or not run marker`);
       }
       continue;

@@ -22,8 +22,6 @@ C++ builds.
 | [Supply chain](#supply-chain) | every archive pinned by sha256, LLVM's source with documented patches | [releases](../reference/releases.md) |
 | [One toolchain for every build](#one-toolchain-for-every-build) | the same compiler for CMake, Bazel, Meson, Make and cargo | [installation](install.md) |
 
-How each claim is tested is in [testing](../dev/testing.md).
-
 ## Reproducible
 
 A toolchain is a release, and a release is never replaced: a rebuild is the

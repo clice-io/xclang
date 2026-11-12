@@ -161,8 +161,7 @@ selects Apple's ld, for links without LTO, and so without this cache.
 
 The tests of 23.1.2.6 link a small tool on libclang without the cache, with
 an empty one, and with a full one, on every host: 7 to 20 s cold, 0.6 to
-1.7 s warm, 152 to 155 entries, and the same program bytes each time
-([testing](../dev/testing.md#bazel-module)).
+1.7 s warm, 152 to 155 entries, and the same program bytes each time.
 
 ## See Also
 

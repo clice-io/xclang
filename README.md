@@ -188,11 +188,6 @@ At [docs.clice.io/xclang](https://docs.clice.io/xclang), from
 - Design: [Hermeticity](https://docs.clice.io/xclang/design/hermeticity),
   [PGO](https://docs.clice.io/xclang/design/pgo),
   [Roadmap](https://docs.clice.io/xclang/design/roadmap), and more
-- Development:
-  [Contributing](https://docs.clice.io/xclang/dev/contributing),
-  [Build Pipeline](https://docs.clice.io/xclang/dev/release-build),
-  [Testing](https://docs.clice.io/xclang/dev/testing),
-  [Releasing](https://docs.clice.io/xclang/dev/releasing)
 - [CHANGELOG](CHANGELOG.md), [contributing](CONTRIBUTING.md),
   [security](SECURITY.md)
 

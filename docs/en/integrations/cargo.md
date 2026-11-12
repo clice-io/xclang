@@ -130,7 +130,7 @@ The `*-windows-gnu` targets link libgcc and msvcrt instead, and
 example and a crate of C, C++ (exceptions, `std::format`), a CMake project
 and bindgen's bindings for each of them, from Linux, macOS and Windows
 hosts, and from Linux the `xclang` command itself, and runs the programs
-on a machine of their target ([testing](../dev/testing.md#the-xclang-command)).
+on a machine of their target.
 
 ## What xclang cargo Sets
 
@@ -262,8 +262,7 @@ the system's `cc`, or on Windows Visual Studio's `link.exe`.
 ## What the Programs Load
 
 xclang's own command, `xclang/`, with the C code of ring and liblzma, is
-built with xclang as its C compiler and linker for every host
-([build pipeline](../dev/release-build.md#the-xclang-command)). It loads at
+built with xclang as its C compiler and linker for every host. It loads at
 run time:
 
 | target | loads |

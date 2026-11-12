@@ -42,7 +42,7 @@ description: Move xclang to a new LLVM release (e.g. 23.1.2 → 23.1.3 or 24.1.0
    without the `release` stage (a release is built from main). Fix on the
    branch, rerun failed stages with `reuse-run`. The training and
    the smoke tests are where a new version breaks most.
-6. **Docs**: docs/en/dev/release-build.md and docs/en/reference/patches.md if the pipeline or the
+6. **Docs**: docs/en/reference/patches.md (and docs/zh's) if the
    patches changed; CHANGELOG Unreleased: "LLVM <version>", patches dropped
    because upstream took them.
 7. The upgrade to main by a pull request, then release `<new version>.1`
