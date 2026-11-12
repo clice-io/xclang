@@ -8,6 +8,10 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+## [23.1.5.1](https://github.com/clice-io/xclang/releases/tag/23.1.5.1) — 2026-11-12
+
+Built by 23.1.3.6.
+
 - **LLVM 23.1.5**, with 23.1.4's fixes. Among them: miscompiles in
   InstCombine (llvm/llvm-project#231537), the loop vectorizer
   (llvm/llvm-project#229929), loop unrolling (llvm/llvm-project#234202)
