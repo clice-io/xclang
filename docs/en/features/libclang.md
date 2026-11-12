@@ -1,16 +1,21 @@
 # libclang and the Option Tables
 
-For tools built on clang, such as [clice](https://github.com/clice-io/clice)
-and [catter](https://github.com/clice-io/catter). In these docs,
-*libclang* means the static C++ libraries of clang and LLVM, not only the
-libclang C API. Each release has them for every host, as ThinLTO bitcode
-built with the same PGO profile as its clang.
+For tools built on `clang` and LLVM, such as
+[clice](https://github.com/clice-io/clice) and
+[catter](https://github.com/clice-io/catter). In these docs, *libclang* refers
+to the static C++ libraries and headers of `clang`, `clang-tidy` and LLVM, not
+only the `libclang` C API. Every release publishes `libclang` for all six hosts
+as ThinLTO bitcode compiled with the same PGO profile as xclang's `clang`,
+paired with `XCLANG_THINLTO_CACHE` so incremental links finish in seconds, an
+ASan-instrumented `libclang` build for Linux `x86_64` and macOS `arm64`, and
+`llvm-option-inc` containing the TableGen driver option tables.
 
 ## Usage
 
-The example is a small tool that lexes a line of C++ with clang's own
-classes. It is in
-[examples/libclang](https://github.com/clice-io/xclang/tree/main/examples/libclang):
+The example in
+[examples/libclang](https://github.com/clice-io/xclang/tree/main/examples/libclang)
+lexes a line of C++ using `clang`'s C++ classes and prints the compiler version
+and enabled compression libraries:
 
 <!-- file: examples/libclang/main.cpp -->
 ```cpp
@@ -48,15 +53,16 @@ int main() {
 }
 ```
 
-It prints the clang version, then `tokens 9 zlib 1 zstd 1`.
+It prints the `clang` version, followed by `tokens 9 zlib 1 zstd 1`.
 
 ### CMake
 
-libclang comes as a release archive, not from conda or FetchContent. In
-`examples/libclang`, in a `pixi shell` after `pixi install`, this
-downloads, checks and unpacks the newest release's on Linux x64, the
-release pixi installed too (see
-[the rules](#rules-for-code-that-links-it)):
+`libclang` is distributed as a release archive (`libclang-<version>-<host>.tar.xz`),
+not through conda or `FetchContent`. In `examples/libclang`, inside `pixi shell`
+after `pixi install`, download, verify and unpack the archive matching the
+installed release on Linux `x86_64`
+([installation](../reference/releases.md#assets) lists all host triples; on macOS,
+verify with `shasum -a 256 -c --ignore-missing SHA256SUMS`):
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -68,11 +74,13 @@ sha256sum -c --ignore-missing SHA256SUMS
 tar -xf libclang-$v-$h.tar.xz
 ```
 
-On macOS, check with `shasum -a 256 -c --ignore-missing SHA256SUMS`. The
-other hosts are in [releases](../reference/releases.md#assets).
-
-The tool finds libclang with `find_package(Clang)`. `find_package(xclang)`
-adds the [ThinLTO cache](thinlto-cache.md) to its links:
+Find `libclang` with `find_package(Clang REQUIRED CONFIG)` and
+`CMAKE_PREFIX_PATH` pointing to the unpacked `libclang` directory. Calling
+`find_package(xclang REQUIRED CONFIG)` enables the
+[ThinLTO cache](#the-thinlto-cache) when `XCLANG_THINLTO_CACHE` is set (as a
+CMake variable or environment variable before `find_package(xclang)`): it
+creates the cache directory at configure time and adds the cache flag to every
+link in that directory and its subdirectories:
 
 <!-- file: examples/libclang/CMakeLists.txt -->
 ```cmake
@@ -97,13 +105,39 @@ cmake --build build
 ./build/tool
 ```
 
+The first link compiles the required `libclang` bitcode modules and populates
+`/var/tmp/xclang-thinlto`. After modifying `main.cpp`, the relink reuses the
+cached `libclang` machine code and finishes in seconds:
+
+<!-- excerpt: .github/workflows/examples.yml -->
+```sh
+touch main.cpp
+cmake --build build
+```
+
 ### Bazel
 
-`@libclang` is the libclang of the target platform. Each library comes with
-the link interface that the CMake packages of LLVM and clang give it:
-system libraries, zlib and zstd. For the MinGW targets, it also brings the
-Windows libraries that CMake links into every program and LLVM relies on
-(`oleaut32` for `LLVMWindowsDriver`). A Bazel target names only what it uses:
+`@libclang` provides the `libclang` archive of the target platform, and
+`@llvm_option_inc` provides the option tables. Import them from the `xclang`
+module extension in `MODULE.bazel`:
+
+<!-- file: examples/libclang/MODULE.bazel -->
+```python
+module(name = "tool")
+
+bazel_dep(name = "rules_cc", version = "0.2.25")
+bazel_dep(name = "xclang", version = "23.1.2.8")
+
+xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
+use_repo(xclang, "libclang", "llvm_option_inc")
+```
+
+Each library target in `@libclang` carries the link interface (`deps` and
+`linkopts`) exported by LLVM's and `clang`'s CMake packages: transitive library
+dependencies, system libraries, `zlib`, `zstd`, and on MinGW targets the
+Windows import libraries (`oleaut32` for `LLVMWindowsDriver`, and others) that
+CMake links by default. A Bazel target lists only the libraries it directly
+uses:
 
 <!-- excerpt: examples/libclang/BUILD.bazel -->
 ```python
@@ -121,22 +155,9 @@ cc_binary(
 )
 ```
 
-`MODULE.bazel` takes the repositories from the module extension of xclang:
-
-<!-- file: examples/libclang/MODULE.bazel -->
-```python
-module(name = "tool")
-
-bazel_dep(name = "rules_cc", version = "0.2.25")
-bazel_dep(name = "xclang", version = "23.1.2.8")
-
-xclang = use_extension("@xclang//bazel:extensions.bzl", "xclang")
-use_repo(xclang, "libclang", "llvm_option_inc")
-```
-
-::: details .bazelrc
-
-It names the [ThinLTO cache](thinlto-cache.md#bazel):
+Configure the ThinLTO cache in the project's `.bazelrc` with one fixed path per
+OS (`/var/tmp/xclang-thinlto` on Linux and macOS, `C:/xclang-thinlto` on
+Windows; see [Why One Fixed Path](#why-one-fixed-path)):
 
 <!-- file: examples/libclang/.bazelrc -->
 ```
@@ -154,18 +175,27 @@ common:windows --repo_env=XCLANG_THINLTO_CACHE=C:/xclang-thinlto
 try-import %workspace%/user.bazelrc
 ```
 
-:::
+If a machine requires a different cache path, override it in `user.bazelrc`
+(links using a custom path have a different action key and do not share link
+outputs with a remote cache):
+
+```text
+common:linux --repo_env=XCLANG_THINLTO_CACHE=/data/xclang-thinlto
+common:linux --sandbox_writable_path=/data/xclang-thinlto
+```
+
+Build and run the tool:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 bazel run //:tool
 ```
 
-A tool on libclang finds the clang resource directory, with the clang
-headers, in `lib/clang` next to the directory of its program, as clang
-itself does. `xclang_resource_dir` lays out the one of `@libclang` there,
-for a program `bin/<name>` of its package, in `bazel-bin` and in the
-runfiles:
+A tool built on `libclang` looks for the `clang` resource directory (with
+`clang`'s built-in headers) at `../lib/clang` relative to its executable
+directory, just as `clang` itself does. `xclang_resource_dir` stages
+`@libclang`'s resource directory there for a `bin/<name>` binary in the same
+package, both in `bazel-bin` and in its runfiles:
 
 ```python
 load("@xclang//bazel:resource_dir.bzl", "xclang_resource_dir")
@@ -180,70 +210,25 @@ cc_binary(
 xclang_resource_dir(name = "resource_dir")
 ```
 
-## Rules for Code That Links It
+### Plain Clang
 
-- **Link with the toolchain of the same release.** libclang is ThinLTO
-  bitcode, which only an lld of the same LLVM reads. A link generates the
-  code of every bitcode file the tool uses: minutes, which the
-  [ThinLTO cache](thinlto-cache.md) turns into seconds after the first.
-- **Compile with `-fno-rtti`**, as LLVM was.
-- **Ship the resource directory** in `lib/clang`, next to the directory
-  of the program, when the tool parses code: the archive has it in
-  `lib/clang/<major>`.
-- **Build for another target with its libclang.** In Bazel, `@libclang`
-  follows the target platform, and a build for another target downloads
-  only that target's archive. In CMake, point `CMAKE_PREFIX_PATH` at the
-  archive of the target host. There is a libclang for each of the six
-  hosts, and none for the musl and MSVC targets: in Bazel, what depends on
-  `@libclang` is incompatible with them.
+When linking ThinLTO bitcode with `clang++` directly, pass the target linker's
+ThinLTO cache flag:
 
-## What the Archive Contains
+- **Linux and MinGW targets** (`ld.lld`): `-Wl,--thinlto-cache-dir=<dir>`
+- **macOS targets** (`ld64.lld`): `-Wl,-cache_path_lto,<dir>`
+- **MSVC targets** (`lld-link`): `-Wl,/lldltocache:<dir>`
 
-`libclang-<version>-<host>.tar.xz` holds the libraries the clang of that
-host was linked from, without the parts a tool does not link:
+The CMake package and the Bazel module pass these same flags when
+`XCLANG_THINLTO_CACHE` is set.
 
-| | |
-|---|---|
-| libraries | the static libraries of clang and LLVM, as PGO and ThinLTO bitcode, with headers |
-| CMake packages | LLVM's and clang's own, for `find_package(Clang)` |
-| C++ library | xclang's libc++, as every program of the toolchain |
-| zlib, zstd | the compression libraries LLVM links, found through the same `CMAKE_PREFIX_PATH` |
-| resource directory | `lib/clang/<major>`: the clang headers, and the compiler-rt headers (`sanitizer/`, `fuzzer/`, ...), as the toolchain has them; a tool hands it to every compiler it stands in for |
-| clang-tidy | its headers, and `clang-tidy/clang-tidy-config.h`, which they include, as xclang configures it: no static analyzer, no query-based checks |
-| every target's MC layer | TargetInfo, MC descriptions, assembly parser and disassembler of every LLVM target |
-| no code generators | `InitializeAllTargets()`, `InitializeAllAsmPrinters()` and `InitializeNativeTarget()` do not link |
-| build record | `lib/cmake/xclang/libclang.cmake`: `XCLANG_LLVM_VERSION`, `XCLANG_LTO`, `XCLANG_PGO`, `XCLANG_PATCHES` and the like |
+### The Option Tables
 
-The MC layer is what clang parses MS-style `__asm {}` with, for X86. A tool
-registers it, with `InitializeAllTargetInfos()`, `InitializeAllTargetMCs()`,
-`InitializeAllAsmParsers()` and `InitializeAllDisassemblers()`, to look up a
-target by its triple. That infers the target from a compiler name such as
-`aarch64-linux-gnu-g++`, for example. The CMake components are
-`AllTargetsInfos`, `AllTargetsDescs`, `AllTargetsAsmParsers` and
-`AllTargetsDisassemblers`; in Bazel they are `@libclang//:AllTargetsInfos`
-and the like.
-
-## The ASan Build
-
-`libclang-<version>-<host>-asan.tar.xz`, for Linux x64 and macOS arm64
-hosts, is a build with assertions and AddressSanitizer, at `-O1`, without
-PGO or ThinLTO. It has the same headers and libraries, for debugging a
-tool. It is built against the [ASan libc++](sanitizers.md), so the tool is
-too.
-
-In Bazel, `@libclang_asan` is the ASan build, and `@libclang` is that too
-in a build with `--features=asan`. Its libraries, headers and resource
-directory switch together, and a build for a target without an ASan build
-says so. The `features = ["asan"]` of a single Bazel target switches no
-dependency.
-
-## The Option Tables
-
-`llvm-option-inc-<version>.tar.xz` holds the option tables of clang, of
-lld (ELF, COFF, MachO, MinGW, wasm), of llvm-lib and of llvm-dlltool. They
-are the TableGen output of the same build, for tools that parse those
-command lines without linking LLVM. Each `.inc` file expands `OPTION(...)`
-once per option. `options.cpp` counts the options of clang:
+`llvm-option-inc-<version>.tar.xz` contains the pre-generated TableGen option
+tables of `clang`, `lld` (`ELF`, `COFF`, `MachO`, `MinGW`, `wasm`), `llvm-lib`
+and `llvm-dlltool`, for tools that parse compiler or linker command lines
+without linking LLVM. Each `.inc` file expands `OPTION(...)` once per option.
+`options.cpp` counts `clang`'s driver options:
 
 <!-- file: examples/libclang/options.cpp -->
 ```cpp
@@ -258,7 +243,7 @@ int main() {
 }
 ```
 
-In Bazel, it depends on `@llvm_option_inc`, as `BUILD.bazel` has it:
+In Bazel, depend on `@llvm_option_inc` from `BUILD.bazel`:
 
 <!-- excerpt: examples/libclang/BUILD.bazel -->
 ```python
@@ -274,12 +259,173 @@ cc_binary(
 bazel run //:options
 ```
 
-The same tables are the conda package `llvm-option-inc`, in
-`$PREFIX/include`, and the Bazel repository `@llvm_option_inc`.
+The same headers are published as the `noarch` conda package `llvm-option-inc`
+(installed under `$PREFIX/include/llvm-options-td`) and in the release asset
+`llvm-option-inc-<version>.tar.xz` ([installation](../reference/releases.md#assets)).
 
-## See Also
+## Options
 
-- [Bazel API](../reference/bazel-api.md#repositories): `@libclang`,
-  `@libclang_asan`, `@libclang_<target>`, `@llvm_option_inc`,
-  `xclang_resource_dir`.
-- [CMake API](../reference/cmake-api.md#libclang-s-package).
+| | CMake | Bazel | Plain Clang |
+|---|---|---|---|
+| Link `libclang` | `find_package(Clang REQUIRED CONFIG)` with `CMAKE_PREFIX_PATH=<libclang-dir>` | `deps = ["@libclang//:<library>"]` (`use_repo(xclang, "libclang")`) | `-I<libclang>/include`, `-L<libclang>/lib` |
+| ASan `libclang` | unpack `libclang-<version>-<host>-asan.tar.xz` | `--features=asan` (switches `@libclang`), or `@libclang_asan` | unpack `-asan` archive + [ASan `libc++`](sanitizers.md) |
+| Stage `clang` resource directory | copy `<libclang>/lib/clang/<major>` next to `bin/` | `xclang_resource_dir(name = ...)` | copy `<libclang>/lib/clang/<major>` |
+| Option tables | `llvm-option-inc` conda package or archive | `deps = ["@llvm_option_inc"]` (`use_repo(xclang, "llvm_option_inc")`) | `-I<prefix>/include` |
+| Enable ThinLTO cache | `-DXCLANG_THINLTO_CACHE=<dir>` (or env var) before `find_package(xclang)` | `--repo_env=XCLANG_THINLTO_CACHE=<dir>` (plus `--sandbox_writable_path=<dir>` on Linux) | `-Wl,--thinlto-cache-dir=<dir>`, `-Wl,-cache_path_lto,<dir>`, or `-Wl,/lldltocache:<dir>` |
+| Where ThinLTO cache applies | every link in the directory of `find_package(xclang)` and its subdirectories | every link via the `thinlto_cache` feature | links with the flag |
+| Disable ThinLTO cache | leave `XCLANG_THINLTO_CACHE` unset | unset variable, `--features=-thinlto_cache`, or `features = ["-thinlto_cache"]` | omit flag |
+
+Full option lists are in the [CMake API](../reference/cmake-api.md) and the
+[Bazel API](../reference/bazel-api.md).
+
+## Behavior
+
+### Rules for Code That Links It
+
+- **Link with the toolchain of the same release**: `libclang` is ThinLTO
+  bitcode, which only an `lld` from the same LLVM version reads. The first link
+  compiles every bitcode module the tool uses to machine code; the
+  [ThinLTO cache](#the-thinlto-cache) reuses that machine code on subsequent
+  links.
+- **Compile with `-fno-rtti`**: matching the LLVM and `clang` libraries in the
+  archive.
+- **Ship the resource directory**: when the tool parses C or C++ code, place
+  `lib/clang/<major>` at `../lib/clang/<major>` relative to the executable's
+  directory (`xclang_resource_dir` in Bazel, or copied from the archive's
+  `lib/clang/<major>`).
+- **Cross-compile with the target's `libclang`**: in Bazel, `@libclang`
+  automatically selects and downloads only the archive matching the target
+  platform (`--platforms`). In CMake, set `CMAKE_PREFIX_PATH` to the unpacked
+  `libclang` archive of the target host.
+- **Hosts only**: there is a `libclang` for each of the six hosts, and none
+  for the musl or MSVC targets; in Bazel, what depends on `@libclang` is
+  incompatible with those platforms. A `libclang` for the MSVC ABI is
+  [not planned](../design/roadmap.md#libclang-msvc).
+
+
+### What the Archive Contains
+
+`libclang-<version>-<host>.tar.xz` contains the libraries from which that
+host's `clang` was linked, without the backend code generators that a front-end
+tool does not use:
+
+| | contents |
+|---|---|
+| Libraries | static libraries of `clang` and LLVM as PGO and ThinLTO bitcode, with headers |
+| CMake packages | LLVM's and `clang`'s config files for `find_package(Clang)` and `find_package(LLVM)` |
+| C++ standard library | compiled against xclang's `libc++`, matching the toolchain |
+| `zlib`, `zstd` | static compression libraries linked by LLVM, found via the same `CMAKE_PREFIX_PATH` |
+| Resource directory | `lib/clang/<major>`: `clang`'s built-in headers and `compiler-rt` headers (`sanitizer/`, `fuzzer/`, ...) |
+| `clang-tidy` | headers and `clang-tidy/clang-tidy-config.h` (configured without the static analyzer or query-based checks) |
+| Every target's MC layer | `TargetInfo`, MC descriptions, assembly parser and disassembler for all LLVM targets |
+| No code generators | `InitializeAllTargets()`, `InitializeAllAsmPrinters()` and `InitializeNativeTarget()` are not included |
+| Build record | `lib/cmake/xclang/libclang.cmake` (`XCLANG_LLVM_VERSION`, `XCLANG_LTO`, `XCLANG_PGO`, `XCLANG_PATCHES`, ...) |
+
+`clang` uses the X86 MC assembly parser to parse MS-style `__asm {}` blocks,
+and tools register the MC layer via `InitializeAllTargetInfos()`,
+`InitializeAllTargetMCs()`, `InitializeAllAsmParsers()` and
+`InitializeAllDisassemblers()` to look up targets by triple (for example,
+inferring a target from a compiler name such as `aarch64-linux-gnu-g++`). In
+CMake, the components are `AllTargetsInfos`, `AllTargetsDescs`,
+`AllTargetsAsmParsers` and `AllTargetsDisassemblers`; in Bazel, they are
+`@libclang//:AllTargetsInfos`, `@libclang//:AllTargetsDescs`,
+`@libclang//:AllTargetsAsmParsers` and `@libclang//:AllTargetsDisassemblers`.
+
+### The ASan Build
+
+`libclang-<version>-<host>-asan.tar.xz`, published for the
+`x86_64-unknown-linux-gnu` and `aarch64-apple-darwin` hosts, is built with
+assertions and AddressSanitizer at `-O1`, without PGO or ThinLTO, against the
+[ASan `libc++`](sanitizers.md). It carries the same headers and library targets
+for debugging a tool under ASan.
+
+In Bazel, `@libclang_asan` references the ASan archive directly, and
+`@libclang` switches its libraries, headers and resource directory to the ASan
+build automatically when `--features=asan` is passed on the command line
+(stopping at analysis time if the target platform has no ASan `libclang`
+archive). Setting `features = ["asan"]` on a single Bazel target does not
+switch `@libclang`.
+
+### The ThinLTO Cache
+
+- **What it keeps**: `lld`'s ThinLTO cache stores the compiled machine code of
+  each bitcode module in the cache directory under a hash of everything that
+  affects its code generation: the module's bitcode, the import summaries of
+  modules it inlines from, and the compiler options. A subsequent link
+  recompiles only the bitcode modules whose hash changed and reads the rest
+  from the cache.
+- **Identical binaries**: because each cache entry is looked up by the exact
+  hash of its inputs, enabling the cache speeds up links without changing the
+  output bytes.
+- **Concurrent builds**: cache entries are written atomically (whole file or
+  not at all), so multiple builds can share one directory safely.
+- **Pruning**: at most once every 20 minutes, `lld` removes cache entries that
+  have not been read for a week (LLVM's default policy). Persisting the cache
+  between CI runs is covered in [CI](../integrations/ci.md).
+
+### Why Bitcode
+
+A tool built on `clang` (a language server, linter or refactoring tool) spends
+most of its execution time inside `clang` itself: the lexer, parser, `Sema` and
+AST traversal. When `libclang` is shipped as precompiled machine code, those
+libraries are optimized in isolation and every call between the tool and
+`clang` crosses an opaque library boundary.
+
+Shipping `libclang` as ThinLTO bitcode compiled with the same PGO profile as
+xclang's `clang` lets the linker optimize `libclang` and the tool together:
+functions inline across the boundary, unused code is discarded, and PGO
+hot/cold layout is preserved.
+
+The trade-off is link time: without a cache, ThinLTO compiles every bitcode
+module the tool references to machine code during each link, taking several
+minutes even after a one-line edit in the tool. The ThinLTO cache reduces
+incremental relinks to seconds.
+
+### Why One Fixed Path
+
+- **The path is part of the link's action key**: the cache directory is passed
+  on the linker command line, so in Bazel it is hashed into the link action's
+  cache key. A disk or remote cache only serves a cached link to builds that
+  pass the exact same directory path. Placing the cache inside the workspace or
+  `$HOME` makes the path differ across checkouts and machines, preventing link
+  cache hits. Configure one fixed path per OS (`/var/tmp/xclang-thinlto` on
+  Linux and macOS, `C:/xclang-thinlto` on Windows).
+- **The Linux sandbox must allow writes**: Bazel's Linux sandbox mounts the
+  host file system read-only except for declared outputs and paths listed in
+  `--sandbox_writable_path=<dir>`. `--sandbox_writable_path` is not part of the
+  action key, and only mounts a path that already exists when the action
+  starts; the `xclang` Bazel module therefore creates `XCLANG_THINLTO_CACHE`
+  during repository setup and recreates it whenever it is missing.
+- **Never under `/tmp`**: Bazel's Linux sandbox mounts a private `/tmp` for
+  each action, so a cache under `/tmp` is written into the action's temporary
+  mount and discarded when the link finishes. `/var/tmp` is shared on Linux
+  (with `--sandbox_writable_path`) and writable in Bazel's macOS sandbox; on
+  Windows, Bazel runs actions without a sandbox by default.
+- **Safe outside Bazel's input tracking**: although Bazel does not track files
+  inside the ThinLTO cache directory, the cache is content-addressed by `lld`,
+  so stale entries cannot corrupt a build.
+
+### Measurements
+
+Link times for [clice](https://github.com/clice-io/clice) linking `libclang`'s
+bitcode on GitHub-hosted runners (Linux `x86_64` with 4 cores, macOS `arm64`
+with 3 cores, Windows `x86_64` with 4 cores; link action duration alone from
+Bazel's profile in clice runs
+[37041436235](https://github.com/clice-io/clice/actions/runs/37041436235),
+[37047279320](https://github.com/clice-io/clice/actions/runs/37047279320),
+[37065094747](https://github.com/clice-io/clice/actions/runs/37065094747) and
+[37075525831](https://github.com/clice-io/clice/actions/runs/37075525831),
+branch `exp/bazel-lto`):
+
+| | Linux x64 | macOS arm64 | Windows x64 |
+|---|---|---|---|
+| No cache | 353 s | 190 s | 400–506 s |
+| Empty cache | 357 s | 190–200 s | 492 s |
+| Full cache, nothing changed | 6.1–6.3 s | 4.8–5.1 s | 7.6–14 s |
+| Full cache, one source changed | 6.2 s | 4.7–7.3 s | 14 s |
+| First link on a fresh runner after restoring the cache, with a change | 6.2 s | 15.6 s | 13.7 s |
+| Cache size | 352–403 MiB | 414–425 MiB | 394–660 MiB |
+
+Linking a small tool (`examples/libclang`) across all six hosts takes 7 to
+20 s cold (no cache or empty cache) and 0.6 to 1.7 s warm (152 to 155 cache
+entries), producing identical binary bytes on every run.

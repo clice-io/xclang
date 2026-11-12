@@ -5,18 +5,11 @@ guide:
       label: What is xclang?
     - file: quick-start
       label: Quick Start
-    - file: install
-      label: Installation
     - file: cross-compiling
       label: Cross-Compiling
-    - file: why-xclang
-      label: Why xclang?
-    - comparisons
-    - file: faq
-      label: FAQ
 
 integrations:
-  label: Integrations
+  label: Build Systems
   items:
     - cmake
     - bazel
@@ -38,25 +31,20 @@ features:
       label: Debugging
     - file: libclang
       label: libclang
-    - file: thinlto-cache
-      label: ThinLTO Cache
 
 reference:
   label: Reference
   items:
-    - file: targets
-      label: Targets
-    - compatibility
-    - file: layout
-      label: Archive Layout
-    - cmake-api
-    - bazel-api
-    - file: releases
-      label: Releases
-    - file: patches
-      label: LLVM Patches
     - file: xclang-command
       label: xclang Command
+    - cmake-api
+    - bazel-api
+    - file: layout
+      label: Archive Layout
+    - file: patches
+      label: LLVM Patches
+    - file: releases
+      label: Releases
 
 design:
   label: Design
@@ -64,23 +52,10 @@ design:
     - hermeticity
     - file: toolchain
       label: Toolchain Structure
-    - pgo
-    - macos
     - windows
+    - file: macos
+      label: macOS
+    - pgo
     - file: bazel-module
       label: Bazel Module
-    - vendor-sdks
     - roadmap
-
-dev:
-  label: Development
-  collapsed: true
-  items:
-    - contributing
-    - file: release-build
-      label: Build Pipeline
-    - file: testing
-      label: Testing
-    - file: llvm-patches
-      label: Patching LLVM
-    - releasing

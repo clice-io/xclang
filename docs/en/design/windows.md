@@ -1,334 +1,248 @@
 # Windows
 
-xclang has two kinds of Windows targets. `x86_64-w64-mingw32` and
-`aarch64-w64-mingw32` are MinGW-w64 on UCRT, with their sysroots in every
-archive. The MSVC-ABI targets, `x86_64-pc-windows-msvc` and
-`aarch64-pc-windows-msvc`, build against the SDK the user fetches. The
-Windows toolchains are MinGW programs built on Linux.
+How xclang's MinGW and MSVC Windows targets, the Windows host toolchains,
+and `xclang sdk fetch windows` are built and configured. How to compile for
+Windows targets is in [cross-compiling](../guide/cross-compiling.md#windows).
 
-## Summary
+## Why MinGW and MSVC
 
-MinGW lets one Linux machine build every Windows sysroot and toolchain,
-and its programs need nothing but Windows 10 or later. The toolchain
-archives hold no symbolic links, so every tool name is a small launcher;
-that costs a process start per compile. lld's `--gc-sections` drops some
-static initializers for MinGW targets, so the Bazel module leaves it off
-there. The MSVC targets build against the SDK the user fetches, with libc++ and
-the VC runtime linked statically and UCRT from Windows; Microsoft's STL is
-a switch.
+xclang provides two pairs of Windows targets because they serve different
+ABIs:
 
-## MinGW and MSVC
+- **MinGW targets** (`x86_64-w64-mingw32` and `aarch64-w64-mingw32`): use
+  the Itanium C++ ABI with MinGW-w64 14.0.0 configured on UCRT
+  (`--with-default-msvcrt=ucrt`, `--with-default-win32-winnt=0x0A00`).
+  Because MinGW-w64's headers and import libraries are redistributable,
+  their sysroots, `libc++`, `libc++abi`, `libunwind`, `winpthreads`
+  (`libpthread.a`) and `compiler-rt` ship in every toolchain archive and
+  link statically with `ld.lld` out of the box
+  ([hermeticity](hermeticity.md)).
+- **MSVC targets** (`x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc`):
+  use the Microsoft C++ ABI and link with `lld-link` against Microsoft's
+  CRT and the Windows SDK, fetched once with `xclang sdk fetch windows` or
+  taken from an installed Visual Studio on Windows. Use the MSVC targets
+  when linking libraries compiled with MSVC, COM-heavy code or Windows
+  vendor SDKs.
 
-xclang began as the toolchain of clice, and clice needed one build of
-itself for all six hosts, with PGO, from one kind of machine. MinGW-w64
-makes that possible:
+The Windows host toolchains (`x86_64-w64-mingw32` and `aarch64-w64-mingw32`)
+are themselves MinGW programs cross-compiled on Linux x64 with PGO and
+ThinLTO ([PGO](pgo.md)).
 
-- Its headers and import libraries are free to redistribute, so a Windows
-  sysroot ships in every archive.
-- clang and lld build for it from Linux.
-- libc++ and libunwind link into the program, as on Linux.
+## The SDK without Visual Studio
 
-The Windows toolchains themselves are built that way, on Linux x64.
+`xclang sdk fetch windows` downloads the MSVC CRT and STL from Visual
+Studio's `.vsix` packages (listed in Visual Studio's channel manifest) and
+the Windows SDK from NuGet's `Microsoft.Windows.SDK.CPP` packages, pinned in
+`xclang/sdk-versions.json`. Whereas Visual Studio's installer and tools such
+as `xwin` unpack MSI and CAB files (and `xwin` has no macOS or
+Windows-on-Arm binaries), both `.vsix` and `.nupkg` packages are zip
+archives that `xclang` unpacks with its own code on every host.
 
-The C runtime is **UCRT**, not msvcrt. UCRT is part of Windows 10 and
-later, and has the C99 and later functions that msvcrt lacks. It is what
-MSVC programs use too. Programs need Windows 10 or later.
+The unpacked directory (`<toolchain>/sdk/windows-msvc<ver>-sdk<ver>`) is
+laid out as a `/winsysroot` tree matching a Visual Studio installation: the
+CRT and STL headers, the STL's `std.ixx` and `std.compat.ixx` module
+sources, the per-architecture static and DLL runtime libraries, the `.pdb`
+files of the static runtime (which debug links look for and warn with
+`LNK4099` if absent), and the Windows SDK headers and import libraries
+(`um`, `ucrt`, `shared`, `winrt`, `cppwinrt`;
+[the `xclang` command](../reference/xclang-command.md)).
 
-MinGW is not the only Windows ABI people need. Libraries built with MSVC,
-COM-heavy code and vendor SDKs expect the MSVC ABI. So the MSVC targets
-are first-class targets too.
+### Config Files and Object Directives
 
-## MSVC Targets
+A `clang` config file has no conditionals and fails to load if an included
+`@file` does not exist. The MSVC target config files therefore include
+`bin/<triple>-sdk.cfg` (and `<triple>-clang-cl-sdk.cfg`), which is empty in
+the release archive and rewritten by `xclang sdk fetch`, `use` and `remove`
+to include the per-architecture config file inside `sdk/windows`
+([toolchain structure](toolchain.md)).
 
-The MSVC targets build against Microsoft's CRT and Windows SDK, which
-the user fetches from Microsoft with `xclang sdk fetch windows`
-([vendor SDKs](vendor-sdks.md)), with xclang's libc++
-([below](#libc-and-the-stl)). How to use them is in
-[MSVC targets](../integrations/clang.md#msvc-targets).
+The MSVC target config files also record linker directives in every compiled
+object file:
 
-**The SDK through the config files.** No archive can hold the SDK, so
-the config files of the targets hold no path to one. The fetch writes a
-file into the SDK it fetched that names the SDK and its versions, for
-clang (`-Xmicrosoft-windows-sys-root`) and for clang-cl (`/winsysroot`).
-The toolchain reaches it through the fixed path `sdk/windows`, a link to
-the SDK in use ([config files](toolchain.md#a-config-file-per-target)).
-Config files have no conditions, and one that includes a missing file
-fails to load, for every compile. So the config files of the targets
-include `bin/<target>-sdk.cfg` (`-clang-cl-sdk.cfg` for clang-cl), which
-names no SDK in the archive and which `xclang sdk fetch`, `use` and
-`remove` rewrite: it includes the file of the SDK in use, for the
-architectures it has. Without an SDK, then, what needs none still compiles: a freestanding
-compile, or the queries of a tool such as clice. On Linux and macOS hosts
-the config files name `sdk/windows` as the sysroot all the same, so clang
-never takes the headers of the machine (`INCLUDE`, a `cl.exe` in `PATH`);
-a compile that includes a header of the CRT stops at it
-(`'stdio.h' file not found`), and `-v` shows where clang looked. On
-Windows hosts they name none, and clang finds Visual Studio and the
-Windows SDK as upstream clang does.
+- `--dependent-lib=clang_rt.builtins-<arch>.lib`: neither `clang` nor
+  `clang-cl` links `compiler-rt` builtins automatically on MSVC targets, and
+  without them `__int128` division fails to link.
+- `--linker-option=/nodefaultlib:libucrt.lib` and
+  `--dependent-lib=ucrt.lib`: the hybrid CRT, named inside each object so
+  `lld-link` honours it even when a build system invokes `lld-link`
+  directly. Because `lld-link` reads an object's directives in order and the
+  objects name `ucrt.lib` first, switching to `/MTd` or static UCRT passes
+  `/nodefaultlib:ucrt.lib` on the link command line (`/MD` uses `ucrt.lib`
+  already).
+- `-D_STATIC_INLINE_UCRT_FUNCTIONS=0`: UCRT declares functions such as
+  `ctime`, `localtime` and `difftime` as `static inline` unless
+  `_STATIC_INLINE_UCRT_FUNCTIONS` is `0` (MSVC 19.50 makes `1` the default).
+  A C++ module cannot export a function with internal linkage, so the config
+  files define `_STATIC_INLINE_UCRT_FUNCTIONS=0` to allow `import std` to
+  build.
 
-**The hybrid CRT.** The VC runtime and the C++ library are linked
-statically, as `/MT` has them, and UCRT comes from `ucrtbase.dll`, a component of Windows
-10 and later. Microsoft calls this the hybrid CRT. A program then loads
-only Windows' DLLs, as the [hermeticity](hermeticity.md) rule asks, and
-shares one heap, one `errno` and one stdio with every DLL it loads. The
-config files say it in every object: `/nodefaultlib:libucrt.lib` and
-`/defaultlib:ucrt.lib`. So lld-link honours it also when CMake has it link
-on its own. `/MD` takes `ucrt.lib` anyway. The debug CRTs need
-`/nodefaultlib:ucrt.lib` on the link itself, as lld-link reads an object's
-directives in order and the objects name `ucrt.lib` first.
+In [CMake](../integrations/cmake.md) and [Bazel](../integrations/bazel.md),
+xclang compiles and links the MSVC targets with the GNU-style `clang++`
+driver rather than `clang-cl`. Linking through `clang++` reads the target
+config file on every link, whereas CMake with `clang-cl` invokes `lld-link`
+directly (which reads no config file) and requires `mt.exe` for manifests
+(which xclang omits because `llvm-mt` depends on `libxml2`).
 
-**compiler-rt.** xclang builds it for both targets with clang-cl, against
-windows-2022's SDK (MSVC 14.44), as newer toolsets link libraries of older
-ones, and libc++ the same way. It is in `lib/clang/<major>/lib/windows/clang_rt.<name>-<arch>.lib`,
-the one directory lld-link searches by itself. Neither clang driver links
-the builtins for MSVC targets, so the config files name them in every
-object too; otherwise `__int128` division does not link. The builtins name
-no C runtime (`/Zl`); the profile runtime is built `/MT`, and ASan's DLL
-`/MD`, as compiler-rt builds them for Windows.
+## The Hybrid CRT
 
-**clang-cl.** A plain `clang-cl` reads the config file of its default
-target, `<host triple>-clang-cl.cfg`, before it turns to the MSVC target.
-xclang makes that file the clang-cl file of the MSVC target of the host's
-architecture, so `clang-cl` builds against the fetched SDK with no
-`--target`.
+By default on MSVC targets, a binary links `libc++` (or Microsoft's STL) and
+the VC runtime (`libvcruntime.lib` and `libcmt.lib`) statically, and links
+UCRT dynamically against Windows' `ucrtbase.dll` (`api-ms-win-crt-*`).
+Microsoft calls this the hybrid CRT: the binary needs no `vcruntime140.dll`
+or `msvcp140.dll` redistributable ([hermeticity](hermeticity.md)), while
+sharing one heap, `errno` and `stdio` with every DLL in the process. The
+flags for selecting another C runtime are in
+[cross-compiling](../guide/cross-compiling.md#msvc-targets).
 
-**Visual Studio on Windows hosts.** With a fetched SDK, a Windows host
-builds against it too, not an installed Visual Studio: the SDK is pinned,
-and the build is the same on every host. Without one, clang finds Visual
-Studio by itself, which [patch 0004](../reference/patches.md) makes work
-for the MinGW-built clang; so does `--no-default-config`, also with an SDK
-fetched.
+## `libc++` on `vcruntime`
 
-**CMake uses clang, not clang-cl.** The CMake package compiles and links
-the MSVC targets with clang++, as it does every other target. CMake then
-links through the clang driver, so every link reads the config file. With
-clang-cl, CMake runs lld-link itself, which reads no config file, and
-wants `mt` for manifests, which xclang does not have (`llvm-mt` needs
-libxml2). The Bazel module does the same
-([Bazel](../integrations/bazel.md#vendor-sdks)).
+xclang builds `libc++` and `compiler-rt` for both MSVC architectures with
+`clang-cl` against the `windows-2022` SDK (MSVC 14.44), since newer MSVC
+toolsets link libraries built against older ones:
 
-**UCRT's inline functions.** UCRT declares some functions of the C
-library (`ctime`, `localtime`, `difftime`, ...) `static inline` unless
-`_STATIC_INLINE_UCRT_FUNCTIONS` is 0, which MSVC 19.50 makes the default.
-A module cannot export a function of internal linkage, so the `std`
-module did not build. The config files define it 0 for every compile.
-
-## libc++ and the STL
-
-The MSVC targets' C++ library is libc++, as every other target's, since
-23.1.2.10: one C++ library and one `import std` on every target, and the
-same behavior of `std::format`, `<filesystem>` and the containers.
-Microsoft's STL stays a choice: C++ types passed between a program and a
-library built with MSVC need the STL on both sides.
-
-**libc++ on vcruntime.** libc++ is built with clang-cl against the SDK,
-static, with Microsoft's vcruntime as its ABI library, as libc++'s own
-clang-cl configuration has it: vcruntime throws and catches the exceptions,
-holds the type information and `operator new`, and UCRT is the C library.
-There is no libc++abi or libunwind. libc++ counted on Microsoft's STL
-library for `std::set_new_handler` and repeated the C runtime's
-`std::nothrow`; [patch 0016](../reference/patches.md) gives it the one and
-not the other.
-
-**One build for every C runtime.** libc++ is compiled `/MT` with `/Zl`: it
-names no C runtime, and its calls to UCRT and vcruntime are direct ones,
-which both their static libraries and their import libraries resolve. So
-the one `libc++-<arch>.lib` links with the hybrid CRT, `/MT`, `/MD` and
-the debug CRTs alike; each program's own objects name the C runtime. It
-is also built with `_CRT_STDIO_ARBITRARY_WIDE_SPECIFIERS`, UCRT's advice
-for static libraries, not libc++'s `_CRT_STDIO_ISO_WIDE_SPECIFIERS`, which
-would put a `/failifmismatch` in it that the objects of every program
-compiled without it contradict. The wide `printf` of a program keeps
-Microsoft's specifiers unless it chooses the ISO ones.
-
-**Found by the linker alone.** The library is
-`lib/clang/<major>/lib/windows/libc++-<arch>.lib`, next to compiler-rt, the
-one directory lld-link searches by itself; both architectures share it.
-The target's `__config_site` names it with `#pragma comment(lib, ...)`, as
-libc++'s own auto-linking does with `libc++.lib`. So every object that
-includes libc++ links it, also when lld-link links without clang (CMake
-with clang-cl, MSBuild), and no C object or object built with the STL
-does.
-
-**`-stdlib=platform` selects the STL.** clang's MSVC toolchain does
-nothing with `-stdlib=`: the STL comes with the C runtime's headers, in
-the VC tools' include directory. The config files give libc++'s headers
-with `-stdlib++-isystem`, as for the other targets, which clang takes for
-an MSVC target as for any other. `-stdlib=platform` selects the target's
-other config file, `<triple>-system.cfg`, which is the same without them
-([patch 0018](../reference/patches.md), as on every target;
-[the system's C++ library](../integrations/clang.md#the-system-s-c-library)):
-the STL's headers are found as before, from the same SDK. clang-cl has no
-`-stdlib++-isystem` of its own, so its config files pass it with
-`/clang:`, which clang-cl reported unused in every C compile until
-[patch 0011](../reference/patches.md); it takes
-`/clang:-stdlib=platform`.
-
-**`import std`.** libc++'s `std` and `std.compat` modules are in
-`<target>/share/libc++/v1`, with `<target>/lib/libc++.modules.json`, as for
-the other targets. clang's `-print-library-module-manifest-path` does not
-report them for MSVC targets (it looks for a `libc++.a`), so the CMake
-package takes them from there. With `-stdlib=platform`, `xclang::std` is
-the STL's: clang 23 builds `std.ixx` and `std.compat.ixx` of Microsoft's
-STL. For arm64 it takes the `_alloca` of `<malloc.h>`, which the STL
-includes inside the module, for a second declaration; the CMake package's
-copy of `std.ixx` includes `<malloc.h>` before the module, with the other
-C headers.
-
-**The C++ standard.** clang's default for MSVC targets is C++14, as
-cl's. The STL has parts of C++17's library there already (the `_v`
-variable templates of `<type_traits>`), libc++ only from C++17 on. Code
-that relied on them builds with `-std=c++17` or later.
+- **Built on `vcruntime`**: `libc++` uses Microsoft's `vcruntime` as its ABI
+  library rather than `libc++abi` and `libunwind`; `vcruntime` handles
+  exceptions, RTTI and `operator new`, while UCRT is the C library.
+  [Patch 0016](../reference/patches.md) gives `libc++` its own
+  `std::set_new_handler` without Microsoft's STL library and drops its
+  duplicate `std::nothrow` definition.
+- **One library for every CRT**: `libc++` is compiled with `/MT /Zl` so it
+  embeds no default C runtime directive; its calls to UCRT and `vcruntime`
+  resolve against either the static libraries or the DLL import libraries.
+  It is also built with `_CRT_STDIO_ARBITRARY_WIDE_SPECIFIERS` rather than
+  `_CRT_STDIO_ISO_WIDE_SPECIFIERS`, avoiding `/failifmismatch` errors when
+  linked with objects that use Microsoft's default wide `printf` specifiers.
+  The single `lib/clang/<major>/lib/windows/libc++-<arch>.lib` therefore
+  links with the hybrid CRT, `/MT`, `/MD` and the debug CRTs alike.
+- **Auto-linked by `#pragma comment(lib, ...)`**: `libc++-<arch>.lib` lives
+  next to `compiler-rt` in `lib/clang/<major>/lib/windows/`, the directory
+  `lld-link` searches on its own, and the target's `__config_site` names it
+  with `#pragma comment(lib, ...)`. Every translation unit that includes a
+  `libc++` header links `libc++-<arch>.lib` automatically (even when CMake
+  or MSBuild invokes `lld-link` directly), while C objects and
+  `-stdlib=platform` objects do not.
+- **`-stdlib++-isystem` and `import std`**: `clang`'s MSVC toolchain ignores
+  `-stdlib=`, so the default config files supply `libc++`'s headers via
+  `-stdlib++-isystem` (`/clang:-stdlib++-isystem` in `clang-cl`, silenced on
+  C compiles by [patch 0011](../reference/patches.md)). Passing
+  `-stdlib=platform` switches to `<triple>-system.cfg`
+  ([patch 0018](../reference/patches.md)), which omits `-stdlib++-isystem`
+  so `clang` finds the SDK's STL headers. For `import std`, the CMake
+  package takes `libc++`'s module manifest from
+  `<target>/lib/libc++.modules.json` and `<target>/share/libc++/v1` (since
+  `clang -print-library-module-manifest-path` looks only for `libc++.a`),
+  and with `-stdlib=platform` compiles the STL's `std.ixx` and
+  `std.compat.ixx` (including `<malloc.h>` before the module on `arm64` so
+  `_alloca` is not declared twice).
 
 ## The Launchers
 
-A Windows archive has no symbolic links. Windows creates them only with
-developer mode or administrator rights, so an archive with links fails to
-unpack for most users, and conda packages for Windows cannot carry them.
-Instead, every name of `llvm.exe` (`clang.exe`, `clang++.exe`, `ld.lld.exe`,
-...) is a small program,
-[`toolchain/launcher/alias.c`](https://github.com/clice-io/xclang/blob/main/toolchain/launcher/alias.c).
-It starts `llvm.exe <name> <arguments>`.
+Windows toolchain archives contain no symbolic links because creating
+symbolic links on Windows requires Developer Mode or Administrator
+privileges, and conda packages for Windows cannot carry them. Instead, each
+tool executable in `bin/` (`clang.exe`, `clang++.exe`, `ld.lld.exe`, ...) is
+a small launcher compiled from
+[`toolchain/launcher/alias.c`](https://github.com/clice-io/xclang/blob/main/toolchain/launcher/alias.c)
+that spawns `llvm.exe <name> <arguments>`:
 
-- **The name goes in as an argument.** The multi-call `llvm` picks the tool
-  by the name it was started as. On Windows, LLVM replaces the file name in
-  `argv[0]` with the name of its own module before reading it. So
-  `clang++.exe` became `clang`, the C driver, which does not link the C++
-  library, and `ld.lld.exe` the generic `lld`, which asks which flavour it
-  should
-be. The launcher passes the name as a subcommand instead.
-- **It does not outlive its build.** The launcher puts `llvm.exe` in a
-  kill-on-close job, so killing the launcher kills the compiler. Until
-  23.1.2.4, it started `llvm.exe` suspended and then assigned it to the
-  job. A kill between the two left `llvm.exe` suspended forever, outside
-  any job, holding its working directory and inherited handles. Such a
-  kill comes from a build tool's timeout, or from the parent's own job
-  closing. Now `llvm.exe` is created inside the job
-  (`PROC_THREAD_ATTRIBUTE_JOB_LIST`).
-- **It costs a process start.** Each compile starts two processes instead
-  of one. That shows on C files that compile in milliseconds, and not on
-  C++ files with real work; [PGO](pgo.md#what-it-buys) has the numbers. A
-  build tool can run `llvm.exe clang++ ...` directly.
+- **Subcommand name**: the multicall `llvm` binary selects its tool from the
+  invocation name, and on Windows LLVM replaces `argv[0]` with the file name
+  of its own module (`llvm.exe`) before inspecting it. Passing `<name>` as
+  the first argument preserves the tool identity (`clang++` vs `clang`,
+  `ld.lld` vs generic `lld`).
+- **Kill-on-close job object**: the launcher creates `llvm.exe` directly
+  inside a kill-on-close Windows job object
+  (`PROC_THREAD_ATTRIBUTE_JOB_LIST`), so when a build system times out or
+  kills the launcher, the compiler process is terminated with it without
+  leaving suspended processes holding handles or working directories.
+- **Process creation cost**: each compile starts two processes instead of
+  one. That overhead is visible on tiny C files that compile in milliseconds
+  and negligible on C++ translation units ([PGO](pgo.md)). Build tools that
+  want to avoid the extra process start can invoke `llvm.exe clang++ ...`
+  directly.
 
-## gc-sections and Static Initializers
+## `gc-sections` and Static Initializers
 
-For MinGW targets, lld's `--gc-sections` drops the static initializers of
-COMDAT sections that nothing references. The registration objects of
-inline or templated test cases are such initializers. ELF keeps them,
-because `.init_array` is a root of the garbage collection. `[[gnu::used]]`
-does not help, because on MinGW it does not reach the `/include` of the
-linker.
+On MinGW targets, `ld.lld --gc-sections` discards COMDAT sections whose
+symbols nothing references, including the static initializers that register
+inline or templated test cases. On ELF targets `.init_array` is a
+garbage-collection root so those initializers are kept; on MinGW
+`[[gnu::used]]` does not emit a linker `/include` directive. In clice,
+enabling `--gc-sections` for MinGW silently reduced the Windows unit test
+count from 1,619 to 1,551 as two test suites stopped registering, while
+leaving it off increased the stripped test binary from 64 MB to 82 MB.
 
-clice found this the hard way. Turning `--gc-sections` on for MinGW took
-its Windows unit tests from 1619 to 1551, silently, as two whole suites
-stopped registering. Without it, the stripped test binary grew from 64 to
-82 MB.
-
-So the Bazel module turns the `gc_sections` feature on in optimized builds
-for Linux targets, and leaves it off for Windows ones.
-`--features=gc_sections` turns it on where nothing relies on such
-initializers. In another build system, do not pass `-Wl,--gc-sections` for
-Windows targets unless the same holds.
+The Bazel module therefore enables `gc_sections` in optimized builds for
+Linux targets and leaves it off for Windows targets (`--features=gc_sections`
+opts in when a target does not rely on unreferenced COMDAT initializers).
 
 ## Case-Sensitive Headers
 
-Windows file names ignore case. Code written on Windows includes
-`<Windows.h>`, `<BaseTsd.h>` or `<WinSock2.h>`, while the files of
-MinGW-w64 are `windows.h`, `basetsd.h` and `winsock2.h`. Built on
-Windows, that works. Built from Linux, the include fails.
+Windows file systems are case-insensitive, so Windows code often writes
+`#include <Windows.h>`, `<BaseTsd.h>` or `<WinSock2.h>`, whereas MinGW-w64's
+header files are lowercase (`windows.h`, `basetsd.h`, `winsock2.h`). xclang
+does not add mixed-case links to the MinGW sysroots; MinGW code must use
+lowercase header names on case-sensitive Linux file systems.
 
-The fix is in the code: the lower-case spelling, which works everywhere.
-xclang does not add links for every spelling to the MinGW sysroots.
-kotatsu, built from Linux by xclang's CI, changed its `<BaseTsd.h>` for
-this.
+Microsoft's own CRT, STL and Windows SDK headers and import libraries use
+mixed spellings internally. When `xclang sdk fetch windows` unpacks the
+Windows SDK on a case-sensitive file system, it creates around 3,600 links
+(`windows.h`, `winbase.h` for `WinBase.h`, `libcmt.lib` for `LIBCMT.lib`,
+`BaseTsd.h`, `Mstcpip.h`, `Kernel32.lib`, `Iphlpapi.lib`, and others) so
+Windows code builds without changes.
 
-The MSVC CRT, STL and Windows SDK that `xclang sdk fetch windows` lays
-out on a case-sensitive file system (Linux, as a rule) do get case links,
-3.6k of them. Microsoft's own headers and
-libraries use mixed spellings.
+## Visual Studio and `compiler-rt`
 
-## Visual Studio from a MinGW-Built Clang
-
-A clang built with MinGW could not find Visual Studio 2017 or later, and
-neither could any tool built on its libraries. LLVM builds the Setup API
-lookup only with MSVC, and the MinGW build fell back to the registry. There
-it found the headers of Visual Studio 2010 and older. clice, a MinGW-built
-tool that runs the clang driver on the commands of MSVC projects, got the
-wrong headers.
-
-[Patch 0004](../reference/patches.md) enables the lookup on MinGW. It was
-sent upstream as llvm/llvm-project#226794.
-
-## compiler-rt Before Visual Studio's
-
-On a Windows host with no fetched SDK, clang gave lld-link Visual Studio's
-library directory before xclang's compiler-rt, and Visual Studio has its
-own `clang_rt.*.lib` there (Microsoft's builds, for its own clang), which
-took the place of xclang's: on windows-2025 (Visual Studio 18, MSVC
-14.51), `__int128` division, UBSan and libFuzzer did not link.
-[Patch 0012](../reference/patches.md), since 23.1.2.10, puts compiler-rt
-first.
+- **Finding Visual Studio from a MinGW-built `clang`**: upstream LLVM builds
+  the Visual Studio Setup API lookup only when compiled with MSVC; a
+  MinGW-built `clang` fell back to registry keys for Visual Studio 2010 and
+  older. [Patch 0004](../reference/patches.md) (`llvm/llvm-project#226794`)
+  enables the Setup API lookup on MinGW so `clang` and `libclang`-based
+  tools such as clice find Visual Studio 2017 and later on Windows hosts.
+- **`compiler-rt` before Visual Studio's**: on a Windows host without a
+  fetched SDK, upstream `clang` passed Visual Studio's library directory to
+  `lld-link` before xclang's `compiler-rt` directory, so Visual Studio's own
+  `clang_rt.*.lib` shadowed xclang's and broke `__int128` division, UBSan
+  and libFuzzer on Visual Studio 18 (MSVC 14.51).
+  [Patch 0012](../reference/patches.md) places xclang's `compiler-rt`
+  directory first.
 
 ## The Same Bytes from Every Link
 
-PE files carry a link timestamp, which xclang's links leave out, so small
-programs link to the same bytes every time. A large PGO-built one did not
-always, until 23.1.2.10: clice's 600 MB `clice.exe`, linked six times by
-lld with ThinLTO from the same inputs, came out in three different
-layouts. lld-link recorded the place the call graph profile gives each
-function under the function's name, and local functions of the same name
-in several objects all took the place of one of them, which one depending
-on where lld-link's memory happened to put them.
-[Patch 0017](../reference/patches.md) takes the first.
+xclang omits PE/COFF timestamps ([patch 0014](../reference/patches.md)) so
+repeated compiles and links produce identical binaries. In large PGO and
+ThinLTO links (such as clice's 600 MB `clice.exe`), `lld-link` previously
+indexed call-graph profile ordering by function name, causing `static`
+functions with the same name in different objects to overwrite one another's
+profile weight depending on hash-table memory addresses;
+[patch 0017](../reference/patches.md) keeps the first entry so every link
+produces the same bytes.
 
 ## ASan's DLL
 
-compiler-rt has only a dynamic ASan runtime for Windows, for MinGW and
-MSVC alike: a DLL, which every ASan program loads at its start, from its
-own directory or from `PATH`. An ASan build is for testing, so this is a
-[known exception](hermeticity.md#known-limitations) to hermeticity, as
-the macOS sanitizers' dylibs are.
+`compiler-rt` builds only a dynamic AddressSanitizer runtime on Windows, for
+MinGW and MSVC targets alike: `libclang_rt.asan_dynamic.dll` and
+`clang_rt.asan_dynamic-x86_64.dll`. Every ASan-instrumented binary loads
+that DLL at startup from its own directory or `PATH`, as a test-only
+exception to [hermeticity](hermeticity.md)
+([sanitizers](../features/sanitizers.md)):
 
-- **MinGW's DLL links xclang's libc++ and libunwind statically**, as
-  compiler-rt's Linux runtimes carry them. llvm-mingw's links its
-  `libc++.dll`, which xclang does not have; xclang's loads only Windows'
-  own DLLs and UCRT. The program links its own copy, the
-  [ASan libc++](../features/sanitizers.md#why-an-asan-libc), and neither
-  sees the other's.
-- **The x64 Windows host's `bin/` has a copy of both**, MinGW's as
-  llvm-mingw's toolchains have it and MSVC's as Visual Studio has it, so
-  an ASan program finds its DLL wherever that toolchain is on `PATH`: in
-  a conda or pixi environment, or a shell of its own. The other hosts'
-  programs run elsewhere, and a program that leaves the machine takes the
-  DLL along beside it.
-- **The Bazel module puts it beside every program** of a build with
-  `--features=asan`, for the x64 MinGW and MSVC targets: a toolchain of
-  the C++ runtimes (`@bazel_tools//tools/cpp:cc_runtimes_toolchain_type`,
-  which rules_cc's C++ rules depend on) gives every program the DLL as a
-  dynamic library, and the `copy_dynamic_libraries_to_binary` feature,
-  on for the Windows targets as in Bazel's own Windows toolchains, puts
-  it next to the program in `bazel-bin` and in its runfiles, where
-  `bazel run` and `bazel test` start it.
-- An x64 ASan program does not run in arm64 Windows' emulation of x64:
-  ASan cannot intercept UCRT's functions there.
-
-## Not Yet Supported
-
-| | status |
-|---|---|
-| [Windows x86 (MSVC)](roadmap.md#windows-x86-msvc) | In research |
-| [Windows 7 and XP](roadmap.md#windows-7) | In research |
-| [Windows x86 (MinGW)](roadmap.md#windows-x86-mingw) | Considered |
-| [Windows arm64ec](roadmap.md#arm64ec) | Considered |
-| [Runtimes from source for the MSVC targets](roadmap.md#runtimes-msvc) | Planned |
-
-A MinGW variant on msvcrt, for Windows before 10, is
-[not planned](roadmap.md#msvcrt).
-
-## Known Limitations
-
-- **No Bazel sandbox by default.** Bazel runs actions on Windows without a
-  sandbox unless an experimental one is set up
-  (`--experimental_use_windows_sandbox`). An action can then read files it
-  did not declare, and nothing notices. The Linux and macOS builds of the
-  same targets enforce the declarations.
+- **MinGW's ASan DLL links `libc++` and `libunwind` statically**: unlike
+  `llvm-mingw`'s ASan DLL, which loads `libc++.dll`, xclang's MinGW DLL
+  depends only on Windows system DLLs and UCRT, while the program links the
+  ASan-instrumented `libc++`. MSVC's ASan DLL
+  (`clang_rt.asan_dynamic-x86_64.dll`) is linked by `compiler-rt` against
+  the dynamic VC runtime (`vcruntime140.dll`).
+- **Included in `bin/` on the `x86_64` Windows host**: the `x86_64` Windows
+  toolchain archive places copies of both the MinGW and MSVC ASan DLLs in
+  `bin/`, so ASan binaries find their runtime whenever the toolchain is on
+  `PATH`. When copying an ASan binary to another machine, copy the DLL
+  beside it.
+- **Copied beside binaries in Bazel**: a Bazel build with `--features=asan`
+  receives the DLL from `@bazel_tools//tools/cpp:cc_runtimes_toolchain_type`,
+  and the `copy_dynamic_libraries_to_binary` feature copies it next to the
+  binary in `bazel-bin` and in its runfiles for `bazel run` and
+  `bazel test`.
+- **Not supported under Windows on Arm's `x86_64` emulator**: an `x86_64`
+  ASan binary cannot intercept UCRT functions when running under `arm64`
+  Windows' emulation of `x86_64`.

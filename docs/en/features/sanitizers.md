@@ -1,22 +1,41 @@
 # Sanitizers
 
-For the glibc Linux targets and the macOS targets, compiler-rt carries
-AddressSanitizer (ASan), ThreadSanitizer (TSan), LeakSanitizer, UBSan and
-libFuzzer. Those
-targets also carry an ASan build of libc++, the *ASan libc++*, which ASan
-programs link. The Windows targets carry UBSan, and for x64 ASan with the
-ASan libc++: the MinGW targets since 23.1.3.4 ([below](#mingw-targets)),
-the MSVC targets with libFuzzer for x64 too ([below](#msvc-targets)). The
-musl targets carry UBSan ([below](#musl-targets)).
+`compiler-rt` carries the sanitizers' runtimes for each target, and the
+targets with ASan an ASan build of `libc++` (the *ASan `libc++`*), which
+ASan programs link. MemorySanitizer comes with the
+[runtimes from source](runtimes-from-source.md). libFuzzer is there for the
+glibc Linux, macOS and x64 MSVC targets.
+
+<!-- BEGIN GENERATED: sanitizers -->
+
+| target | ASan | LSan | TSan | UBSan | MSan |
+| --- | --- | --- | --- | --- | --- |
+| `x86_64-unknown-linux-gnu` | yes | yes | yes | yes | with the runtimes from source |
+| `aarch64-unknown-linux-gnu` | yes | yes | yes | yes | with the runtimes from source |
+| `x86_64-w64-mingw32` | yes |  |  | yes |  |
+| `aarch64-w64-mingw32` |  |  |  | yes |  |
+| `aarch64-apple-darwin` | yes | yes | yes | yes |  |
+| `x86_64-apple-darwin` | yes | yes | yes | yes |  |
+| `x86_64-unknown-linux-musl` |  |  |  | yes |  |
+| `aarch64-unknown-linux-musl` |  |  |  | yes |  |
+| `x86_64-pc-windows-msvc` | yes |  |  | yes |  |
+| `aarch64-pc-windows-msvc` |  |  |  | yes |  |
+
+<!-- END GENERATED -->
+
+How each family differs: [MinGW Targets](#mingw-targets),
+[MSVC Targets](#msvc-targets), [musl Targets](#musl-targets),
+[MemorySanitizer](#memorysanitizer).
 
 ## Usage
 
 The examples are in
 [examples/sanitizers](https://github.com/clice-io/xclang/tree/main/examples/sanitizers).
-The CMake and plain clang commands below run in that directory, in a
+The CMake and plain `clang++` commands below run in that directory inside
 `pixi shell` after `pixi install`, on a Linux or macOS host.
 
-`overflow.cpp` reads past the end of a string, but within its capacity:
+`overflow.cpp` reads past the end of a `std::string`, within its allocated
+capacity:
 
 <!-- file: examples/sanitizers/overflow.cpp -->
 ```cpp
@@ -33,7 +52,7 @@ int main(int argc, char**) {
 }
 ```
 
-`race.cpp` has a data race:
+`race.cpp` has a data race between two threads:
 
 <!-- file: examples/sanitizers/race.cpp -->
 ```cpp
@@ -71,35 +90,20 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 }
 ```
 
-### Plain Clang
-
-The ASan libc++ is in the `asan` directory next to the module manifest of
-libc++: `usr/lib/asan` of the sysroot on Linux, `lib/asan` on macOS.
-
-<!-- excerpt: .github/workflows/examples.yml -->
-```sh
-asan=$(dirname "$(clang++ -print-library-module-manifest-path)")/asan
-clang++ -fsanitize=address -g -O1 overflow.cpp -o overflow-plain
-clang++ -fsanitize=address -isystem "$asan/include" -nostdlib++ "$asan/libc++.a" -g -O1 overflow.cpp -o overflow
-clang++ -fsanitize=thread -g -O1 race.cpp -o race
-clang++ -fsanitize=fuzzer -g -O1 fuzz.cpp -o fuzz
-```
-
-| command | prints | exit code |
-|---|---|---|
-| `./overflow-plain` | `no report` | 0 |
-| `./overflow` | `ERROR: AddressSanitizer: container-overflow` in `main`, `overflow.cpp:8` | 1 |
-| `./race` | `WARNING: ThreadSanitizer: data race` | 66 |
-| `./fuzz -runs=1000` | `Done 1000 runs` | 0 |
-
-`overflow-plain` links the normal libc++, which does not annotate the
-string, so ASan sees nothing wrong. On macOS, a report ends in an abort,
-so a shell gives exit code 134 instead.
-
 ### CMake
 
-An ASan build takes the ASan libc++ in its compile and link flags, with
-`$asan` from above:
+With xclang's toolchain file (`--toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake`),
+pass `-DXCLANG_SANITIZER=address`, `thread`, `undefined` or `leak` (or
+`memory` with `-DXCLANG_RUNTIMES=source`; see
+[MemorySanitizer](#memorysanitizer)). `XCLANG_SANITIZER` adds the corresponding
+`-fsanitize=` flag to every compile and link in the build, and for `address`
+automatically switches to the prebuilt ASan `libc++` (or builds an instrumented
+`libc++` when `XCLANG_RUNTIMES=source` is set).
+
+Without the toolchain file, pass `-fsanitize=address` and the ASan `libc++`
+flags in `CMAKE_CXX_FLAGS` and `CMAKE_EXE_LINKER_FLAGS`, where
+`asan=$(dirname "$(clang++ -print-library-module-manifest-path)")/asan`
+([Plain Clang](#plain-clang)):
 
 <!-- file: examples/sanitizers/CMakeLists.txt -->
 ```cmake
@@ -117,17 +121,14 @@ cmake -G Ninja -B build-asan -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Rel
 cmake --build build-asan
 ```
 
-`./build-asan/overflow` reports the container-overflow. `xclang::std`
-picks up `CMAKE_CXX_FLAGS`, so in a project with `import std` the module
-matches. With xclang's toolchain file, `-DXCLANG_SANITIZER=address` does
-the same for the whole build, and `thread`, `undefined` and `leak` give
-their `-fsanitize=`
-([CMake API](../reference/cmake-api.md#runtimes-from-source)).
+`./build-asan/overflow` reports the `container-overflow`. Because `xclang::std`
+is compiled with `CMAKE_CXX_FLAGS`, a project that uses `import std` compiles
+the `std` module with matching sanitizer flags ([C++20 modules](modules.md#cmake)).
 
 ### Bazel
 
-The sanitizers are features of the whole build. `--features=asan` compiles
-and links with the ASan libc++:
+Enable a sanitizer across the whole build with `--features=asan`,
+`--features=tsan`, `--features=ubsan` or `--features=lsan`:
 
 <!-- file: examples/sanitizers/BUILD.bazel -->
 ```python
@@ -170,97 +171,143 @@ bazel run -c dbg --features=asan //:overflow
 bazel run -c dbg --features=tsan //:race
 ```
 
-The first reports the container-overflow, the second the data race. Both
-end with the exit code of the program.
+The first command reports the `container-overflow` and the second the data
+race; both exit with the sanitizer's non-zero exit code.
+
+- `--features=asan` compiles and links every C++ target against the ASan
+  `libc++`.
+- Requesting a sanitizer that the target platform does not support stops the
+  build immediately at analysis time with an error naming the target and
+  sanitizer.
+- On `x86_64` Windows targets, `--features=asan` copies the ASan runtime DLL
+  beside every binary in `bazel-bin` and in its runfiles so `bazel run` and
+  `bazel test` can start it ([MinGW Targets](#mingw-targets)).
+- Adding `--@xclang//runtimes:source` compiles `libc++`, `libc++abi` and
+  `libunwind` from source with the build's sanitizer features, and enables
+  `--features=msan` on the glibc Linux targets
+  ([MemorySanitizer](#memorysanitizer),
+  [runtimes from source](runtimes-from-source.md#bazel)).
+
+### Plain Clang
+
+On Linux, macOS and MinGW targets, the ASan `libc++` sits in the `asan`
+directory next to `libc++.modules.json` (`usr/lib/asan` in the sysroot on
+Linux, `lib/asan` on macOS and MinGW):
+
+<!-- excerpt: .github/workflows/examples.yml -->
+```sh
+asan=$(dirname "$(clang++ -print-library-module-manifest-path)")/asan
+clang++ -fsanitize=address -g -O1 overflow.cpp -o overflow-plain
+clang++ -fsanitize=address -isystem "$asan/include" -nostdlib++ "$asan/libc++.a" -g -O1 overflow.cpp -o overflow
+clang++ -fsanitize=thread -g -O1 race.cpp -o race
+clang++ -fsanitize=fuzzer -g -O1 fuzz.cpp -o fuzz
+```
+
+| command | prints | exit code |
+|---|---|---|
+| `./overflow-plain` | `no report` | 0 |
+| `./overflow` | `ERROR: AddressSanitizer: container-overflow` in `main`, `overflow.cpp:8` | 1 |
+| `./race` | `WARNING: ThreadSanitizer: data race` | 66 |
+| `./fuzz -runs=1000` | `Done 1000 runs` | 0 |
+
+`overflow-plain` links the normal `libc++`, which does not annotate the
+`std::string` buffer, so ASan does not detect the out-of-bounds read. On macOS,
+a sanitizer report aborts the process, so the shell reports exit code `134`.
 
 ## Options
 
-| | plain clang, CMake | Bazel |
-|---|---|---|
-| AddressSanitizer | `-fsanitize=address`, and the ASan libc++ (below) | `--features=asan` |
-| ThreadSanitizer | `-fsanitize=thread` | `--features=tsan` |
-| UBSan | `-fsanitize=undefined` | `--features=ubsan` |
-| LeakSanitizer | `-fsanitize=leak` | `--features=lsan` |
-| libFuzzer | `-fsanitize=fuzzer` | |
-| MemorySanitizer | the runtimes from source, `XCLANG_RUNTIMES=source` with `XCLANG_SANITIZER=memory` ([below](#memorysanitizer)) | `--@xclang//runtimes:source --features=msan` |
-| the ASan libc++ | compile: `-isystem $asan/include`; link: `-nostdlib++ $asan/libc++.a` | part of `asan` |
+| | Plain Clang | CMake (toolchain file) | Bazel |
+|---|---|---|---|
+| AddressSanitizer | `-fsanitize=address` + ASan `libc++` | `-DXCLANG_SANITIZER=address` | `--features=asan` |
+| ThreadSanitizer | `-fsanitize=thread` | `-DXCLANG_SANITIZER=thread` | `--features=tsan` |
+| UBSan | `-fsanitize=undefined` | `-DXCLANG_SANITIZER=undefined` | `--features=ubsan` |
+| LeakSanitizer | `-fsanitize=leak` | `-DXCLANG_SANITIZER=leak` | `--features=lsan` |
+| libFuzzer | `-fsanitize=fuzzer` | `-fsanitize=fuzzer` in compile/link flags | |
+| MemorySanitizer | | `-DXCLANG_RUNTIMES=source -DXCLANG_SANITIZER=memory` | `--@xclang//runtimes:source --features=msan` |
+| ASan `libc++` flags | compile: `-isystem $asan/include`; link: `-nostdlib++ $asan/libc++.a` (MSVC: compile flag only) | included in `XCLANG_SANITIZER=address` | included in `--features=asan` |
+
+Full option lists are in the [CMake API](../reference/cmake-api.md) and the
+[Bazel API](../reference/bazel-api.md).
 
 ## Behavior
 
-- **ASan programs link the ASan libc++, all of them.** libc++ annotates
-  its containers for ASan: `std::vector` tells ASan which part of its
-  buffer is in use, so a read past `size()` but within `capacity()` is a
-  *container-overflow*. The program and every library in it must use the
-  same libc++, or ASan reports overflows that are not there (below).
-- **The other sanitizers link the normal libc++.** TSan and UBSan programs
-  need nothing of the kind.
-- **On macOS, the runtimes are dylibs**, such as
-  `libclang_rt.asan_osx_dynamic.dylib`. A program loads them from the
-  resource directory of the toolchain, or from its own directory. An ASan
-  build is for testing, not for shipping, so this is an exception to
-  [hermeticity](../design/hermeticity.md#known-limitations), as ASan's DLL
-  of the Windows targets is. In Bazel on macOS hosts, the sanitizer
-  features link the absolute path of the toolchain as an rpath; a program
-  built on another host finds the dylibs in its own directory.
-- **libclang has an ASan build too**, for Linux x64 and macOS arm64 hosts.
-  It is built against the ASan libc++
-  ([libclang](libclang.md#the-asan-build)).
+- **Every C++ library in an ASan program must use the ASan `libc++`**: `libc++`
+  annotates its containers (`std::vector`, `std::string`) so ASan knows which
+  portion of the allocated buffer is within `size()` and reports accesses
+  between `size()` and `capacity()` as `container-overflow`. Mixing code built
+  against the ASan `libc++` and the uninstrumented `libc++` produces false
+  `container-overflow` reports ([below](#why-an-asan-libc)).
+- **Other sanitizers use the normal `libc++`**: TSan, UBSan and LSan builds
+  link the standard prebuilt `libc++` unless
+  [runtimes from source](runtimes-from-source.md) are requested.
+- **Dynamic sanitizer runtimes on macOS and Windows**: on macOS, sanitizer
+  runtimes are `.dylib` files such as `libclang_rt.asan_osx_dynamic.dylib`,
+  loaded from the toolchain's resource directory or the binary's directory. On
+  Windows, the `x86_64` ASan runtime is a DLL. Because sanitizer builds are
+  used for testing rather than shipping, loading these dynamic runtimes is an
+  exception to [hermeticity](../design/hermeticity.md). In Bazel on macOS
+  hosts, the sanitizer features add the toolchain's resource directory as an
+  `rpath`; binaries cross-compiled on Linux or Windows look for the `.dylib` in
+  their own directory.
+- **ASan build of `libclang`**: for Linux `x86_64` and macOS `arm64` hosts,
+  xclang provides an ASan-instrumented build of `libclang` compiled against the
+  ASan `libc++` ([libclang](libclang.md#the-asan-build)).
+- **No ASan build of the platform's C++ library**: with
+  `XCLANG_STDLIB=platform`, `XCLANG_SANITIZER=address` links no ASan C++
+  library, and on the MSVC targets the STL's containers under ASan need
+  `stl_asan.lib`, which `xclang sdk fetch windows` does not fetch.
+
 
 ### Why an ASan libc++
 
-The annotations are made by whichever copy of a function runs, and checked
-on every access. A program compiled with ASan against an uninstrumented
-libc++ has two kinds of code working on the same container. The inline
-functions of the program are instrumented and annotate; the copies of the
-same functions in the library are not.
+Container annotations are written by whichever copy of a container method runs,
+and checked on every element access. When a program compiled with
+`-fsanitize=address` links an uninstrumented `libc++.a`, two versions of the
+same container methods exist in the binary: inline functions in the program
+are compiled with ASan and update container annotations, while functions and
+template instantiations compiled into `libc++.a` are not.
 
-When the linker picks one copy of a function for both, the annotations no
-longer match the writes. A template that the library also instantiates is
-such a function: `std::vector<std::string_view>::push_back` inside
-`std::filesystem`, for example. catter's macOS tests hit exactly this in
-`std::filesystem::relative`.
+When the linker keeps one copy of a template instantiated in both places, and
+picks the uninstrumented one from `libc++.a`, vector growth no longer updates the ASan
+shadow memory and later reads report a false `container-overflow`. That is
+what catter's macOS tests hit, with `std::vector<std::string_view>::push_back`
+inside `std::filesystem::relative`.
 
-xclang's first answer, in 23.1.2.3, was a patch that put ASan into the ABI
-tag of libc++, so that instrumented and uninstrumented copies got
-different names. Upstream answered that an ASan program with an
-uninstrumented library is already broken. The patch also could not help
-code outside libc++ that grows an instrumented container, or an
-`import std` built without ASan.
-
-From 23.1.2.5 on, libc++ itself comes instrumented. The ASan libc++ is a
-`libc++.a` built with ASan, and a `__config_site` that differs from the
-normal one only in `_LIBCPP_INSTRUMENTED_WITH_ASAN`. That macro also turns
-on the container checks of `std::string`. Every piece of the C++ of the
-program is then instrumented the same way, and the reports are real.
+xclang therefore ships an ASan-instrumented `libc++` alongside the normal one.
+It consists of a `libc++.a` (or `libc++asan-x86_64.lib` on MSVC) compiled with
+`-fsanitize=address` and a `__config_site` header that defines
+`_LIBCPP_INSTRUMENTED_WITH_ASAN`, which also turns on container annotations for
+`std::string`. Compiling with `-isystem $asan/include` and linking the ASan
+`libc++` instruments the program and the standard library identically.
 
 ## MinGW Targets
 
-Since 23.1.3.4, the MinGW targets carry UBSan, and x64 ASan with the
-ASan libc++, as compiler-rt has them for Windows and llvm-mingw ships
-them.
-clang names their libraries itself, with `-fsanitize=`, from
-`lib/clang/<major>/lib/<arch>-w64-windows-gnu`.
+The MinGW targets carry UBSan on `x86_64` and `aarch64` and ASan with the ASan
+`libc++` on `x86_64`, matching what `compiler-rt` and `llvm-mingw` support on
+Windows. `clang` selects the runtime libraries from
+`lib/clang/<major>/lib/<arch>-w64-windows-gnu` when `-fsanitize=` is passed.
 
-- **ASan's runtime is a DLL**, `libclang_rt.asan_dynamic.dll`, next to
-  its import library there: Windows has no static ASan runtime. A program
-  loads it from its own directory, or from `PATH`. The toolchain of the
-  x64 Windows host has a copy in `bin/`, which a conda or pixi
-  environment puts on `PATH`, as it puts the compiler; elsewhere, copy it
-  next to the program. Bazel puts it beside every program of a build with
-  `--features=asan` ([Bazel](../integrations/bazel.md#use-sanitizers)).
-  It loads only Windows' own DLLs and UCRT: xclang's libc++ and libunwind
-  are linked into it.
-- **The ASan libc++** is in `x86_64-w64-mingw32/lib/asan`, `$asan`
-  below: `-isystem $asan/include` to compile, `-nostdlib++ $asan/libc++.a`
-  to link, as on Linux. CMake's `XCLANG_SANITIZER=address` and Bazel's
-  `--features=asan` take it.
-- **An x64 ASan program runs on x64 Windows**, not in arm64 Windows'
-  emulation of x64, where ASan cannot intercept the C runtime's functions.
-- TSan, LeakSanitizer, MemorySanitizer and libFuzzer are not there, and
-  neither is ASan for arm64: compiler-rt has none of them for Windows.
-  CMake and Bazel refuse them for the MinGW targets.
+- **ASan's runtime is a DLL**: Windows has no static ASan runtime, so ASan
+  programs link `libclang_rt.asan_dynamic.dll.a` and load
+  `libclang_rt.asan_dynamic.dll` at startup from their own directory or `PATH`.
+  On the `x86_64` Windows host, a copy of the DLL sits in the toolchain's
+  `bin/` directory, which `pixi` or `conda` activation places on `PATH`; on
+  other machines, copy the DLL next to the `.exe`. In Bazel, `--features=asan`
+  places the DLL beside every binary in `bazel-bin` and in its runfiles. Unlike
+  `llvm-mingw`'s ASan DLL, xclang links `libc++` and `libunwind` into the DLL
+  statically so it depends only on Windows system DLLs and UCRT.
+- **The ASan `libc++`** is in `x86_64-w64-mingw32/lib/asan` (`$asan` below):
+  pass `-isystem $asan/include` when compiling and `-nostdlib++ $asan/libc++.a`
+  when linking, or use CMake's `-DXCLANG_SANITIZER=address` or Bazel's
+  `--features=asan`.
+- **Native `x86_64` Windows only**: an `x86_64` ASan program must run on
+  `x86_64` Windows; under `arm64` Windows' `x86_64` emulator, ASan cannot
+  intercept the C runtime's functions.
+- **Unsupported sanitizers**: `compiler-rt` has no TSan, LeakSanitizer,
+  MemorySanitizer or libFuzzer for MinGW, and no ASan for `aarch64` Windows.
+  CMake and Bazel reject those sanitizers for MinGW targets.
 
-`ubsan.cpp`, in the same directory, overflows a signed integer:
+`ubsan.cpp`, in `examples/sanitizers`, triggers a signed integer overflow:
 
 <!-- file: examples/sanitizers/ubsan.cpp -->
 ```cpp
@@ -275,7 +322,7 @@ int main(int argc, char**) {
 }
 ```
 
-On any host:
+Cross-compile both examples from any host:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -285,53 +332,49 @@ clang++ --target=x86_64-w64-mingw32 -fsanitize=address -isystem "$asan/include" 
 clang++ --target=aarch64-w64-mingw32 -fsanitize=undefined -O1 ubsan.cpp -o ubsan.exe
 ```
 
-`overflow.exe`, on an x64 Windows machine with the DLL beside it or on
-`PATH`, reports the container-overflow; `ubsan.exe`, on arm64 Windows,
-reports `runtime error: signed integer overflow` and prints
+On an `x86_64` Windows machine with `libclang_rt.asan_dynamic.dll` beside it or
+on `PATH`, `overflow.exe` reports the `container-overflow`. On `arm64` Windows,
+`ubsan.exe` reports `runtime error: signed integer overflow` and prints
 `-2147483648`.
 
-With [Bazel](#bazel), on an x64 Windows host, `--features=asan` puts the
-DLL beside the program, where `bazel run` starts it:
+With [Bazel](#bazel) on an `x86_64` Windows host, `--features=asan` places the
+DLL beside the executable and runs it:
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 bazel run -c dbg --features=asan //:overflow
 ```
 
-It reports the container-overflow and ends with exit code 1.
+It reports the `container-overflow` and exits with code `1`.
 
 ## MSVC Targets
 
-The [MSVC targets](../integrations/clang.md#msvc-targets) carry UBSan,
-and for x64 ASan and libFuzzer, as compiler-rt has them for Windows.
-clang names their libraries itself, with `-fsanitize=`, from
-`lib/clang/<major>/lib/windows`.
+The [MSVC targets](../guide/cross-compiling.md#msvc-targets) carry UBSan on `x86_64`
+and `aarch64`, and ASan and libFuzzer on `x86_64`. `clang` selects their
+libraries from `lib/clang/<major>/lib/windows` when `-fsanitize=` is passed.
 
-- **The ASan libc++ of x64** is
+- **The `x86_64` ASan `libc++`** is
   `lib/clang/<major>/lib/windows/libc++asan-x86_64.lib`, with its
-  `__config_site` in `x86_64-pc-windows-msvc/lib/asan/include` of the
-  toolchain directory, `$XCLANG` below. An ASan build compiles with
-  `-isystem $XCLANG/x86_64-pc-windows-msvc/lib/asan/include`, whose
-  `__config_site` names the ASan library in every object in place of the
-  normal one; the link needs nothing more. It names no ASan runtime
-  either, so it serves every C runtime. Bazel's `--features=asan` does the
-  same ([Bazel](../integrations/bazel.md#use-sanitizers)).
+  `__config_site` in `$XCLANG/x86_64-pc-windows-msvc/lib/asan/include`. Pass
+  `-isystem $XCLANG/x86_64-pc-windows-msvc/lib/asan/include` when compiling:
+  its `__config_site` embeds `#pragma comment(lib, "libc++asan-x86_64.lib")` in
+  every object file in place of `libc++-x86_64.lib`, so the link step needs no
+  extra library flag and works with the hybrid CRT, `/MD` and the static CRT
+  alike. CMake's `-DXCLANG_SANITIZER=address` and Bazel's `--features=asan`
+  pass this include path automatically.
+- **ASan's runtime is a DLL**, `clang_rt.asan_dynamic-x86_64.dll`, even when
+  linking the static CRT. The `x86_64` Windows host toolchain includes a copy
+  in `bin/`; on other machines, copy it beside the executable (Bazel's
+  `--features=asan` copies it automatically). Because `compiler-rt` links this
+  DLL against the dynamic VC runtime, it loads `vcruntime140.dll` at run time.
+- **Not compatible with `-stdlib=platform` containers**: when compiling against
+  Microsoft's STL (`-stdlib=platform`), STL containers under ASan reference
+  `stl_asan.lib`, which `xclang sdk fetch windows` does not fetch.
+- **No `aarch64` ASan or libFuzzer**: LLVM 23 does not support ASan or
+  libFuzzer on `arm64` Windows.
 
-- **ASan's runtime is a DLL**, `clang_rt.asan_dynamic-x86_64.dll`, also for
-  a program with the static CRT. A program loads it from its own
-  directory, or from `PATH`: the toolchain of the x64 Windows host has a
-  copy in `bin/` (since 23.1.3.4), as Visual Studio has it with its
-  compiler; elsewhere, copy it next to the program. Bazel puts it there,
-  as for MinGW. It loads `vcruntime140.dll`, as compiler-rt builds it with
-  the DLL CRT.
-- The hybrid CRT, `/MD` and the static CRT all work with ASan.
-- With Microsoft's STL (`-stdlib=platform`), an ASan program that uses
-  the STL's containers does not link: they name the STL's
-  `stl_asan.lib`, which `xclang sdk fetch` does not fetch.
-- arm64 Windows has no ASan or libFuzzer in LLVM 23.
-
-With the Windows SDK fetched, on any host, with `ubsan.cpp` of the
-[MinGW targets](#mingw-targets):
+With the Windows SDK fetched, cross-compile from any host using `ubsan.cpp`
+from [MinGW Targets](#mingw-targets):
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -340,46 +383,46 @@ clang++ --target=x86_64-pc-windows-msvc -fsanitize=address -isystem "$XCLANG/x86
 clang++ --target=aarch64-pc-windows-msvc -fsanitize=undefined -O1 ubsan.cpp -o ubsan.exe
 ```
 
-`overflow.exe`, with the ASan DLL next to it, reports the
-container-overflow; `ubsan.exe` reports
+With `clang_rt.asan_dynamic-x86_64.dll` beside it, `overflow.exe` reports the
+`container-overflow`; `ubsan.exe` reports
 `runtime error: signed integer overflow` and prints `-2147483648`.
 
 ## musl Targets
 
-The [musl targets](../reference/targets.md#musl-targets), from 23.1.2.10
-on, link statically, and of the sanitizers only UBSan works in a static
-program: its standalone runtime (`-fsanitize=undefined`, `--features=ubsan`
-in Bazel) and its minimal one (`-fsanitize-minimal-runtime`), or none with
-`-fsanitize-trap=undefined`.
+The [musl targets](../guide/cross-compiling.md#musl-targets) link statically, and only
+UBSan works in a statically linked executable: its standalone runtime
+(`-fsanitize=undefined`, `-DXCLANG_SANITIZER=undefined` in CMake,
+`--features=ubsan` in Bazel), its minimal runtime
+(`-fsanitize-minimal-runtime`), or trapping mode (`-fsanitize-trap=undefined`).
 
-ASan, TSan and LSan intercept functions of the C library and find the real
-ones through `dlsym`, which a static program has not. Their runtimes do not
-link into one (`undefined hidden symbol: _DYNAMIC`), so they are not built
-for musl, and neither is libFuzzer, which stops at its first `sigaction`.
-Build for the glibc target of the same architecture to use them; a
-dynamically linked musl variant that has them is
-[considered](../design/roadmap.md#musl-sanitizers).
+ASan, TSan and LSan intercept C library functions and look up the underlying
+symbols via `dlsym`, which a static musl binary does not have; linking their
+runtimes into a static binary fails with `undefined hidden symbol: _DYNAMIC`,
+and libFuzzer fails at its first `sigaction` call. Those runtimes are therefore
+not built for musl. Build for the glibc target of the same architecture to run
+ASan, TSan, LSan or libFuzzer; a dynamically linked musl target variant for
+them is [considered](../design/roadmap.md#musl-sanitizers).
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
 clang++ --target=x86_64-unknown-linux-musl -fsanitize=undefined -O1 ubsan.cpp -o ubsan
 ```
 
-`ubsan` is static, and runs on any Linux x64 machine.
+`ubsan` is a static executable that runs on any Linux `x86_64` machine.
 
 ## MemorySanitizer
 
-MemorySanitizer needs every library instrumented, libc++ too, and
-compiler-rt's runtime of it, which the toolchain does not carry. Since
-23.1.2.11, the runtimes built from source give it both, for the glibc
-Linux targets, x64 and arm64 ([runtimes from source](runtimes-from-source.md)):
-`XCLANG_RUNTIMES=source` with `XCLANG_SANITIZER=memory` in CMake,
-`--@xclang//runtimes:source` with `--features=msan` in Bazel.
-ThreadSanitizer and AddressSanitizer report through runtimes from source
-as well, instrumented like the program.
+MemorySanitizer (MSan) requires every library in the program, including
+`libc++` and `libc++abi`, to be compiled with `-fsanitize=memory`, along with
+`compiler-rt`'s MSan runtime. Because prebuilt archives do not include an
+MSan-instrumented `libc++` or MSan runtime, xclang builds both on demand on the
+glibc Linux targets (`x86_64` and `aarch64`) when
+[runtimes from source](runtimes-from-source.md) are enabled:
 
-## Not Yet Supported
+- **CMake**: pass `-DXCLANG_RUNTIMES=source -DXCLANG_SANITIZER=memory` with the
+  toolchain file.
+- **Bazel**: pass `--@xclang//runtimes:source --features=msan`.
 
-| | status |
-|---|---|
-| [ASan, TSan, LSan and libFuzzer for musl targets](../design/roadmap.md#musl-sanitizers) | Considered |
+Enabling [runtimes from source](runtimes-from-source.md) with TSan or ASan also
+compiles `libc++` and `libc++abi` from source with that sanitizer's
+instrumentation.

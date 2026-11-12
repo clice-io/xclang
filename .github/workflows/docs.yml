@@ -5,11 +5,13 @@ name: docs
 # from all over it):
 # tests/docs/docs.ts (the docs' files and command blocks are examples/'s
 # files and examples.yml's steps, their links reach pages and headings,
-# their status cells are status words) and the scripts' and tests' types
-# (npm run check). On main, then, docs/ to docs.clice.io/xclang:
-# clice-io/docs's sync action copies docs/en into that repository as
-# en/xclang, in a pull request that merges itself once the site builds
-# (none when nothing changed).
+# their status cells are status words), the tables the code says
+# (tests/docs/generate.ts), the scripts' and tests' types
+# (npm run check) and docs/zh a translation of docs/en (clice-io/docs's
+# check-translations). On main, then, docs/ to docs.clice.io/xclang:
+# clice-io/docs's sync action copies docs/en and docs/zh into that
+# repository as en/xclang and zh/xclang, in a pull request that merges
+# itself once the site builds (none when nothing changed).
 
 on:
   push:
@@ -34,7 +36,12 @@ jobs:
         with:
           node-version: 24
       - run: node tests/docs/docs.ts
+      - run: node tests/docs/generate.ts --check
       - run: npm ci && npm run check
+      # docs/zh a translation of docs/en, segment by segment, every pair
+      # attested in docs/meta/translations (tests/docs/translations.ts runs
+      # the same release locally). It sets up a node of its own: last.
+      - uses: clice-io/docs/check-translations@v1.0.0
 
   publish:
     needs: check

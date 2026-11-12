@@ -89,11 +89,9 @@ When everything else the release takes is on main, a pull request
 - CHANGELOG.md: Unreleased becomes `## [<version>](https://github.com/clice-io/xclang/releases/tag/<version>) — <date>`
   (the UTC date the run starts) with "Built by <bootstrap>." (a repack:
   "The compiler and runtimes are <previous>'s."), and a new empty
-  Unreleased;
-- docs/en/dev/release-build.md: the release's row in the bootstrap chain
-  table (a repack: "<previous>'s compiler, repacked").
+  Unreleased.
 
-Nothing else names a release by hand: the docs, READMEs and examples/
+Nothing else names a release by hand: the docs, the README and examples/
 reach the newest by themselves (pixi `xclang = "*"`, `releases/latest`, the
 `latest` branch for FetchContent); a Bazel `bazel_dep` version is the
 oldest release its example takes (weekly.yml builds each as written); the

@@ -3,7 +3,7 @@
 What changed for xclang's users in each release. Releases are tagged
 `<llvm version>.<revision>`; every one of them has the same assets (the
 toolchain, libclang and its ASan build, the option tables, the profile and
-`SHA256SUMS`, see [Installing](docs/en/guide/install.md)), and LLVM's source with
+`SHA256SUMS`, see [Installing](docs/en/guide/quick-start.md)), and LLVM's source with
 the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
@@ -26,7 +26,7 @@ Built by 23.1.3.6.
   and 27.0, and its CDN answers 403 for it, at first only where an edge no
   longer keeps a copy. The table has the package Apple put in its place,
   and SDK 27.2 for 27; Xcode 27's preset, whose SDK 27.0 Apple no longer
-  serves, is gone ([vendor SDKs](docs/en/design/vendor-sdks.md)).
+  serves, is gone ([vendor SDKs](docs/en/guide/cross-compiling.md#vendor-sdks)).
 - **macOS SDKs outlast Apple's withdrawals.** The version table pins each
   macOS SDK package by the content of its SDK too. When Apple withdraws
   the package (its CDN answers 403), `xclang sdk fetch` and the Bazel
@@ -34,7 +34,7 @@ Built by 23.1.3.6.
   by that content; a version no package carries any more fails, naming the
   versions they carry. `--version latest` (`version = "latest"` in Bazel)
   takes the newest SDK the catalogs list, which is not reproducible
-  ([vendor SDKs](docs/en/design/vendor-sdks.md#apple-s-packages-come-and-go)).
+  ([vendor SDKs](docs/en/design/macos.md#packages-apple-withdraws-and-content-digests)).
 - **Bazel: the module works with rules_cc 0.2.28**, and any rules_cc from
   0.2.25 on. It patched the unix toolchain config of the build's rules_cc,
   which failed to fetch with 0.2.28 (`CONTENT_DOES_NOT_MATCH_TARGET`), and
@@ -65,7 +65,7 @@ The compiler and runtimes are 23.1.3.4's.
   of `fork`, into a program or a preloaded library that has no
   Objective-C. A library that uses CoreFoundation names it, as abseil's
   time zone code does; the `macos_default_link_flags` feature turns the
-  flag back on ([Bazel](docs/en/integrations/bazel.md#vendor-sdks)).
+  flag back on ([Bazel](docs/en/integrations/bazel.md#build-for-msvc-and-for-macos-anywhere)).
 
 ## [23.1.3.4](https://github.com/clice-io/xclang/releases/tag/23.1.3.4) — 2026-10-24
 
@@ -108,7 +108,7 @@ The compiler and runtimes are 23.1.3.1's.
   `$CARGO_HOME`. Each release builds it twice, on two machines, and
   checks that both are the same bytes, and a rebuild of a run must give
   `bin/xclang` again too
-  ([reproducible builds](docs/en/design/roadmap.md#reproducible-builds)).
+  ([reproducible builds](docs/en/reference/releases.md#reproducible-builds)).
 
 ## [23.1.3.1](https://github.com/clice-io/xclang/releases/tag/23.1.3.1) — 2026-10-13
 
@@ -142,7 +142,7 @@ Built by 23.1.2.12.
 - A rebuild of a revision with its profile gives the same archives again,
   the Windows hosts' `llvm.exe` too, which the bootstrap's lld-link links:
   23.1.2.12, the bootstrap now, has patch 0017
-  ([reproducible builds](docs/en/design/roadmap.md#reproducible-builds)).
+  ([reproducible builds](docs/en/reference/releases.md#reproducible-builds)).
 
 ## [23.1.2.12](https://github.com/clice-io/xclang/releases/tag/23.1.2.12) — 2026-10-12
 
@@ -258,7 +258,7 @@ Built by 23.1.2.6.
   before), and for musl and MinGW the libstdc++ of a `--sysroot`. Each
   target has a second config file, `<triple>-system.cfg`, which the option
   selects; it keeps the SDK, lld and the C runtime
-  ([the system's C++ library](docs/en/integrations/clang.md#the-system-s-c-library)).
+  ([the system's C++ library](docs/en/guide/cross-compiling.md#the-platform-s-c-library)).
   The integrations follow, with one name: the CMake package's
   `-DXCLANG_STDLIB=platform`, the Bazel module's
   `--@xclang//bazel:stdlib=platform` for the MSVC and macOS targets, and
@@ -287,8 +287,8 @@ Built by 23.1.2.6.
   build too. clang's default standard for MSVC targets stays C++14, where
   libc++ has none of the C++17 library the STL offers early
   (`std::is_integral_v`): build with `-std=c++17` or later
-  ([MSVC targets](docs/en/integrations/clang.md#msvc-targets),
-  [Windows](docs/en/design/windows.md#msvc-targets)).
+  ([MSVC targets](docs/en/guide/cross-compiling.md#msvc-targets),
+  [Windows](docs/en/guide/cross-compiling.md#msvc-targets)).
 - **0015** added: clang's MSVC toolchain takes `-stdlib=libc++` (libc++
   installed with the compiler, or the directories of `-stdlib++-isystem`)
   and `-stdlib=platform` (Microsoft's STL). **0016** added: libc++ on
@@ -303,7 +303,7 @@ Built by 23.1.2.6.
   `aarch64-unknown-linux-musl`, in every toolchain archive: static programs
   with no program interpreter and no shared library, which take nothing
   from the system they run on
-  ([musl targets](docs/en/reference/targets.md#musl-targets)). musl 1.2.6
+  ([musl targets](docs/en/guide/cross-compiling.md#musl-targets)). musl 1.2.6
   with the patches of its security advisories and Linux 6.18's UAPI
   headers, built by xclang; libc++, libc++abi, libunwind, compiler-rt and
   `import std` as for the other Linux targets; of the sanitizers UBSan, as
@@ -330,7 +330,7 @@ Built by 23.1.2.6.
   which `@xclang//bazel:std` follows, and the sanitizers `ubsan` and, for
   x64, `asan`, with the ASan libc++; `xclang_debug_symbols` gives their
   PDB. The macOS targets make their dSYM on every host
-  ([Bazel](docs/en/integrations/bazel.md#vendor-sdks)).
+  ([Bazel](docs/en/integrations/bazel.md#build-for-msvc-and-for-macos-anywhere)).
 - `xclang sdk packages macos|windows [--json]`: what `xclang sdk fetch`
   downloads, for a build system that downloads it itself and has fetch
   take it from `--cache`
@@ -383,7 +383,7 @@ Built by 23.1.2.6.
   (`https://github.com/llvm/llvm-project 85ac5602…`), not the commit of
   xclang's checkout, and a rebuild of a revision with its profile gives the
   same archives again, but for the Windows hosts' `llvm.exe`
-  ([reproducible builds](docs/en/design/roadmap.md#reproducible-builds)):
+  ([reproducible builds](docs/en/reference/releases.md#reproducible-builds)):
   the runtimes for Windows carry no compile or link time.
 - Patches: **0017** added, lld-link lays out a program the same way on
   every link: with a call graph profile (PGO), local functions of the same
@@ -400,7 +400,7 @@ The compiler and runtimes are 23.1.2.7's.
   workspace, the toolchain and libclang from `releases/latest` (whose
   `SHA256SUMS` names the version), and `GIT_TAG latest` for CMake's
   FetchContent, a branch at the tag of the newest release
-  ([installing](docs/en/guide/install.md), [versions](docs/en/reference/releases.md#versions)).
+  ([installing](docs/en/guide/quick-start.md), [versions](docs/en/reference/releases.md#versions)).
   The docs and `examples/` use these; a release's version keeps it. The
   Bazel module's version stays the oldest release a project takes.
 - MSVC targets without a fetched SDK: the config files load, where every
@@ -455,7 +455,7 @@ Built by 23.1.2.6.
 - **MSVC targets**, `x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc`,
   against Microsoft's CRT, STL and Windows SDK, which the toolchain's own
   `xclang sdk fetch windows --accept-license` fetches into its `sdk/`
-  ([MSVC targets](docs/en/integrations/clang.md#msvc-targets)), from every
+  ([MSVC targets](docs/en/guide/cross-compiling.md#msvc-targets)), from every
   host: config files for clang and clang-cl. By default the hybrid CRT:
   the VC runtime and the STL linked statically, UCRT Windows' own DLL, so
   a program loads no `vcruntime140.dll`; the DLLs (`/MD`), all-static and
@@ -481,7 +481,7 @@ Built by 23.1.2.6.
   `clang++ --target=arm64-apple-macos` (or x86_64) builds against Apple's
   macOS SDK, which the toolchain's own
   `xclang sdk fetch macos --accept-license` fetches into its `sdk/macos`
-  ([macOS](docs/en/design/macos.md#the-sdk-on-linux-and-windows-hosts)).
+  ([macOS](docs/en/guide/cross-compiling.md#on-linux-and-windows-hosts)).
   On those hosts the macOS targets' config files begin with
   `-isysroot <CFGDIR>/../sdk/macos`: an `-isysroot` on the command line
   replaces it, and clang no longer reads `SDKROOT` there. On macOS hosts
@@ -550,10 +550,10 @@ Built by 23.1.2.5.
   instead of minutes, with the same program: in Bazel,
   `--repo_env=XCLANG_THINLTO_CACHE=<dir>`, the module makes the directory
   and the toolchains' `thinlto_cache` feature passes it to the target's
-  linker ([docs/en/integrations/bazel.md](docs/en/integrations/bazel.md#speed-up-libclang-links), with the
+  linker ([docs/en/integrations/bazel.md](docs/en/features/libclang.md#the-thinlto-cache), with the
   `.bazelrc` and CI setup); in CMake, `-DXCLANG_THINLTO_CACHE=<dir>` (or the
   environment variable) before `find_package(xclang)`
-  ([docs/en/integrations/cmake.md](docs/en/integrations/cmake.md#speed-up-libclang-links)).
+  ([docs/en/integrations/cmake.md](docs/en/features/libclang.md#the-thinlto-cache)).
 - What users build with is under [`packages/`](packages): the Bazel module
   in `packages/bazel`, the CMake package in `packages/cmake`, the conda
   package's activation scripts in `packages/conda`. The module's labels
@@ -575,13 +575,13 @@ Built by 23.1.2.5.
   every target, the dSYM for macOS ones. Bazel: `xclang_debug_symbols`
   (`@xclang//bazel:debug_symbols.bzl`), and rules_cc's `generate_dsym_file`
   feature makes a macOS program's dSYM in its link, ThinLTO's code
-  included ([docs/en/integrations/bazel.md](docs/en/integrations/bazel.md#ship-debug-symbols-and-stripped-programs)); CMake:
-  `xclang_debug_symbols(<target>)` ([docs/en/integrations/cmake.md](docs/en/integrations/cmake.md#ship-debug-symbols)).
+  included ([docs/en/integrations/bazel.md](docs/en/features/debugging.md#bazel)); CMake:
+  `xclang_debug_symbols(<target>)` ([docs/en/integrations/cmake.md](docs/en/features/debugging.md#cmake)).
 - **Bazel: debug information that holds wherever the build ran.** Paths
   in it are relative to the execution root (`-ffile-compilation-dir=.`;
   Mach-O debug maps with `-oso_prefix`), and PE programs have no link time,
   so a program is the same bytes from any sandbox or checkout; debuggers
-  map `.` to the workspace's `bazel-<workspace>` ([docs/en/integrations/bazel.md](docs/en/integrations/bazel.md#debug-in-gdb-lldb-and-vs-code)).
+  map `.` to the workspace's `bazel-<workspace>` ([docs/en/integrations/bazel.md](docs/en/features/debugging.md#debug-in-gdb-lldb-and-vs-code)).
 - Bazel: a program's `.stripped` is a release's, by the target's object
   format: ELF and COFF `--strip-unneeded`, Mach-O `--strip-all`, not
   keeping the globals that misname local functions in macOS crash logs

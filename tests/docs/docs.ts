@@ -6,9 +6,8 @@
 ///   `<!-- excerpt: <path> -->` must be consecutive lines of it, indented
 ///   alike: a command block is a step of .github/workflows/examples.yml, a
 ///   fragment a part of a file in examples/;
-/// - every command block (sh, powershell, yaml) of a page outside dev/ has
-///   one of those markers, or `<!-- not run: <why> -->` saying why CI does
-///   not run it;
+/// - every command block (sh, powershell, yaml) has one of those markers,
+///   or `<!-- not run: <why> -->` saying why CI does not run it;
 /// - every directory of examples/ is built by examples.yml and shown by a
 ///   page, and its pixi.toml and .bazelversion are those of the quick start
 ///   and the Bazel example, so a release changes one version of each;
@@ -23,7 +22,11 @@
 ///   unclear ("is to be", "being considered", a bare "**Missing.**") are
 ///   not used;
 /// - prose holds no bare `<placeholder>`, which the docs site reads as an
-///   HTML element.
+///   HTML element;
+/// - docs/zh, the Chinese pages, are checked alike. Their links keep the
+///   English anchors, which the docs site gives the Chinese headings in
+///   their place, so an anchor into a zh page is one of its en page's (the
+///   pairing of the two pages is tests/docs/translations.ts's).
 ///
 ///   node tests/docs/docs.ts
 
@@ -32,6 +35,8 @@ import * as path from "node:path";
 
 const ROOT = path.resolve(import.meta.dirname, "..", "..");
 const DOCS = path.join(ROOT, "docs");
+const EN = path.join(DOCS, "en");
+const ZH = path.join(DOCS, "zh");
 
 function markdown(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -90,8 +95,14 @@ function parse(page: string): { lines: string[]; ids: Set<string> } {
 }
 
 const failures: string[] = [];
-const pages = markdown(DOCS);
+const pages = [EN, ZH].filter((d) => fs.existsSync(d)).flatMap(markdown);
 const parsed = new Map(pages.map((p) => [p, parse(p)]));
+
+/// The anchors a link into a page may name: a zh page's are its en page's.
+function anchors(page: string): Set<string> {
+  const en = page.startsWith(ZH + path.sep) ? parsed.get(path.join(EN, path.relative(ZH, page))) : undefined;
+  return (en ?? parsed.get(page)!).ids;
+}
 
 /// Whether `block` is consecutive lines of `file`, all indented by what
 /// indents the first (a step's lines in a YAML `run: |`, a list item).
@@ -121,7 +132,6 @@ let unrun = 0;
 const shown = new Set<string>();
 for (const page of pages) {
   const lines = fs.readFileSync(page, "utf8").split("\n");
-  const dev = path.relative(DOCS, page).split(path.sep).includes("dev");
   let fence = "";
   for (let i = 0; i < lines.length; i++) {
     const where = `${path.relative(ROOT, page)}:${i + 1}`;
@@ -136,7 +146,7 @@ for (const page of pages) {
       let k = i - 1;
       while (k >= 0 && lines[k]!.trim() === "") k--;
       const marked = k >= 0 && /^\s*<!-- (file|excerpt|not run): .*-->\s*$/.test(lines[k]!);
-      if (!dev && COMMANDS.has(open[3]!.toLowerCase()) && !marked) {
+      if (COMMANDS.has(open[3]!.toLowerCase()) && !marked) {
         failures.push(`${where}: a ${open[3]} block without a file, excerpt or not run marker`);
       }
       continue;
@@ -226,47 +236,66 @@ for (const [page, { lines }] of parsed) {
       links++;
       if (!doc) {
         failures.push(`${where}: ${target}: no such page`);
-      } else if (anchor && !doc.ids.has(anchor)) {
+      } else if (anchor && !anchors(resolved.endsWith(".md") ? resolved : `${resolved}.md`).has(anchor)) {
         failures.push(`${where}: ${target}: no such heading`);
       }
     }
   });
 }
 
+/// The home pages' frontmatter links (`link: ./guide/quick-start`), which
+/// VitePress resolves as it does a page's links.
+for (const [page] of parsed) {
+  const front = /^---\n([\s\S]*?)\n---/.exec(fs.readFileSync(page, "utf8"));
+  if (!front) continue;
+  for (const m of front[1]!.matchAll(/^\s*link: (\.{1,2}\/\S+)$/gm)) {
+    const [file, anchor] = m[1]!.split("#");
+    const target = path.resolve(path.dirname(page), `${file}.md`);
+    links++;
+    if (!parsed.has(target)) failures.push(`${path.relative(ROOT, page)}: ${m[1]}: no such page`);
+    else if (anchor && !anchors(target).has(anchor)) failures.push(`${path.relative(ROOT, page)}: ${m[1]}: no such heading`);
+  }
+}
+
 /// Links into the docs from the repository's own pages, as files
-/// (docs/en/<group>/<page>.md#<id>) or as the published site
-/// (https://docs.clice.io/xclang/<group>/<page>#<id>); their links to other
-/// files of the repository, relative or on GitHub's main, reach a file.
+/// (docs/en/<group>/<page>.md#<id>, or docs/zh/...) or as the published
+/// site (https://docs.clice.io/xclang/<group>/<page>#<id>, or
+/// https://docs.clice.io/zh/xclang/...); their links to other files of the
+/// repository, relative or on GitHub's main, reach a file.
 const SITE = "https://docs.clice.io/xclang/";
-for (const name of ["README.md", "README.zh-CN.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "packages/README.md"]) {
+const SITE_ZH = "https://docs.clice.io/zh/xclang/";
+for (const name of ["README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "packages/README.md"]) {
   const file = path.join(ROOT, name);
   if (!fs.existsSync(file)) continue;
   fs.readFileSync(file, "utf8").split("\n").forEach((line, i) => {
     for (const m of line.matchAll(/\]\(([^)\s]+)\)/g)) {
       let target = m[1];
       if (target.startsWith(SITE)) target = `docs/en/${target.slice(SITE.length)}`;
+      else if (target.startsWith(SITE_ZH)) target = `docs/zh/${target.slice(SITE_ZH.length)}`;
       else if (REPO.test(target)) target = REPO.exec(target)![1]!;
       else if (/^[a-z]+:/.test(target)) continue;
       else target = path.relative(ROOT, path.resolve(path.dirname(file), target));
-      if (!target.startsWith("docs/en/")) {
+      if (!/^docs\/(en|zh)\//.test(target)) {
         links++;
         const there = target.split("#")[0]!;
         if (!fs.existsSync(path.join(ROOT, there))) failures.push(`${name}:${i + 1}: ${m[1]}: no ${there} in the repository`);
         continue;
       }
       const [page, anchor] = target.split("#");
-      if (page === "docs/en" || page === "docs/en/") continue;
-      const doc = parsed.get(path.join(ROOT, page.endsWith(".md") ? page : `${page}.md`));
+      if (/^docs\/(en|zh)\/?$/.test(page)) continue;
+      const doc = path.join(ROOT, page.endsWith(".md") ? page : `${page}.md`);
       links++;
-      if (!doc) failures.push(`${name}:${i + 1}: ${m[1]}: no such page`);
-      else if (anchor && !doc.ids.has(anchor)) failures.push(`${name}:${i + 1}: ${m[1]}: no such heading`);
+      if (!parsed.has(doc)) failures.push(`${name}:${i + 1}: ${m[1]}: no such page`);
+      else if (anchor && !anchors(doc).has(anchor)) failures.push(`${name}:${i + 1}: ${m[1]}: no such heading`);
     }
   });
 }
 
-/// The roadmap's status words (docs/en/design/roadmap.md), and phrasings
-/// that state no status.
+/// The roadmap's status words (docs/en/design/roadmap.md), in a column
+/// `status` (`状态` in docs/zh, with the words' fixed translations), and
+/// phrasings that state no status.
 const STATUS = new Set(["Supported", "Unreleased", "Planned", "In research", "Considered", "Not planned"]);
+const STATUS_ZH = new Set(["已支持", "未发布", "计划中", "研究中", "考虑中", "不计划"]);
 const VAGUE: [RegExp, string][] = [
   [/\b(is|are) to be\b/i, '"is to be": say planned, in research or considered'],
   [/\bbeing considered\b/i, '"being considered": the status is "considered"'],
@@ -278,6 +307,8 @@ const VAGUE: [RegExp, string][] = [
 
 let statuses = 0;
 for (const [page, { lines }] of parsed) {
+  const zh = page.startsWith(ZH + path.sep);
+  const [header, words] = zh ? ["状态", STATUS_ZH] : ["status", STATUS];
   let column = -1;
   lines.forEach((line, i) => {
     const where = `${path.relative(ROOT, page)}:${i + 1}`;
@@ -288,14 +319,14 @@ for (const [page, { lines }] of parsed) {
     }
     const cells = line.replace(/^\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
     if (column === -1 && !/^\|[-|: ]+\|?\s*$/.test(line)) {
-      column = cells.findIndex((c) => c.toLowerCase() === "status");
+      column = cells.findIndex((c) => c.toLowerCase() === header);
       if (column === -1) column = -2;
       return;
     }
     if (column < 0 || /^\|[-|: ]+\|?\s*$/.test(line)) return;
     statuses++;
-    if (!STATUS.has(cells[column] ?? "")) {
-      failures.push(`${where}: status "${cells[column]}" is not one of ${[...STATUS].join(", ")}`);
+    if (!words.has(cells[column] ?? "")) {
+      failures.push(`${where}: status "${cells[column]}" is not one of ${[...words].join(", ")}`);
     }
   });
 }

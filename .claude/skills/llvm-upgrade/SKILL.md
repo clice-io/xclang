@@ -57,8 +57,8 @@ description: Move xclang to a new LLVM release (e.g. 23.1.2 → 23.1.3 or 24.1.0
    release preflight (release skill, step 0) looks for this run, and the
    release may reuse it (`reuse-run`, `profile-run`) instead of building
    again.
-6. **Docs**: docs/en/dev/release-build.md and docs/en/reference/patches.md if the pipeline or the
-   patches changed; CHANGELOG Unreleased: "LLVM <version>", patches dropped
+6. **Docs**: docs/en/reference/patches.md and docs/zh's if the patches
+   changed; CHANGELOG Unreleased: "LLVM <version>", patches dropped
    because upstream took them.
 7. The upgrade to main by a pull request, then release `<new version>.1`
    with the release skill.

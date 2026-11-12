@@ -1,57 +1,65 @@
-# Versions and Releases
+# Releases
 
-How releases are numbered, what each one publishes, and how to check a
-download. What each release changed is in the
-[CHANGELOG](https://github.com/clice-io/xclang/blob/main/CHANGELOG.md).
+Every xclang release is published to GitHub releases, the clice conda
+channel, CMake `FetchContent`, and the clice Bazel registry. How to install
+xclang is in the [quick start](../guide/quick-start.md), and what is inside
+an unpacked archive is in [archive layout](layout.md).
 
 ## Versions
 
-A release is tagged `<llvm version>.<revision>`. `23.1.2.1` is the first
-build of LLVM 23.1.2, `23.1.2.2` the second. The version sorts the way
-conda, Bazel and CMake sort versions, and says which LLVM it is.
+Every release is tagged `<llvm version>.<revision>`. `23.1.2.1` is the
+first build of LLVM 23.1.2, and `23.1.2.2` is the second. The version
+identifies the upstream LLVM version and sorts consistently in conda, Bazel
+and CMake.
 
-Nothing published is ever replaced. A fix to a release, even one that only
-rebuilds it, is the next revision, and the workflow that drafts a release
-refuses a version that exists. So a version, and the sha256 of each of its
-archives, means one thing forever. Pinning by digest relies on that, as
-in the `versions.bzl` of the Bazel module.
+Published releases are never replaced. A fix or rebuild is always published
+as the next revision, and the release workflow refuses a version tag that
+already exists. A version and the `sha256` digests of its archives refer to
+the exact same bytes permanently. What changed in each release is recorded
+in the [CHANGELOG](https://github.com/clice-io/xclang/blob/main/CHANGELOG.md).
 
-A fix of the packaging alone, such as the Bazel module, the CMake package
-or the config files, is a repack: the next revision, whose compiler and
-runtimes are those of the release before it, the same bytes.
+## Repacks
 
-Every channel has the release under its version, and a way to the newest:
+When a change affects only the packaging, such as the Bazel module, the
+CMake package or the target config files, the release is a *repack*: the
+next revision reuses the compiler and runtimes of the previous release,
+byte for byte.
 
-| where | version | the newest |
-|---|---|---|
-| GitHub release and tag | `<version>` | `releases/latest`, whose `SHA256SUMS` names its archives |
-| conda package | `<version>`; the build number counts packaging fixes of the release, each the same toolchain packaged again | `xclang = "*"` |
-| Bazel module | `<version>` | Bazel takes the newest version a module of the build asks for |
-| CMake FetchContent | the tag `<version>` | the branch `latest`, at the tag of the newest release |
+## Channels
+
+Each channel publishes the release under its `<version>` and provides a way
+to select a pinned release or the newest one:
+
+| channel | what it publishes | pin a release | take the newest |
+|---|---|---|---|
+| [GitHub releases](https://github.com/clice-io/xclang/releases) | all 17 release assets | `releases/download/<version>` | `releases/latest`, whose `SHA256SUMS` names the version |
+| [conda.clice.io](https://conda.clice.io) | `xclang` per host and `noarch` `llvm-option-inc`, built from the release archives | `xclang = "<version>.*"` (the package build number counts packaging fixes of that release) | `xclang = "*"`, locked in `pixi.lock` until `pixi update` |
+| CMake FetchContent | the repository tag `<version>` | `GIT_TAG <version>` | `GIT_TAG latest`, a branch at the newest release tag |
+| [bazel.clice.io](https://bazel.clice.io) | the `xclang` Bazel module, published after it builds and tests against the release archives | `version = "<version>"` | Bazel resolves the newest version requested across the dependency graph |
 
 ## Assets
 
-Every [GitHub release](https://github.com/clice-io/xclang/releases) has the
-same 17 assets:
+Every [GitHub release](https://github.com/clice-io/xclang/releases)
+contains the same 17 assets:
 
-| asset | | size (23.1.2.11) |
+| asset | contents | size |
 |---|---|---|
-| `xclang-<version>-<host>.tar.xz` | the toolchain, one per host, every target in each | 92 to 101 MB |
-| `libclang-<version>-<host>.tar.xz` | the static libraries and headers of clang and LLVM, one per host ([libclang](../features/libclang.md)) | 258 to 272 MB |
-| `libclang-<version>-<host>-asan.tar.xz` | their ASan build, for Linux x64 and macOS arm64 | 190, 209 MB |
-| `llvm-option-inc-<version>.tar.xz` | the option tables of clang, lld, llvm-lib and llvm-dlltool | 185 KB |
-| `xclang-<version>.profdata` | the PGO profile the release was built with | 52 MB |
-| `SHA256SUMS` | the sha256 of every other asset | |
+| `xclang-<version>-<host>.tar.xz` | the toolchain archive, one per host, with all eight bundled targets ([archive layout](layout.md)) | about 100 MB |
+| `libclang-<version>-<host>.tar.xz` | the static libraries and headers of `clang` and LLVM, one per host ([libclang](../features/libclang.md)) | about 265 MB |
+| `libclang-<version>-<host>-asan.tar.xz` | the ASan-instrumented build of `libclang`, for Linux x64 and macOS arm64 ([the ASan build](../features/libclang.md#the-asan-build)) | about 200 MB |
+| `llvm-option-inc-<version>.tar.xz` | the pre-generated option tables of `clang`, `lld`, `llvm-lib` and `llvm-dlltool` ([the option tables](../features/libclang.md#the-option-tables)) | about 200 KB |
+| `xclang-<version>.profdata` | the PGO profile the release was built with ([PGO](../design/pgo.md)) | about 50 MB |
+| `SHA256SUMS` | the `sha256` digest of every other asset in the release | |
 
-The hosts are `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`,
-`x86_64-w64-mingw32`, `aarch64-w64-mingw32`, `aarch64-apple-darwin` and
-`x86_64-apple-darwin`.
+The six `<host>` triples are `x86_64-unknown-linux-gnu`,
+`aarch64-unknown-linux-gnu`, `x86_64-w64-mingw32`, `aarch64-w64-mingw32`,
+`aarch64-apple-darwin` and `x86_64-apple-darwin`.
 
 ## Checking a Download
 
-The workflow that drafts the release writes `SHA256SUMS` from the files it
-uploads. This checks a download of the newest release against it (`gh
-release download <version>` for another):
+The release workflow generates `SHA256SUMS` from the assets it uploads.
+Verify any downloaded asset against `SHA256SUMS` (pass `<version>` to
+`gh release download` for a specific release):
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -59,26 +67,22 @@ gh release download -R clice-io/xclang -p SHA256SUMS -p 'llvm-option-inc-*'
 sha256sum -c --ignore-missing SHA256SUMS
 ```
 
-The Bazel module checks every archive against the sha256 that its
-`versions.bzl` pins. The `xclang.cmake` of the CMake package checks the
-toolchain against the `SHA256SUMS` of the release.
+The Bazel module checks every downloaded archive against the `sha256`
+digest pinned in its `versions.bzl`. CMake's `xclang.cmake` checks the
+toolchain archive against the `SHA256SUMS` file of the release. Pinning a
+digest in `versions.bzl` or in your own repository also protects against an
+archive and `SHA256SUMS` being replaced together on GitHub
+([immutable GitHub releases](../design/roadmap.md#immutable-releases)).
 
-Both are as trustworthy as the release. An archive and the `SHA256SUMS`
-beside it could in principle be replaced together. A pin in `versions.bzl`,
-or a digest recorded in a project of its own, is not affected by that.
-Immutable releases are [planned](../design/roadmap.md#immutable-releases).
+## Reproducible Builds
 
-## Where Else a Release Is Published
-
-- **conda**: [conda.clice.io](https://conda.clice.io) has the `xclang`
-  package for each host, and the noarch `llvm-option-inc`. They are made
-  from the archives of the release after it is published
-  ([installation](../guide/install.md#pixi-and-conda)).
-- **Bazel**: [bazel.clice.io](https://bazel.clice.io) has the module of
-  the tag, published once it builds and tests with the published archives
-  ([Bazel](../integrations/bazel.md)).
-- **CMake**: FetchContent checks out the tag itself
-  ([CMake](../integrations/cmake.md#without-xclang-installed)).
-
-How a release is built and tested is in the
-[build pipeline](../dev/release-build.md).
+Every release makes each host's archives twice, on two machines, and builds
+the `xclang` command twice, and compares them byte for byte: the archives
+are sorted, carry the commit's time and no owner, and are compressed in
+fixed blocks. A rebuild of a revision with its profile,
+`xclang-<version>.profdata`, is meant to give every archive again: every
+full rebuild starts a second full build, which checks that it does before
+the release is published. That is checked, not guaranteed: a
+bug of the compiler or linker that builds xclang can break it. A rebuild
+also needs GitHub's runners, as the programs keep some paths of the build
+and the macOS builds record the runner's Xcode SDK version.
