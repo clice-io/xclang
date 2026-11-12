@@ -95,7 +95,7 @@ first run's; what differs is a bug, listed with the rebuilds checked.
      -f reuse-run=<full run> -f profile-run=<full run> \
      -f repack-of=<previous version> -f revision=<n>
    ```
-   `<full run>` is the run that built the compiler. Its artifacts last 90
+   `<full run>` is the run that built the compiler. Its artifacts last 30
    days; after that, only a full rebuild can make a release. With `repack-of`, the `test` stage
    checks each host's archives against that release's, file by file
    (`tests/release/repack.ts`): only the packaging's files may differ.

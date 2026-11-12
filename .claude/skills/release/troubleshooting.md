@@ -124,7 +124,7 @@ archives drafts on it as it is (`the run's commit is the module commit of
 | line | do |
 |---|---|
 | `rebuild`: `::error::the second full build did not start` | dispatch it by hand: `gh workflow run release.yml -R clice-io/xclang --ref release/<v> -f stages=runtimes,toolchain,asan,package,test -f profile-run=<run> -f repack-of=<run> -f revision=<n>` |
-| its `test / repack (<host>)` lists members that differ | the release goes on: an issue of the board's ci module for each cause (the two runs, the members, what differs: `llvm-readobj --file-headers`, `--coff-debug-directory`, `llvm-objdump -d` of both), and ykiko told with the draft. Known: the MinGW x64 ASan DLL's link time (ci/11-12#3, fixed for 23.1.5.2), `llvm.exe`'s PDB GUID, `TypeLoc.cpp.obj`'s PHI order in libclangAST.a (llvm-upstream 11-12#2) |
+| its `test / repack (<host>)` lists members that differ | reproducibility is verified, not guaranteed: the release goes on, never held for it. An issue of the board's ci module for each cause (the two runs, the members, what differs: `llvm-readobj --file-headers`, `--coff-debug-directory`, `llvm-objdump -d` of both), and ykiko told with the draft. Known: the MinGW x64 ASan DLL's link time (ci/11-12#3, fixed for 23.1.5.2), `llvm.exe`'s PDB GUID, `TypeLoc.cpp.obj`'s PHI order in libclangAST.a (llvm-upstream 11-12#2) |
 
 ## The release pull request
 
@@ -135,7 +135,7 @@ archives drafts on it as it is (`the run's commit is the module commit of
 | `source`: `the SHA256SUMS of <v>: HTTP 5xx` | transient: run the failed jobs again |
 | distdir: `this commit's module names the release of run <run> with other archives than that run's` | the module commit and its Archives-Run disagree: the draft was made from other archives; find which, draft again |
 | `Error downloading [https://github.com/clice-io/xclang/releases/download/<v>/...] ... 404 Not Found` | a check took the published release's path for a draft (its `source` job found no draft): read that job's log; the module's VERSION and whether `<v>` is published |
-| `download-artifact`: `Artifact not found` for `dist-<host>` | the run's artifacts expired (90 days): the release run again (it makes the same archives with the same profile) |
+| `download-artifact`: `Artifact not found` for `dist-<host>` | the run's artifacts expired (30 days): the release run again (it makes the same archives with the same profile) |
 | it conflicts | main changed packages/bazel since M: `git fetch origin && git checkout -B release/<v> origin/release/<v> && git merge origin/main`, keep the branch's versions.bzl and MODULE.bazel, push; never rebase or squash the branch |
 
 ### Squashed

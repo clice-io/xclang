@@ -339,7 +339,7 @@ The training is widened between releases, not while one is pending
   What a rebuild needs:
   - **The release's profile.** Each training gives another profile, so
     the profile is part of the release. release.yml takes it from the run
-    that trained it (`profile-run`), whose artifact lasts 90 days;
+    that trained it (`profile-run`), whose artifact lasts 30 days;
     `toolchain/toolchain.ts --profile` takes the release's
     `xclang-<version>.profdata`, the same bytes.
   - **GitHub's runners.** The programs and runtimes keep paths of the

@@ -67,7 +67,7 @@ jobs:
             toolchain-*.tar.zst
             libclang-*.tar.zst
           compression-level: 0
-          # What a repack reuses (release, asan), kept as long as GitHub
-          # keeps anything: 90 days; the instrumented build only trains.
-          retention-days: ${{ inputs.mode == 'instrumented' && 14 || 90 }}
+          # What a repack reuses (release, asan): 30 days; the instrumented
+          # build only trains.
+          retention-days: ${{ inputs.mode == 'instrumented' && 14 || 30 }}
           if-no-files-found: error

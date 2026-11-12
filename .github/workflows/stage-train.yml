@@ -48,6 +48,6 @@ jobs:
         with:
           name: profile
           path: work/out/profile/profile.profdata
-          # What a repack and the second full build reuse: 90 days.
-          retention-days: 90
+          # What a repack and the second full build reuse: 30 days.
+          retention-days: 30
           if-no-files-found: error

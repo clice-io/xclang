@@ -55,7 +55,7 @@ says:
   shareHeaders, writeConfigs, writeCMakePackage are package.ts's, a repack.
   Ask ykiko when a change seems to fall between the two.
 - for a repack, the run whose artifacts it reuses (`reuse-run`,
-  `profile-run`) and until when they last (90 days from that run).
+  `profile-run`) and until when they last (30 days from that run).
 - for a full rebuild, the bootstrap, and when LLVM moved, the validation
   run (the llvm-upgrade skill's) that must have passed.
 
@@ -165,10 +165,12 @@ is moved to the fix (troubleshooting.md, "A fix the release needs").
 passed: `release: revision <n>, runtimes,toolchain,asan,package,test,
 against <full run>`, with the first run's profile, its `test` comparing
 every host's archives with the first run's, every file (bin/xclang and the
-packaging included). Its link is in the `rebuild` job's summary. What
-differs is a bug to list (an issue of the board's ci module, with both
-runs, and ykiko told with the draft), not a reason to hold the release:
-the release is the first run's. Every full rebuild has it; a repack's
+packaging included). Its link is in the `rebuild` job's summary.
+Reproducibility is verified, not guaranteed: it is best effort, as a bug
+of LLVM's compiler or linker breaks it now and then. What differs is a bug
+to list (an issue of the board's ci module, with both runs, reported
+upstream when it is LLVM's) and to tell ykiko with the draft; it never
+holds the release, which is the first run's. Every full rebuild has it; a repack's
 packaging is made twice in every run (stage-package.yml) and the command
 built twice (cli.yml, same-bytes).
 
@@ -266,7 +268,7 @@ release builds, nothing rebuilt.
 ## Artifacts
 
 A run's toolchain-*, runtimes-*, profile, dist-* and digests-* artifacts
-are kept 90 days (GitHub's limit): a repack of a release, the second
+are kept 30 days: a repack of a release, the second
 build's comparison and the release pull request's checks take them from
 the run. Past that, a full rebuild. Check one run's: `gh api
 "repos/clice-io/xclang/actions/runs/<run>/artifacts?per_page=100" -q
