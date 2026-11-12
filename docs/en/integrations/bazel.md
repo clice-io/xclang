@@ -22,7 +22,7 @@ The project is
 module(name = "hello")
 
 bazel_dep(name = "rules_cc", version = "0.2.25")
-bazel_dep(name = "xclang", version = "23.1.2.11")
+bazel_dep(name = "xclang", version = "23.1.5.1")
 ```
 
 The version is the oldest release the project takes: Bazel uses the newest
@@ -162,7 +162,8 @@ bazel build --platforms=@xclang//platforms:aarch64-apple-darwin //:hello
   (macOS) name a version, as `xclang sdk fetch` takes them
   ([the xclang command](../reference/xclang-command.md#versions)).
   `version = "latest"` takes the newest macOS SDK Apple lists when the
-  repository is fetched, which nothing pins.
+  repository is fetched, which nothing pins. `macos-latest` needs xclang
+  23.1.5.1 or later: Apple withdrew the package earlier releases pin for it.
 - **Fetched when first needed.** Each SDK is a repository, the Windows SDK
   one per architecture. Bazel downloads the vendor's packages into its
   repository cache, 310 MB for the MSVC x64 target, 380 MB for arm64 and
