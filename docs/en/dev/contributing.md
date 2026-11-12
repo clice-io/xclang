@@ -103,6 +103,8 @@ These are cheap locally:
   adjectives; reasons instead.
 - `main` changes through pull requests only, squashed, once checks.yml's
   `checks-passed` is green; the repository's ruleset refuses a direct push.
+  A release's pull request merges as a merge commit instead, which
+  publishes it ([releasing](releasing.md)).
   The pull request's title is the commit's subject.
 - Commit subjects are `<area>: <what changed>` (`bazel: ...`,
   `docs: ...`, `patches: ...`). The body says why.

@@ -1,6 +1,6 @@
 ---
 name: release
-description: Cut an xclang release <llvm version>.<revision> — full rebuild or repack, release.yml run on an exp branch, draft → publish, then published.yml publishes it everywhere. Use when asked to release, rebuild, repack or publish a new xclang revision.
+description: Cut an xclang release <llvm version>.<revision> — full rebuild or repack, CHANGELOG by a pull request to main, release.yml run on release/<version> at that commit, draft, then the release's pull request merged into main publishes it, and published.yml publishes it everywhere. Use when asked to release, rebuild, repack or publish a new xclang revision.
 ---
 
 # Cutting a release
@@ -8,9 +8,12 @@ description: Cut an xclang release <llvm version>.<revision> — full rebuild or
 A release is `<LLVM_VERSION>.<revision>` (toolchain/common.ts has
 `LLVM_VERSION`; the revision is release.yml's `revision` input). Nothing
 published is ever replaced: a rebuild gets the next revision. Builds run on
-CI only, on GitHub-hosted runners. main takes no direct push: changes,
-the release's CHANGELOG and module commits too, reach it by a squashed
-pull request once checks-passed is green. Ask the user before publishing.
+CI only, on GitHub-hosted runners. A release is built from a commit of
+main, and its tag lands in main's history: main is the develop branch, the
+tag the release. main takes no direct push: changes, the release's
+CHANGELOG too, reach it by a squashed pull request once checks-passed is
+green, and the release's own pull request, merged as a merge commit,
+publishes it. Ask the user before publishing.
 
 ## Full rebuild or repack
 
@@ -54,13 +57,14 @@ the release run tests them with the new archives.
    x64 and macOS arm64 toolchains build this one (usually the previous
    release). To move it: take the two archives' lines from that release's
    SHA256SUMS (`gh release download <ver> -R clice-io/xclang -p
-   SHA256SUMS`), edit URL and sha256, commit `bootstrap: <ver>`. Keep the
+   SHA256SUMS`), edit URL and sha256, commit `bootstrap: <ver>` (a pull
+   request to main, as every change the release needs). Keep the
    old one if the new one lacks something the build needs (xclang's own
    macOS builds link with ld64.lld since the bootstrap had patches/0007,
    23.1.2.5).
-2. **Branch and CHANGELOG.** The release's commits go to `exp/<version>`
-   (e.g. `exp/23.1.2.9`), not main, with one commit `changelog:
-   <version>`:
+2. **CHANGELOG, on main.** A pull request `changelog: <version>`,
+   squash-merged once checks-passed is green, when everything else the
+   release takes is on main:
    - CHANGELOG.md: Unreleased becomes `## [<version>](https://github.com/clice-io/xclang/releases/tag/<version>) — <date>`
      (the UTC date the run starts) with "Built by <bootstrap>." (a
      repack: "The compiler and runtimes are <previous>'s."), and a new
@@ -74,9 +78,20 @@ the release run tests them with the new archives.
    something newer, and the Bazel module's own version
    (packages/bazel/bazel/versions.bzl, MODULE.bazel) is the draft's work
    (step 4).
+
+   Its squashed commit on main, M, is what the release is built from.
+   Make the branch `release/<version>` there, which every run of the
+   release runs on, so that a run again with reuse-run stays on M however
+   main moves:
+   ```sh
+   git fetch origin main && git push origin <M>:refs/heads/release/<version>
+   ```
+   The release stage checks that the run's commit is in main's history,
+   and so is `latest`, the previous release's tag (its pull request,
+   step 6, merged it).
 3. **Full run, with a draft.**
    ```sh
-   gh workflow run release.yml -R clice-io/xclang --ref exp/<version> \
+   gh workflow run release.yml -R clice-io/xclang --ref release/<version> \
      -f stages=runtimes,instrumented,train,toolchain,asan,package,test,bazel,cmake,sdk,cli,release \
      -f revision=<n>
    ```
@@ -85,11 +100,16 @@ the release run tests them with the new archives.
    fetch the vendor SDKs. A failed stage is rerun without rebuilding the
    rest: `-f reuse-run=<run id>` plus only the stages still to do (and
    `-f profile-run=<run id>` when `release` runs without `train`). The
-   `release` stage refuses an existing version.
+   `release` stage refuses an existing version, and a branch other than
+   release/<version>. A full run made before on an exp branch, as an
+   LLVM upgrade's is, stands for the build when what differs from its
+   commit to M is all a repack's (below): the run on release/<version> is
+   then the repack's command with reuse-run and profile-run that run, and
+   no repack-of.
 
    **A repack** instead (no bootstrap step):
    ```sh
-   gh workflow run release.yml -R clice-io/xclang --ref exp/<version> \
+   gh workflow run release.yml -R clice-io/xclang --ref release/<version> \
      -f stages=package,test,bazel,cmake,sdk,cli,release \
      -f reuse-run=<full run> -f profile-run=<full run> \
      -f repack-of=<previous version> -f revision=<n>
@@ -112,8 +132,8 @@ the release run tests them with the new archives.
 
    **When LLVM or the bootstrap moved**, a second full build checks that
    the revision rebuilds to the same bytes (docs/en/dev/releasing.md,
-   Reproducible Rebuilds), started next to the first once its `train`
-   stage is done: `-f stages=runtimes,toolchain,asan,package,test -f
+   Reproducible Rebuilds), started next to the first, on release/<version>
+   too, once its `train` stage is done: `-f stages=runtimes,toolchain,asan,package,test -f
    profile-run=<full run> -f repack-of=<full run> -f revision=<n>`. The
    release is the first run's; what differs is a bug, and goes into the
    roadmap's list of the rebuilds checked (docs/en/design/roadmap.md,
@@ -127,48 +147,45 @@ the release run tests them with the new archives.
    -q '.artifacts[] | [.name, .expires_at] | @tsv'`). Past that, a repack
    cannot be made: a full rebuild it is.
 4. **Check the draft**: its commit (`gh release view <version> --json
-   targetCommitish`) is `bazel: the module of <version>` on exp/<version>,
-   which the release stage committed on the run's commit, with its times,
-   and pushed: packages/bazel names the release and its digests, so the
-   tag and main name it too (a git_override of either downloads its
-   archives; checks.yml's bazel-version job fails while main names an
-   older one); a branch that moved during the run stops the stage. The
-   commit merges the `latest` branch (its second parent), keeping its own
-   tree, so that the tag descends from the previous release's and
-   published.yml can fast-forward `latest` to it: main squashes the
-   release branches, and a forced `latest` breaks FetchContent's rebase of
-   every `GIT_TAG latest` checkout. 17 assets (six toolchains, six libclang, two ASan
-   libclang, option tables, profdata, SHA256SUMS), and every job of the
-   run green: test (smoke and libclang on every host, the programs they
-   build for other targets run there, repack's comparison), bazel, cmake,
-   sdk (both MSVC targets from Linux, macOS and Windows hosts, both macOS
-   targets from the Linux and Windows hosts, the programs run on Windows
-   x64 and arm64 and on both Macs), cli (same-bytes among them: the
-   command built twice gave the same bytes). Every toolchain archive has
-   `bin/xclang` (`bin/xclang.exe`), and `xclang --version` names the
-   release. Sizes vs the previous release (`gh release view <prev> --json
-   assets`). A draft that is deleted leaves its module's commit on the
-   branch, naming a release that does not exist (the bazel stage of a run
-   from there downloads its option tables): reset the branch to its first
-   parent (`git push -f origin <commit>^1:exp/<version>`) before running
-   again.
+   targetCommitish`) is `bazel: the module of <version>` on
+   release/<version>, which the release stage committed on M, with M's
+   times, and pushed: its one parent is M, and it changes
+   packages/bazel/bazel/versions.bzl and MODULE.bazel alone, to the
+   release and its digests, so that the tag names it (a git_override of
+   it downloads its archives); a branch that moved during the run stops
+   the stage. main is not touched until step 6. 17 assets (six
+   toolchains, six libclang, two ASan libclang, option tables, profdata,
+   SHA256SUMS), and every job of the run green: test (smoke and libclang
+   on every host, the programs they build for other targets run there,
+   repack's comparison), bazel, cmake, sdk (both MSVC targets from Linux,
+   macOS and Windows hosts, both macOS targets from the Linux and Windows
+   hosts, the programs run on Windows x64 and arm64 and on both Macs), cli
+   (same-bytes among them: the command built twice gave the same bytes).
+   Every toolchain archive has `bin/xclang` (`bin/xclang.exe`), and
+   `xclang --version` names the release. Sizes vs the previous release
+   (`gh release view <prev> --json assets`). A draft that is deleted
+   leaves its module's commit on release/<version>, naming a release that
+   does not exist, and not on main: reset the branch to M (`git push -f
+   origin <commit>^:release/<version>`) before running again.
 5. **Notes.** Write them as the earlier releases' are (`gh release view
    23.1.2.4 -R clice-io/xclang`): what it was built by, then what changed
    for users; take the items from the release's section of CHANGELOG.md.
    A repack's begin: "A repack of <previous>: the compiler and runtimes
    are <previous>'s, the same bytes, from its build run <link to the full
    run>", then what of the packaging differs (the repack jobs' summaries).
-6. **Publish** (ask first; it creates the tag at the draft's commit, the
-   module's of step 4). Every release's title is its version alone:
+6. **Publish** (ask first). The draft's title is its version alone, and
+   the notes go on it while it is a draft:
    ```sh
-   gh release edit <version> -R clice-io/xclang --title <version> \
-     --notes-file notes.md --draft=false --latest
+   gh release edit <version> -R clice-io/xclang --title <version> --notes-file notes.md
+   gh pr create -R clice-io/xclang --base main --head release/<version> \
+     --title "release: <version>" --body "The draft's commit, the module of <version>."
    ```
-   Then open a pull request from `exp/<version>` to main (title
-   `changelog: <version>`) and squash-merge it once checks-passed is
-   green: main takes the release's CHANGELOG and module with it.
-   Publishing starts published.yml, which does the rest; watch it:
-   test-bazel.yml with the release's archives, then the tag's module
+   The pull request's diff is the module's two files. Once checks-passed
+   is green, it merges as a **merge commit** (`gh pr merge <n> --merge`;
+   never squashed, which publishes nothing): the push brings the draft's
+   commit into main's history, and published.yml publishes the draft,
+   which creates the tag at that commit, and then does the rest; watch
+   it: test-bazel.yml with the release's archives, then the tag's module
    (`xclang-bazel-<version>.tar.gz`) to bazel.clice.io through
    clice-io/bazel; test-cmake.yml with the tag fetched as a user's
    FetchContent does; conda.yml, build 0, published to conda.clice.io;
@@ -177,7 +194,9 @@ the release run tests them with the new archives.
    conda.clice.io serves it. A job that failed is rerun from the run's
    page; published.yml by hand (`-f tag=<version> -f publish=true`) runs
    all of it again, publishing only to the channels that do not have the
-   version yet.
+   version yet. A pull request that conflicts (main changed
+   packages/bazel since M) waits for a pull request that brings main's
+   files to the draft's.
 7. **bench.yml** (optional, for the notes or docs/en/design/pgo.md):
    `gh workflow run bench.yml -R clice-io/xclang --ref main -f
    pgo-run=<the release's release.yml run> -f shards='[1, 2, 3, 4, 5]'`,

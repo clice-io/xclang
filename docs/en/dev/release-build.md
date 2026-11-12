@@ -32,7 +32,10 @@ steps for cutting one are in [releasing](releasing.md).
    them ([testing](testing.md)). Each toolchain also gets the runtimes'
    sources, patched, in `libc++/src`.
 6. **Release.** A draft release with every archive, the profile and
-   `SHA256SUMS`. Publishing it, by hand, creates the tag.
+   `SHA256SUMS`, at a commit of its own: the run's, a commit of `main` on
+   the branch `release/<version>`, with the Bazel module at the release.
+   The branch's pull request, merged into `main` as a merge commit,
+   publishes it, which creates the tag.
 
 Linux and Windows hosts are built on Linux x64, the macOS ones on macOS
 arm64. Every host but those two is cross-compiled, with table generators
@@ -119,9 +122,9 @@ With the `cli` input, on by default, the `package` stage also builds the
 [xclang command](../reference/xclang-command.md) (cli.yml) and puts it into
 every toolchain archive. 23.1.2.7 was the first release built with it.
 
-A draft creates no tag; publishing it does, and starts published.yml,
-which tests the release as its users get it and publishes it everywhere
-else:
+A draft creates no tag. published.yml publishes it when its commit comes
+into `main`'s history, by the release's pull request, then tests the
+release as its users get it and publishes it everywhere else:
 
 - test-bazel.yml with the release's archives, then the module of the tag
   to [bazel.clice.io](https://bazel.clice.io);
