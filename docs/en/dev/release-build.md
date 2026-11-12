@@ -209,9 +209,11 @@ cd xclang && cargo run --release --features maintainer -- sdk update-table --tab
 ```
 
 It is part of the program rather than a script, because it shares the
-readers of the program: it reads the SDK version out of each new Apple
-package, through xar, pbzx and cpio. It also shares the downloads, and the
-types of the table, which read and write the file alike.
+readers of the program: it reads the SDK version and the content digest
+out of each new Apple package, through xar, pbzx and cpio, as fetch does
+for a package Apple put in place of one it withdrew. It also shares the
+downloads, Apple's catalogs, and the types of the table, which read and
+write the file alike.
 
 ## Before Target Archives Ship
 

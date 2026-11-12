@@ -135,7 +135,7 @@ The options are those of `xclang sdk fetch`
 | tag | |
 |---|---|
 | `xclang.windows_sdk(accept_license, preset, msvc_version, sdk_version)` | Microsoft's CRT, STL and Windows SDK, for the MSVC targets; `accept_license = True` accepts the Visual Studio Build Tools and Windows SDK licenses |
-| `xclang.macos_sdk(accept_license, preset, version)` | Apple's macOS SDK, for the macOS targets off macOS hosts; `accept_license = True` accepts the Xcode and Apple SDKs Agreement |
+| `xclang.macos_sdk(accept_license, preset, version)` | Apple's macOS SDK, for the macOS targets off macOS hosts; `accept_license = True` accepts the Xcode and Apple SDKs Agreement. `version = "latest"` takes the newest SDK Apple's catalogs list when the repository is fetched, which is not reproducible |
 
 ## Repositories
 

@@ -7,7 +7,10 @@
 //! them, and its CDN no longer serves them). Only the presets, which follow
 //! the images, are made anew. The sha256s Visual Studio's manifests list
 //! are taken from them; the others are computed by downloading the
-//! packages (nuget.org gives SHA-512 only), some 15 GB the first time.
+//! packages (nuget.org gives SHA-512 only), some 15 GB the first time, and
+//! with them the content digest of the SDK each Apple package carries
+//! (macos::examine), by which fetch finds it again when Apple withdraws
+//! the package.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::File;
@@ -22,7 +25,7 @@ use ureq::ResponseExt;
 use crate::table::{
     Listed, MacPackage, Manifest, Msvc, Package, Preset, Table, VecMap, Vsman, WinSdk, version_cmp,
 };
-use crate::{Context, Result, bail, http, xml};
+use crate::{Context, Result, bail, catalog, http};
 
 /// Visual Studio's stable channels, newest first: a toolset several of them
 /// carry (each signs its own copy) comes from the newest.
@@ -41,23 +44,6 @@ const NUGET_PACKAGES: [(&str, &str); 4] = [
     ("x86_64", "microsoft.windows.sdk.cpp.x64"),
     ("aarch64", "microsoft.windows.sdk.cpp.arm64"),
     ("x86", "microsoft.windows.sdk.cpp.x86"),
-];
-
-/// Apple's software update catalogs, one per macOS release: each lists the
-/// Command Line Tools for that release and those before it.
-const CATALOG_TAIL: &str = "10.16-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz";
-const CATALOG_HEADS: [&str; 7] = [
-    "27-26-15-14-13-12-",
-    "26-15-14-13-12-",
-    "15-14-13-12-",
-    "14-13-12-",
-    "13-12-",
-    "12-",
-    "",
-];
-const OLD_CATALOGS: [&str; 2] = [
-    "https://swscan.apple.com/content/catalogs/others/index-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz",
-    "https://swscan.apple.com/content/catalogs/others/index-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog.gz",
 ];
 
 const RUNNER_IMAGES: &str = "https://raw.githubusercontent.com/actions/runner-images/main";
@@ -371,92 +357,35 @@ fn update_winsdk(table: &mut Table, jobs: usize) -> Result<()> {
 }
 
 fn update_macos(table: &mut Table, jobs: usize) -> Result<()> {
-    // An SDK package, not the empty ones that remove an old SDK.
-    let sdk_package = re(r"/CLTools_[^/]*SDK[^/]*\.pkg$");
     let known: HashSet<String> = table.macos.packages.iter().map(|p| p.url.clone()).collect();
-    // url -> (posted, product), in the order the catalogs list them; and
-    // every SDK package they list, None when a catalog could not be read.
-    let mut found: Vec<(String, (String, String))> = vec![];
-    let mut listed = Some(HashSet::new());
-    let catalogs = CATALOG_HEADS
-        .iter()
-        .map(|h| {
-            format!("https://swscan.apple.com/content/catalogs/others/index-{h}{CATALOG_TAIL}")
-        })
-        .chain(OLD_CATALOGS.iter().map(|s| s.to_string()));
-    for url in catalogs {
-        let data = match fetch(&url) {
-            Ok((data, _)) => data,
-            Err(e) => {
-                eprintln!("{e}");
-                listed = None;
-                continue;
-            }
-        };
-        let mut text = String::new();
-        flate2::read::GzDecoder::new(&data[..])
-            .read_to_string(&mut text)
-            .context(&url)?;
-        let catalog = plist(&xml::parse(&text)?)?;
-        let Some(Plist::Dict(products)) = catalog.get("Products") else {
-            bail!("{url}: no Products")
-        };
-        for (pid, product) in products {
-            let Some(Plist::Array(packages)) = product.get("Packages") else {
-                continue;
-            };
-            let posted = match product.get("PostDate") {
-                Some(Plist::Date(d)) => d.clone(),
-                _ => String::new(),
-            };
-            for p in packages {
-                let (Some(Plist::String(u)), Some(Plist::Integer(size))) =
-                    (p.get("URL"), p.get("Size"))
-                else {
-                    continue;
-                };
-                let u = match u.strip_prefix("http:") {
-                    Some(rest) => format!("https:{rest}"),
-                    None => u.clone(),
-                };
-                if !sdk_package.is_match(&u) || *size <= 1 << 20 {
-                    continue;
-                }
-                if let Some(listed) = &mut listed {
-                    listed.insert(u.clone());
-                }
-                if !known.contains(&u) && !found.iter().any(|f| f.0 == u) {
-                    found.push((u, (posted.clone(), pid.clone())));
-                }
-            }
-        }
-    }
+    let (listed, all) = catalog::list()?;
+    let found: Vec<&catalog::Listed> = listed.iter().filter(|l| !known.contains(&l.url)).collect();
+    // Each downloaded whole: its sha256, its SDK's version and content.
     let tmp = std::env::temp_dir().join(format!("xclang-update-{}", std::process::id()));
     std::fs::create_dir_all(&tmp)?;
-    let examined = crate::parallel(&found, jobs, |(url, _)| {
-        let pkg = tmp.join(format!("{}.pkg", sha256(url.as_bytes())));
-        let (size, sha) = hash_url(url, Some(&pkg))?;
-        let version = crate::macos::sdk_version(&pkg);
+    let examined = crate::parallel(&found, jobs, |l| {
+        let pkg = tmp.join(format!("{}.pkg", sha256(l.url.as_bytes())));
+        let (size, sha) = hash_url(&l.url, Some(&pkg))?;
+        let examined = crate::macos::examine(&pkg).context(&l.url);
         let _ = std::fs::remove_file(&pkg);
-        Ok((size, sha, version?))
+        Ok((size, sha, examined?))
     });
     let _ = std::fs::remove_dir_all(&tmp);
     let examined = examined?;
-    let mut order: Vec<usize> = (0..found.len()).collect();
-    // Newest first (stable: as the catalogs list them on a tie).
-    order.sort_by(|&a, &b| found[b].1.cmp(&found[a].1));
-    let new = order.into_iter().map(|i| {
-        let (url, (posted, pid)) = &found[i];
-        let (size, sha, version) = &examined[i];
-        MacPackage {
-            sdk: version.clone(),
-            product: pid.clone(),
-            posted: posted.chars().take(10).collect(),
-            url: url.clone(),
-            size: *size,
-            sha256: sha.clone(),
-        }
-    });
+    let new = found
+        .iter()
+        .zip(examined)
+        .map(|(l, (size, sha, e))| MacPackage {
+            sdk: e.version,
+            product: l.product.clone(),
+            posted: l.posted.chars().take(10).collect(),
+            url: l.url.clone(),
+            size,
+            sha256: sha,
+            content: e.content,
+        });
+    let listed: Option<HashSet<String>> =
+        all.then(|| listed.iter().map(|l| l.url.clone()).collect());
     if listed.is_none() {
         eprintln!("a catalog was not read: no package leaves the table");
     }
@@ -663,82 +592,9 @@ fn today() -> String {
     format!("{year:04}-{month:02}-{day:02}")
 }
 
-/// A property list value.
-#[derive(Debug, Clone)]
-pub enum Plist {
-    String(String),
-    Integer(i64),
-    Date(String),
-    /// real, true, false, data: nothing here reads them.
-    Other,
-    Array(Vec<Plist>),
-    Dict(Vec<(String, Plist)>),
-}
-
-impl Plist {
-    pub fn get(&self, key: &str) -> Option<&Plist> {
-        match self {
-            Plist::Dict(entries) => entries.iter().find(|(k, _)| k == key).map(|(_, v)| v),
-            _ => None,
-        }
-    }
-}
-
-/// The value of a <plist> document's element, or of a value element.
-pub fn plist(e: &xml::Element) -> Result<Plist> {
-    Ok(match e.name.as_str() {
-        "plist" => match e.elements().next() {
-            Some(v) => plist(v)?,
-            None => bail!("an empty plist"),
-        },
-        "string" => Plist::String(e.text()),
-        "integer" => Plist::Integer(e.text().trim().parse().context("plist integer")?),
-        "date" => Plist::Date(e.text()),
-        "real" | "true" | "false" | "data" => Plist::Other,
-        "array" => Plist::Array(e.elements().map(plist).collect::<Result<_>>()?),
-        "dict" => {
-            let mut entries = vec![];
-            let mut it = e.elements();
-            while let Some(k) = it.next() {
-                if k.name != "key" {
-                    bail!("plist dict: <{}> where a <key> belongs", k.name);
-                }
-                let Some(v) = it.next() else {
-                    bail!("plist dict: no value for {}", k.text())
-                };
-                entries.push((k.text(), plist(v)?));
-            }
-            Plist::Dict(entries)
-        }
-        other => bail!("unknown plist element <{other}>"),
-    })
-}
-
-/// A string of a property list's top-level dictionary.
-pub fn plist_string(text: &str, key: &str) -> Result<Option<String>> {
-    Ok(match plist(&xml::parse(text)?)?.get(key) {
-        Some(Plist::String(s)) => Some(s.clone()),
-        _ => None,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn plists() {
-        let text = "<?xml version=\"1.0\"?><plist version=\"1.0\"><dict><key>Version</key><string>10.14</string>\
-                    <key>N</key><integer>3</integer><key>A</key><array><true/><date>2026-09-09T17:41:12Z</date></array>\
-                    </dict></plist>";
-        assert_eq!(
-            plist_string(text, "Version").unwrap().as_deref(),
-            Some("10.14")
-        );
-        let p = plist(&xml::parse(text).unwrap()).unwrap();
-        assert!(matches!(p.get("N"), Some(Plist::Integer(3))));
-        assert!(matches!(p.get("A"), Some(Plist::Array(a)) if a.len() == 2));
-    }
 
     #[test]
     fn dates() {
@@ -754,6 +610,7 @@ mod tests {
             url: url.into(),
             size: 1,
             sha256: sha.into(),
+            content: sha.into(),
         };
         let table = vec![
             p("27.0", "082-83364", "2026-09-09", "a/NMOS", "1"),

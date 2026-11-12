@@ -12,7 +12,8 @@ name: test-bazel
 # vendors' licenses for the build (cross.ts --accept-license): the MSVC
 # targets from Linux x64, macOS arm64 and Windows x64, the macOS targets
 # from Linux and Windows, with the release's toolchain and this checkout's
-# xclang command (cli.yml), which fetches the SDKs. Only programs leave
+# xclang command (cli.yml), which fetches the SDKs; for x86_64 macOS with
+# the package the table pins gone for Bazel's downloader. Only programs leave
 # their jobs, never anything of an SDK, and no cache is uploaded.
 #
 #   release.yml     with a run's archives (dist-run) before they are
@@ -316,10 +317,20 @@ jobs:
         run: |
           cp built/cli-${{ matrix.host }}/xclang* "$XCLANG_TREE/bin/"
           chmod +x "$XCLANG_TREE"/bin/xclang*
+      # For the x86_64 macOS target, Bazel's downloader finds the package
+      # the version table pins gone, a 404 as for one Apple withdrew: the
+      # extension has the xclang command fetch the SDK itself.
       - name: Build
+        env:
+          WITHDRAWN: ${{ matrix.target == 'x86_64-apple-darwin' }}
         run: |
+          more=()
+          if [[ "$WITHDRAWN" == true ]]; then
+            echo 'rewrite swcdn.apple.com/(.*) swcdn.apple.com/xclang-test-withdrawn/$1' > "$RUNNER_TEMP/downloader.cfg"
+            more=("--downloader_config=$RUNNER_TEMP/downloader.cfg")
+          fi
           node tests/bazel/cross.ts build "${{ matrix.target }}" "$RUNNER_TEMP/out/${{ matrix.host }}/sdk" --accept-license \
-            -- "--repo_env=XCLANG_ROOT=$XCLANG_TREE"
+            -- "--repo_env=XCLANG_ROOT=$XCLANG_TREE" "${more[@]}"
       - uses: actions/upload-artifact@v7
         with:
           name: programs-bazel-${{ matrix.host }}-to-${{ matrix.target }}

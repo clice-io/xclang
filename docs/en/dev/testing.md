@@ -299,7 +299,10 @@ the same for the targets of the vendor SDKs, the module accepting their
 licenses for the build: the MSVC targets from Linux x64, macOS arm64 and
 Windows x64, the macOS targets from Linux and Windows, with the latest
 release's toolchain and this checkout's `xclang` command, which fetches
-the SDKs; in a release's run, with its archives and their command. A `-c dbg` program's PDB names its sources relative to the
+the SDKs; in a release's run, with its archives and their command. For
+x86_64 macOS, Bazel's downloader finds the package the table pins gone
+(`--downloader_config` rewrites it to a 404), and the module has the
+command fetch the SDK itself. A `-c dbg` program's PDB names its sources relative to the
 execution root, and no path of the output base (checked where it was
 built: Microsoft's PDBs take part in it); a macOS one's dSYM, made in the
 link on Linux and Windows too, gives its UUIDs and main's line on the Mac.
@@ -344,6 +347,11 @@ host, in the latest release's toolchain (or a run's archives, with the
 command they carry), `tests/cli/cli.ts` then:
 
 - fetches both vendor SDKs;
+- with a table whose macOS SDK 26.5 has only a package Apple does not
+  serve (a 404), finds that SDK in a package Apple's catalogs list, by its
+  content; refuses it with another content pinned, and a version no
+  package carries (27.0), naming the versions they carry; fetches
+  `--version latest`;
 - cross-compiles C, C++ and Objective-C programs against them, for both
   macOS architectures and for x64 and arm64 Windows (MSVC ABI), and runs
   them on macOS and Windows runners;

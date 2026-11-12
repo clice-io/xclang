@@ -58,24 +58,42 @@ pub struct Body {
 }
 
 pub fn open(url: &str) -> Result<Body> {
+    match request(url)? {
+        Ok(body) => Ok(body),
+        Err(status) => bail!("{url}: http status: {status}"),
+    }
+}
+
+/// What url serves, or the HTTP status a server answers with for it.
+pub fn request(url: &str) -> Result<Result<Body, u16>> {
     if let Some(path) = local_path(url) {
         let file = File::open(&path).context(path.display())?;
         let length = file.metadata()?.len();
-        return Ok(Body {
+        return Ok(Ok(Body {
             reader: Box::new(file),
             length: Some(length),
-        });
+        }));
     }
-    let response = agent().get(url).call().context(url)?;
+    let response = match agent().get(url).call() {
+        Err(ureq::Error::StatusCode(status)) => return Ok(Err(status)),
+        r => r.context(url)?,
+    };
     let length = response
         .headers()
         .get("content-length")
         .and_then(|v| v.to_str().ok()?.parse().ok());
     // The reader fails when the connection ends before Content-Length.
-    Ok(Body {
+    Ok(Ok(Body {
         reader: Box::new(response.into_body().into_reader()),
         length,
-    })
+    }))
+}
+
+/// Whether a server's answer says that what it served is gone, not that a
+/// try failed: Apple's CDN answers 403 for a package Apple withdrew, 404
+/// for a path it never had.
+pub fn gone(status: u16) -> bool {
+    matches!(status, 403 | 404 | 410)
 }
 
 /// A whole (small) document.
@@ -108,20 +126,49 @@ pub fn hex(bytes: &[u8]) -> String {
 /// The file at dest if it has the pinned sha256, else downloaded anew. A
 /// download now and then comes short or damaged: three tries.
 pub fn fetch_pinned(url: &str, sha256: &str, size: Option<u64>, dest: &Path) -> Result<()> {
-    if dest.is_file() && sha256_file(dest)? == sha256 {
+    match fetch(url, Some(sha256), size, dest)? {
+        Fetched::File(_) => Ok(()),
+        Fetched::Gone(status) => bail!("{url}: http status: {status}"),
+    }
+}
+
+pub enum Fetched {
+    /// Downloaded, or there already: its sha256.
+    File(String),
+    /// What the server answered, which says the download is gone (gone()).
+    Gone(u16),
+}
+
+/// url at dest, checked against the sha256 if there is one: the file at
+/// dest if it has it, else downloaded anew, with three tries; or the
+/// status of a server's answer that says it is gone, which no try changes.
+pub fn fetch(url: &str, sha256: Option<&str>, size: Option<u64>, dest: &Path) -> Result<Fetched> {
+    if let Some(sha256) = sha256
+        && dest.is_file()
+        && sha256_file(dest)? == sha256
+    {
         eprintln!("{}: already downloaded", dest.display());
-        return Ok(());
+        return Ok(Fetched::File(sha256.to_string()));
     }
     if let Some(dir) = dest.parent() {
         fs::create_dir_all(dir).context(dir.display())?;
     }
     let mut failure = String::new();
     for attempt in 1..=3 {
-        match download(url, dest, size) {
-            Ok((got, _)) if got == sha256 => return Ok(()),
+        let got = match request(url) {
+            Ok(Ok(body)) => save(url, body, dest, size),
+            Ok(Err(status)) if gone(status) => return Ok(Fetched::Gone(status)),
+            Ok(Err(status)) => Err(crate::Error(format!("{url}: http status: {status}"))),
+            Err(e) => Err(e),
+        };
+        match got {
+            Ok((got, _)) if sha256.is_none_or(|s| s == got) => return Ok(Fetched::File(got)),
             Ok((got, _)) => {
                 let _ = fs::remove_file(dest);
-                failure = format!("{url}: sha256 {got}, expected {sha256}");
+                failure = format!(
+                    "{url}: sha256 {got}, expected {}",
+                    sha256.unwrap_or_default()
+                );
             }
             Err(e) => failure = e.0,
         }
@@ -133,14 +180,13 @@ pub fn fetch_pinned(url: &str, sha256: &str, size: Option<u64>, dest: &Path) -> 
     bail!("{failure}")
 }
 
-/// Stream url to dest; its sha256 and size. Short of the expected size, it
-/// fails.
-pub fn download(url: &str, dest: &Path, size: Option<u64>) -> Result<(String, u64)> {
+/// Stream the body of url to dest; its sha256 and size. Short of the
+/// expected size, it fails.
+fn save(url: &str, mut body: Body, dest: &Path, size: Option<u64>) -> Result<(String, u64)> {
     let name = url.rsplit('/').next().unwrap_or(url);
     let mut part = dest.as_os_str().to_owned();
     part.push(".part");
     let part = PathBuf::from(part);
-    let mut body = open(url)?;
     let total = size.or(body.length);
     let mut out = File::create(&part).context(part.display())?;
     let mut ctx = ring::digest::Context::new(&ring::digest::SHA256);

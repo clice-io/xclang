@@ -12,8 +12,11 @@ toolchain's xclang command lists the packages its version table pins
 (xclang sdk packages), Bazel downloads them by sha256 into its repository
 cache, and the command unpacks them from there (xclang sdk fetch --cache),
 with links for the spellings Windows code uses on a case-sensitive file
-system. The SDK stays in the output base, an input of the actions and none
-of their outputs."""
+system. A macOS SDK package Bazel cannot download, which Apple withdrew
+(its CDN answers 403), the command looks for in Apple's catalogs itself,
+by the SDK's content, as it downloads what nothing pins (version =
+"latest"). The SDK stays in the output base, an input of the actions and
+none of their outputs."""
 
 load(":hosts.bzl", "TARGETS", "VENDORS", "host_triple")
 
@@ -92,12 +95,19 @@ def _vendor_sdk_impl(rctx):
     for p in listed["packages"]:
         size += p["size"]
     rctx.report_progress("Downloading the %s SDK, %d MB" % (vendor, size // 1000000))
+
+    # The packages the table pins, by sha256: from the repository cache, a
+    # --distdir or the vendor. A macOS SDK's package Apple no longer serves
+    # fails here, and the command finds the SDK in another package Apple's
+    # catalogs list, checked by its content; one nothing pins (version =
+    # "latest") it downloads itself.
     pending = [
-        rctx.download(url = p["url"], output = "downloads/" + p["file"], sha256 = p["sha256"], block = False)
+        rctx.download(url = p["url"], output = "downloads/" + p["file"], sha256 = p["sha256"], block = False, allow_fail = vendor == "macos")
         for p in listed["packages"]
+        if p["sha256"]
     ]
-    for download in pending:
-        download.wait()
+    if not all([download.wait().success for download in pending]):
+        rctx.report_progress("Looking for the %s SDK in Apple's catalogs" % vendor)
 
     # Into sdk/<name>. (sdk/<vendor>, the SDK in use, is a link to it; on
     # Windows a junction, absolute: the SDK stays where the command unpacks
@@ -111,12 +121,16 @@ def _vendor_sdk_impl(rctx):
         fail("xclang sdk fetch %s failed: %s" % (vendor, res.stderr))
     rctx.delete("downloads")
 
+    # The SDK's directory, which fetch prints: for version = "latest", the
+    # version Apple's catalogs list now.
+    name = res.stdout.strip().splitlines()[-1].replace("\\", "/").split("/")[-1]
+
     # The toolchains' config files include sdk.cfg (bazel/repositories.bzl),
     # which names the SDK by its path from the execution root: for an MSVC
     # target, the config file the command writes into the SDK, with the
     # toolset and SDK versions, which clang does not look for in a link,
     # where the headers are not.
-    sdk = "sdk/" + listed["name"]
+    sdk = "sdk/" + name
     path = "external/%s/%s" % (rctx.name, sdk)
     if vendor == "macos":
         _unlink_cycles(rctx, rctx.path(sdk))
@@ -218,7 +232,7 @@ xclang_vendor_sdk = repository_rule(
         "enabled": attr.bool(doc = "Whether the root module has the vendor's tag; a build that needs the SDK fails without."),
         "accept_license": attr.bool(),
         "preset": attr.string(),
-        "version": attr.string(doc = "macOS: the SDK's version."),
+        "version": attr.string(doc = "macOS: the SDK's version, or latest."),
         "msvc_version": attr.string(),
         "sdk_version": attr.string(doc = "Windows: the Windows SDK's version."),
         "arch": attr.string(doc = "Windows: the architecture, x86_64 or aarch64."),
@@ -241,7 +255,7 @@ windows_sdk = tag_class(
 
 macos_sdk = tag_class(
     attrs = _COMMON | {
-        "version": attr.string(doc = "The SDK's version, whole or in part (15, 26.5), in place of the preset's."),
+        "version": attr.string(doc = "The SDK's version, whole or in part (15, 26.5), in place of the preset's; `latest`, the newest Apple's catalogs list when the repository is fetched, which nothing pins."),
     },
     doc = "Apple's macOS SDK, which the macOS targets build against off macOS hosts: from Apple, under the Xcode and Apple SDKs Agreement.",
 )

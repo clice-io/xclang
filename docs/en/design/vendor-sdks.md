@@ -41,19 +41,11 @@ that means:
   from Linux or Windows with it is the user's decision under those terms;
   xclang does not make it for them.
 - Versions are pinned. `xclang/sdk-versions.json`, built into the program,
-  lists every version the vendors offer, with sizes and sha256. Its
-  presets match GitHub's runner images (`macos-latest`, `windows-2022`,
-  ...), so a cross build gets what a workflow on that image gets.
-- **Apple's downloads are no archive**, a known limit. Its software update
-  catalogs offer the Command Line Tools current for each macOS, and Apple
-  withdraws a release now and then, a new one in its place. Its CDN then
-  answers 403 for the withdrawn packages, once the edge a machine reaches
-  no longer keeps a copy, and the table drops them on its next update. So
-  an xclang release fetches a macOS SDK only as long as Apple serves its
-  package. The sha256 ensures a fetch gets that package or none; to build
-  with it again later, keep the package: in Bazel's repository cache or a
-  `--distdir`, or in the `--cache` directory of `xclang sdk fetch`
-  ([CI](../integrations/ci.md#get-the-toolchain)).
+  lists every version the vendors offer, with sizes and sha256, and for
+  Apple's packages the content of the SDK each carries
+  ([below](#apple-s-packages-come-and-go)). Its presets match GitHub's
+  runner images (`macos-latest`, `windows-2022`, ...), so a cross build
+  gets what a workflow on that image gets.
 
 ## Apple's SDK without Xcode
 
@@ -70,6 +62,56 @@ SDK in use, `sdk/macos`; on macOS hosts, Xcode's
 Tools hold the SDK and its compilers, not Xcode's other tools: app
 bundles' asset catalogs and nibs, which need `actool` and `ibtool`, do not
 build off macOS.
+
+## Apple's Packages Come and Go
+
+Apple's software update catalogs offer the Command Line Tools current for
+each macOS. Now and then Apple withdraws a release and posts another in
+its place, and its CDN then answers 403 for the withdrawn packages. The
+new ones carry the same SDK, packaged and signed anew: their bytes differ,
+but not the SDK. When product 142-50405 took the place of 082-83364, the
+18516 files of its SDK 26.5 were the same.
+
+So the table pins each of Apple's packages twice: by its sha256, and by
+the content digest of the SDK it carries. `xclang sdk fetch` downloads the
+package the table pins for a version. When Apple answers 403 or 404 for
+it, the command reads Apple's catalogs, and takes a package they list now
+that carries the same SDK version, which the start of its payload tells,
+once its SDK has the content the table pins. Bazel downloads the pinned
+package into its repository cache, and when that fails, the command looks
+for the SDK the same way
+([the Bazel module](../integrations/bazel.md#vendor-sdks)).
+
+- **A version Apple carries no more fails.** When 27.2 took the place of
+  27.0, no package carried 27.0 any longer. Fetching it fails, naming the
+  versions the catalogs carry now.
+- **One version is not one SDK.** The 26.5 of the earlier Command Line
+  Tools releases differs from the one the table pins in 9 files. A
+  package of the version with other content is refused.
+- **`--version latest` is not reproducible.** It takes the newest SDK the
+  catalogs list when it runs, which may be newer than the table, and then
+  nothing pins it.
+- **xclang keeps no copy.** It mirrors, caches or uploads nothing of
+  Apple's. A package you keep yourself, in Bazel's repository cache or a
+  `--distdir`, or in the `--cache` directory of `xclang sdk fetch`
+  ([CI](../integrations/ci.md#get-the-toolchain)), still builds when Apple
+  carries its version no more.
+
+The content digest is the sha256 of the SDK's manifest. The manifest has a
+line for each file and symbolic link in the SDK directory of the package's
+payload (`Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk/`), the
+man pages and tools that xclang leaves out included, sorted by path, byte
+by byte:
+
+```text
+file <sha256 of its bytes> <path>
+link <sha256 of its target> <path>
+```
+
+Each line ends with a newline. The path is below the SDK directory, with
+`/` between its parts. Directories, modes and times do not count, nor how
+xclang makes the links on Windows; a hard link is a file with its data.
+`pkgutil --expand-full` on a Mac unpacks the same tree.
 
 **The iOS family is a hard limit.** The SDKs for iOS, tvOS, watchOS,
 visionOS and their simulators come only with full Xcode, downloaded with

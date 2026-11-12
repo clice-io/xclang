@@ -1,6 +1,7 @@
 //! The version table (sdk-versions.json, built in): every SDK version the
-//! vendors offer, where each package is, its size and sha256, and the
-//! presets of GitHub's runner images. `xclang sdk update-table` (the
+//! vendors offer, where each package is, its size and sha256 (and for
+//! Apple's, the content digest of its SDK), and the presets of GitHub's
+//! runner images. `xclang sdk update-table` (the
 //! maintainer feature) appends to it; the same types read and write it.
 
 use std::cmp::Ordering;
@@ -187,7 +188,9 @@ pub struct Macos {
     pub packages: Vec<MacPackage>,
 }
 
-/// A Command Line Tools package carrying a macOS SDK.
+/// A Command Line Tools package carrying a macOS SDK: the package by its
+/// sha256, and the SDK by its content digest (macos::examine), which a
+/// package Apple puts in its place when it withdraws it has too.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct MacPackage {
     pub sdk: String,
@@ -196,6 +199,7 @@ pub struct MacPackage {
     pub url: String,
     pub size: u64,
     pub sha256: String,
+    pub content: String,
 }
 
 /// What one of GitHub's runner images builds with.

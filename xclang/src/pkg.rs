@@ -17,58 +17,92 @@ pub struct Xar {
     toc: xml::Element,
 }
 
+/// A xar archive's header and table of contents, read from r: the table,
+/// and the size of both, where the heap starts.
+fn read_toc(r: &mut impl Read, what: &dyn std::fmt::Display) -> Result<(xml::Element, u64)> {
+    let mut header = [0u8; 28];
+    r.read_exact(&mut header).context(what)?;
+    if &header[..4] != b"xar!" {
+        bail!("{what}: not a xar archive (.pkg)");
+    }
+    let size = u16::from_be_bytes([header[4], header[5]]) as u64;
+    let toc_len = u64::from_be_bytes(header[8..16].try_into().unwrap());
+    io::copy(&mut r.take(size.saturating_sub(28)), &mut io::sink()).context(what)?;
+    let mut toc = String::new();
+    ZlibDecoder::new(r.take(toc_len))
+        .read_to_string(&mut toc)
+        .context(format!("{what}: table of contents"))?;
+    Ok((xml::parse(&toc)?, size + toc_len))
+}
+
+/// Where the member's data is in the heap: its offset, length and
+/// encoding.
+fn locate<'t>(toc: &'t xml::Element, name: &str) -> Result<(u64, u64, &'t str)> {
+    let mut files = vec![];
+    toc.descendants("file", &mut files);
+    let Some(data) = files
+        .iter()
+        .find(|f| f.child("name").is_some_and(|n| n.text() == name))
+        .and_then(|f| f.child("data"))
+    else {
+        bail!("{name} not found in the package")
+    };
+    let number = |field: &str| -> Result<u64> {
+        let text = data.child(field).map(|e| e.text()).unwrap_or_default();
+        text.trim()
+            .parse()
+            .context(format!("{name}: <{field}> {text:?}"))
+    };
+    let style = data
+        .child("encoding")
+        .and_then(|e| e.attr("style"))
+        .unwrap_or("application/octet-stream");
+    Ok((number("offset")?, number("length")?, style))
+}
+
+/// A member's data, decoded (stored or zlib; xar calls zlib gzip).
+fn decode<'a>(
+    raw: impl Read + Send + 'a,
+    name: &str,
+    style: &str,
+) -> Result<Box<dyn Read + Send + 'a>> {
+    Ok(match style {
+        "application/octet-stream" => Box::new(raw),
+        "application/x-gzip" => Box::new(ZlibDecoder::new(raw)),
+        _ => bail!("{name}: unknown xar encoding {style}"),
+    })
+}
+
 impl Xar {
     pub fn open(path: &Path) -> Result<Xar> {
         let mut file = File::open(path).context(path.display())?;
-        let mut header = [0u8; 28];
-        file.read_exact(&mut header).context(path.display())?;
-        if &header[..4] != b"xar!" {
-            bail!("{}: not a xar archive (.pkg)", path.display());
-        }
-        let size = u16::from_be_bytes([header[4], header[5]]) as u64;
-        let toc_len = u64::from_be_bytes(header[8..16].try_into().unwrap());
-        file.seek(SeekFrom::Start(size))?;
-        let mut toc = String::new();
-        ZlibDecoder::new((&mut file).take(toc_len))
-            .read_to_string(&mut toc)
-            .context(format!("{}: table of contents", path.display()))?;
-        Ok(Xar {
-            file,
-            heap: size + toc_len,
-            toc: xml::parse(&toc)?,
-        })
+        let (toc, heap) = read_toc(&mut file, &path.display())?;
+        Ok(Xar { file, heap, toc })
     }
 
-    /// The member's data, decoded (stored or zlib; xar calls zlib gzip).
+    /// The member's data, decoded.
     pub fn member(&mut self, name: &str) -> Result<Box<dyn Read + Send + '_>> {
-        let mut files = vec![];
-        self.toc.descendants("file", &mut files);
-        let Some(data) = files
-            .iter()
-            .find(|f| f.child("name").is_some_and(|n| n.text() == name))
-            .and_then(|f| f.child("data"))
-        else {
-            bail!("{name} not found in the package")
-        };
-        let number = |field: &str| -> Result<u64> {
-            let text = data.child(field).map(|e| e.text()).unwrap_or_default();
-            text.trim()
-                .parse()
-                .context(format!("{name}: <{field}> {text:?}"))
-        };
-        let (offset, length) = (number("offset")?, number("length")?);
-        let style = data
-            .child("encoding")
-            .and_then(|e| e.attr("style"))
-            .unwrap_or("application/octet-stream");
+        let (offset, length, style) = locate(&self.toc, name)?;
         self.file.seek(SeekFrom::Start(self.heap + offset))?;
-        let raw = (&mut self.file).take(length);
-        Ok(match style {
-            "application/octet-stream" => Box::new(raw),
-            "application/x-gzip" => Box::new(ZlibDecoder::new(raw)),
-            _ => bail!("{name}: unknown xar encoding {style}"),
-        })
+        decode((&mut self.file).take(length), name, style)
     }
+}
+
+/// A member of the xar archive r reads from its start, as a download
+/// streams it: what comes before the member is read past, not sought.
+pub fn stream_member<'a>(
+    mut r: impl Read + Send + 'a,
+    name: &str,
+    what: &str,
+) -> Result<Box<dyn Read + Send + 'a>> {
+    let (toc, _) = read_toc(&mut r, &what)?;
+    let (offset, length, style) = locate(&toc, name)?;
+    let style = style.to_string();
+    let skipped = io::copy(&mut (&mut r).take(offset), &mut io::sink()).context(what)?;
+    if skipped != offset {
+        bail!("{what}: ends before {name}");
+    }
+    decode(r.take(length), name, &style)
 }
 
 /// A package's Payload as the cpio stream it holds.
@@ -85,10 +119,13 @@ pub fn payload<'a>(raw: Box<dyn Read + Send + 'a>) -> Result<Box<dyn Read + Send
 }
 
 /// Apple's pbzx stream: a header, then chunks of xz (or stored) data, each
-/// on its own, so a batch of them is decompressed in parallel.
+/// on its own, so a batch of them is decompressed in parallel. The first
+/// batches are small, so that what reads only the start of a payload (the
+/// SDK's version) reads little of it.
 pub struct Pbzx<R> {
     inner: R,
     more: bool,
+    batch: usize,
     ready: VecDeque<Vec<u8>>,
     current: Vec<u8>,
     pos: usize,
@@ -107,6 +144,7 @@ impl<R: Read> Pbzx<R> {
         Ok(Pbzx {
             inner,
             more: flags & 0x0100_0000 != 0,
+            batch: 1,
             ready: VecDeque::new(),
             current: vec![],
             pos: 0,
@@ -116,7 +154,7 @@ impl<R: Read> Pbzx<R> {
     fn refill(&mut self) -> io::Result<bool> {
         if self.ready.is_empty() {
             let mut batch = vec![];
-            while self.more && batch.len() < crate::cpus().min(8) {
+            while self.more && batch.len() < self.batch {
                 let mut header = [0u8; 16];
                 self.inner.read_exact(&mut header)?;
                 let flags = u64::from_be_bytes(header[..8].try_into().unwrap());
@@ -126,6 +164,7 @@ impl<R: Read> Pbzx<R> {
                 batch.push(chunk);
                 self.more = flags & 0x0100_0000 != 0;
             }
+            self.batch = (self.batch * 2).min(crate::cpus().clamp(1, 8));
             let decoded = crate::parallel(&batch, batch.len(), |chunk| {
                 if chunk.starts_with(XZ_MAGIC) {
                     liblzma::decode_all(&chunk[..]).context("pbzx chunk")

@@ -2,7 +2,7 @@
 //! property lists: elements, attributes, text, the five entities and
 //! character references; declarations, comments and a DOCTYPE skipped.
 
-use crate::{Result, bail};
+use crate::{Context, Result, bail};
 
 #[derive(Debug, Default)]
 pub struct Element {
@@ -231,6 +231,65 @@ fn unescape(s: &str) -> Result<String> {
     Ok(out)
 }
 
+/// A property list value.
+#[derive(Debug, Clone)]
+pub enum Plist {
+    String(String),
+    Integer(i64),
+    Date(String),
+    /// real, true, false, data: nothing here reads them.
+    Other,
+    Array(Vec<Plist>),
+    Dict(Vec<(String, Plist)>),
+}
+
+impl Plist {
+    pub fn get(&self, key: &str) -> Option<&Plist> {
+        match self {
+            Plist::Dict(entries) => entries.iter().find(|(k, _)| k == key).map(|(_, v)| v),
+            _ => None,
+        }
+    }
+}
+
+/// The value of a <plist> document's element, or of a value element.
+pub fn plist(e: &Element) -> Result<Plist> {
+    Ok(match e.name.as_str() {
+        "plist" => match e.elements().next() {
+            Some(v) => plist(v)?,
+            None => bail!("an empty plist"),
+        },
+        "string" => Plist::String(e.text()),
+        "integer" => Plist::Integer(e.text().trim().parse().context("plist integer")?),
+        "date" => Plist::Date(e.text()),
+        "real" | "true" | "false" | "data" => Plist::Other,
+        "array" => Plist::Array(e.elements().map(plist).collect::<Result<_>>()?),
+        "dict" => {
+            let mut entries = vec![];
+            let mut it = e.elements();
+            while let Some(k) = it.next() {
+                if k.name != "key" {
+                    bail!("plist dict: <{}> where a <key> belongs", k.name);
+                }
+                let Some(v) = it.next() else {
+                    bail!("plist dict: no value for {}", k.text())
+                };
+                entries.push((k.text(), plist(v)?));
+            }
+            Plist::Dict(entries)
+        }
+        other => bail!("unknown plist element <{other}>"),
+    })
+}
+
+/// A string of a property list's top-level dictionary.
+pub fn plist_string(text: &str, key: &str) -> Result<Option<String>> {
+    Ok(match plist(&parse(text)?)?.get(key) {
+        Some(Plist::String(s)) => Some(s.clone()),
+        _ => None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -251,5 +310,19 @@ mod tests {
         let data = files[0].child("data").unwrap();
         assert_eq!(data.child("encoding").unwrap().attr("style"), Some("a/b"));
         assert_eq!(data.child("offset").unwrap().text(), "20");
+    }
+
+    #[test]
+    fn plists() {
+        let text = "<?xml version=\"1.0\"?><plist version=\"1.0\"><dict><key>Version</key><string>10.14</string>\
+                    <key>N</key><integer>3</integer><key>A</key><array><true/><date>2026-09-09T17:41:12Z</date></array>\
+                    </dict></plist>";
+        assert_eq!(
+            plist_string(text, "Version").unwrap().as_deref(),
+            Some("10.14")
+        );
+        let p = plist(&parse(text).unwrap()).unwrap();
+        assert!(matches!(p.get("N"), Some(Plist::Integer(3))));
+        assert!(matches!(p.get("A"), Some(Plist::Array(a)) if a.len() == 2));
     }
 }
