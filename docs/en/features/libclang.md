@@ -319,6 +319,7 @@ tool does not use:
 | `clang-tidy` | headers and `clang-tidy/clang-tidy-config.h` (configured without the static analyzer or query-based checks) |
 | Every target's MC layer | `TargetInfo`, MC descriptions, assembly parser and disassembler for all LLVM targets |
 | No code generators | `InitializeAllTargets()`, `InitializeAllAsmPrinters()` and `InitializeNativeTarget()` are not included |
+| `llvm_unreachable` traps | `LLVM_UNREACHABLE_OPTIMIZE` is off: an `llvm_unreachable` that is reached stops the program, in the libraries and, through `llvm/Config/llvm-config.h`, in a tool's own code compiled with `NDEBUG` against them; without `NDEBUG`, as in the ASan build, it prints its message and aborts |
 | Build record | `lib/cmake/xclang/libclang.cmake` (`XCLANG_LLVM_VERSION`, `XCLANG_LTO`, `XCLANG_PGO`, `XCLANG_PATCHES`, ...) |
 
 `clang` uses the X86 MC assembly parser to parse MS-style `__asm {}` blocks,

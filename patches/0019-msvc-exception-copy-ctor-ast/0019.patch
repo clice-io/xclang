@@ -1,0 +1,464 @@
+diff --git a/clang/include/clang/AST/ASTContext.h b/clang/include/clang/AST/ASTContext.h
+index 7ed6509c3c16..c21a907b95ce 100644
+--- a/clang/include/clang/AST/ASTContext.h
++++ b/clang/include/clang/AST/ASTContext.h
+@@ -795,6 +795,8 @@ private:
+   /// For performance, track whether any function effects are in use.
+   mutable bool AnyFunctionEffects = false;
+ 
++  bool ExternalCopyConstructorsForExceptionObjectsLoaded = false;
++
+   const TargetInfo *Target = nullptr;
+   const TargetInfo *AuxTarget = nullptr;
+   clang::PrintingPolicy PrintingPolicy;
+@@ -3562,6 +3564,9 @@ public:
+       const FunctionDecl *FD,
+       llvm::function_ref<void(FunctionDecl *)> Pred) const;
+ 
++  llvm::SmallDenseMap<CXXRecordDecl *, CXXConstructorDecl *> *
++  getRecordToCopyCtor();
++
+   const CXXConstructorDecl *
+   getCopyConstructorForExceptionObject(CXXRecordDecl *RD);
+ 
+diff --git a/clang/include/clang/AST/ExternalASTSource.h b/clang/include/clang/AST/ExternalASTSource.h
+index be8830996971..9cddcf4f3db8 100644
+--- a/clang/include/clang/AST/ExternalASTSource.h
++++ b/clang/include/clang/AST/ExternalASTSource.h
+@@ -40,6 +40,7 @@ class ASTConsumer;
+ class ASTContext;
+ class ASTSourceDescriptor;
+ class CXXBaseSpecifier;
++class CXXConstructorDecl;
+ class CXXCtorInitializer;
+ class CXXRecordDecl;
+ class DeclarationName;
+@@ -176,6 +177,9 @@ public:
+   LoadExternalSpecializations(const Decl *D,
+                               ArrayRef<TemplateArgument> TemplateArgs);
+ 
++  virtual void LoadExternalExceptionCopyingConstructors(
++      llvm::SmallDenseMap<CXXRecordDecl *, CXXConstructorDecl *> &RecordToCtor);
++
+   /// Ensures that the table of all visible declarations inside this
+   /// context is up to date.
+   ///
+diff --git a/clang/include/clang/Sema/MultiplexExternalSemaSource.h b/clang/include/clang/Sema/MultiplexExternalSemaSource.h
+index 6c117feaa47e..94fc48df2420 100644
+--- a/clang/include/clang/Sema/MultiplexExternalSemaSource.h
++++ b/clang/include/clang/Sema/MultiplexExternalSemaSource.h
+@@ -118,6 +118,10 @@ public:
+   LoadExternalSpecializations(const Decl *D,
+                               ArrayRef<TemplateArgument> TemplateArgs) override;
+ 
++  void LoadExternalExceptionCopyingConstructors(
++      llvm::SmallDenseMap<CXXRecordDecl *, CXXConstructorDecl *> &RecordToCtor)
++      override;
++
+   /// Ensures that the table of all visible declarations inside this
+   /// context is up to date.
+   void completeVisibleDeclsMap(const DeclContext *DC) override;
+diff --git a/clang/include/clang/Serialization/ASTBitCodes.h b/clang/include/clang/Serialization/ASTBitCodes.h
+index 671341488278..65fb93f833c2 100644
+--- a/clang/include/clang/Serialization/ASTBitCodes.h
++++ b/clang/include/clang/Serialization/ASTBitCodes.h
+@@ -747,6 +747,8 @@ enum ASTRecordTypes {
+   /// Record that encodes the number of submodules, their base ID in the AST
+   /// file, and for each module the relative bit offset into the stream.
+   SUBMODULE_METADATA = 80,
++
++  MSCXXABI_EXCEPTION_COPYING_CONSTRUCTORS = 81,
+ };
+ 
+ /// Record types used within a source manager block.
+diff --git a/clang/include/clang/Serialization/ASTReader.h b/clang/include/clang/Serialization/ASTReader.h
+index d800af83d350..88475a007f0d 100644
+--- a/clang/include/clang/Serialization/ASTReader.h
++++ b/clang/include/clang/Serialization/ASTReader.h
+@@ -1059,6 +1059,12 @@ private:
+   /// The RISC-V intrinsic pragma(including RVV, SiFive and Andes).
+   SmallVector<bool, 3> RISCVVecIntrinsicPragma;
+ 
++  struct RecordAndCopyingCtor {
++    GlobalDeclID RecordID;
++    GlobalDeclID CtorID;
++  };
++  SmallVector<RecordAndCopyingCtor> RecordToCopyingCtor;
++
+ private:
+   struct ImportedSubmodule {
+     serialization::SubmoduleID ID;
+@@ -2208,6 +2214,10 @@ public:
+   LoadExternalSpecializations(const Decl *D,
+                               ArrayRef<TemplateArgument> TemplateArgs) override;
+ 
++  void LoadExternalExceptionCopyingConstructors(
++      llvm::SmallDenseMap<CXXRecordDecl *, CXXConstructorDecl *> &RecordToCtor)
++      override;
++
+   /// Finds all the visible declarations with a given name.
+   /// The current implementation of this method just loads the entire
+   /// lookup table as unmaterialized references.
+diff --git a/clang/lib/AST/ASTContext.cpp b/clang/lib/AST/ASTContext.cpp
+index 2228811546c0..95a1836f9936 100644
+--- a/clang/lib/AST/ASTContext.cpp
++++ b/clang/lib/AST/ASTContext.cpp
+@@ -13804,8 +13804,25 @@ ASTContext::createMangleNumberingContext() const {
+   return ABI->createMangleNumberingContext();
+ }
+ 
++llvm::SmallDenseMap<CXXRecordDecl *, CXXConstructorDecl *> *
++ASTContext::getRecordToCopyCtor() {
++  if (ABI) { // TODO Why can this be null?
++    return ABI->getRecordToCopyCtor();
++  }
++  return nullptr;
++}
++
+ const CXXConstructorDecl *
+ ASTContext::getCopyConstructorForExceptionObject(CXXRecordDecl *RD) {
++  if (!getTargetInfo().getCXXABI().isMicrosoft()) {
++    return nullptr;
++  }
++  if (ExternalSource && !ExternalCopyConstructorsForExceptionObjectsLoaded) {
++    auto *Map = ABI->getRecordToCopyCtor();
++    assert(Map);
++    ExternalSource->LoadExternalExceptionCopyingConstructors(*Map);
++    ExternalCopyConstructorsForExceptionObjectsLoaded = true;
++  }
+   return ABI->getCopyConstructorForExceptionObject(
+       cast<CXXRecordDecl>(RD->getFirstDecl()));
+ }
+diff --git a/clang/lib/AST/CXXABI.h b/clang/lib/AST/CXXABI.h
+index 9258a53fefeb..612c9779346b 100644
+--- a/clang/lib/AST/CXXABI.h
++++ b/clang/lib/AST/CXXABI.h
+@@ -56,6 +56,9 @@ public:
+   virtual void addCopyConstructorForExceptionObject(CXXRecordDecl *,
+                                                     CXXConstructorDecl *) = 0;
+ 
++  virtual llvm::SmallDenseMap<CXXRecordDecl *, CXXConstructorDecl *> *
++  getRecordToCopyCtor() = 0;
++
+   /// Retrieves the mapping from class to copy constructor for this C++ ABI.
+   virtual const CXXConstructorDecl *
+   getCopyConstructorForExceptionObject(CXXRecordDecl *) = 0;
+diff --git a/clang/lib/AST/ExternalASTSource.cpp b/clang/lib/AST/ExternalASTSource.cpp
+index e8c100408971..060aa5f7ac47 100644
+--- a/clang/lib/AST/ExternalASTSource.cpp
++++ b/clang/lib/AST/ExternalASTSource.cpp
+@@ -109,6 +109,9 @@ bool ExternalASTSource::LoadExternalSpecializations(
+   return false;
+ }
+ 
++void ExternalASTSource::LoadExternalExceptionCopyingConstructors(
++    llvm::SmallDenseMap<CXXRecordDecl *, CXXConstructorDecl *> &) {}
++
+ void ExternalASTSource::completeVisibleDeclsMap(const DeclContext *DC) {}
+ 
+ void ExternalASTSource::FindExternalLexicalDecls(
+diff --git a/clang/lib/AST/ItaniumCXXABI.cpp b/clang/lib/AST/ItaniumCXXABI.cpp
+index 57378978c4a7..c1c5cafdf1e9 100644
+--- a/clang/lib/AST/ItaniumCXXABI.cpp
++++ b/clang/lib/AST/ItaniumCXXABI.cpp
+@@ -220,6 +220,11 @@ public:
+     return Layout.getNonVirtualSize() == PointerSize;
+   }
+ 
++  llvm::SmallDenseMap<CXXRecordDecl *, CXXConstructorDecl *> *
++  getRecordToCopyCtor() override {
++    return nullptr;
++  }
++
+   const CXXConstructorDecl *
+   getCopyConstructorForExceptionObject(CXXRecordDecl *RD) override {
+     return nullptr;
+diff --git a/clang/lib/AST/MicrosoftCXXABI.cpp b/clang/lib/AST/MicrosoftCXXABI.cpp
+index 438feac9ca9b..9837766e4899 100644
+--- a/clang/lib/AST/MicrosoftCXXABI.cpp
++++ b/clang/lib/AST/MicrosoftCXXABI.cpp
+@@ -145,9 +145,14 @@ public:
+     llvm_unreachable("unapplicable to the MS ABI");
+   }
+ 
++  llvm::SmallDenseMap<CXXRecordDecl *, CXXConstructorDecl *> *
++  getRecordToCopyCtor() override {
++    return &RecordToCopyCtor;
++  }
++
+   const CXXConstructorDecl *
+   getCopyConstructorForExceptionObject(CXXRecordDecl *RD) override {
+-    return RecordToCopyCtor[RD];
++    return RecordToCopyCtor.lookup(RD);
+   }
+ 
+   void
+diff --git a/clang/lib/Sema/MultiplexExternalSemaSource.cpp b/clang/lib/Sema/MultiplexExternalSemaSource.cpp
+index 49bd9596f77a..dd741252341f 100644
+--- a/clang/lib/Sema/MultiplexExternalSemaSource.cpp
++++ b/clang/lib/Sema/MultiplexExternalSemaSource.cpp
+@@ -138,6 +138,12 @@ bool MultiplexExternalSemaSource::LoadExternalSpecializations(
+   return AnyNewSpecsLoaded;
+ }
+ 
++void MultiplexExternalSemaSource::LoadExternalExceptionCopyingConstructors(
++    llvm::SmallDenseMap<CXXRecordDecl *, CXXConstructorDecl *> &RecordToCtor) {
++  for (size_t i = 0; i < Sources.size(); ++i)
++    Sources[i]->LoadExternalExceptionCopyingConstructors(RecordToCtor);
++}
++
+ void MultiplexExternalSemaSource::completeVisibleDeclsMap(const DeclContext *DC){
+   for(size_t i = 0; i < Sources.size(); ++i)
+     Sources[i]->completeVisibleDeclsMap(DC);
+diff --git a/clang/lib/Serialization/ASTReader.cpp b/clang/lib/Serialization/ASTReader.cpp
+index 1a437f3ebab9..f0dd90fd2227 100644
+--- a/clang/lib/Serialization/ASTReader.cpp
++++ b/clang/lib/Serialization/ASTReader.cpp
+@@ -4660,6 +4660,16 @@ llvm::Error ASTReader::ReadASTBlock(ModuleFile &F,
+         RISCVVecIntrinsicPragma[i] |= Record[i + 1];
+       break;
+     }
++
++    case MSCXXABI_EXCEPTION_COPYING_CONSTRUCTORS:
++      if (Record.size() % 2 != 0)
++        return llvm::createStringError(
++            std::errc::illegal_byte_sequence,
++            "Invalid MSCXXABI_EXCEPTION_COPYING_CONSTRUCTORS record");
++      for (unsigned I = 0, N = Record.size(); I < N; /* in loop */)
++        RecordToCopyingCtor.push_back(
++            {ReadDeclID(F, Record, I), ReadDeclID(F, Record, I)});
++      break;
+     }
+   }
+ }
+@@ -8790,6 +8800,19 @@ bool ASTReader::LoadExternalSpecializations(
+   return NewDeclsFound;
+ }
+ 
++void ASTReader::LoadExternalExceptionCopyingConstructors(
++    llvm::SmallDenseMap<CXXRecordDecl *, CXXConstructorDecl *> &RecordToCtor) {
++  for (const auto &[RecordID, CtorID] : RecordToCopyingCtor) {
++    // The table is keyed by the first declarations, which may be another
++    // module's or the current translation unit's.
++    auto *RD = cast<CXXRecordDecl>(GetDecl(RecordID));
++    auto *CD = cast<CXXConstructorDecl>(GetDecl(CtorID));
++    RecordToCtor.insert({cast<CXXRecordDecl>(RD->getFirstDecl()),
++                         cast<CXXConstructorDecl>(CD->getFirstDecl())});
++  }
++  RecordToCopyingCtor.clear();
++}
++
+ void ASTReader::FindExternalLexicalDecls(
+     const DeclContext *DC, llvm::function_ref<bool(Decl::Kind)> IsKindWeWant,
+     SmallVectorImpl<Decl *> &Decls) {
+diff --git a/clang/lib/Serialization/ASTWriter.cpp b/clang/lib/Serialization/ASTWriter.cpp
+index 1e3be005a8ca..b64cbf5ea03a 100644
+--- a/clang/lib/Serialization/ASTWriter.cpp
++++ b/clang/lib/Serialization/ASTWriter.cpp
+@@ -6051,6 +6051,29 @@ void ASTWriter::WriteSpecialDeclRecords(Sema &SemaRef) {
+ 
+   if (!VTablesToEmit.empty())
+     Stream.EmitRecord(VTABLES_TO_EMIT, VTablesToEmit);
++
++  if (Context.getTargetInfo().getCXXABI().isMicrosoft()) {
++    const auto *RecordToCopyCtor = Context.getRecordToCopyCtor();
++    if (RecordToCopyCtor) {
++      // Write the pairs sorted by declaration ID: the map is keyed by pointer,
++      // and its order would make the output nondeterministic.
++      SmallVector<std::pair<LocalDeclID, LocalDeclID>, 16> Pairs;
++      for (const auto &[RD, CD] : *RecordToCopyCtor) {
++        if (!wasDeclEmitted(RD) || !wasDeclEmitted(CD))
++          continue;
++        Pairs.push_back({GetDeclRef(RD), GetDeclRef(CD)});
++      }
++      llvm::sort(Pairs, llvm::less_first());
++      RecordData ExceptionCopyingConstructors;
++      for (const auto &[RecordID, CtorID] : Pairs) {
++        ExceptionCopyingConstructors.push_back(RecordID.getRawValue());
++        ExceptionCopyingConstructors.push_back(CtorID.getRawValue());
++      }
++      if (!ExceptionCopyingConstructors.empty())
++        Stream.EmitRecord(MSCXXABI_EXCEPTION_COPYING_CONSTRUCTORS,
++                          ExceptionCopyingConstructors);
++    }
++  }
+ }
+ 
+ ASTFileSignature ASTWriter::WriteASTCore(Sema *SemaPtr, StringRef isysroot,
+diff --git a/clang/test/CodeGenCXX/microsoft-abi-throw-pch.cpp b/clang/test/CodeGenCXX/microsoft-abi-throw-pch.cpp
+new file mode 100644
+index 000000000000..6b3570ba272b
+--- /dev/null
++++ b/clang/test/CodeGenCXX/microsoft-abi-throw-pch.cpp
+@@ -0,0 +1,13 @@
++// Regression test for https://github.com/llvm/llvm-project/issues/53486
++
++// RUN: %clang_cc1 -x c++ -std=c++11 -fcxx-exceptions -fexceptions -triple=x86_64-pc-windows-msvc -emit-pch -building-pch-with-obj -fmodules-codegen -o %t.pch %S/microsoft-abi-throw-pch.h
++// RUN: %clang_cc1 -x c++ -std=c++11 -fcxx-exceptions -fexceptions -triple=x86_64-pc-windows-msvc -include-pch %t.pch -emit-llvm -building-pch-with-obj -fmodules-codegen -o - %s | FileCheck %s
++
++// CHECK-DAG: @"_CT??_R0?AUTrivial@@@81" = linkonce_odr unnamed_addr constant %eh.CatchableType { i32 0, i32 trunc (i64 sub nuw nsw (i64 ptrtoint (ptr @"??_R0?AUTrivial@@@8" to i64), i64 ptrtoint (ptr @__ImageBase to i64)) to i32), i32 0, i32 -1, i32 0, i32 1, i32 0 }, section ".xdata", comdat
++// CHECK-DAG: @"_CTA1?AUTrivial@@" = linkonce_odr unnamed_addr constant %eh.CatchableTypeArray.1 { i32 1, [1 x i32] [i32 trunc (i64 sub nuw nsw (i64 ptrtoint (ptr @"_CT??_R0?AUTrivial@@@81" to i64), i64 ptrtoint (ptr @__ImageBase to i64)) to i32)] }, section ".xdata", comdat
++
++// CHECK-DAG: @"_CT??_R0?AUNonTrivial@@@8??0NonTrivial@@QEAA@AEBU0@@Z1" = linkonce_odr unnamed_addr constant %eh.CatchableType { i32 0, i32 trunc (i64 sub nuw nsw (i64 ptrtoint (ptr @"??_R0?AUNonTrivial@@@8" to i64), i64 ptrtoint (ptr @__ImageBase to i64)) to i32), i32 0, i32 -1, i32 0, i32 1, i32 trunc (i64 sub nuw nsw (i64 ptrtoint (ptr @"??0NonTrivial@@QEAA@AEBU0@@Z" to i64), i64 ptrtoint (ptr @__ImageBase to i64)) to i32) }, section ".xdata", comdat
++// CHECK-DAG: @"_CTA1?AUNonTrivial@@" = linkonce_odr unnamed_addr constant %eh.CatchableTypeArray.1 { i32 1, [1 x i32] [i32 trunc (i64 sub nuw nsw (i64 ptrtoint (ptr @"_CT??_R0?AUNonTrivial@@@8??0NonTrivial@@QEAA@AEBU0@@Z1" to i64), i64 ptrtoint (ptr @__ImageBase to i64)) to i32)] }, section ".xdata", comdat
++
++// CHECK-DAG: @"_CT??_R0?AUTemplateWithDefault@@@8??$?_OH@TemplateWithDefault@@QEAAXAEAU0@@Z1" = linkonce_odr unnamed_addr constant %eh.CatchableType { i32 0, i32 trunc (i64 sub nuw nsw (i64 ptrtoint (ptr @"??_R0?AUTemplateWithDefault@@@8" to i64), i64 ptrtoint (ptr @__ImageBase to i64)) to i32), i32 0, i32 -1, i32 0, i32 1, i32 trunc (i64 sub nuw nsw (i64 ptrtoint (ptr @"??$?_OH@TemplateWithDefault@@QEAAXAEAU0@@Z" to i64), i64 ptrtoint (ptr @__ImageBase to i64)) to i32) }, section ".xdata", comdat
++// CHECK-DAG: @"_CTA1?AUTemplateWithDefault@@" = linkonce_odr unnamed_addr constant %eh.CatchableTypeArray.1 { i32 1, [1 x i32] [i32 trunc (i64 sub nuw nsw (i64 ptrtoint (ptr @"_CT??_R0?AUTemplateWithDefault@@@8??$?_OH@TemplateWithDefault@@QEAAXAEAU0@@Z1" to i64), i64 ptrtoint (ptr @__ImageBase to i64)) to i32)] }, section ".xdata", comdat
+diff --git a/clang/test/CodeGenCXX/microsoft-abi-throw-pch.h b/clang/test/CodeGenCXX/microsoft-abi-throw-pch.h
+new file mode 100644
+index 000000000000..160f2f01370f
+--- /dev/null
++++ b/clang/test/CodeGenCXX/microsoft-abi-throw-pch.h
+@@ -0,0 +1,30 @@
++// Header for PCH test microsoft-abi-throw-pch.cpp
++
++struct Trivial {};
++
++struct NonTrivial {
++  NonTrivial() = default;
++  NonTrivial(const NonTrivial &) noexcept {}
++  NonTrivial(NonTrivial &&) noexcept {}
++};
++
++struct TemplateWithDefault {
++  template <typename T>
++  static int f() {
++    return 0;
++  }
++  template <typename T = int>
++  TemplateWithDefault(TemplateWithDefault &, T = f<T>());
++};
++
++inline void throw_trivial() {
++  throw Trivial();
++}
++
++inline void throw_non_trivial() {
++  throw NonTrivial();
++}
++
++inline void throw_template(TemplateWithDefault &e) {
++  throw e;
++}
+diff --git a/clang/test/Modules/msvc-throw-copy-ctor.cppm b/clang/test/Modules/msvc-throw-copy-ctor.cppm
+new file mode 100644
+index 000000000000..e8e7078636b3
+--- /dev/null
++++ b/clang/test/Modules/msvc-throw-copy-ctor.cppm
+@@ -0,0 +1,116 @@
++// Test that the copy constructors of exception objects, which the Microsoft
++// ABI records in the catchable types, are found for throw expressions that
++// an importer emits from a module.
++//
++// RUN: rm -rf %t
++// RUN: mkdir -p %t
++// RUN: split-file %s %t
++//
++// RUN: %clang_cc1 -std=c++20 -triple x86_64-pc-windows-msvc -fcxx-exceptions -fexceptions \
++// RUN:     -I%t %t/m.cppm -emit-reduced-module-interface -o %t/m.pcm
++// RUN: %clang_cc1 -std=c++20 -triple x86_64-pc-windows-msvc -fcxx-exceptions -fexceptions \
++// RUN:     %t/use.cpp -fmodule-file=m=%t/m.pcm -emit-llvm -o - | FileCheck %t/use.cpp
++// RUN: %clang_cc1 -std=c++20 -triple x86_64-pc-windows-msvc -fcxx-exceptions -fexceptions \
++// RUN:     -I%t %t/include-and-import.cpp -fmodule-file=m=%t/m.pcm -emit-llvm -o - \
++// RUN:     | FileCheck %t/include-and-import.cpp
++//
++// Test again with the full BMI.
++// RUN: %clang_cc1 -std=c++20 -triple x86_64-pc-windows-msvc -fcxx-exceptions -fexceptions \
++// RUN:     -I%t %t/m.cppm -emit-module-interface -o %t/m.full.pcm
++// RUN: %clang_cc1 -std=c++20 -triple x86_64-pc-windows-msvc -fcxx-exceptions -fexceptions \
++// RUN:     %t/use.cpp -fmodule-file=m=%t/m.full.pcm -emit-llvm -o - | FileCheck %t/use.cpp
++//
++// Test the BMI written by the compilation that also generates the module's
++// code, where CodeGen looks up the copy constructors of the thrown types
++// before the BMI is written. It is the same BMI.
++// RUN: %clang_cc1 -std=c++20 -triple x86_64-pc-windows-msvc -fcxx-exceptions -fexceptions \
++// RUN:     -I%t %t/m.cppm -fmodules-reduced-bmi -fmodule-output=%t/m.codegen.pcm \
++// RUN:     -emit-llvm -o %t/m.ll
++// RUN: diff %t/m.pcm %t/m.codegen.pcm
++// RUN: %clang_cc1 -std=c++20 -triple x86_64-pc-windows-msvc -fcxx-exceptions -fexceptions \
++// RUN:     %t/use.cpp -fmodule-file=m=%t/m.codegen.pcm -emit-llvm -o - | FileCheck %t/use.cpp
++
++//--- header.h
++struct Header {
++  Header();
++  Header(const Header &);
++  virtual ~Header();
++};
++
++//--- m.cppm
++module;
++#include "header.h"
++struct Discarded {
++  Discarded();
++  Discarded(const Discarded &);
++};
++export module m;
++
++export using ::Header;
++
++export struct Trivial {};
++
++export struct NonTrivial {
++  NonTrivial() = default;
++  NonTrivial(const NonTrivial &) noexcept {}
++  NonTrivial(NonTrivial &&) noexcept {}
++};
++
++export struct TemplateWithDefault {
++  template <typename T>
++  static int f() {
++    return 0;
++  }
++  template <typename T = int>
++  TemplateWithDefault(TemplateWithDefault &, T = f<T>());
++};
++
++export inline void throw_header() {
++  throw Header();
++}
++
++export inline void throw_trivial() {
++  throw Trivial();
++}
++
++export inline void throw_non_trivial() {
++  throw NonTrivial();
++}
++
++export inline void throw_template(TemplateWithDefault &e) {
++  throw e;
++}
++
++export void throw_trivial_here() {
++  throw Trivial();
++}
++
++// The reduced BMI has neither this function's body nor Discarded.
++void throw_discarded() {
++  throw Discarded();
++}
++
++//--- use.cpp
++import m;
++
++void use(TemplateWithDefault &e) {
++  throw_header();
++  throw_trivial();
++  throw_non_trivial();
++  throw_template(e);
++}
++
++// CHECK-DAG: @"_CT??_R0?AUHeader@@@8??0Header@@QEAA@AEBU0@@Z8" = linkonce_odr
++// CHECK-DAG: @"_CT??_R0?AUTrivial@@@81" = linkonce_odr
++// CHECK-DAG: @"_CT??_R0?AUNonTrivial@@@8??0NonTrivial@@QEAA@AEBU0@@Z1" = linkonce_odr
++// CHECK-DAG: @"_CT??_R0?AUTemplateWithDefault@@@8??$?_OH@TemplateWithDefault@@QEAAXAEAU0@@Z1" = linkonce_odr
++
++//--- include-and-import.cpp
++#include "header.h"
++import m;
++
++void use() {
++  throw_header();
++}
++
++// CHECK: @"_CT??_R0?AUHeader@@@8??0Header@@QEAA@AEBU0@@Z8" = linkonce_odr

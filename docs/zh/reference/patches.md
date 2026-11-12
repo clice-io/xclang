@@ -20,6 +20,7 @@ xclang 基于 LLVM 官方发布源码包 `llvm-project-<version>.src.tar.xz` 构
 | [`0016-libcxx-vcruntime`](https://github.com/clice-io/xclang/blob/main/patches/0016-libcxx-vcruntime/README.md) | 基于 vcruntime 构建的 libc++ 不再重复定义由 C 运行时提供的 `std::nothrow`，并自行提供原本仅在微软 STL 库中定义的 `std::set_new_handler` 与 `get_new_handler` |
 | [`0017-lld-coff-call-graph-order`](https://github.com/clice-io/xclang/blob/main/patches/0017-lld-coff-call-graph-order/README.md) | lld-link 在每次链接开启 PGO 的程序时采用一致的布局：不同目标文件中的同名局部函数不再在多次链接之间发生顺序漂移 |
 | [`0018-stdlib-system-config`](https://github.com/clice-io/xclang/blob/main/patches/0018-stdlib-system-config/README.md) | 当 `-stdlib=` 指定 libc++ 以外的标准库（`platform`、`libstdc++`；clang-cl 中为 `/clang:-stdlib=platform`）时，自动切换到目标平台的 `<triple>-system.cfg`：在所有目标平台上改用平台的 C++ 标准库及其 sysroot（[系统的 C++ 标准库](../guide/cross-compiling.md#the-platform-s-c-library)） |
+| [`0019-msvc-exception-copy-ctor-ast`](https://github.com/clice-io/xclang/blob/main/patches/0019-msvc-exception-copy-ctor-ast/README.md) | MSVC 目标平台上，C++20 模块或 PCH 中抛出的类型，在 import 它的文件生成的 catchable type 里保留拷贝构造函数：`std::exception_ptr` 调用它复制异常对象，而不是逐字节复制（[xclang#27](https://github.com/clice-io/xclang/issues/27)） |
 
 ## 补丁应用方式
 

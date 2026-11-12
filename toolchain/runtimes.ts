@@ -86,11 +86,13 @@ const MUSL_SANITIZERS = [
 /// every ASan program links. Without libFuzzer. The DLL links xclang's
 /// libc++ statically, and with it libunwind, which libc++abi unwinds with
 /// (llvm-mingw's links libc++.dll): compiler-rt links it -nodefaultlibs, and
-/// a DLL leaves no symbol undefined.
+/// a DLL leaves no symbol undefined. With no link time in it: compiler-rt
+/// links the DLL with flags of its own, which the add_link_options of
+/// toolchain/cmake/toolchain.cmake does not reach.
 const MINGW_SANITIZERS = [
   "-DCOMPILER_RT_BUILD_SANITIZERS=ON",
   "-DCOMPILER_RT_BUILD_LIBFUZZER=OFF",
-  "-DCMAKE_SHARED_LINKER_FLAGS=-lunwind",
+  "-DCMAKE_SHARED_LINKER_FLAGS=-lunwind -Wl,--no-insert-timestamp",
   ...LINUX_SANITIZERS,
 ];
 

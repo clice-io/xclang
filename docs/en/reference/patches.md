@@ -24,6 +24,7 @@ checked and where it stands upstream.
 | [`0016-libcxx-vcruntime`](https://github.com/clice-io/xclang/blob/main/patches/0016-libcxx-vcruntime/README.md) | libc++ on vcruntime defines no `std::nothrow`, the C runtime's, and defines `std::set_new_handler` and `get_new_handler`, which only Microsoft's STL library did |
 | [`0017-lld-coff-call-graph-order`](https://github.com/clice-io/xclang/blob/main/patches/0017-lld-coff-call-graph-order/README.md) | lld-link lays out a PGO-built program the same way on every link: local functions of the same name in several objects no longer move from one link to the next |
 | [`0018-stdlib-system-config`](https://github.com/clice-io/xclang/blob/main/patches/0018-stdlib-system-config/README.md) | a `-stdlib=` of another library than libc++ (`platform`, `libstdc++`; clang-cl `/clang:-stdlib=platform`) selects the target's `<triple>-system.cfg`: the platform's C++ library, and its sysroot, on every target ([the system's C++ library](../guide/cross-compiling.md#the-platform-s-c-library)) |
+| [`0019-msvc-exception-copy-ctor-ast`](https://github.com/clice-io/xclang/blob/main/patches/0019-msvc-exception-copy-ctor-ast/README.md) | for MSVC targets, a type thrown in a C++20 module or a PCH keeps its copy constructor in the catchable types the importer emits: `std::exception_ptr` copies it, not its bytes ([xclang#27](https://github.com/clice-io/xclang/issues/27)) |
 
 ## How They Are Applied
 
