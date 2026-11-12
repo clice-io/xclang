@@ -1,6 +1,25 @@
 # Sanitizer
 
-在 glibc [Linux](../targets/linux.md) 与 [macOS](../targets/macos.md) 目标平台上，`compiler-rt` 随附了 AddressSanitizer（ASan）、ThreadSanitizer（TSan）、LeakSanitizer（LSan）、UndefinedBehaviorSanitizer（UBSan）与 libFuzzer，同时提供一份供 ASan 程序链接的经 ASan 插桩的 `libc++` 构建（以下简称 *ASan `libc++`*）。[Windows](../targets/windows.md) 目标平台在 `x86_64` 与 `aarch64` 上随附 UBSan，在 `x86_64` 上随附 ASan 与 ASan `libc++`（[MinGW 目标平台](#mingw-targets)、[MSVC 目标平台](#msvc-targets)），并在 `x86_64` MSVC 上额外提供 libFuzzer。[musl](../targets/linux.md#musl-targets) 目标平台随附 UBSan（[musl 目标平台](#musl-targets)），而 [MemorySanitizer](#memorysanitizer) 则可通过[从源码构建运行时库](runtimes-from-source.md)在 glibc Linux 目标平台上使用。
+`compiler-rt` 为各目标平台随附了相应的 sanitizer 运行时库；支持 ASan 的目标平台还配有一份供 ASan 程序链接的 ASan 版 `libc++` 构建（以下简称 *ASan `libc++`*）。MemorySanitizer 通过[从源码构建运行时库](runtimes-from-source.md)提供。glibc Linux、macOS 与 x64 MSVC 目标平台还提供了 libFuzzer。
+
+<!-- BEGIN GENERATED: sanitizers -->
+
+| 目标平台 | ASan | LSan | TSan | UBSan | MSan |
+| --- | --- | --- | --- | --- | --- |
+| `x86_64-unknown-linux-gnu` | 支持 | 支持 | 支持 | 支持 | 需从源码构建运行时库 |
+| `aarch64-unknown-linux-gnu` | 支持 | 支持 | 支持 | 支持 | 需从源码构建运行时库 |
+| `x86_64-w64-mingw32` | 支持 |  |  | 支持 |  |
+| `aarch64-w64-mingw32` |  |  |  | 支持 |  |
+| `aarch64-apple-darwin` | 支持 | 支持 | 支持 | 支持 |  |
+| `x86_64-apple-darwin` | 支持 | 支持 | 支持 | 支持 |  |
+| `x86_64-unknown-linux-musl` |  |  |  | 支持 |  |
+| `aarch64-unknown-linux-musl` |  |  |  | 支持 |  |
+| `x86_64-pc-windows-msvc` | 支持 |  |  | 支持 |  |
+| `aarch64-pc-windows-msvc` |  |  |  | 支持 |  |
+
+<!-- END GENERATED -->
+
+各目标平台系列的具体差异见：[MinGW 目标平台](#mingw-targets)、[MSVC 目标平台](#msvc-targets)、[musl 目标平台](#musl-targets)、[MemorySanitizer](#memorysanitizer)。
 
 ## 用法
 
@@ -179,6 +198,7 @@ clang++ -fsanitize=fuzzer -g -O1 fuzz.cpp -o fuzz
 - **其他 sanitizer 使用常规 `libc++`**：除非启用了[从源码构建运行时库](runtimes-from-source.md)，否则 TSan、UBSan 与 LSan 构建均链接标准预编译 `libc++`。
 - **macOS 与 Windows 上的动态 sanitizer 运行时库**：在 macOS 上，sanitizer 运行时库是形如 `libclang_rt.asan_osx_dynamic.dylib` 的 `.dylib` 文件，从工具链的资源目录或二进制文件所在目录加载。在 Windows 上，`x86_64` ASan 运行时库是一个 DLL。由于 sanitizer 构建用于测试而非对外发布，加载这些动态运行时库属于[封闭性](../design/hermeticity.md)的例外。在 macOS 主机上的 Bazel 构建中，sanitizer 特性会将工具链的资源目录加入 `rpath`；在 Linux 或 Windows 上交叉编译出的二进制文件则会在自身所在目录中查找 `.dylib`。
 - **带 ASan 插桩的 `libclang` 构建**：面向 Linux `x86_64` 与 macOS `arm64` 主机，xclang 提供了基于 ASan `libc++` 编译并开启 ASan 插桩的 `libclang` 构建（[libclang](libclang.md#the-asan-build)）。
+- **不随附平台 C++ 标准库的 ASan 构建**：设置 `XCLANG_STDLIB=platform` 时，`XCLANG_SANITIZER=address` 不会链接 ASan 版 C++ 标准库；而在 MSVC 目标平台上，开启 ASan 的 STL 容器需要 `stl_asan.lib`，`xclang sdk fetch windows` 不会下载它。
 
 ### 为什么需要 ASan libc++
 
@@ -235,7 +255,7 @@ bazel run -c dbg --features=asan //:overflow
 
 ## MSVC 目标平台
 
-[MSVC 目标平台](../targets/windows.md#msvc-targets)在 `x86_64` 与 `aarch64` 上提供 UBSan，并在 `x86_64` 上提供 ASan 与 libFuzzer。传入 `-fsanitize=` 时，`clang` 会从 `lib/clang/<major>/lib/windows` 选取对应的库文件。
+[MSVC 目标平台](../guide/cross-compiling.md#msvc-targets)在 `x86_64` 与 `aarch64` 上提供 UBSan，并在 `x86_64` 上提供 ASan 与 libFuzzer。传入 `-fsanitize=` 时，`clang` 会从 `lib/clang/<major>/lib/windows` 选取对应的库文件。
 
 - **`x86_64` ASan `libc++`** 位于 `lib/clang/<major>/lib/windows/libc++asan-x86_64.lib`，其 `__config_site` 位于 `$XCLANG/x86_64-pc-windows-msvc/lib/asan/include`。编译时传入 `-isystem $XCLANG/x86_64-pc-windows-msvc/lib/asan/include`：其中的 `__config_site` 会在每个目标文件中嵌入 `#pragma comment(lib, "libc++asan-x86_64.lib")` 来替代 `libc++-x86_64.lib`，因此链接步骤无需额外库参数，且同样适用于混合 CRT、`/MD` 与静态 CRT。CMake 的 `-DXCLANG_SANITIZER=address` 与 Bazel 的 `--features=asan` 会自动传入这一头文件搜索路径。
 - **ASan 运行时库是 DLL**（`clang_rt.asan_dynamic-x86_64.dll`），即使链接静态 CRT 也是如此。`x86_64` Windows 主机工具链在 `bin/` 下存有一份副本；在其他机器上，请将其拷贝到可执行文件同级目录（Bazel 的 `--features=asan` 会自动完成拷贝）。由于 `compiler-rt` 将这个 DLL 链接到了动态 VC 运行时，它在运行时会加载 `vcruntime140.dll`。
@@ -255,7 +275,7 @@ clang++ --target=aarch64-pc-windows-msvc -fsanitize=undefined -O1 ubsan.cpp -o u
 
 ## musl 目标平台
 
-[musl 目标平台](../targets/linux.md#musl-targets)采用静态链接，而静态链接的可执行文件中只有 UBSan 可以工作：可使用其独立运行时（`-fsanitize=undefined`，CMake 中为 `-DXCLANG_SANITIZER=undefined`，Bazel 中为 `--features=ubsan`）、最小运行时（`-fsanitize-minimal-runtime`）或陷阱模式（`-fsanitize-trap=undefined`）。
+[musl 目标平台](../guide/cross-compiling.md#musl-targets)采用静态链接，而静态链接的可执行文件中只有 UBSan 可以工作：可使用其独立运行时（`-fsanitize=undefined`，CMake 中为 `-DXCLANG_SANITIZER=undefined`，Bazel 中为 `--features=ubsan`）、最小运行时（`-fsanitize-minimal-runtime`）或陷阱模式（`-fsanitize-trap=undefined`）。
 
 ASan、TSan 与 LSan 会拦截 C 标准库函数并通过 `dlsym` 查找底层符号，而静态 musl 二进制文件没有动态符号表；将它们的运行时库链接进静态二进制文件会报错 `undefined hidden symbol: _DYNAMIC`，libFuzzer 则会在首次调用 `sigaction` 时失败。因此 xclang 未面向 musl 构建这些运行时库。如需运行 ASan、TSan、LSan 或 libFuzzer，请为同架构的 glibc 目标平台构建；面向这些工具提供动态链接的 musl 目标平台变体目前在[考虑中](../design/roadmap.md#musl-sanitizers)。
 
@@ -274,10 +294,3 @@ MemorySanitizer（MSan）要求程序中的每个库（包括 `libc++` 与 `libc
 - **Bazel**：传入 `--@xclang//runtimes:source --features=msan`。
 
 在使用 TSan 或 ASan 时启用[从源码构建运行时库](runtimes-from-source.md)，同样会从源码编译带对应 sanitizer 插桩的 `libc++` 与 `libc++abi`。
-
-## 已知限制
-
-- **Windows 目标平台**：无静态 ASan 运行时库（ASan 使用 DLL），`aarch64` 上不支持 ASan，`compiler-rt` 中无 TSan、LSan 或 MSan，MinGW 与 `aarch64` MSVC 上无 libFuzzer，且 `x86_64` ASan 二进制文件无法在 Windows on Arm 的 `x86_64` 模拟器下运行（[MinGW 目标平台](#mingw-targets)、[MSVC 目标平台](#msvc-targets)）。
-- **`-stdlib=platform` 配合 ASan**：xclang 不随附经 ASan 插桩的平台 C++ 标准库，因此同时设置 `XCLANG_SANITIZER=address` 与 `XCLANG_STDLIB=platform` 时不会链接插桩版标准库；而在 MSVC 目标平台上，微软的 STL 容器需要 `xclang sdk fetch windows` 未下载的 `stl_asan.lib`。
-- **musl 目标平台**：由于内置的 musl 目标平台采用静态链接，目前仅支持 UBSan；在 musl 上支持 ASan、TSan、LSan 与 libFuzzer 目前在[考虑中](../design/roadmap.md#musl-sanitizers)。
-- **MemorySanitizer**：仅在 glibc Linux 目标平台（`x86_64` 与 `aarch64`）上受支持，且需要[从源码构建运行时库](runtimes-from-source.md)。

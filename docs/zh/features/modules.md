@@ -208,6 +208,7 @@ clang++ main.o math.o math-ops.o std.o -o shapes
 - **`std` 随每次构建编译**：由于预编译的 `.pcm` 只能供采用相同语言选项编译的文件 import，xclang 以源码形式附带 `std.cppm` 与 `std.compat.cppm`，并在每次构建内部将它们编译为静态库目标。启用[从源码构建运行时库](runtimes-from-source.md)时，`xclang::std` 与 `@xclang//bazel:std` 会基于对应的运行时库变体编译。
 - **无需实验性 CMake 开关**：CMake 内置的 `import std` 受 `CMAKE_EXPERIMENTAL_CXX_IMPORT_STD` 控制，其 UUID 会随 CMake 版本更新而变化。`xclang::std` 则是一个带有 `CXX_MODULES` 文件集的普通 `STATIC` 库，只需 CMake 3.28 的模块支持即可工作。
 - **Bazel 中模块文件内嵌源码**：模块文件会内嵌其源文件（通过默认开启的 `modules_embed_all_files` 特性）。带 `-g` 编译且 import 它的文件需要读取这些源码，而在沙盒中只有模块文件、没有模块源文件本身。
+- **不支持头文件单元**：CMake 与 Bazel 均不支持构建头文件单元（header unit，`import <vector>;`）。
 
 ### 构建缓存与模块
 
@@ -226,16 +227,8 @@ Bazel 的动作缓存（action cache）会对动作声明的每个输入计算�
 
 ## 平台说明
 
-启用 `-stdlib=platform`（在 CMake 中为 `-DXCLANG_STDLIB=platform`，在 Bazel 中为 `--@xclang//bazel:stdlib=platform`）时，`xclang::std` 与 `@xclang//bazel:std` 会使用平台的 C++ 标准库模块源码，而非 xclang 的 `libc++`（[交叉编译](../targets/cross-compiling.md#the-platform-s-c-library)）：
+启用 `-stdlib=platform`（在 CMake 中为 `-DXCLANG_STDLIB=platform`，在 Bazel 中为 `--@xclang//bazel:stdlib=platform`）时，`xclang::std` 与 `@xclang//bazel:std` 会使用平台的 C++ 标准库模块源码，而非 xclang 的 `libc++`（[交叉编译](../guide/cross-compiling.md#the-platform-s-c-library)）：
 
 - **MSVC 目标平台**：`xclang::std` 与 `@xclang//bazel:std` 会编译微软 STL 的模块源码（取自已下载的 Windows SDK 或 Visual Studio 中的 `std.ixx` 与 `std.compat.ixx`；在 `arm64` 上会先于模块包含 `<malloc.h>`，防止 `_alloca` 重复声明）。
 - **Linux 与 MinGW 目标平台**：在 CMake 中，如果系统 C++ 标准库带有模块清单（例如 GCC 15 的 `libstdc++`），`xclang::std` 会使用 `clang++ -stdlib=platform -print-library-module-manifest-path` 报告的模块清单；若没有模块清单，`find_package(xclang)` 会报错停止。Bazel 模块则在这些目标平台上拒绝 `-stdlib=platform`，因为它们的标准库来自工具链外部的 sysroot。
 - **macOS 目标平台**：Apple 的 macOS SDK 未随附其 `libc++` 的模块清单或模块源码，因此在 `-stdlib=platform` 下无法使用 `import std`（CMake 中 `find_package(xclang)` 会报错失败，Bazel 中 `@xclang//bazel:std` 会标记为不兼容）。
-
-## 已知限制
-
-- CMake 与 Bazel 均不支持构建头文件单元（header unit，如 `import <vector>;`）。
-- Bazel 需要传入 `--experimental_cpp_modules`（要求 Bazel 9 与 `rules_cc` 0.2.25 及以上）。
-- CMake 仅在使用 `Ninja` 与 `Ninja Multi-Config` 生成器时支持构建 C++20 模块（要求 CMake 3.28 与 Ninja 1.11 及以上）。
-- `ccache` 不会缓存模块接口的编译结果，且 `ccache` 4.13 及更早版本可能会为 import 模块的文件返回过期的目标文件（[构建缓存与模块](#build-caches-and-modules)）。
-- 启用 `-stdlib=platform` 时，`import std` 需要平台的 C++ 标准库提供模块源码，因此在 macOS 上不可用（[平台说明](#platform-notes)）。

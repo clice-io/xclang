@@ -264,7 +264,7 @@ for (const [page] of parsed) {
 /// repository, relative or on GitHub's main, reach a file.
 const SITE = "https://docs.clice.io/xclang/";
 const SITE_ZH = "https://docs.clice.io/zh/xclang/";
-for (const name of ["README.md", "README.zh-CN.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "packages/README.md"]) {
+for (const name of ["README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "packages/README.md"]) {
   const file = path.join(ROOT, name);
   if (!fs.existsSync(file)) continue;
   fs.readFileSync(file, "utf8").split("\n").forEach((line, i) => {

@@ -133,13 +133,10 @@ build:hardened --@xclang//runtimes:source --@xclang//runtimes:hardening=extensiv
 - **程序中的每个库都必须使用同一变体**：如果程序使用了不同的 ABI 命名空间、ABI 版本、ABI 宏集合或启用了 MemorySanitizer，将基于预编译运行时库编译的库链接进去会导致链接失败或运行时行为异常。
 - **Bazel 中仅作用于目标平台配置**：构建期间执行的主机工具（`cfg = "exec"`）始终使用预编译的主机运行时库构建，不受 `@xclang//runtimes:*` 设置影响。运行时库遵循整个构建的 sanitizer 特性（如 `--features=asan`），而非单个 Bazel 目标上设置的 `features` 属性。
 - **主机环境要求**：CMake 的运行时库构建会运行 LLVM 的 CMake 脚本，要求主机安装 Python 3；Bazel 则不需要额外的主机工具。
+- **不支持 MSVC 目标平台**：CMake 与 Bazel 会在这些目标平台上拒绝从源码构建运行时库（[计划中](../design/roadmap.md#runtimes-msvc)）。
+- **只使用一套 C++ 标准库**：`-stdlib=platform`（`XCLANG_STDLIB=platform`、`--@xclang//bazel:stdlib=platform`）使用的是平台的 C++ 标准库，而从源码构建运行时库构建的是 `libc++`；一次构建只能二选一。
+- **Bazel 中不对运行时库执行 LTO**：`--features=thin_lto` 会将程序链接到已编译为机器码的运行时库，因为 Bazel 只对 `deps` 中的库运行 ThinLTO 后端，不会处理由工具链链接的库（[考虑中](../design/roadmap.md#runtimes-bazel-lto)）。
 
 ### 内置源码
 
 每个工具链压缩包都在 `libc++/include` 同级的 `libc++/src` 目录下附带了一份供所有目标平台共用的运行时库源码：包含 `llvm-project` 的 `runtimes/`、`cmake/`、`llvm/cmake/`、`libcxx/`、`libcxxabi/`、`libunwind/`、`compiler-rt/`，以及 `libc++` 所引用的内部 `libc` 头文件，剔除了测试与文档，并已打上 xclang 的 `libc++` [补丁](../reference/patches.md)。这些源码解压后占 35 MB（在每个压缩包中占 2.3 MB）。
-
-## 已知限制
-
-- **MSVC 目标平台**：暂不支持为 `x86_64-pc-windows-msvc` 与 `aarch64-pc-windows-msvc` 从源码构建运行时库，相关支持目前在[计划中](../design/roadmap.md#runtimes-msvc)；CMake 与 Bazel 会在 MSVC 目标平台上拒绝 `XCLANG_RUNTIMES=source` 和 `--@xclang//runtimes:source`。
-- **`-stdlib=platform`**（`XCLANG_STDLIB=platform`、`--@xclang//bazel:stdlib=platform`）使用的是平台的 C++ 标准库，而从源码构建运行时库构建的是 `libc++`：一次构建只能二选一。
-- **Bazel 中对运行时库执行 ThinLTO**：由于 Bazel 只会对 `deps` 中的 `cc_library` 目标运行 ThinLTO 后端，而不会处理由工具链隐式链接的库，因此 `--features=thin_lto` 会用 ThinLTO 编译程序并将其与编译为原生机器码的源码构建运行时库链接；在 Bazel 中对从源码构建的运行时库启用 LTO 目前在[考虑中](../design/roadmap.md#runtimes-bazel-lto)。

@@ -46,7 +46,7 @@ int main() {
 
 ### CMake
 
-`libclang` 以发布压缩包（`libclang-<version>-<host>.tar.xz`）形式分发，不通过 conda 或 `FetchContent` 提供。在 `examples/libclang` 目录下，运行 `pixi install` 后进入 `pixi shell`，在 Linux `x86_64` 上下载、校验并解压与当前已安装版本一致的压缩包（[安装](../guide/install.md#assets)页面列出了所有主机 triple；在 macOS 上请使用 `shasum -a 256 -c --ignore-missing SHA256SUMS` 校验）：
+`libclang` 以发布压缩包（`libclang-<version>-<host>.tar.xz`）形式分发，不通过 conda 或 `FetchContent` 提供。在 `examples/libclang` 目录下，运行 `pixi install` 后进入 `pixi shell`，在 Linux `x86_64` 上下载、校验并解压与当前已安装版本一致的压缩包（[安装](../reference/releases.md#assets)页面列出了所有主机 triple；在 macOS 上请使用 `shasum -a 256 -c --ignore-missing SHA256SUMS` 校验）：
 
 <!-- excerpt: .github/workflows/examples.yml -->
 ```sh
@@ -214,7 +214,7 @@ cc_binary(
 bazel run //:options
 ```
 
-同一批头文件也发布为 `noarch` 的 conda 软件包 `llvm-option-inc`（安装到 `$PREFIX/include/llvm-options-td` 下）以及发布文件 `llvm-option-inc-<version>.tar.xz`（[安装](../guide/install.md#assets)）。
+同一批头文件也发布为 `noarch` 的 conda 软件包 `llvm-option-inc`（安装到 `$PREFIX/include/llvm-options-td` 下）以及发布文件 `llvm-option-inc-<version>.tar.xz`（[安装](../reference/releases.md#assets)）。
 
 ## 选项
 
@@ -238,6 +238,7 @@ bazel run //:options
 - **使用 `-fno-rtti` 编译**：与压缩包中的 LLVM 和 `clang` 库保持一致。
 - **随附资源目录**：如果工具需要解析 C 或 C++ 代码，请将 `lib/clang/<major>` 放在相对于可执行文件所在目录的 `../lib/clang/<major>` 处（在 Bazel 中使用 `xclang_resource_dir`，或从压缩包的 `lib/clang/<major>` 拷贝）。
 - **交叉编译时使用目标平台的 `libclang`**：在 Bazel 中，`@libclang` 会自动选择并仅下载与目标平台（`--platforms`）匹配的压缩包。在 CMake 中，请将 `CMAKE_PREFIX_PATH` 设为目标主机对应的 `libclang` 压缩包解压目录。
+- **仅限主机平台**：六个主机平台各有对应的 `libclang`，而 musl 与 MSVC 目标平台没有；在 Bazel 中，依赖 `@libclang` 的目标会标记为与这些平台不兼容。面向 MSVC ABI 的 `libclang` [不计划](../design/roadmap.md#libclang-msvc)提供。
 
 ### 压缩包内容
 
@@ -299,10 +300,3 @@ bazel run //:options
 | 缓存大小 | 352–403 MiB | 414–425 MiB | 394–660 MiB |
 
 在全部六个主机平台上链接一个小型工具（`examples/libclang`），冷启动（不启用缓存或空缓存）耗时 7 至 20 s，热缓存（152 至 155 个缓存条目）耗时 0.6 至 1.7 s，每次运行产出的二进制文件逐字节相同。
-
-## 已知限制
-
-- **仅提供主机 triple 版本**：`libclang` 压缩包仅面向六个主机 triple（`x86_64-unknown-linux-gnu`、`aarch64-unknown-linux-gnu`、`x86_64-w64-mingw32`、`aarch64-w64-mingw32`、`aarch64-apple-darwin`、`x86_64-apple-darwin`）构建。musl 与 MSVC 目标平台没有对应的 `libclang`；在 Bazel 中，依赖 `@libclang` 的目标会标记为与 musl 和 MSVC 平台不兼容，且 MSVC 版 `libclang` [不计划](../design/roadmap.md#libclang-msvc)支持。
-- **ASan 构建版本支持的主机**：`libclang-<version>-<host>-asan.tar.xz` 仅面向 `x86_64-unknown-linux-gnu` 与 `aarch64-apple-darwin` 发布。
-- **需配合同一版本的 `lld` 与 `-fno-rtti`**：由于 `libclang` 是禁用 RTTI 编译的 ThinLTO bitcode，链接时必须使用同一 xclang 版本的 `lld`（在 macOS 上，`-fuse-ld=ld` 会选用仅支持链接非 LTO 目标文件的 Apple `ld`），且编译时必须加上 `-fno-rtti`。
-- **不含后端代码生成器**：`libclang` 压缩包包含所有目标平台的 MC 层（`AllTargetsInfos`、`AllTargetsDescs`、`AllTargetsAsmParsers`、`AllTargetsDisassemblers`），不包含 LLVM 的代码生成后端（调用 `InitializeAllTargets()`、`InitializeAllAsmPrinters()` 与 `InitializeNativeTarget()` 会无法链接）。

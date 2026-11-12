@@ -3,8 +3,8 @@
 发布的二进制文件通常会剥离符号（strip），并将调试符号单独保存，用于将崩溃地址解析为函数、文件名与行号。xclang 使用每个工具链压缩包内置的工具（`llvm-gsymutil`、`dsymutil`、`llvm-symbolizer`、`llvm-dwarfdump` 与 `llvm-strip`）为所有目标平台构建调试符号：
 
 - **GSYM**（支持除 MSVC 以外的所有目标平台）：由 `llvm-gsymutil --convert` 从 DWARF 转换而来的按地址索引的函数、内联调用栈与行号表。GSYM 文件体积约为 DWARF 的十分之一，便于在崩溃收集器中快速查询。
-- **dSYM**（面向 [macOS](../targets/macos.md) 目标平台）：供 Apple 工具与 `lldb` 读取的 `.dSYM` 包，可由 `dsymutil` 在任意主机上收集生成。
-- **PDB**（面向 [MSVC](../targets/windows.md#msvc-targets) 目标平台）：由 `lld-link` 写出的 CodeView `.pdb` 文件（`llvm-gsymutil` 不支持读取它）。
+- **dSYM**（面向 [macOS](../guide/cross-compiling.md#macos) 目标平台）：供 Apple 工具与 `lldb` 读取的 `.dSYM` 包，可由 `dsymutil` 在任意主机上收集生成。
+- **PDB**（面向 [MSVC](../guide/cross-compiling.md#msvc-targets) 目标平台）：由 `lld-link` 写出的 CodeView `.pdb` 文件（`llvm-gsymutil` 不支持读取它）。
 
 ## 用法
 
@@ -167,6 +167,8 @@ llvm-gsymutil tool.gsym --address=0x$(llvm-nm tool | awk '$3 == "answer" { print
 - **macOS `.dSYM` 包在链接阶段收集生成**，从而将 ThinLTO 目标文件包含在内（[见下文](#why-a-dsym-comes-from-the-link)）。
 - **GSYM 文件在 macOS 上由 `.dSYM` 生成**，在 Linux 与 MinGW 目标平台上则直接由二进制文件生成；`llvm-gsymutil` 可在任意主机上运行。MSVC 目标平台改为生成 `.pdb`。
 - **针对不同目标文件格式采用对应的符号剥离方式**（[见下文](#strip)）。
+- **生成 GSYM 需要 `-g`**：对于 `-gline-tables-only` 生成的 DWARF，LLVM 23 的 `llvm-gsymutil` 不会加载任何函数，生成的 GSYM 仅包含来自符号表的名称，没有文件名与行号信息。
+- **单线程保证 GSYM 一致**：以默认线程数运行 `llvm-gsymutil --convert` 时，每次运行写出的文件布局都会有所不同（三次运行的大小在 3,043,120 至 3,053,168 字节之间波动，但查询结果一致）。传入 `--num-threads=1` 后，每次运行都会生成逐字节相同的文件，且体积缩小约 0.6%；在 4 核 runner 上转换 Ubuntu 24.04 的 `libclang-cpp.so.18`（GSYM 大小 98 MB）与 `libLLVM.so.18`（GSYM 大小 118 MB）时，单线程耗时分别为 6.0 s 与 7.8 s，4 线程耗时为 4.3 s 与 5.7 s。`xclang_debug_symbols` 会传入 `--num-threads=1`。
 
 ### 调试信息中的路径
 
@@ -190,7 +192,7 @@ Mach-O 可执行文件不内嵌 DWARF 节；它的调试映射表指向各个 `.
 - 链接时传入 `-object_path_lto <dir>` 保留 ThinLTO 后端生成的临时目标文件。在 Bazel 中，`dsymutil` 会在链接动作内部紧接着运行，并在动作结束前删除临时目录；在 CMake 中，目标文件保留在 `<build-dir>/<target>.lto` 下，由 `dsymutil` 作为构建后步骤运行。
 - 链接时传入 `--keep-icf-stabs`，使被 ICF 折叠的函数在调试映射表中保留各自的 stab 条目，从而让 `llvm-gsymutil` 的 `--merged-functions` 记录所有被合并的函数名。
 - `dsymutil` 使用 `--linker classic` 运行：LLVM 23 默认的 `--linker parallel`（在面向 macOS 15+ 部署目标时）生成的 DWARF 5 行号表会导致 Apple 的 `atos` 崩溃。
-- 传入 `-object_path_lto` 还暴露了 `ld64.lld` 的一个缺陷：在 `arm64` 上，空的 `ltmp0` 目标文件会覆盖 `main` 的 `__unwind_info` 条目；这一问题已由[补丁 0007](../reference/patches.md) 修复（[macOS](../targets/macos.md#why-ld64-lld-and-patch-0007)）。
+- 传入 `-object_path_lto` 还暴露了 `ld64.lld` 的一个缺陷：在 `arm64` 上，空的 `ltmp0` 目标文件会覆盖 `main` 的 `__unwind_info` 条目；这一问题已由[补丁 0007](../reference/patches.md) 修复（[macOS](../design/macos.md#why-ld64-lld-and-patch-0007)）。
 
 ### 剥离符号
 
@@ -200,9 +202,3 @@ Bazel 的 `<name>.stripped` 目标（以及手动剥离符号时使用的 `llvm-
 - **Mach-O**：使用 `--strip-all`（与 Apple 的 `strip` 行为一致），移除所有无需由 `dyld` 绑定的符号，包括全局函数名。
 
 在 macOS 上，`dladdr` 会将调用栈中的地址解析为排在它前面最近的一个符号。如果剥离符号后的二进制文件仍保留全局函数符号或导出的弱函数符号，崩溃日志就会把已剥离的局部函数内部的崩溃归因到排在它前面的导出符号上。虽然 `--strip-all` 会移除局部符号与未导出的全局符号，但它仍会保留供 `dyld` 合并（coalescing）的导出符号，包括弱符号形式的 C++ 模板实例化与内联函数（在 clice 剥离符号后的二进制文件中有 1,844 个此类符号）。因此，Bazel 中的优化版 macOS 构建默认开启 `no_exported_symbols` 特性，传入 `-Wl,-no_exported_symbols` 使可执行文件不导出任何符号；这样 `<name>.stripped` 不会保留任何函数符号，崩溃日志会直接记录原始地址，再由 `.dSYM` 或 `.gsym` 精确完成符号化。如果可执行文件需要加载绑定其自身符号的插件，可在对应的 `cc_binary` 上设置 `features = ["-no_exported_symbols"]` 关闭这一特性。如需向 `llvm-strip` 传入额外参数，请使用 `--stripopt`。
-
-## 已知限制
-
-- **`-gline-tables-only` 生成的 GSYM 不含行号**：在 LLVM 23 中，`llvm-gsymutil` 不会从 `-gline-tables-only` 生成的 DWARF 中加载函数，导致生成的 GSYM 只包含符号表名称，没有文件名与行号信息。编译时请使用 `-g`。
-- **多线程 `llvm-gsymutil` 的输出具有不确定性**：以默认线程数运行 `llvm-gsymutil --convert` 时，针对同一份 DWARF 输入，每次运行写出的文件布局都会有所不同（例如三次运行的大小在 3,043,120 至 3,053,168 字节之间波动，但地址查询结果一致）。传入 `--num-threads=1` 后，每次运行的输出逐字节相同，且体积缩小约 0.6%；在 4 核 runner 上转换 Ubuntu 24.04 的 `libclang-cpp.so.18`（GSYM 大小 98 MB）与 `libLLVM.so.18`（GSYM 大小 118 MB）时，单线程耗时分别为 6.0 s 与 7.8 s，而 4 线程耗时为 4.3 s 与 5.7 s。`xclang_debug_symbols` 默认传入 `--num-threads=1`。
-- **CMake 调试信息中包含绝对路径**：CMake 构建会在 DWARF 与 Mach-O 调试映射表中记录构建目录的绝对路径；CMake 的相对调试路径支持目前在[计划中](../design/roadmap.md#cmake-relative-paths)。

@@ -1,6 +1,6 @@
 # xclang
 
-[中文](README.zh-CN.md) · [Documentation](https://docs.clice.io/xclang)
+[Documentation](https://docs.clice.io/xclang) · [中文文档](https://docs.clice.io/zh/xclang)
 
 Cross-compiling with clang the way rustup, cross-rs and cargo-zigbuild let
 Rust do it: one compiler for every target. Today every toolchain carries eight
