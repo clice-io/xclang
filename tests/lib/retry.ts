@@ -21,6 +21,10 @@ if (!command) {
   process.exit(2);
 }
 
+/// A reader that stops early (`| head -n 1`) closes the pipe: what is
+/// left to pass on goes nowhere, and the command's status still counts.
+process.stdout.on("error", (e: NodeJS.ErrnoException) => { if (e.code !== "EPIPE") throw e; });
+
 for (let attempt = 1; ; attempt++) {
   const { status, output } = await new Promise<{ status: number; output: string }>((resolve) => {
     const child = spawn(command, args, { stdio: ["inherit", "pipe", "pipe"], shell: false });
