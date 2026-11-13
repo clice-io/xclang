@@ -169,6 +169,8 @@ followed by the next revision, never replaced.
 | `release`: `<v> is a draft; publish=true publishes it` | nothing | by hand, with `-f publish=true` |
 | `release`: `the draft's commit ... is not in main's history` | nothing | its pull request merges it (a merge commit) first |
 | `release`, `channels` (curl) | the release | `gh run rerun <run> --failed`: the rerun takes it as published (`<v>: published by a try before`) |
+| `release`, `The release served`: `.../SHA256SUMS: HTTP 404 ten minutes after the release was published` | the release | GitHub does not serve the new release's downloads yet; the jobs after it waited (test-cmake once got a 404 37 s after publishing, published.yml 43337413575). Check `curl -sSIL -o /dev/null -w '%{http_code}' <url>`, then rerun |
+| a test job: `error: https://github.com/clice-io/xclang/releases/download/<v>/SHA256SUMS: HTTP 404` right after publishing | the release | as the line above, in a run before `The release served` existed: rerun the failed jobs |
 | `bazel` (test-bazel.yml with the release) | the release, conda (independent) | transient: rerun; a test's bug: fix on main, published.yml by hand from main; the module's bug: the tag's module is what bazel.clice.io would get, so the next revision. `bazel-registry`, `latest`, `examples` wait for it |
 | `bazel-registry` (clice-io/bazel's action) | the release, conda | its log: the token (`UPLOAD_BAZEL`), the registry's pull request; rerun. Not published twice: a run sees the version on bazel.clice.io |
 | `cmake` | the release, others | as `bazel`; `latest` waits for it |
