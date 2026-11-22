@@ -306,8 +306,9 @@ Full option lists are in the [CMake API](../reference/cmake-api.md) and the
   `malloc` is slow for `clang`'s many small allocations
   ([the musl hosts](../design/toolchain.md#the-musl-hosts)): link an
   allocator into the tool, as xclang's own musl hosts link mimalloc. Its
-  threads get 8 MiB of stack, as glibc's
-  ([musl targets](../guide/cross-compiling.md#musl-targets)).
+  threads have musl's 128 KiB of stack unless it asks for more, which
+  `clang` on a thread needs
+  ([thread stacks](../guide/cross-compiling.md#musl-targets)).
 
 
 ### What the Archive Contains

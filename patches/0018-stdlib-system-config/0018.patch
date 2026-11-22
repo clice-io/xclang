@@ -74,6 +74,30 @@ index c4f750a..e2355fb 100644
    // Check for working directory option before accessing any files
    if (Arg *WD = Args.getLastArg(options::OPT_working_directory))
      if (VFS->setCurrentWorkingDirectory(WD->getValue()))
+diff --git a/clang/lib/Driver/ToolChains/Gnu.cpp b/clang/lib/Driver/ToolChains/Gnu.cpp
+--- a/clang/lib/Driver/ToolChains/Gnu.cpp
++++ b/clang/lib/Driver/ToolChains/Gnu.cpp
+@@ -2116,11 +2116,19 @@
+   SmallVector<StringRef, 16> CandidateBiarchTripleAliases;
+   // Add some triples that we want to check first.
+   CandidateTripleAliases.push_back(TargetTriple.str());
+-  std::string TripleNoVendor, BiarchTripleNoVendor;
++  std::string TripleNoVendor, BiarchTripleNoVendor, TripleAlpine;
+   if (TargetTriple.getVendor() == llvm::Triple::UnknownVendor) {
+     StringRef OSEnv = TargetTriple.getOSAndEnvironmentName();
+     if (TargetTriple.getEnvironment() == llvm::Triple::GNUX32)
+       OSEnv = "linux-gnu";
++    // Alpine's GCC is <arch>-alpine-linux-musl, the name of the directory of
++    // its libstdc++'s target headers (bits/c++config.h); <arch>-linux-musl
++    // is a link to it.
++    if (TargetTriple.isMusl()) {
++      TripleAlpine =
++          (TargetTriple.getArchName().str() + "-alpine-" + OSEnv).str();
++      CandidateTripleAliases.push_back(TripleAlpine);
++    }
+     TripleNoVendor = (TargetTriple.getArchName().str() + '-' + OSEnv).str();
+     CandidateTripleAliases.push_back(TripleNoVendor);
+     if (BiarchVariantTriple.getArch() != llvm::Triple::UnknownArch) {
 diff --git a/clang/test/Driver/config-file-stdlib.c b/clang/test/Driver/config-file-stdlib.c
 new file mode 100644
 index 0000000..8cdf857

@@ -117,7 +117,7 @@ for (const file of programs) {
     const libs = run(tool("llvm-readobj"), ["--needed-libs", file]) ?? "";
     if (/libc\+\+|libstdc\+\+|libgcc|libunwind|winpthread/i.test(libs)) failures.push(`${program} loads a C++ runtime`);
     if (muslHost) {
-      /// Static, with musl.cfg's thread stacks (toolchain/toolchain.ts).
+      /// Static, with 8 MiB thread stacks (toolchain/toolchain.ts).
       const headers = run(tool("llvm-readelf"), ["--program-headers", "--dynamic-table", file]) ?? "";
       if (/\bINTERP\b|\(NEEDED\)/.test(headers)) failures.push(`${program} is not static`);
       const stack = /GNU_STACK\s+\S+\s+\S+\s+\S+\s+\S+\s+(0x[0-9a-f]+)/.exec(headers)?.[1];
@@ -453,13 +453,11 @@ int main() { std::println("{} {}", "import", std::vector{1, 2, 3}); }
 /// dynamic section, so no shared library either; what of libc++ leans on
 /// musl (std::filesystem, std::format's locale, threads); an exception
 /// through musl's qsort, whose objects have unwind tables
-/// (toolchain/sysroot.ts); threads of 8 MiB of stack by default, as glibc's
-/// (musl.cfg); `import std;`; UBSan.
+/// (toolchain/sysroot.ts); `import std;`; UBSan.
 const muslCxx = write("musl.cpp", `#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <format>
-#include <pthread.h>
 #include <stdexcept>
 #include <thread>
 static int compare(const void*, const void*) { throw std::runtime_error("thrown through qsort"); }
@@ -469,17 +467,12 @@ int main() {
   auto dir = std::filesystem::temp_directory_path() / "xclang-musl";
   std::filesystem::create_directories(dir);
   std::jthread([&] { std::FILE* f = std::fopen((dir / "a.txt").c_str(), "w"); std::fputs("musl", f); std::fclose(f); });
-  pthread_attr_t attr;
-  std::size_t stack = 0;
-  pthread_attr_init(&attr);
-  pthread_attr_getstacksize(&attr, &stack);
-  std::puts(std::format("{} {} {:.2f} {} MiB", std::filesystem::file_size(dir / "a.txt"), dir.filename().string(), 3.14159,
-      stack >> 20).c_str());
+  std::puts(std::format("{} {} {:.2f}", std::filesystem::file_size(dir / "a.txt"), dir.filename().string(), 3.14159).c_str());
   std::filesystem::remove_all(dir);
 }
 `);
 for (const t of musl) {
-  for (const [source, driver, std, expected] of [[helloC, "clang", "-std=c17", "hello c"], [muslCxx, "clang++", "-std=c++23", "4 xclang-musl 3.14 8 MiB"]]) {
+  for (const [source, driver, std, expected] of [[helloC, "clang", "-std=c17", "hello c"], [muslCxx, "clang++", "-std=c++23", "4 xclang-musl 3.14"]]) {
     const out = path.join(work, `static-${path.basename(source)}-${t}`);
     if (run(tool(driver), [`--target=${t}`, std, "-O2", source, "-o", out]) === undefined) continue;
     const headers = run(tool("llvm-readelf"), ["--program-headers", "--dynamic", out]) ?? "";

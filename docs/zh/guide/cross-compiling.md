@@ -120,7 +120,7 @@ pixi run llvm-readelf --program-headers hello-static-x64
 musl 与 glibc 在运行时行为上的差异如下（性能数据测自 4 核 GitHub Linux x64 runner）：
 
 - **多线程下的 `malloc`**：musl 的内存分配器使用一把多线程争用的锁。单线程执行 400 万次 16 至 528 字节的 `malloc` 与 `free` 耗时 0.21 s（glibc 为 0.07 s），4 个线程同时执行则耗时 4.8 s（glibc 为 0.12 s）。若程序在多线程下频繁分配内存，建议链接自定义的内存分配器。
-- **线程栈**：除非程序另有要求，musl 给每个线程 128 KiB 的栈，glibc 则与主线程一样是 8 MiB；在线程里运行 `clang`（基于 [libclang](../features/libclang.md) 的工具就是这样运行它的）需要更大的栈。配置文件会链接 `-Wl,-z,stack-size=8388608`，musl 会把它作为程序中线程的默认栈大小（musl 最多接受 8 MiB）；命令行上的 `-Wl,-z,stack-size=` 会覆盖它。
+- **线程栈**：除非程序另有要求，musl 给每个线程 128 KiB 的栈，glibc 则与主线程一样是 8 MiB；在线程上做深度递归（例如基于 [libclang](../features/libclang.md) 的工具在线程里运行 `clang`）需要更大的栈。链接时加上 `-Wl,-z,stack-size=8388608`，musl 会把它作为程序中线程的默认栈大小（musl 最多接受 8 MiB），musl 主机的 `clang` 与 `lld` 就是这样链接的；也可以为线程单独指定栈大小。
 - **区域设置（locale）**：musl 不包含区域设置数据，始终按 `C` locale 格式化：在 `en_US.UTF-8` 下，`printf("%'.1f", 1234567.5)` 会输出 `1234567.5`（glibc 则输出 `1,234,567.5`），`libc++` 的 `std::locale` 表现相同。
 - **名称解析**：musl 直接读取 `/etc/hosts` 与 `/etc/resolv.conf` 并发起 DNS 查询，不使用 NSS（`nsswitch.conf` 模块），因此无法解析 mDNS 的 `.local` 域名以及 LDAP 或 SSSD 的用户和组。
 

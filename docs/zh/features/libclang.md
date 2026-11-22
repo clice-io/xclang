@@ -239,7 +239,7 @@ bazel run //:options
 - **随附资源目录**：如果工具需要解析 C 或 C++ 代码，请将 `lib/clang/<major>` 放在相对于可执行文件所在目录的 `../lib/clang/<major>` 处（在 Bazel 中使用 `xclang_resource_dir`，或从压缩包的 `lib/clang/<major>` 拷贝）。
 - **交叉编译时使用目标平台的 `libclang`**：在 Bazel 中，`@libclang` 会自动选择并仅下载与目标平台（`--platforms`）匹配的压缩包。在 CMake 中，请将 `CMAKE_PREFIX_PATH` 设为目标主机对应的 `libclang` 压缩包解压目录。
 - **仅限主机平台**：八个主机平台各有对应的 `libclang`，而 MSVC 目标平台没有；在 Bazel 中，依赖 `@libclang` 的目标会标记为与这些平台不兼容。面向 MSVC ABI 的 `libclang` [不计划](../design/roadmap.md#libclang-msvc)提供。
-- **musl 的 `malloc`**：链接 musl 主机 `libclang` 的工具是静态程序，除非另外链接分配器，否则用的是 musl 的 `malloc`，而它应付 `clang` 大量的小块分配很慢（[musl 主机](../design/toolchain.md#the-musl-hosts)）：请给工具链接一个分配器，xclang 自己的 musl 主机链接的是 mimalloc。它的线程栈与 glibc 一样是 8 MiB（[musl 目标平台](../guide/cross-compiling.md#musl-targets)）。
+- **musl 的 `malloc`**：链接 musl 主机 `libclang` 的工具是静态程序，除非另外链接分配器，否则用的是 musl 的 `malloc`，而它应付 `clang` 大量的小块分配很慢（[musl 主机](../design/toolchain.md#the-musl-hosts)）：请给工具链接一个分配器，xclang 自己的 musl 主机链接的是 mimalloc。除非工具自己要求更大的栈，它的线程只有 musl 的 128 KiB 栈，而在线程里运行 `clang` 需要更多（[线程栈](../guide/cross-compiling.md#musl-targets)）。
 
 ### 压缩包内容
 

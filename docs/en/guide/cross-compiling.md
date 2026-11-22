@@ -210,11 +210,12 @@ GitHub Linux x64 runners):
   once (glibc: 0.12 s). Link an allocator of your own into programs that
   allocate heavily across threads.
 - **Thread stacks**: musl gives a thread 128 KiB of stack unless the
-  program asks for more, glibc the main thread's 8 MiB; `clang` run on a
-  thread, as a tool on [libclang](../features/libclang.md) runs it, needs
-  more. The config file links `-Wl,-z,stack-size=8388608`, which musl takes
-  as the default of the program's threads (8 MiB is the most it takes); a
-  `-Wl,-z,stack-size=` of the command line replaces it.
+  program asks for more, glibc the main thread's 8 MiB; deep recursion on a
+  thread, such as `clang` run by a tool on
+  [libclang](../features/libclang.md), needs more. Link with
+  `-Wl,-z,stack-size=8388608`, which musl takes as the default of the
+  program's threads (8 MiB is the most it takes), as the musl hosts'
+  `clang` and `lld` are linked, or give the threads their stack size.
 - **Locales**: musl has no locale data and formats as the `C` locale:
   `printf("%'.1f", 1234567.5)` prints `1234567.5` under `en_US.UTF-8` where
   glibc prints `1,234,567.5`, and `libc++`'s `std::locale` behaves the same
