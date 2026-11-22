@@ -3,7 +3,8 @@ name: exp-musl-frontend
 # Experiment (exp/musl-hosts only): the frontend alone, as clice runs it
 # (exp/split/frontend.ts), by 23.1.5.2's glibc build and the musl host's
 # build with mimalloc of exp-musl's run, with mimalloc's options that hold
-# memory changed: time and peak memory on several machines.
+# memory changed, and with mimalloc 2.5.3 (no huge pages, 10 ms purge
+# delay): time and peak memory on several machines.
 
 on:
   push:
@@ -53,7 +54,7 @@ jobs:
           tar -xf "rel/xclang-$RELEASE-$GNU.tar.xz" -C glibc
           tar -xf "rel/libclang-$RELEASE-$GNU.tar.xz" -C libclang-gnu --strip-components=1
           zstd -dc art/variants-$MUSL.tar.zst | tar -xf -
-          for name in mimalloc3; do
+          for name in mimalloc3 mimalloc2; do
             mkdir -p "t/$name"
             cp -al glibc/xclang "t/$name/xclang"
             rm "t/$name/xclang/bin/llvm"
@@ -86,7 +87,8 @@ jobs:
             --compiler mi-nothp=$mi --env mi-nothp=MIMALLOC_ALLOW_THP=0 \
             --compiler mi-purge0=$mi --env mi-purge0=MIMALLOC_PURGE_DELAY=0 \
             --compiler mi-purge10=$mi --env mi-purge10=MIMALLOC_PURGE_DELAY=10 \
-            --compiler mi-nothp-purge0=$mi --env mi-nothp-purge0=MIMALLOC_ALLOW_THP=0 --env mi-nothp-purge0=MIMALLOC_PURGE_DELAY=0
+            --compiler mi-nothp-purge0=$mi --env mi-nothp-purge0=MIMALLOC_ALLOW_THP=0 --env mi-nothp-purge0=MIMALLOC_PURGE_DELAY=0 \
+            --compiler mi2=t/mimalloc2/xclang/bin/clang++
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
