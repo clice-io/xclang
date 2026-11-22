@@ -36,6 +36,8 @@ const { values } = parseArgs({
     prefix: { type: "string", multiple: true, default: [] },
     rounds: { type: "string", default: "3" },
     out: { type: "string", default: "bench.json" },
+    /// Experiment (exp/musl-hosts): name=<library>, LD_PRELOAD for that compiler.
+    preload: { type: "string", multiple: true, default: [] },
   },
 });
 if (!values.tree || !values.compiler.length) common.fail("--tree <xclang> --compiler name=<clang++> ...");
@@ -47,7 +49,7 @@ const native = windows ? `${arch}-w64-mingw32`
 const target = common.target(native);
 const cfg = path.join(tree, "bin", `${common.cfgNames(target)[0]}.cfg`);
 
-interface Compiler { name: string; path: string; args: string[]; system: boolean }
+interface Compiler { name: string; path: string; args: string[]; system: boolean; env?: NodeJS.ProcessEnv }
 const compilers: Compiler[] = values.compiler.map((spec) => {
   const [name, file] = [spec.slice(0, spec.indexOf("=")), spec.slice(spec.indexOf("=") + 1)];
   const system = values.system.includes(name);
@@ -56,7 +58,8 @@ const compilers: Compiler[] = values.compiler.map((spec) => {
   const prefix = values.prefix.filter((p) => p.startsWith(`${name}=`)).map((p) => p.slice(name.length + 1));
   const args = system ? [] : [...prefix, `--target=${native}`,
     ...(values.config.includes(name) ? ["--no-default-config", `--config=${cfg}`] : [])];
-  return { name, path: file, args, system };
+  const preload = values.preload.find((p) => p.startsWith(`${name}=`))?.slice(name.length + 1);
+  return { name, path: file, args, system, env: preload ? { ...process.env, LD_PRELOAD: preload } : undefined };
 });
 
 /// The workload, unpacked with the system's tar (bsdtar on Windows).
@@ -122,7 +125,7 @@ function compile(c: Compiler, item: Item, mode: string): number | undefined {
   const args = [...c.args, ...item.args, ...modeArgs, item.file,
     ...(modeArgs.includes("-fsyntax-only") ? [] : ["-o", out])];
   const start = process.hrtime.bigint();
-  const result = spawnSync(c.path, args, { encoding: "utf8" });
+  const result = spawnSync(c.path, args, { encoding: "utf8", env: c.env });
   const seconds = Number(process.hrtime.bigint() - start) / 1e9;
   if (result.status !== 0) {
     console.log(`${c.name} ${mode} ${path.basename(item.file)} failed:\n${(result.stderr ?? "").slice(0, 1500)}`);
@@ -132,7 +135,7 @@ function compile(c: Compiler, item: Item, mode: string): number | undefined {
 }
 
 for (const c of compilers) {
-  const version = spawnSync(c.path, [...c.args, "--version"], { encoding: "utf8" }).stdout.split("\n")[0];
+  const version = spawnSync(c.path, [...c.args, "--version"], { encoding: "utf8", env: c.env }).stdout.split("\n")[0];
   console.log(`${c.name}: ${c.path} ${c.args.join(" ")}\n  ${version}`);
 }
 

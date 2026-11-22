@@ -1,0 +1,163 @@
+name: exp-musl-split
+
+# Experiment (exp/musl-hosts only): where the musl hosts' lead over the
+# glibc hosts comes from. 23.1.5.2's glibc build as it is, the same build
+# with mimalloc 3.7.0 preloaded (the allocator alone), and the musl host's
+# build with mimalloc of exp-musl's run (static musl besides): startup,
+# compile and link speed on several machines, the programs' ELF facts, and
+# perf profiles with glibc's symbols.
+
+on:
+  push:
+    branches: [exp/musl-hosts]
+    paths: [".github/workflows/exp-musl-split.yml"]
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  RELEASE: 23.1.5.2
+  BUILD_RUN: "44996323031"
+  MIMALLOC: https://github.com/microsoft/mimalloc/archive/refs/tags/v3.7.0.tar.gz
+  MIMALLOC_SHA256: 1b8653b9ff9b841a97f2c50fd996e89e1a0cb712c3c5b0980ef16a027eb7acf8
+
+jobs:
+  bench:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+        shard: [1, 2, 3]
+    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 240
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MUSL: ${{ matrix.arch }}-unknown-linux-musl
+      GNU: ${{ matrix.arch }}-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          name: variants-${{ matrix.arch }}-unknown-linux-musl
+          path: art
+          run-id: ${{ env.BUILD_RUN }}
+          github-token: ${{ github.token }}
+      - name: Trees
+        run: |
+          gh release download "$RELEASE" -R clice-io/xclang -D rel -p "xclang-$RELEASE-$GNU.tar.xz" -p "libclang-$RELEASE-$GNU.tar.xz"
+          mkdir -p glibc libclang-gnu t
+          tar -xf "rel/xclang-$RELEASE-$GNU.tar.xz" -C glibc
+          tar -xf "rel/libclang-$RELEASE-$GNU.tar.xz" -C libclang-gnu --strip-components=1
+          zstd -dc art/variants-$MUSL.tar.zst | tar -xf -
+          for name in mimalloc3 mimalloc3-syms; do
+            mkdir -p "t/$name"
+            cp -al glibc/xclang "t/$name/xclang"
+            rm "t/$name/xclang/bin/llvm"
+            cp "variants-$MUSL/$name/llvm" "t/$name/xclang/bin/llvm"
+          done
+      # mimalloc 3.7.0 as a shared library, built by the glibc build's clang
+      # with the options of the musl hosts' object.
+      - name: mimalloc
+        run: |
+          curl -fsSL --retry 5 -o mimalloc.tar.gz "$MIMALLOC"
+          echo "$MIMALLOC_SHA256  mimalloc.tar.gz" | sha256sum -c -
+          mkdir mimalloc && tar -xzf mimalloc.tar.gz -C mimalloc --strip-components=1
+          cmake -S mimalloc -B mimalloc/build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER="$PWD/glibc/xclang/bin/clang" -DCMAKE_CXX_COMPILER="$PWD/glibc/xclang/bin/clang++" \
+            -DMI_OVERRIDE=ON -DMI_OPT_ARCH=OFF -DMI_BUILD_SHARED=ON -DMI_BUILD_STATIC=OFF -DMI_BUILD_OBJECT=OFF -DMI_BUILD_TESTS=OFF > /dev/null
+          cmake --build mimalloc/build -j "$(nproc)" > /dev/null
+          lib=$(find "$PWD/mimalloc/build" -name 'libmimalloc.so.*' -type f | head -n 1)
+          echo "MI_LIB=$lib" >> "$GITHUB_ENV"
+          LD_PRELOAD="$lib" MIMALLOC_VERBOSE=1 glibc/xclang/bin/clang --version 2>&1 | grep -m 1 '^mimalloc: ' || { echo "::error::mimalloc not preloaded"; exit 1; }
+      - name: ELF facts
+        if: matrix.shard == 1
+        run: |
+          { echo "### ELF: glibc build, then musl's"; echo '```'
+            for f in glibc/xclang/bin/llvm t/mimalloc3/xclang/bin/llvm; do
+              echo "$f: $(readelf -hW "$f" | grep -E '^ *Type:' | tr -s ' ')"
+              readelf -lW "$f" | grep -E 'INTERP|GNU_RELRO' | tr -s ' ' || true
+              readelf -dW "$f" 2>/dev/null | grep -E 'NEEDED|RELACOUNT|RELASZ|RELRSZ|FLAGS' | tr -s ' ' || true
+            done; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Startup
+        run: |
+          { echo "### startup: 300 × clang --version, $(nproc) threads"; echo '```'
+            for name in glibc glibc-mi mimalloc3; do
+              dir=glibc/xclang; pre=""
+              [[ $name == mimalloc3 ]] && dir=t/mimalloc3/xclang
+              [[ $name == glibc-mi ]] && pre="$MI_LIB"
+              start=$(date +%s%N)
+              for i in $(seq 300); do LD_PRELOAD="$pre" "$dir/bin/clang" --version > /dev/null; done
+              echo "$name: $(( ($(date +%s%N) - start) / 300000 )) µs each"
+            done; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Compile speed
+        run: |
+          node tests/bench/bench.ts --tree glibc/xclang --rounds 3 --out compile-${{ matrix.arch }}-${{ matrix.shard }}.json \
+            --compiler glibc=glibc/xclang/bin/clang++ --compiler glibc-mi=glibc/xclang/bin/clang++ --preload "glibc-mi=$MI_LIB" \
+            --compiler mimalloc3=t/mimalloc3/xclang/bin/clang++
+      - name: Link speed
+        run: |
+          node exp/split/link.ts --libclang libclang-gnu --out link-${{ matrix.arch }}-${{ matrix.shard }}.json \
+            --compiler glibc=glibc/xclang/bin/clang++ --compiler glibc-mi=glibc/xclang/bin/clang++ --preload "glibc-mi=$MI_LIB" \
+            --compiler mimalloc3=t/mimalloc3/xclang/bin/clang++
+      # The allocator's and the C library's share of clang's time, glibc's
+      # symbols from libc6-dbg.
+      - name: perf
+        if: matrix.shard == 1
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq "linux-tools-$(uname -r)" linux-tools-common libc6-dbg > /dev/null || { echo "no perf"; exit 0; }
+          sudo sysctl -q kernel.perf_event_paranoid=-1 kernel.kptr_restrict=0
+          fmt=work/src/fmt
+          for name in glibc glibc-mi mimalloc3-syms; do
+            dir=glibc/xclang; pre=""
+            [[ $name == mimalloc3-syms ]] && dir=t/mimalloc3-syms/xclang
+            [[ $name == glibc-mi ]] && pre="$MI_LIB"
+            cmd="for t in format ranges chrono; do for m in -O2 -fsyntax-only; do LD_PRELOAD=$pre $dir/bin/clang++ --target=$GNU -std=c++20 -include cstdlib -I$fmt/include -I$fmt/test -I$fmt/test/gtest \$m -c $fmt/test/\$t-test.cc -o /tmp/x.o; done; done"
+            perf record -q -e cpu-clock -F 4000 -o perf-$name.data -- bash -c "$cmd"
+            perf report -i perf-$name.data --no-children --sort dso,symbol --stdio --percent-limit 0.02 2>/dev/null | grep -v '^#' | grep -v '^$' > report-$name.txt
+            { echo "### perf: $name"; echo '```'
+              perf report -i perf-$name.data --no-children --sort dso --stdio 2>/dev/null | grep -v '^#' | grep -v '^$' | head -n 6
+              echo; echo "allocator and C library functions over 0.02%"
+              grep -E '\] (malloc|free|cfree|calloc|realloc|_int_malloc|_int_free|_int_realloc|malloc_consolidate|unlink_chunk|tcache_|__libc_malloc|__libc_free|__libc_calloc|__libc_realloc|mi_|_mi_|operator new|operator delete)' report-$name.txt | head -n 30
+              echo; grep -E '\] (__)?(mem|str|wmem|bcmp)' report-$name.txt | head -n 15
+              echo
+              grep -E '\] (malloc|free|cfree|calloc|realloc|_int_malloc|_int_free|_int_realloc|malloc_consolidate|unlink_chunk|tcache_|__libc_malloc|__libc_free|__libc_calloc|__libc_realloc|mi_|_mi_)' report-$name.txt | awk '{ s += $1 } END { printf "%.2f%% allocator\n", s }'
+              grep -E '\] (__)?(mem|str|wmem|bcmp)' report-$name.txt | awk '{ s += $1 } END { printf "%.2f%% string functions\n", s }'
+              awk '$2 == "libc.so.6" { s += $1 } END { printf "%.2f%% libc.so.6 in all\n", s }' report-$name.txt
+              echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: split-${{ matrix.arch }}-${{ matrix.shard }}
+          path: |
+            compile-*.json
+            link-*.json
+            report-*.txt
+          retention-days: 30
+
+  report:
+    needs: bench
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: split-*
+          path: results
+          merge-multiple: true
+      - run: |
+          mkdir compile && mv results/compile-*.json compile/
+          node tests/bench/report.ts compile | tee -a "$GITHUB_STEP_SUMMARY"
+          node exp/musl/report.ts results | tee -a "$GITHUB_STEP_SUMMARY"
