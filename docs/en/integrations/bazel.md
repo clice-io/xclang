@@ -69,6 +69,15 @@ Bazel runs actions on Windows without a sandbox, so an action may read a
 file it does not declare there; the Linux and macOS builds of the same
 targets check the declarations.
 
+## On a musl Host
+
+Bazel's own releases need glibc, so on a Linux without it, such as Alpine,
+use the distribution's Bazel: Alpine's is the `bazel` package of its edge
+`testing` repository. There, the module downloads the musl host's toolchain
+and `@libclang`'s musl archive, and builds static musl programs by default:
+the machine's platform has musl as its C library
+([toolchains](../reference/bazel-api.md#toolchains)).
+
 ## Build for Another Target
 
 Pass `--platforms=@xclang//platforms:<target>` to build for another target:
@@ -78,7 +87,7 @@ Pass `--platforms=@xclang//platforms:<target>` to build for another target:
 bazel build --platforms=@xclang//platforms:x86_64-w64-mingw32 //:hello
 ```
 
-The ten target platforms are listed in the [Bazel API](../reference/bazel-api.md) and in [Cross-Compiling](../guide/cross-compiling.md#targets-and-hosts). Cross-compiling uses the host's toolchain archive configured for the target, so Bazel downloads no second toolchain archive. `@xclang//bazel:std` and `@libclang` follow the target platform automatically, while tools built in the exec configuration (`cfg = "exec"`) build for the host. You can also define your own `platform` target: the toolchains match on OS and CPU, and without a C library constraint Linux selects `glibc` and Windows selects MinGW; add `@xclang//platforms/libc:musl` for musl or `@xclang//platforms/libc:msvc` for MSVC.
+The ten target platforms are listed in the [Bazel API](../reference/bazel-api.md) and in [Cross-Compiling](../guide/cross-compiling.md#targets-and-hosts). Cross-compiling uses the host's toolchain archive configured for the target, so Bazel downloads no second toolchain archive. `@xclang//bazel:std` and `@libclang` follow the target platform automatically, while tools built in the exec configuration (`cfg = "exec"`) build for the host. You can also define your own `platform` target: the toolchains match on OS and CPU, and without a C library constraint Linux selects `glibc` (musl on a musl machine, [below](#on-a-musl-host)) and Windows selects MinGW; add `@xclang//platforms/libc:musl` for musl or `@xclang//platforms/libc:msvc` for MSVC.
 
 - **musl targets**: `--platforms=@xclang//platforms:x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl` build static programs from any host ([musl targets](../guide/cross-compiling.md#musl-targets)). On a Linux host of the same architecture, `bazel test` runs their tests directly.
 - **MSVC targets, and macOS targets off macOS**: require accepting the vendor's license in the root `MODULE.bazel` ([below](#build-for-msvc-and-for-macos-anywhere)). Without the tag, a build for them fails immediately and says what to add.

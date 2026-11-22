@@ -15,7 +15,8 @@ clang++ --target=aarch64-w64-mingw32 hello.cpp -o hello.exe
 - **clang, lld and the LLVM binary tools**, built from stock LLVM with a
   few [patches](../reference/patches.md) on their way upstream, packaged as
   one multicall program (`llvm`) and linked statically against xclang's own
-  `libc++` for six hosts ([toolchain structure](../design/toolchain.md)).
+  `libc++` for eight hosts, two of them static programs with musl for Linux
+  without glibc ([toolchain structure](../design/toolchain.md)).
 - **Eight targets in every archive**: [Linux](cross-compiling.md#linux) x64
   and arm64 (glibc 2.17, and musl 1.2.6 for static programs),
   [Windows](cross-compiling.md#windows) x64 and arm64 (MinGW-w64 with UCRT),

@@ -133,7 +133,7 @@ fetched targets alongside the bundled ones.
   statically into each binary rather than shared across dynamic libraries
   ([one `libc++` per shared object](hermeticity.md#one-libc-per-shared-object));
   conda-forge recipes use conda-forge's dynamically linked compiler packages;
-  and `libclang` is built for the six hosts (MinGW on Windows, for clice)
+  and `libclang` is built for the eight hosts (MinGW on Windows, for clice)
   rather than the MSVC ABI.
 
 ## Speed
