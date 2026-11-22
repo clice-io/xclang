@@ -160,6 +160,8 @@ jobs:
         if: ${{ !env.XCLANG_ABSENT && contains(matrix.host, 'musl') }}
         uses: ./.github/actions/alpine
         with:
+          # xz, for the test's target archive (tar -J).
+          packages: xz
           run: node tests/cli/cli.ts --tree "$XCLANG_TREE" --out "$RUNNER_TEMP/programs"
       # xclang cargo for every target (docs/en/integrations/cargo.md); the
       # runners have CMake, Ninja and a libclang for bindgen.
