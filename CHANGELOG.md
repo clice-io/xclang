@@ -8,6 +8,10 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+## [23.1.5.3](https://github.com/clice-io/xclang/releases/tag/23.1.5.3) — 2026-11-22
+
+Built by 23.1.5.2.
+
 - **musl hosts: `x86_64-unknown-linux-musl` and
   `aarch64-unknown-linux-musl`.** A toolchain, `xclang` command included,
   and a libclang for Linux without glibc (Alpine, Void's musl flavour):
@@ -22,6 +26,9 @@ the [patches](docs/en/reference/patches.md) of its tag.
 - **`-stdlib=platform` finds Alpine's libstdc++** for the musl targets,
   whose target headers are under `<arch>-alpine-linux-musl`. Patches:
   **0018** updated.
+- **Vendor SDKs: the version table of 11-22**: the presets of GitHub's
+  runner images now (`windows-2022` takes Windows SDK 10.0.26100.9457; the
+  Windows images have Visual Studio 2026 18.12 and 2022 17.14.37906).
 
 ## [23.1.5.2](https://github.com/clice-io/xclang/releases/tag/23.1.5.2) — 2026-11-13
 
