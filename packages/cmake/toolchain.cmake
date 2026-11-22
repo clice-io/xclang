@@ -18,7 +18,8 @@
 #                   x86_64-w64-mingw32, aarch64-w64-mingw32,
 #                   aarch64-apple-darwin, x86_64-apple-darwin,
 #                   x86_64-pc-windows-msvc or aarch64-pc-windows-msvc; the
-#                   host's by default. musl targets build static programs:
+#                   host's by default, a musl host's tree's (Alpine) musl's.
+#                   musl targets build static programs:
 #                   on a Linux host of their architecture, which runs them,
 #                   the build is no cross build (try_run, tests).
 #                   macOS targets build with Xcode's SDK on macOS, and
@@ -70,7 +71,7 @@ if(NOT EXISTS "${XCLANG_ROOT}/bin/x86_64-unknown-linux-gnu.cfg")
     message(FATAL_ERROR "xclang: no toolchain at ${XCLANG_ROOT}; set XCLANG_ROOT to an unpacked xclang")
 endif()
 # try_compile projects read this file again, without the cache.
-list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES XCLANG_ROOT XCLANG_TARGET XCLANG_STDLIB)
+list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES XCLANG_ROOT XCLANG_TARGET XCLANG_STDLIB _XCLANG_HOST_OS)
 
 if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64|ARM64)$")
     set(_xclang_host_arch aarch64)
@@ -82,7 +83,19 @@ if(CMAKE_HOST_APPLE)
 elseif(CMAKE_HOST_WIN32)
     set(_xclang_host_os mingw)
 else()
-    set(_xclang_host_os linux)
+    # A musl host's tree (Alpine, Void's musl flavour): its clang's own
+    # target, which it builds for by default, is musl's. Asked once, then
+    # handed to try_compile projects.
+    if(NOT _XCLANG_HOST_OS)
+        execute_process(COMMAND "${XCLANG_ROOT}/bin/clang" -dumpmachine
+            OUTPUT_VARIABLE _xclang_machine OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+        if(_xclang_machine MATCHES "-musl$")
+            set(_XCLANG_HOST_OS musl)
+        else()
+            set(_XCLANG_HOST_OS linux)
+        endif()
+    endif()
+    set(_xclang_host_os "${_XCLANG_HOST_OS}")
 endif()
 
 if(NOT XCLANG_TARGET)
@@ -122,6 +135,8 @@ elseif(_xclang_host_os STREQUAL "darwin")
     set(_xclang_triple "${_xclang_host_arch}-apple-darwin")
 elseif(_xclang_host_os STREQUAL "mingw")
     set(_xclang_triple "${_xclang_host_arch}-w64-mingw32")
+elseif(_xclang_host_os STREQUAL "musl")
+    set(_xclang_triple "${_xclang_host_arch}-unknown-linux-musl")
 else()
     set(_xclang_triple "${_xclang_host_arch}-unknown-linux-gnu")
 endif()
@@ -165,7 +180,7 @@ if(XCLANG_STDLIB STREQUAL "platform")
     set(_xclang_languages C,CXX,ASM,OBJC,OBJCXX)
     _xclang_add(COMPILE "$<$<COMPILE_LANGUAGE:${_xclang_languages}>:-stdlib=platform>")
     _xclang_add(LINK "$<$<LINK_LANGUAGE:${_xclang_languages}>:-stdlib=platform>")
-    if(_xclang_target_os MATCHES "^(musl|mingw)$" AND NOT CMAKE_SYSROOT)
+    if(_xclang_target_os MATCHES "^(musl|mingw)$" AND NOT _xclang_target_os STREQUAL _xclang_host_os AND NOT CMAKE_SYSROOT)
         message(FATAL_ERROR "xclang: XCLANG_STDLIB=platform takes the C++ library of a ${_xclang_target_os} target "
             "from a sysroot that has one (an Alpine root, MSYS2's ucrt64), which the toolchain has not: set CMAKE_SYSROOT")
     endif()
