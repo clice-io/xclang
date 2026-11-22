@@ -57,5 +57,6 @@ before the one without a vendor (`Gnu.cpp`).
   `patch -F0` after the patches before it; 23.1.3, 23.1.4 and 23.1.5 changed
   none of its files. Alpine's triple (added for 23.1.5.3, on 23.1.5): the
   smoke test's and tests/cmake's `-stdlib=platform` programs on Alpine 3.24
-  with its g++, x64 and arm64, which failed without it (exp-musl-pipeline
-  run 45003878840).
+  with its g++, x64 and arm64, pass with it (release run 45012646652 on
+  exp/musl-release) and failed without it (exp-musl-pipeline run
+  45012634786).
