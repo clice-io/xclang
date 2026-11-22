@@ -1,0 +1,81 @@
+name: exp-musl-perf
+
+# Experiment (exp/musl-hosts only): perf profiles of clang compiling fmt's
+# tests, 23.1.5.2's glibc build against exp-musl's musl builds (BUILD_RUN's
+# variants with symbols), by DSO and by symbol, and the share of the C
+# library's string functions, qsort, locale and malloc.
+
+on:
+  push:
+    branches: [exp/musl-hosts]
+    paths: [".github/workflows/exp-musl-perf.yml"]
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  BUILD_RUN: "44996323031"
+  RELEASE: 23.1.5.2
+
+jobs:
+  perf:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MUSL: ${{ matrix.arch }}-unknown-linux-musl
+      GNU: ${{ matrix.arch }}-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          name: variants-${{ matrix.arch }}-unknown-linux-musl
+          path: art
+          run-id: ${{ env.BUILD_RUN }}
+          github-token: ${{ github.token }}
+      - name: Trees
+        run: |
+          gh release download "$RELEASE" -R clice-io/xclang -D rel -p "xclang-$RELEASE-$GNU.tar.xz"
+          mkdir -p glibc t
+          tar -xf "rel/xclang-$RELEASE-$GNU.tar.xz" -C glibc
+          zstd -dc art/variants-$MUSL.tar.zst | tar -xf -
+          for name in mimalloc3-syms mallocng-syms; do
+            mkdir -p "t/$name"
+            cp -al glibc/xclang "t/$name/xclang"
+            rm "t/$name/xclang/bin/llvm"
+            cp "variants-$MUSL/$name/llvm" "t/$name/xclang/bin/llvm"
+          done
+          fmt=$(node toolchain/fetch.ts fmt)
+          mkdir -p fmt && tar -xzf "$fmt" -C fmt --strip-components=1
+      - name: perf
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq "linux-tools-$(uname -r)" linux-tools-common > /dev/null
+          sudo sysctl -q kernel.perf_event_paranoid=-1 kernel.kptr_restrict=0
+          for name in glibc mimalloc3-syms mallocng-syms; do
+            dir=$([[ $name == glibc ]] && echo glibc/xclang || echo t/$name/xclang)
+            cmd="for t in format ranges chrono color std; do for m in -O2 -O0\ -g -fsyntax-only; do $dir/bin/clang++ --target=$GNU -std=c++20 -include cstdlib -Ifmt/include -Ifmt/test -Ifmt/test/gtest \$m -c fmt/test/\$t-test.cc -o /tmp/x.o; done; done"
+            perf record -q -e cpu-clock -F 4000 -o perf-$name.data -- bash -c "$cmd"
+            perf report -i perf-$name.data --no-children --sort dso,symbol --stdio --percent-limit 0.05 2>/dev/null | grep -v '^#' | grep -v '^$' > report-$name.txt
+            { echo "### perf: $name"; echo '```'
+              perf report -i perf-$name.data --no-children --sort dso --stdio 2>/dev/null | grep -v '^#' | grep -v '^$' | head -n 6
+              echo; echo "top 30 symbols"; head -n 30 report-$name.txt
+              echo; echo "C library functions (string, qsort, locale, ctype, malloc), over 0.05%"
+              grep -E '\] (__)?(mem|str|wmem|bcmp|qsort|sift|trinkle|cycle|pntz|shl|shr|isalnum|isalpha|isdigit|isspace|tolower|toupper|__ctype|newlocale|uselocale|__locale|setlocale|nl_langinfo|malloc|free|calloc|realloc|_int_malloc|_int_free|cfree|mi_|_mi_|__libc_|alloc_slot|alloc_group|get_meta|enframe|__malloc|unmap|madvise|brk|mmap|munmap)' report-$name.txt | head -n 40
+              echo; echo -n "sum of those: "
+              grep -E '\] (__)?(mem|str|wmem|bcmp|qsort|sift|trinkle|cycle|pntz|shl|shr|isalnum|isalpha|isdigit|isspace|tolower|toupper|__ctype|newlocale|uselocale|__locale|setlocale|nl_langinfo)' report-$name.txt | awk '{ s += $1 } END { printf "%.2f%% string/qsort/locale\n", s }'
+              grep -E '\] (malloc|free|calloc|realloc|_int_malloc|_int_free|cfree|mi_|_mi_|__libc_|alloc_slot|alloc_group|get_meta|enframe|__malloc)' report-$name.txt | awk '{ s += $1 } END { printf "%.2f%% malloc\n", s }'
+              echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: perf-${{ matrix.arch }}
+          path: report-*.txt
