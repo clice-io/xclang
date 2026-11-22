@@ -131,9 +131,11 @@ const compressionLibs = await compression();
 /// own, which a static link always takes. Its malloc, free and the rest,
 /// and the __libc_malloc family musl allocates with itself, are the
 /// program's, and nothing of musl's malloc is linked: musl's is slow for
-/// a compiler's many small allocations (docs/en/design/toolchain.md). Built for
-/// the architecture's baseline (MI_OPT_ARCH would ask for ARMv8.1 of
-/// arm64), as LLVM is. libclang has none: a tool on it chooses its own.
+/// a compiler's many small allocations (docs/en/design/toolchain.md).
+/// Version 2, which holds less memory than 3 at the same speed. Built for
+/// the architecture's baseline, as LLVM is: mimalloc 2 asks for ARMv8.1 of
+/// arm64 unless MI_NO_OPT_ARCH. libclang has none: a tool on it chooses
+/// its own.
 async function allocator(): Promise<string> {
   const source = path.join(common.WORK, "src", "mimalloc");
   if (!fs.existsSync(source)) common.extract(await common.fetchSource("mimalloc"), source);
@@ -142,7 +144,7 @@ async function allocator(): Promise<string> {
   common.run("cmake", [
     "-G", "Ninja", "-S", source, "-B", dir,
     ...common.cmakeToolchainArgs(stage, host),
-    "-DCMAKE_BUILD_TYPE=Release", "-DMI_OVERRIDE=ON", "-DMI_LIBC_MUSL=ON", "-DMI_OPT_ARCH=OFF",
+    "-DCMAKE_BUILD_TYPE=Release", "-DMI_OVERRIDE=ON", "-DMI_LIBC_MUSL=ON", "-DMI_OPT_ARCH=OFF", "-DMI_NO_OPT_ARCH=ON",
     "-DMI_BUILD_SHARED=OFF", "-DMI_BUILD_TESTS=OFF",
   ]);
   common.run("cmake", ["--build", dir, "--target", "mimalloc-obj"]);
