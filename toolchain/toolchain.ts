@@ -186,8 +186,8 @@ const exeLinkerFlags = mode === "release" && host.os !== "darwin" ? ["-Wl,--icf=
 /// A musl host's programs, static (toolchain/config/musl.cfg), with 8 MiB
 /// stacks for every thread, which musl gives 128 KiB unless the program's
 /// PT_GNU_STACK asks for more (8 MiB at most). glibc's threads have the
-/// main thread's 8 MiB, as LLVM expects: llvm::thread asks for 8 MiB on
-/// macOS only, and lld's parallel work and ThinLTO backends, and
+/// main thread's 8 MiB, as LLVM expects: llvm::thread sets a size on Apple
+/// systems and AIX only, and lld's parallel work and ThinLTO backends, and
 /// clang-scan-deps' workers, run on threads of the default size. And with
 /// mimalloc (allocator()).
 if (host.os === "musl") exeLinkerFlags.push(`-Wl,-z,stack-size=${8 << 20}`, await allocator());
