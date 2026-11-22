@@ -81,7 +81,6 @@ async function jemalloc(): Promise<string> {
 const cache = fs.readFileSync(path.join(build, "CMakeCache.txt"), "utf8");
 const base = /^CMAKE_EXE_LINKER_FLAGS:STRING=(.*)$/m.exec(cache)![1]!.split(" ");
 const mi3 = base.find((f) => f.endsWith("static.c.o"))!;
-const stack = base.find((f) => f.startsWith("-Wl,-z,stack-size="))!;
 const without = (...drop: string[]) => base.filter((f) => !drop.includes(f));
 const whole = (lib: string) => ["-Wl,--whole-archive", lib, "-Wl,--no-whole-archive"];
 console.log(`base flags: ${base.join(" ")}`);
@@ -99,7 +98,8 @@ function save(name: string, syms: boolean): void {
 save("mimalloc3", true);
 const variants: [string, () => Promise<string[]>, boolean][] = [
   ["mallocng", async () => without(mi3), true],
-  ["mimalloc3-nostack", async () => without(stack), false],
+  /// musl.cfg's 8 MiB replaced by musl's own default, 128 KiB.
+  ["mimalloc3-nostack", async () => [...base, "-Wl,-z,stack-size=131072"], false],
   ["mimalloc2", async () => [...without(mi3), await mimalloc2()], false],
   ["snmalloc", async () => [...without(mi3), ...whole(await snmalloc())], false],
   ["jemalloc", async () => [...without(mi3), ...whole(await jemalloc())], false],
@@ -108,7 +108,7 @@ const summary: string[] = [];
 for (const [name, flags, syms] of variants) {
   try {
     const f = await flags();
-    run("cmake", ["-B", build, `-DCMAKE_EXE_LINKER_FLAGS=${f.join(" ")}`]);
+    run("cmake", [build, `-DCMAKE_EXE_LINKER_FLAGS=${f.join(" ")}`]);
     const start = Date.now();
     fs.rmSync(path.join(build, "bin", "llvm"));
     run("ninja", ["-C", build, "bin/llvm"]);
@@ -119,7 +119,7 @@ for (const [name, flags, syms] of variants) {
   }
 }
 const nm = (dir: string) => new Set(common.capture(tool("llvm-nm"), ["--defined-only", "--just-symbol-name", path.join(out, dir, "llvm")]).split("\n"));
-for (const dir of ["mimalloc3-syms", "mallocng-syms"]) {
+for (const dir of ["mimalloc3-syms", "mallocng-syms"].filter((d) => fs.existsSync(path.join(out, d, "llvm")))) {
   const s = nm(dir);
   summary.push(`${dir}: mi_malloc ${s.has("mi_malloc")}, __libc_malloc_impl ${s.has("__libc_malloc_impl")}, __malloc_alloc_meta ${s.has("__malloc_alloc_meta")}`);
 }

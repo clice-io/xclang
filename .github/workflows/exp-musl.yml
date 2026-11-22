@@ -8,7 +8,7 @@ name: exp-musl
 on:
   push:
     branches: [exp/musl-hosts]
-    paths: [".github/workflows/exp-musl.yml"]
+    paths: [".github/workflows/exp-musl.yml", "exp/musl/**"]
   workflow_dispatch:
     inputs:
       build-run:
@@ -60,12 +60,10 @@ jobs:
           pixi run toolchain --host ${{ matrix.host }} --profile work/profile/profile.profdata 2>&1 | tee build.log
           echo "${{ matrix.host }}: $(( (SECONDS - start) / 60 )) min" | tee -a "$GITHUB_STEP_SUMMARY"
           { echo '```'; grep -E "static, mimalloc|^error" build.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-      - name: Variants
-        run: pixi run node exp/musl/variants.ts --host ${{ matrix.host }}
       - name: Pack
         run: |
           cd work/out
-          for dir in toolchain-${{ matrix.host }} libclang-${{ matrix.host }} variants-${{ matrix.host }}; do
+          for dir in toolchain-${{ matrix.host }} libclang-${{ matrix.host }}; do
             du -sh "$dir" | tee -a "$GITHUB_STEP_SUMMARY"
             tar -cf - "$dir" | zstd -T0 -6 -o "../../$dir.tar.zst"
           done
@@ -77,6 +75,10 @@ jobs:
             libclang-*.tar.zst
           compression-level: 0
           retention-days: 30
+      - name: Variants
+        run: |
+          pixi run node exp/musl/variants.ts --host ${{ matrix.host }}
+          cd work/out && tar -cf - variants-${{ matrix.host }} | zstd -T0 -6 -o ../../variants-${{ matrix.host }}.tar.zst
       - uses: actions/upload-artifact@v7
         with:
           name: variants-${{ matrix.host }}
