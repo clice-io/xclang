@@ -1,0 +1,129 @@
+name: exp-musl-final
+
+# Experiment (exp/musl-hosts only): the musl hosts' release build
+# (mimalloc 2.5.3 for the baseline, release.yml's run FINAL_RUN) against
+# 23.1.5.2's glibc build and exp-musl's relinks with mimalloc 3.7.0 and
+# 2.5.3 (ARMv8.1 on arm64): startup, compile, link and frontend (time and
+# peak memory), on several machines.
+
+on:
+  push:
+    branches: [exp/musl-hosts]
+    paths: [".github/workflows/exp-musl-final.yml"]
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  RELEASE: 23.1.5.2
+  BUILD_RUN: "44996323031"
+  FINAL_RUN: "45042560293"
+  FINAL: 23.1.5.3
+
+jobs:
+  bench:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+        shard: [1, 2, 3]
+    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 300
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MUSL: ${{ matrix.arch }}-unknown-linux-musl
+      GNU: ${{ matrix.arch }}-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          name: variants-${{ matrix.arch }}-unknown-linux-musl
+          path: art
+          run-id: ${{ env.BUILD_RUN }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist-${{ matrix.arch }}-unknown-linux-musl
+          path: dist
+          run-id: ${{ env.FINAL_RUN }}
+          github-token: ${{ github.token }}
+      - name: Trees
+        run: |
+          gh release download "$RELEASE" -R clice-io/xclang -D rel -p "xclang-$RELEASE-$GNU.tar.xz" -p "libclang-$RELEASE-$GNU.tar.xz"
+          mkdir -p glibc libclang-gnu t final
+          tar -xf "rel/xclang-$RELEASE-$GNU.tar.xz" -C glibc
+          tar -xf "rel/libclang-$RELEASE-$GNU.tar.xz" -C libclang-gnu --strip-components=1
+          zstd -dc art/variants-$MUSL.tar.zst | tar -xf -
+          tar -xf "$(find dist -name "xclang-$FINAL-$MUSL.tar.xz")" -C final xclang/bin/llvm
+          for name in mi3 mi2-exp mi2; do
+            src=variants-$MUSL/mimalloc3/llvm
+            [[ $name == mi2-exp ]] && src=variants-$MUSL/mimalloc2/llvm
+            [[ $name == mi2 ]] && src=final/xclang/bin/llvm
+            mkdir -p "t/$name"
+            cp -al glibc/xclang "t/$name/xclang"
+            rm "t/$name/xclang/bin/llvm"
+            cp "$src" "t/$name/xclang/bin/llvm"
+          done
+          MIMALLOC_VERBOSE=1 t/mi2/xclang/bin/clang --version 2>&1 | grep -m 1 "mimalloc: v\|^mimalloc" | tee -a "$GITHUB_STEP_SUMMARY"
+          MIMALLOC_VERBOSE=1 t/mi3/xclang/bin/clang --version 2>&1 | grep -m 1 "mimalloc: v\|^mimalloc" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Startup
+        run: |
+          { echo "### startup: 300 × clang --version, $(nproc) threads"; echo '```'
+            for name in glibc mi3 mi2-exp mi2; do
+              dir=t/$name/xclang; [[ $name == glibc ]] && dir=glibc/xclang
+              start=$(date +%s%N)
+              for i in $(seq 300); do "$dir/bin/clang" --version > /dev/null; done
+              echo "$name: $(( ($(date +%s%N) - start) / 300000 )) µs each"
+            done; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Compile speed
+        run: |
+          node tests/bench/bench.ts --tree glibc/xclang --rounds 3 --out compile-${{ matrix.arch }}-${{ matrix.shard }}.json \
+            --compiler glibc=glibc/xclang/bin/clang++ --compiler mi3=t/mi3/xclang/bin/clang++ \
+            --compiler mi2-exp=t/mi2-exp/xclang/bin/clang++ --compiler mi2=t/mi2/xclang/bin/clang++
+      - name: Link speed
+        run: |
+          node exp/split/link.ts --libclang libclang-gnu --out link-${{ matrix.arch }}-${{ matrix.shard }}.json \
+            --compiler glibc=glibc/xclang/bin/clang++ --compiler mi3=t/mi3/xclang/bin/clang++ \
+            --compiler mi2-exp=t/mi2-exp/xclang/bin/clang++ --compiler mi2=t/mi2/xclang/bin/clang++
+      - name: Frontend
+        run: |
+          node exp/split/frontend.ts --libclang libclang-gnu --out frontend-${{ matrix.arch }}-${{ matrix.shard }}.json \
+            --compiler glibc=glibc/xclang/bin/clang++ --compiler mi3=t/mi3/xclang/bin/clang++ \
+            --compiler mi2-exp=t/mi2-exp/xclang/bin/clang++ --compiler mi2=t/mi2/xclang/bin/clang++
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: final-${{ matrix.arch }}-${{ matrix.shard }}
+          path: |
+            compile-*.json
+            link-*.json
+            frontend-*.json
+          retention-days: 30
+
+  report:
+    needs: bench
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: final-*
+          path: results
+          merge-multiple: true
+      - run: |
+          mkdir compile && mv results/compile-*.json compile/
+          node tests/bench/report.ts compile | tee -a "$GITHUB_STEP_SUMMARY"
+          node exp/musl/report.ts results | tee -a "$GITHUB_STEP_SUMMARY"
+          node exp/split/frontend-report.ts results | tee -a "$GITHUB_STEP_SUMMARY"
