@@ -7,7 +7,10 @@ Arm.
 
 ## Prerequisites
 
-- [pixi](https://pixi.sh) and git.
+- [pixi](https://pixi.sh) and git. On a Linux without glibc, such as
+  Alpine, conda has no package: unpack the musl host's archive from the
+  [release](../reference/releases.md#assets) instead
+  ([hosts](cross-compiling.md#targets-and-hosts)).
 - bash (Git Bash on Windows).
 - On macOS, Xcode or the Command Line Tools, whose SDK the macOS targets
   build against.
