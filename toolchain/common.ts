@@ -167,8 +167,9 @@ export const TARGETS: readonly Target[] = [
 ];
 
 /// The machines a toolchain runs on, each with an archive that carries every
-/// target: the targets but musl's.
-export const HOSTS: readonly Target[] = TARGETS.filter((t) => t.os !== "musl");
+/// target: every one of TARGETS, musl's (Alpine, Void's musl flavour) with
+/// static programs.
+export const HOSTS: readonly Target[] = TARGETS;
 
 /// The MSVC ABI's targets, against Microsoft's CRT and Windows SDK, which
 /// the user fetches (`xclang sdk fetch windows`) into the tree's
@@ -199,6 +200,14 @@ export function linuxSysroot(t: Target): boolean {
 export function runsHere(t: Target): boolean {
   const native = machineTarget();
   return t.arch === native.arch && (t.os === native.os || (t.os === "musl" && native.os === "linux"));
+}
+
+/// Whether this is a Linux machine of musl (Alpine): Node's report names
+/// the glibc it runs on, and no C library on musl.
+export function muslMachine(): boolean {
+  if (process.platform !== "linux") return false;
+  const header = (process.report.getReport() as { header?: { glibcVersionRuntime?: string } }).header;
+  return !header?.glibcVersionRuntime;
 }
 
 /// The kind of CI machine that builds for a target.
@@ -236,7 +245,7 @@ export function machine(): Machine {
 /// The target that runs natively on this machine.
 export function machineTarget(): Target {
   const arch: Arch = os.arch() === "arm64" ? "aarch64" : "x86_64";
-  const o: Os = process.platform === "darwin" ? "darwin" : "linux";
+  const o: Os = process.platform === "darwin" ? "darwin" : muslMachine() ? "musl" : "linux";
   return TARGETS.find((t) => t.os === o && t.arch === arch)!;
 }
 

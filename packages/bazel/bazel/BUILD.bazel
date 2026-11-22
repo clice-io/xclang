@@ -4,13 +4,14 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc/toolchains:args.bzl", "cc_args")
 load("@rules_cc//cc/toolchains:feature.bzl", "cc_feature")
 load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
+load("@xclang_machine//:machine.bzl", "LIBC")
 load(":hosts.bzl", "TARGETS", "constraints", "host_of")
 
 exports_files(glob(["*.bzl"]))
 
 # The machine's toolchain, which @platforms//host, the default execution
-# platform, selects.
-HOST = host_of(HOST_CONSTRAINTS)
+# platform, selects: on Linux the one of the machine's C library.
+HOST = host_of(HOST_CONSTRAINTS, LIBC)
 
 # lld's --gc-sections in optimized builds, as a feature: on by default for
 # Linux targets, off for Windows ones, where lld drops the static initializers

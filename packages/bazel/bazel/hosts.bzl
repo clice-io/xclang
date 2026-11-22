@@ -99,7 +99,7 @@ TARGETS = {
         asan_dll = None,
         sdk = None,
     ),
-    # Static programs with musl, from 23.1.2.10 on.
+    # Static programs with musl, from 23.1.2.10 on; hosts, from 23.1.5.3 on.
     "x86_64-unknown-linux-musl": struct(
         cfg = "x86_64-unknown-linux-musl",
         os = "linux",
@@ -163,12 +163,14 @@ TARGETS = {
 
 # The C libraries that are not their os's own, which a platform names for
 # their toolchains (platforms/libc/BUILD.bazel): a platform with only an os
-# and a cpu gets glibc on Linux and MinGW on Windows.
+# and a cpu gets glibc on Linux and MinGW on Windows, and on a musl machine
+# musl on Linux.
 OTHER_LIBCS = ["musl", "msvc"]
 
-# The six targets every toolchain is built and tested with are its hosts,
-# and libclang's targets: every target but those of the other C libraries.
-HOSTS = [triple for triple, t in TARGETS.items() if t.libc not in OTHER_LIBCS]
+# The hosts, each with a toolchain archive of its own, and libclang's
+# targets: every target but the MSVC ones, whose C library and SDK are
+# Microsoft's (bazel/sdk.bzl).
+HOSTS = [triple for triple, t in TARGETS.items() if t.libc != "msvc"]
 
 # The vendors whose SDK a project fetches (bazel/sdk.bzl).
 VENDORS = ["windows", "macos"]
@@ -196,6 +198,15 @@ def constraints(triple):
     libc = [Label("//platforms/libc:" + t.libc)] if t.libc in OTHER_LIBCS else []
     return ["@platforms//os:" + t.os, "@platforms//cpu:" + t.arch] + libc
 
+def exec_constraints(host):
+    """The constraints a host's toolchain asks of an execution platform: its
+    os and cpu, and on Linux its C library, which an execution platform
+    without one has from the machine (platforms/libc/BUILD.bazel): a musl
+    machine runs the musl hosts' toolchains, any other the glibc hosts'."""
+    t = TARGETS[host]
+    libc = [Label("//platforms/libc:" + t.libc)] if t.os == "linux" else []
+    return ["@platforms//os:" + t.os, "@platforms//cpu:" + t.arch] + libc
+
 def sdk_of(host, target):
     """The vendor SDK host's toolchain builds target against, or None: on a
     macOS host, the macOS targets' is Xcode's."""
@@ -216,21 +227,37 @@ def builds(host, target, sdks):
     sdk = sdk_of(host, target)
     return sdk == None or sdk in sdks
 
-def host_of(host_constraints):
-    """The host of @platforms//host:constraints.bzl's HOST_CONSTRAINTS, or None."""
+def host_of(host_constraints, libc):
+    """The host of @platforms//host:constraints.bzl's HOST_CONSTRAINTS on a
+    machine of the C library libc (machine_libc), or None."""
     names = [str(c).rpartition(":")[2] for c in host_constraints]
     for triple in HOSTS:
         t = TARGETS[triple]
+        if t.os == "linux" and t.libc != libc:
+            continue
         if t.arch in names and (t.os in names or (t.os == "macos" and "osx" in names)):
             return triple
     return None
+
+def machine_libc(rctx):
+    """The C library of the Linux machine a repository rule runs on, as
+    rustup tells them: musl where ldd says so (Alpine, Void's musl
+    flavour), else glibc; None off Linux."""
+    if not rctx.os.name.lower().startswith("linux"):
+        return None
+    ldd = rctx.which("ldd")
+    if ldd:
+        res = rctx.execute([ldd, "--version"])
+        if "musl" in res.stdout + res.stderr:
+            return "musl"
+    return "glibc"
 
 def host_triple(rctx):
     """The host a repository rule runs on, as a release names it."""
     os = rctx.os.name.lower()
     arm = rctx.os.arch in ("aarch64", "arm64")
     if os.startswith("linux"):
-        return "aarch64-unknown-linux-gnu" if arm else "x86_64-unknown-linux-gnu"
+        return "%s-unknown-linux-%s" % ("aarch64" if arm else "x86_64", "musl" if machine_libc(rctx) == "musl" else "gnu")
     if os.startswith("mac"):
         return "aarch64-apple-darwin" if arm else "x86_64-apple-darwin"
     if os.startswith("windows"):

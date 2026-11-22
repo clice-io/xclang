@@ -120,6 +120,7 @@ licenses.write(tree, `xclang-${version}-${host.triple}`, version, [
   await licenses.llvmProject("clang, lld and the LLVM tools in bin/, clang's resource headers, libc++, " +
     "libc++abi, libunwind and compiler-rt of every target, and their sources in libc++/src"),
   ...await licenses.compression(host),
+  ...await licenses.allocator(host),
   ...licenses.linuxSysroots(),
   await licenses.musl(),
   await licenses.mingwW64("the Windows targets' headers, CRT and winpthreads, which Windows hosts' programs link too"),

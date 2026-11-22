@@ -1,5 +1,5 @@
 load("@xclang_sdks//:sdks.bzl", "SDKS")
-load("//bazel:hosts.bzl", "HOSTS", "OTHER_LIBCS", "TARGETS", "builds", "constraints")
+load("//bazel:hosts.bzl", "HOSTS", "OTHER_LIBCS", "TARGETS", "builds", "constraints", "exec_constraints")
 load("//bazel:unsupported.bzl", "xclang_unsupported_toolchain")
 
 # The C++ toolchain of every host for every target: <host> compiles for the
@@ -11,7 +11,7 @@ load("//bazel:unsupported.bzl", "xclang_unsupported_toolchain")
 [
     toolchain(
         name = host if host == target else "%s-to-%s" % (host, target),
-        exec_compatible_with = constraints(host),
+        exec_compatible_with = exec_constraints(host),
         target_compatible_with = constraints(target),
         toolchain = "@xclang_%s//:cc_%s" % (host, target) if builds(host, target, SDKS) else ":no-macos-sdk",
         toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
@@ -27,7 +27,7 @@ load("//bazel:unsupported.bzl", "xclang_unsupported_toolchain")
 [
     toolchain(
         name = "%s-to-%s-asan" % (host, target),
-        exec_compatible_with = constraints(host),
+        exec_compatible_with = exec_constraints(host),
         target_compatible_with = constraints(target),
         target_settings = ["//runtimes:asan"],
         toolchain = "@xclang_%s//:cc_%s_runtimes" % (host, target),

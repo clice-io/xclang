@@ -1,10 +1,18 @@
+load("@xclang_machine//:machine.bzl", "LIBC")
+
 # The C library a target links, as rules_cc's target_libc names it (but
 # MSVC's): for select(), and so that another C library of an os and cpu can
 # have toolchains of its own. Those of musl and MSVC's ask a platform for it
-# (bazel/toolchains/musl, msvc), the others only for os and cpu, so a
-# platform without this constraint gets glibc on Linux and MinGW on Windows.
+# (bazel/toolchains/musl, msvc), the others only for os and cpu. A platform
+# without this constraint has the machine's Linux C library (@xclang_machine,
+# bazel/hosts.bzl): glibc, and so gets glibc on Linux and MinGW on Windows;
+# on a musl machine (Alpine) musl, and so its host platform, the default
+# target and execution platform, builds static musl programs with the musl
+# host's toolchain: a Linux host's toolchain asks the execution platform for
+# its C library (bazel/hosts.bzl, exec_constraints).
 constraint_setting(
     name = "libc",
+    default_constraint_value = ":musl" if LIBC == "musl" else ":glibc",
     visibility = ["//visibility:public"],
 )
 

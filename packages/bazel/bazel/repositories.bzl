@@ -3,7 +3,7 @@ toolchain, a target's libclang and the option tables from the release
 archives, and the path of Xcode's macOS SDK (the vendor SDKs a project
 fetches are bazel/sdk.bzl's)."""
 
-load(":hosts.bzl", "TARGETS", "host_triple", "sdk_repository")
+load(":hosts.bzl", "TARGETS", "host_triple", "machine_libc", "sdk_repository")
 load(":libclang.bzl", "libclang_aliases", "libclang_build")
 
 _URL = "https://github.com/clice-io/xclang/releases/download/{version}/{name}"
@@ -282,4 +282,15 @@ xclang_xcode_sdk = repository_rule(
     implementation = _xcode_sdk_impl,
     configure = True,
     doc = "The path of Xcode's macOS SDK, which a macOS host's toolchain builds the macOS targets against.",
+)
+
+def _machine_impl(rctx):
+    rctx.file("BUILD.bazel", "")
+    rctx.file("machine.bzl", "# The machine's C library (bazel/hosts.bzl, machine_libc).\nLIBC = %s\n" % json.encode(machine_libc(rctx)))
+
+xclang_machine = repository_rule(
+    implementation = _machine_impl,
+    configure = True,
+    doc = """The C library of the machine, glibc or musl on Linux (None elsewhere),
+which a platform without one has (platforms/libc/BUILD.bazel).""",
 )
