@@ -191,17 +191,27 @@ no cache:
 | snmalloc 0.7.6 | 0.92–1.06 | 0.78–0.97 | 0.95 | 0.88 |
 | jemalloc 5.4.0 | 0.76–1.05 | 0.79–0.99 | 0.95 | 0.89 |
 
-With mimalloc, the link's peak memory is 0.70 to 0.75 of glibc's. Part of
-the lead over glibc is the static executable: `clang --version` takes 3.6 ms
-on Linux x64 and 3.3 ms on arm64, against glibc's 7.6 and 7.4 ms. The glibc
+With mimalloc, the link's peak memory is 0.70 to 0.75 of glibc's, and the
+frontend's (`clang -fsyntax-only` over clang's Sema sources and abseil)
+1.10 to 1.24 times glibc's. Most of the lead over glibc is mimalloc itself.
+In a second run, the glibc hosts' toolchain with the same mimalloc
+preloaded (`LD_PRELOAD`) took 0.88 to 0.89 of its own time on the fmt and
+`std` builds on Linux x64 and 0.82 to 0.86 on arm64; the musl hosts' took
+0.88 to 0.91 and 0.81 to 0.83. The static executable adds a faster start,
+as it has none of the glibc build's 247,000 relocations: `clang --version`
+takes 4.2 ms on Linux x64 and 3.4 ms on arm64, against glibc's 8.5 and
+7.9 ms, which makes lua's 34 small files up to 20% faster still. The glibc
 hosts' profile serves the musl hosts as it serves every host
 ([one profile for every host](pgo.md#one-profile-for-every-host)).
 
-The rest of musl needs no change. In a `perf` profile of the fmt build,
-musl's string functions take 3.75% of `clang`'s samples on Linux x64 and
-1.75% on arm64, about what glibc's take (3.6% and 3.0%). Its `qsort`
-(smoothsort, which LLVM's `array_pod_sort` calls) takes under 0.1%, and no
-locale or `ctype` function reaches 0.05%. Neither `dlopen` nor DNS matters:
+The rest of musl is left as it is. In a `perf` profile of the fmt build,
+musl's string functions take 3.18% of `clang`'s samples on Linux x64 and
+1.61% on arm64, glibc's 2.12% and 1.17%. On Linux x64 that offsets what the
+static allocator saves (1.63% of the samples, against 3.05% preloaded), and
+links, which copy and compare much, take 4 to 10% longer than the glibc
+build's with mimalloc. musl's `qsort` (smoothsort, which LLVM's
+`array_pod_sort` calls) takes under 0.1%, and no locale or `ctype` function
+reaches 0.05%. Neither `dlopen` nor DNS matters:
 no host's `clang` or `lld` loads plugins (`LLVM_ENABLE_PLUGINS` and
 `CLANG_PLUGIN_SUPPORT` are off) or reaches the network. One difference
 remains: a crash prints no stack trace on the musl hosts, because LLVM

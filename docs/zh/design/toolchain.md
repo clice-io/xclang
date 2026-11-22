@@ -94,9 +94,9 @@ LLVM 多合一驱动构建未包含的五个工具则在 `bin/` 下编译为独�
 | snmalloc 0.7.6 | 0.92–1.06 | 0.78–0.97 | 0.95 | 0.88 |
 | jemalloc 5.4.0 | 0.76–1.05 | 0.79–0.99 | 0.95 | 0.89 |
 
-使用 mimalloc 时，链接的峰值内存是 glibc 的 0.70 至 0.75。比 glibc 快的一部分原因在于静态可执行文件：`clang --version` 在 Linux x64 上耗时 3.6 ms，在 arm64 上 3.3 ms，glibc 则为 7.6 ms 与 7.4 ms。glibc 主机的 profile 同样适用于 musl 主机，与它适用于其他主机一样（[所有主机共用一份 profile](pgo.md#one-profile-for-every-host)）。
+使用 mimalloc 时，链接的峰值内存是 glibc 的 0.70 至 0.75，前端（对 clang 的 Sema 源文件与 abseil 运行 `clang -fsyntax-only`）的峰值内存则是 glibc 的 1.10 至 1.24 倍。比 glibc 快的主要原因是 mimalloc 本身。在另一轮测量中，给 glibc 主机工具链预加载同一个 mimalloc（`LD_PRELOAD`）后，它在 fmt 与 `std` 构建上的耗时在 Linux x64 上降为原来的 0.88 至 0.89，在 arm64 上降为 0.82 至 0.86；musl 主机工具链则为 0.88 至 0.91 与 0.81 至 0.83。静态可执行文件额外带来更快的启动，因为它没有 glibc 构建的约 247,000 条重定位：`clang --version` 在 Linux x64 上耗时 4.2 ms，在 arm64 上 3.4 ms，glibc 则为 8.5 ms 与 7.9 ms，这让 lua 的 34 个小文件最多再快 20%。glibc 主机的 profile 同样适用于 musl 主机，与它适用于其他主机一样（[所有主机共用一份 profile](pgo.md#one-profile-for-every-host)）。
 
-musl 的其余部分无需改动。在 fmt 构建的 `perf` 采样中，musl 的字符串函数在 Linux x64 上占 `clang` 样本的 3.75%，在 arm64 上占 1.75%，与 glibc 的相应函数相当（3.6% 与 3.0%）。它的 `qsort`（smoothsort，LLVM 的 `array_pod_sort` 会调用它）占比不到 0.1%，locale 与 `ctype` 函数没有一个达到 0.05%。`dlopen` 和 DNS 都不影响：所有主机的 `clang` 与 `lld` 都不加载插件（`LLVM_ENABLE_PLUGINS` 与 `CLANG_PLUGIN_SUPPORT` 均已关闭），也不访问网络。只剩一处差别：在 musl 主机上崩溃时不会打印栈回溯，因为 LLVM 只在 glibc 上遍历调用栈。
+musl 的其余部分保持原样。在 fmt 构建的 `perf` 采样中，musl 的字符串函数在 Linux x64 上占 `clang` 样本的 3.18%，在 arm64 上占 1.61%，glibc 的则为 2.12% 与 1.17%。在 Linux x64 上，这抵消了静态链接的分配器省下的时间（占样本的 1.63%，预加载时为 3.05%），而大量复制与比较内存的链接，比预加载 mimalloc 的 glibc 构建慢 4% 至 10%。musl 的 `qsort`（smoothsort，LLVM 的 `array_pod_sort` 会调用它）占比不到 0.1%，locale 与 `ctype` 函数没有一个达到 0.05%。`dlopen` 和 DNS 都不影响：所有主机的 `clang` 与 `lld` 都不加载插件（`LLVM_ENABLE_PLUGINS` 与 `CLANG_PLUGIN_SUPPORT` 均已关闭），也不访问网络。只剩一处差别：在 musl 主机上崩溃时不会打印栈回溯，因为 LLVM 只在 glibc 上遍历调用栈。
 
 ## 纯目录结构
 
