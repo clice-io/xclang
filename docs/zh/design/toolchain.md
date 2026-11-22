@@ -77,6 +77,27 @@ LLVM 多合一驱动构建未包含的五个工具则在 `bin/` 下编译为独�
 
 解析 `clang -###` 输出的工具应向后扫描查找 `"-cc1"`，而不要假定可执行文件路径后的第一个参数就是 `"-cc1"`。
 
+## musl 主机
+
+`x86_64-unknown-linux-musl` 与 `aarch64-unknown-linux-musl` 两个主机的工具链在 Linux x64 上用 xclang 自己的 [musl 目标平台](../guide/cross-compiling.md#musl-targets) 交叉编译：`bin/llvm` 等程序都是静态链接的，没有程序解释器，也没有动态段，可以在任何 Linux 上运行。除此之外，它们的构建与 glibc 主机只差两个参数，`toolchain/toolchain.ts` 中的 `checkMusl` 会逐个程序检查：
+
+- **用 mimalloc 代替 musl 的 `malloc`**：程序链接 mimalloc 3.7.0 的单个目标文件（`MI_OVERRIDE`）。它同时定义了 musl 内部的 `__libc_malloc` 与 `__libc_free`，因此 musl 的分配器一点也不会被链接进来。
+- **8 MiB 线程栈**（`-Wl,-z,stack-size=8388608`）：musl 只给线程 128 KiB 的栈，而 LLVM 只在 Apple 系统和 AIX 上设置线程栈大小。`lld` 的并行任务和 ThinLTO 的后端都跑在这样的线程上。不加这个参数时，下面基准测试中的每次 ThinLTO 链接都会让 `lld` 崩溃。
+
+以下为 23.1.5.3 在 GitHub 的 Linux x64 与 arm64 runner 上的测量结果，对照的是 23.1.5.2 的 glibc 主机工具链，两者使用同一份 profile、编译同一个目标平台，取三台 runner 的中位数（相对 glibc 的耗时比值，越低越快）。编译耗时取 fmt、lua 与 `std` 各项构建（`tests/bench`）的范围；链接是用 ThinLTO、不带缓存地链接一个小型 `libclang` 工具：
+
+| 分配器 | 编译，Linux x64 | 编译，Linux arm64 | 链接，Linux x64 | 链接，Linux arm64 |
+|---|---|---|---|---|
+| mimalloc 3.7.0 | 0.82–0.96 | 0.69–0.83 | 0.95 | 0.93 |
+| musl 的 `malloc`（mallocng） | 0.84–1.22 | 0.83–1.24 | 1.43 | 2.68 |
+| mimalloc 2.5.3 | 0.82–0.96 | 0.70–0.84 | 0.99 | 0.92 |
+| snmalloc 0.7.6 | 0.92–1.06 | 0.78–0.97 | 0.95 | 0.88 |
+| jemalloc 5.4.0 | 0.76–1.05 | 0.79–0.99 | 0.95 | 0.89 |
+
+使用 mimalloc 时，链接的峰值内存是 glibc 的 0.70 至 0.75，前端（对 clang 的 Sema 源文件与 abseil 运行 `clang -fsyntax-only`）的峰值内存则是 glibc 的 1.10 至 1.24 倍。比 glibc 快的主要原因是 mimalloc 本身。在另一轮测量中，给 glibc 主机工具链预加载同一个 mimalloc（`LD_PRELOAD`）后，它在 fmt 与 `std` 构建上的耗时在 Linux x64 上降为原来的 0.88 至 0.89，在 arm64 上降为 0.82 至 0.86；musl 主机工具链则为 0.88 至 0.91 与 0.81 至 0.83。静态可执行文件额外带来更快的启动，因为它没有 glibc 构建的约 247,000 条重定位：`clang --version` 在 Linux x64 上耗时 4.2 ms，在 arm64 上 3.4 ms，glibc 则为 8.5 ms 与 7.9 ms，这让 lua 的 34 个小文件最多再快 20%。glibc 主机的 profile 同样适用于 musl 主机，与它适用于其他主机一样（[所有主机共用一份 profile](pgo.md#one-profile-for-every-host)）。
+
+musl 的其余部分保持原样。在 fmt 构建的 `perf` 采样中，musl 的字符串函数在 Linux x64 上占 `clang` 样本的 3.18%，在 arm64 上占 1.61%，glibc 的则为 2.12% 与 1.17%。在 Linux x64 上，这抵消了静态链接的分配器省下的时间（占样本的 1.63%，预加载时为 3.05%），而大量复制与比较内存的链接，比预加载 mimalloc 的 glibc 构建慢 4% 至 10%。musl 的 `qsort`（smoothsort，LLVM 的 `array_pod_sort` 会调用它）占比不到 0.1%，locale 与 `ctype` 函数没有一个达到 0.05%。`dlopen` 和 DNS 都不影响：所有主机的 `clang` 与 `lld` 都不加载插件（`LLVM_ENABLE_PLUGINS` 与 `CLANG_PLUGIN_SUPPORT` 均已关闭），也不访问网络。只剩一处差别：在 musl 主机上崩溃时不会打印栈回溯，因为 LLVM 只在 glibc 上遍历调用栈。
+
 ## 纯目录结构
 
 每个目标平台的 sysroot（`<toolchain>/<triple>/`）都是一个只包含编译和链接所需文件的普通目录：头文件、启动文件、C 运行时库、`libc++`、`libc++abi`、`libunwind` 与 [GCC 桩库](hermeticity.md#gcc-library-names)，而 `compiler-rt` 则存放在 `lib/clang/<major>/lib/` 下（[压缩包目录结构](../reference/layout.md)）。

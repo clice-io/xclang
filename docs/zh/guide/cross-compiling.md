@@ -46,12 +46,16 @@ pixi run clang++ -O2 --target=aarch64-w64-mingw32 hello.cpp -o hello-windows-arm
 | `aarch64-w64-mingw32` | Linux x64，交叉编译（MinGW 程序） | `windows-11-arm` | Windows 10 及以上 |
 | `aarch64-apple-darwin` | macOS arm64 | `macos-15` | macOS 13 及以上；编译 macOS 目标平台需安装 Xcode 或 Command Line Tools |
 | `x86_64-apple-darwin` | macOS arm64，交叉编译 | `macos-15-intel` | macOS 13 及以上；编译 macOS 目标平台需安装 Xcode 或 Command Line Tools |
+| `x86_64-unknown-linux-musl` | Linux x64，交叉编译（静态链接 musl） | `ubuntu-24.04` 上的 Alpine Linux | 任意 Linux：不依赖主机的任何文件 |
+| `aarch64-unknown-linux-musl` | Linux x64，交叉编译（静态链接 musl） | `ubuntu-24.04-arm` 上的 Alpine Linux | 任意 Linux：不依赖主机的任何文件 |
+
+musl 主机的工具链面向没有 glibc 的 Linux 系统，例如 Alpine 和 Void 的 musl 版本。它们的 `clang` 默认为同架构的 musl 目标平台构建，[CMake 包](../integrations/cmake.md)和 [Bazel 模块](../integrations/bazel.md)在这类机器上也是如此。conda 没有 musl 平台，因此 musl 主机没有 conda 包：请从[发布](../reference/releases.md#assets)下载压缩包并解压。
 
 ## Clang 如何查找目标平台文件
 
 针对每个 `--target`，`clang` 会读取 `bin/<triple>.cfg`（`clang-cl` 则读取 `bin/<triple>-clang-cl.cfg`），并为目标平台的其他写法保留了副本（[工具链结构](../design/toolchain.md)）。配置文件中的 `<CFGDIR>` 会展开为 `bin/`，从而将 `clang` 指向目标平台的 sysroot 或 SDK、`libc++` 头文件、`compiler-rt`、`libunwind` 和 `lld`（[压缩包目录结构](../reference/layout.md)）。
 
-配置文件同样作用于本机编译，因此在 Linux 上运行 `clang++ hello.cpp` 时，编译使用的是内置的 glibc 2.17 sysroot，而非主机的 `/usr/include` 与 `/usr/lib`。面向 GCC 编写的构建脚本（`-latomic`、`-lgcc`、`-lgcc_s`、`-lgcc_eh`、`-lstdc++`）无需修改即可链接（[GCC 库名兼容](../design/hermeticity.md#gcc-library-names)）。传入 `--no-default-config` 可跳过目标平台配置文件，使 `clang` 按上游原版行为查找系统的头文件、运行时库和链接器。
+配置文件同样作用于本机编译，因此在 Linux 上运行 `clang++ hello.cpp` 时，编译使用的是内置的 glibc 2.17 sysroot，而非主机的 `/usr/include` 与 `/usr/lib`（在 musl 主机上则使用内置的 musl，生成静态程序）。面向 GCC 编写的构建脚本（`-latomic`、`-lgcc`、`-lgcc_s`、`-lgcc_eh`、`-lstdc++`）无需修改即可链接（[GCC 库名兼容](../design/hermeticity.md#gcc-library-names)）。传入 `--no-default-config` 可跳过目标平台配置文件，使 `clang` 按上游原版行为查找系统的头文件、运行时库和链接器。
 
 ## 厂商 SDK
 
@@ -116,6 +120,7 @@ pixi run llvm-readelf --program-headers hello-static-x64
 musl 与 glibc 在运行时行为上的差异如下（性能数据测自 4 核 GitHub Linux x64 runner）：
 
 - **多线程下的 `malloc`**：musl 的内存分配器使用一把多线程争用的锁。单线程执行 400 万次 16 至 528 字节的 `malloc` 与 `free` 耗时 0.21 s（glibc 为 0.07 s），4 个线程同时执行则耗时 4.8 s（glibc 为 0.12 s）。若程序在多线程下频繁分配内存，建议链接自定义的内存分配器。
+- **线程栈**：除非程序另有要求，musl 给每个线程 128 KiB 的栈，glibc 则与主线程一样是 8 MiB；在线程上做深度递归（例如基于 [libclang](../features/libclang.md) 的工具在线程里运行 `clang`）需要更大的栈。链接时加上 `-Wl,-z,stack-size=8388608`，musl 会把它作为程序中线程的默认栈大小（musl 最多接受 8 MiB），musl 主机的 `clang` 与 `lld` 就是这样链接的；也可以为线程单独指定栈大小。
 - **区域设置（locale）**：musl 不包含区域设置数据，始终按 `C` locale 格式化：在 `en_US.UTF-8` 下，`printf("%'.1f", 1234567.5)` 会输出 `1234567.5`（glibc 则输出 `1,234,567.5`），`libc++` 的 `std::locale` 表现相同。
 - **名称解析**：musl 直接读取 `/etc/hosts` 与 `/etc/resolv.conf` 并发起 DNS 查询，不使用 NSS（`nsswitch.conf` 模块），因此无法解析 mDNS 的 `.local` 域名以及 LDAP 或 SSSD 的用户和组。
 

@@ -30,7 +30,7 @@ on:
         default: ""
       hosts:
         type: string
-        default: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin"]'
+        default: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl"]'
   workflow_dispatch:
     inputs:
       dist-run:
@@ -56,8 +56,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        host: ${{ fromJSON(inputs.hosts || '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin"]') }}
-    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm","aarch64-apple-darwin":"macos-15","x86_64-apple-darwin":"macos-15-intel"}')[matrix.host] }}
+        host: ${{ fromJSON(inputs.hosts || '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl"]') }}
+    # A musl host's, on Alpine (the alpine action) on a Linux runner of its
+    # architecture, with Alpine's GCC for the platform's C++ library.
+    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm","aarch64-apple-darwin":"macos-15","x86_64-apple-darwin":"macos-15-intel","x86_64-unknown-linux-musl":"ubuntu-24.04","aarch64-unknown-linux-musl":"ubuntu-24.04-arm"}')[matrix.host] }}
     timeout-minutes: 60
     defaults:
       run:
@@ -72,14 +74,30 @@ jobs:
           dist-run: ${{ inputs.dist-run }}
           release: ${{ inputs.release }}
       - name: Smoke test
+        if: ${{ !env.XCLANG_ABSENT && !contains(matrix.host, 'musl') }}
         run: node tests/toolchain/smoke.ts --tree "$XCLANG_TREE" --out "$RUNNER_TEMP/programs"
+      - name: Smoke test (Alpine)
+        if: ${{ !env.XCLANG_ABSENT && contains(matrix.host, 'musl') }}
+        uses: ./.github/actions/alpine
+        with:
+          packages: g++
+          run: node tests/toolchain/smoke.ts --tree "$XCLANG_TREE" --out "$RUNNER_TEMP/programs"
       - uses: actions/setup-python@v6
+        if: ${{ !env.XCLANG_ABSENT && !contains(matrix.host, 'musl') }}
         with:
           python-version: "3.13"
-      - run: python -m pip install cmake ninja
+      - if: ${{ !env.XCLANG_ABSENT && !contains(matrix.host, 'musl') }}
+        run: python -m pip install cmake ninja
       - name: libclang
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && !env.XCLANG_ABSENT && !contains(matrix.host, 'musl') }}
         run: node tests/libclang/libclang.ts --tree "$XCLANG_TREE" --libclang "$XCLANG_LIBCLANG"
+      # A static musl program on libclang, as clice links one.
+      - name: libclang (Alpine)
+        if: ${{ !cancelled() && !env.XCLANG_ABSENT && contains(matrix.host, 'musl') }}
+        uses: ./.github/actions/alpine
+        with:
+          packages: cmake ninja-is-really-ninja
+          run: node tests/libclang/libclang.ts --tree "$XCLANG_TREE" --libclang "$XCLANG_LIBCLANG"
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
@@ -106,7 +124,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        host: ${{ fromJSON(inputs.hosts || '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin"]') }}
+        host: ${{ fromJSON(inputs.hosts || '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl"]') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7

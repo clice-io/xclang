@@ -140,6 +140,20 @@ export async function compression(host: common.Target): Promise<Component[]> {
   ];
 }
 
+/// mimalloc, the allocator linked into a musl host's programs
+/// (toolchain/toolchain.ts); the other hosts' have their C library's.
+export async function allocator(host: common.Target): Promise<Component[]> {
+  if (host.os !== "musl") return [];
+  return [{
+    name: "mimalloc",
+    what: "linked into the programs in bin/ as their malloc",
+    version: "3.7.0",
+    license: "MIT",
+    source: [common.SOURCES.mimalloc.url],
+    files: await filesOf("mimalloc", ["LICENSE"]),
+  }];
+}
+
 /// mingw-w64's notices: the headers and CRT (ZPL 2.1, with the runtime's
 /// other parts in COPYING.MinGW-w64-runtime.txt), the profiling library
 /// (libgmon.a, BSD code taken from Cygwin, whose license comes with it),

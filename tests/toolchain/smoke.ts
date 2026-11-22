@@ -1,7 +1,8 @@
 /// Check a release toolchain on the machine it is built for:
 ///
 /// - its own programs do not load a C++ runtime, and on Linux need no
-///   glibc newer than 2.17;
+///   glibc newer than 2.17; a musl host's are static, with 8 MiB thread
+///   stacks and mimalloc;
 /// - a C and a C++ program (exceptions, iostreams, threads) build for every
 ///   target it carries (macOS ones only on macOS: the SDK) and run where
 ///   this machine can run them; with --out, those it cannot run go to
@@ -26,6 +27,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
+import * as common from "../../toolchain/common.ts";
 import * as licenses from "../../toolchain/licenses.ts";
 import { programsDir, writePrograms, type Program } from "../lib/on-target.ts";
 import { since } from "../lib/version.ts";
@@ -36,8 +38,10 @@ const tree = path.resolve(values.tree);
 const windows = process.platform === "win32";
 const exe = windows ? ".exe" : "";
 const arch = os.arch() === "arm64" ? "aarch64" : "x86_64";
+/// On a musl machine (Alpine), the musl host's tree.
+const muslHost = common.muslMachine();
 const native = windows ? `${arch}-w64-mingw32`
-  : process.platform === "darwin" ? `${arch}-apple-darwin` : `${arch}-unknown-linux-gnu`;
+  : process.platform === "darwin" ? `${arch}-apple-darwin` : `${arch}-unknown-linux-${muslHost ? "musl" : "gnu"}`;
 const work = fs.mkdtempSync(path.join(os.tmpdir(), "xclang-smoke-"));
 const failures: string[] = [];
 
@@ -112,7 +116,13 @@ for (const file of programs) {
   } else {
     const libs = run(tool("llvm-readobj"), ["--needed-libs", file]) ?? "";
     if (/libc\+\+|libstdc\+\+|libgcc|libunwind|winpthread/i.test(libs)) failures.push(`${program} loads a C++ runtime`);
-    if (process.platform === "linux") {
+    if (muslHost) {
+      /// Static, with 8 MiB thread stacks (toolchain/toolchain.ts).
+      const headers = run(tool("llvm-readelf"), ["--program-headers", "--dynamic-table", file]) ?? "";
+      if (/\bINTERP\b|\(NEEDED\)/.test(headers)) failures.push(`${program} is not static`);
+      const stack = /GNU_STACK\s+\S+\s+\S+\s+\S+\s+\S+\s+(0x[0-9a-f]+)/.exec(headers)?.[1];
+      if (program !== "xclang" && Number(stack) !== 8 << 20) failures.push(`${program}'s threads have ${stack ?? "musl's 128 KiB"} of stack`);
+    } else if (process.platform === "linux") {
       const versions = run(tool("llvm-readelf"), ["--version-info", file]) ?? "";
       const glibc = [...versions.matchAll(/GLIBC_2\.(\d+)/g)].map((m) => Number(m[1]));
       const newest = Math.max(0, ...glibc);
@@ -149,13 +159,20 @@ for (const dir of ["include", ...triples.flatMap(([t]) => [`${t}/include`, `${t}
 
 /// The license notices of what the archive holds (toolchain/licenses.ts).
 failures.push(...licenses.check(tree, ["xclang", "llvm-project", "zstd", "glibc", "linux", "nss", "mingw-w64",
-  ...(musl.length ? ["musl"] : []), ...(fs.existsSync(tool("xclang")) ? ["rust", "rust-crates"] : [])]));
+  ...(musl.length ? ["musl"] : []), ...(muslHost ? ["mimalloc"] : []), ...(fs.existsSync(tool("xclang")) ? ["rust", "rust-crates"] : [])]));
 /// With the notices that LLVM keeps only in its sources' comments.
 if (since("23.1.3.1")) {
   for (const { file } of licenses.LLVM_NOTICES) {
     const notice = path.join(tree, "share", "licenses", "llvm-project", `${file}.license`);
     if (!fs.existsSync(notice)) failures.push(`no ${notice}`);
   }
+}
+
+/// A musl host's programs allocate with mimalloc, which says so with
+/// MIMALLOC_VERBOSE (toolchain/toolchain.ts).
+if (muslHost) {
+  const result = spawnSync(tool("clang"), ["--version"], { encoding: "utf8", env: { ...process.env, MIMALLOC_VERBOSE: "1" } });
+  if (!/^mimalloc: /m.test(result.stderr ?? "")) failures.push(`clang does not allocate with mimalloc: ${result.stderr}`);
 }
 
 run(tool("FileCheck"), [write("check.txt", "CHECK: hello\nCHECK-NEXT: world\n"),
@@ -791,8 +808,8 @@ int main() {
   }
 }
 
-/// 3. Native: the sanitizers and libFuzzer (Linux, macOS), import std, a
-/// precompiled header, ThinLTO.
+/// 3. Native: the sanitizers and libFuzzer (glibc's Linux, macOS; musl's
+/// have UBSan only, above), import std, a precompiled header, ThinLTO.
 function expectReport(label: string, program: string, args: string[], text: string): void {
   console.log(`+ ${program} ${args.join(" ")}`);
   const result = spawnSync(program, args, { encoding: "utf8", cwd: work });
@@ -800,7 +817,7 @@ function expectReport(label: string, program: string, args: string[], text: stri
   process.stdout.write(output.slice(-3000));
   if (!output.includes(text)) failures.push(`${label}: no "${text}" in its output`);
 }
-if (!windows) {
+if (!windows && !muslHost) {
   const sanitized: [string, string, string, string][] = [
     ["address", `#include <sanitizer/asan_interface.h>
 int main(int argc, char**) { int* p = new int[4]; int r = p[argc + 4]; delete[] p; return r; }
@@ -835,7 +852,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 /// vector<string_view>::push_back) gets no false report.
 const asanLibcxx = path.join(tree, native, process.platform === "darwin" ? "" : "usr", "lib", "asan");
 const asanFlags = ["-fsanitize=address", "-isystem", path.join(asanLibcxx, "include"), "-nostdlib++", path.join(asanLibcxx, "libc++.a")];
-if (!windows) {
+if (!windows && !muslHost) {
   const overflow = write("sanitize-string.cpp", `#include <string>
 int main(int argc, char**) {
   std::string s(40, 'x');
@@ -869,7 +886,7 @@ int main(int argc, char**) {
 
 /// format_to into a container after an argument of 256 code units
 /// (LLVM 23.1.3; patches/0006 before): no write past libc++'s stack buffer.
-if (!windows) {
+if (!windows && !muslHost) {
   const source = write("format-256.cpp", `#include <cstdio>
 #include <format>
 #include <iterator>

@@ -1,12 +1,19 @@
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
+# Not for musl, whose programs are static and load no library.
+MUSL_INCOMPATIBLE = select({
+    "@xclang//platforms/libc:musl": ["@platforms//:incompatible"],
+    "//conditions:default": [],
+})
+
 # A shared library asked for by name, with libc++ inside: libplugin.so,
 # libplugin.dylib, plugin.dll.
 cc_binary(
     name = "plugin",
     srcs = ["plugin.cpp"],
     linkshared = True,
+    target_compatible_with = MUSL_INCOMPATIBLE,
 )
 
 cc_test(
@@ -18,4 +25,5 @@ cc_test(
         "@platforms//os:linux": ["-ldl"],
         "//conditions:default": [],
     }),
+    target_compatible_with = MUSL_INCOMPATIBLE,
 )

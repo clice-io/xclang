@@ -27,6 +27,9 @@ if (!values.host || !["release", "instrumented", "asan"].includes(mode)) {
 }
 const host = common.target(values.host);
 if (common.buildMachine(host) !== common.machine()) common.fail(`${host.triple} is built on ${common.buildMachine(host)}`);
+/// A musl host's programs are built with the profile of the Linux x64
+/// one's training, as the other hosts' are; musl has no ASan.
+if (host.os === "musl" && mode !== "release") common.fail(`${host.triple} is built in release mode only`);
 const profile = values.profile ? path.resolve(values.profile) : undefined;
 if (profile && !fs.existsSync(profile)) common.fail(`no profile at ${profile}`);
 
@@ -124,6 +127,30 @@ async function compression(): Promise<{ prefix: string; args: string[] }> {
 }
 const compressionLibs = await compression();
 
+/// The allocator of a musl host's programs: mimalloc, as an object of its
+/// own, which a static link always takes. Its malloc, free and the rest,
+/// and the __libc_malloc family musl allocates with itself, are the
+/// program's, and nothing of musl's malloc is linked: musl's is slow for
+/// a compiler's many small allocations (docs/en/design/toolchain.md). Built for
+/// the architecture's baseline (MI_OPT_ARCH would ask for ARMv8.1 of
+/// arm64), as LLVM is. libclang has none: a tool on it chooses its own.
+async function allocator(): Promise<string> {
+  const source = path.join(common.WORK, "src", "mimalloc");
+  if (!fs.existsSync(source)) common.extract(await common.fetchSource("mimalloc"), source);
+  const dir = path.join(common.WORK, "build", `mimalloc-${host.triple}`);
+  fs.rmSync(dir, { recursive: true, force: true });
+  common.run("cmake", [
+    "-G", "Ninja", "-S", source, "-B", dir,
+    ...common.cmakeToolchainArgs(stage, host),
+    "-DCMAKE_BUILD_TYPE=Release", "-DMI_OVERRIDE=ON", "-DMI_LIBC_MUSL=ON", "-DMI_OPT_ARCH=OFF",
+    "-DMI_BUILD_SHARED=OFF", "-DMI_BUILD_TESTS=OFF",
+  ]);
+  common.run("cmake", ["--build", dir, "--target", "mimalloc-obj"]);
+  const object = path.join(dir, "CMakeFiles", "mimalloc-obj.dir", "src", "static.c.o");
+  if (!fs.existsSync(object)) common.fail(`no ${object}`);
+  return object;
+}
+
 const name = mode === "release" ? host.triple : `${host.triple}-${mode}`;
 const build = path.join(common.WORK, "build", `toolchain-${name}`);
 fs.rmSync(build, { recursive: true, force: true });
@@ -155,7 +182,16 @@ if (host.os === "darwin") args.push("-DCLANG_USE_XCSELECT=ON");
 /// Past LLVM's own -ffunction-sections and --gc-sections, as clice links:
 /// lld folds identical functions whose address nothing compares, and
 /// merges string tails. (The macOS linker deduplicates on its own.)
-if (mode === "release" && host.os !== "darwin") args.push("-DCMAKE_EXE_LINKER_FLAGS=-Wl,--icf=safe -Wl,-O2");
+const exeLinkerFlags = mode === "release" && host.os !== "darwin" ? ["-Wl,--icf=safe", "-Wl,-O2"] : [];
+/// A musl host's programs, static (toolchain/config/musl.cfg), with 8 MiB
+/// stacks for every thread, which musl gives 128 KiB unless the program's
+/// PT_GNU_STACK asks for more (8 MiB at most). glibc's threads have the
+/// main thread's 8 MiB, as LLVM expects: llvm::thread sets a size on Apple
+/// systems and AIX only, and lld's parallel work and ThinLTO backends, and
+/// clang-scan-deps' workers, run on threads of the default size. And with
+/// mimalloc (allocator()).
+if (host.os === "musl") exeLinkerFlags.push(`-Wl,-z,stack-size=${8 << 20}`, await allocator());
+if (exeLinkerFlags.length) args.push(`-DCMAKE_EXE_LINKER_FLAGS=${exeLinkerFlags.join(" ")}`);
 /// A macOS program exports its weak definitions (template instantiations)
 /// for dyld to coalesce, and strip keeps them: 632 of them in llvm, after
 /// which a crash trace named every frame. With none exported and no local
@@ -237,9 +273,37 @@ function windowsAliases(dir: string): void {
   console.log(`${links.length} aliases of llvm.exe: ${links.map((f) => path.basename(f, ".exe")).join(", ")}`);
 }
 
+/// A musl host's programs are static, with 8 MiB thread stacks, mimalloc's
+/// malloc and nothing of musl's: checked in the build tree's programs,
+/// which still have their symbols, for each one the toolchain has.
+function checkMusl(dest: string): void {
+  if (host.os !== "musl") return;
+  const tool = (name: string) => path.join(stage, "bin", name);
+  const programs = fs.readdirSync(path.join(dest, "bin")).filter((f) => {
+    const file = path.join(dest, "bin", f);
+    return !fs.lstatSync(file).isSymbolicLink() && fs.readFileSync(file).subarray(0, 4).equals(Buffer.from("\x7fELF", "latin1"));
+  });
+  const failures: string[] = [];
+  for (const program of programs) {
+    const file = path.join(build, "bin", program);
+    const headers = common.capture(tool("llvm-readelf"), ["--program-headers", "--dynamic-table", file]);
+    if (/\bINTERP\b|\(NEEDED\)/.test(headers)) failures.push(`${program} is not static`);
+    const stack = /GNU_STACK\s+\S+\s+\S+\s+\S+\s+\S+\s+(0x[0-9a-f]+)/.exec(headers)?.[1];
+    if (Number(stack) !== 8 << 20) failures.push(`${program} has threads of ${stack ?? "the default"} bytes of stack`);
+    const symbols = new Set(common.capture(tool("llvm-nm"), ["--defined-only", "--just-symbol-name", file]).split("\n"));
+    if (!symbols.has("mi_malloc") || !symbols.has("__libc_malloc")) failures.push(`${program} has no mimalloc`);
+    for (const musl of ["__libc_malloc_impl", "__malloc_alloc_meta", "__simple_malloc"]) {
+      if (symbols.has(musl)) failures.push(`${program} has musl's malloc (${musl})`);
+    }
+  }
+  if (!programs.length || failures.length) common.fail(failures.join("; ") || `no programs in ${dest}/bin`);
+  console.log(`${programs.join(", ")}: static, mimalloc, 8 MiB thread stacks`);
+}
+
 checkCross();
 const out = path.join(common.WORK, "out");
 if (mode !== "asan") install("install-toolchain-distribution-stripped", path.join(out, `toolchain-${name}`));
+if (mode !== "asan") checkMusl(path.join(out, `toolchain-${name}`));
 if (host.os === "mingw" && mode !== "asan") windowsAliases(path.join(out, `toolchain-${name}`));
 /// The option tables of clang, lld, llvm-lib and llvm-dlltool, TableGen's
 /// output in this build, for tools that parse those command lines without

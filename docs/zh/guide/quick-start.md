@@ -4,7 +4,7 @@
 
 ## 前置条件
 
-- [pixi](https://pixi.sh) 与 git。
+- [pixi](https://pixi.sh) 与 git。在 Alpine 这类没有 glibc 的 Linux 上，conda 没有对应的包：请改为从[发布](../reference/releases.md#assets)下载 musl 主机的压缩包并解压（[主机](cross-compiling.md#targets-and-hosts)）。
 - bash（Windows 上可使用 Git Bash）。
 - macOS 主机需安装 Xcode 或 Command Line Tools，macOS 目标平台编译时会使用其中的 SDK。
 - 第 4 步需要 CMake 3.28 及以上与 Ninja 1.11 及以上（`pip install

@@ -47,7 +47,7 @@ cmake -G Ninja -B build --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake [-D
 
 | variable | |
 |---|---|
-| `XCLANG_TARGET` | `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`, `x86_64-w64-mingw32`, `aarch64-w64-mingw32`, `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-pc-windows-msvc` or `aarch64-pc-windows-msvc`; the host's by default. The MSVC targets, and the macOS targets on Linux and Windows hosts, build with the SDK that the toolchain's `xclang` fetched; the MSVC targets on a Windows host without it with the installed Visual Studio. The musl targets are no cross build on a Linux host of their architecture, which runs their static programs (`try_run`, tests). A build directory keeps the target of its first configure: another one later stops the configure (a new build directory, or `cmake --fresh`) |
+| `XCLANG_TARGET` | `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`, `x86_64-w64-mingw32`, `aarch64-w64-mingw32`, `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-pc-windows-msvc` or `aarch64-pc-windows-msvc`; the host's by default, a musl host's tree's (its `clang -dumpmachine`) musl's. The MSVC targets, and the macOS targets on Linux and Windows hosts, build with the SDK that the toolchain's `xclang` fetched; the MSVC targets on a Windows host without it with the installed Visual Studio. The musl targets are no cross build on a Linux host of their architecture, which runs their static programs (`try_run`, tests). A build directory keeps the target of its first configure: another one later stops the configure (a new build directory, or `cmake --fresh`) |
 | `XCLANG_ROOT` | the toolchain directory, when the file is used from outside one; a relative path is relative to the build directory |
 | `XCLANG_STDLIB` | `libc++`, the default: xclang's libc++, and its sysroot. `platform`: the platform's C++ library, `-stdlib=platform` on every compile and link ([the system's C++ library](../integrations/cmake.md#use-the-system-s-c-library)); no `CMAKE_SYSROOT` of the toolchain's for Linux targets, and one of the user's required for the musl and MinGW targets; `xclang::std` the platform library's where it has a module manifest (GCC 15's libstdc++), and `find_package(xclang)` fails where it has none. Not with `XCLANG_RUNTIMES=source` |
 | `XCLANG_RUNTIMES`, `XCLANG_SANITIZER`, ... | the runtimes built from source and the build's sanitizers ([below](#runtimes-from-source)) |
@@ -137,7 +137,8 @@ include(${xclang_SOURCE_DIR}/packages/cmake/xclang.cmake)
 | `XCLANG_URL` | where `SHA256SUMS` and the archives are downloaded from, a mirror of the release; its `SHA256SUMS` is then the one trusted |
 
 It downloads the `SHA256SUMS` of the release and the host archive,
-`xclang-<version>-<host>.tar.xz`, checking the server's certificate, and
+`xclang-<version>-<host>.tar.xz` (on Linux the musl host's where
+`ldd --version` names musl, as rustup tells a musl system), checking the server's certificate, and
 checks the archive against its line. It unpacks the archive aside and
 moves it into the cache, so that build trees configured at once do not
 clash. Then it sets `CMAKE_TOOLCHAIN_FILE`. It stops if the build already

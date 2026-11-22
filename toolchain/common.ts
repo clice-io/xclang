@@ -49,10 +49,11 @@ export const SOURCES = {
     sha256: "b48ae68930be2f916de6b6d05172e573073abbe36f310815c82256f7eb6d2b61",
   },
   /// What builds xclang's own command (xclang/build.ts): a released
-  /// toolchain, the C compiler and linker of every host's binary.
+  /// toolchain, the C compiler and linker of every host's binary (on Linux
+  /// one with the musl targets, for the musl hosts').
   "cli-linux": {
-    url: `${XCLANG}/23.1.2.5/xclang-23.1.2.5-x86_64-unknown-linux-gnu.tar.xz`,
-    sha256: "45b833478833a95ec45a025928df52aef45f14fdbd84e934ea31fe885364ccfc",
+    url: `${XCLANG}/23.1.5.2/xclang-23.1.5.2-x86_64-unknown-linux-gnu.tar.xz`,
+    sha256: "6eb5f493c1c2171fed2ece3da2d234d24208953e833cb042de23f269c6870579",
   },
   "cli-macos": {
     url: `${XCLANG}/23.1.2.5/xclang-23.1.2.5-aarch64-apple-darwin.tar.xz`,
@@ -67,6 +68,12 @@ export const SOURCES = {
   "zstd": {
     url: `${GH}/facebook/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz`,
     sha256: "eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3",
+  },
+  /// The allocator of the musl hosts' programs (toolchain/toolchain.ts),
+  /// linked statically in place of musl's malloc.
+  "mimalloc": {
+    url: `${GH}/microsoft/mimalloc/archive/refs/tags/v3.7.0.tar.gz`,
+    sha256: "1b8653b9ff9b841a97f2c50fd996e89e1a0cb712c3c5b0980ef16a027eb7acf8",
   },
   /// The training corpus (toolchain/pgo/train.ts).
   "abseil": {
@@ -161,8 +168,9 @@ export const TARGETS: readonly Target[] = [
 ];
 
 /// The machines a toolchain runs on, each with an archive that carries every
-/// target: the targets but musl's.
-export const HOSTS: readonly Target[] = TARGETS.filter((t) => t.os !== "musl");
+/// target: every one of TARGETS, musl's (Alpine, Void's musl flavour) with
+/// static programs.
+export const HOSTS: readonly Target[] = TARGETS;
 
 /// The MSVC ABI's targets, against Microsoft's CRT and Windows SDK, which
 /// the user fetches (`xclang sdk fetch windows`) into the tree's
@@ -193,6 +201,14 @@ export function linuxSysroot(t: Target): boolean {
 export function runsHere(t: Target): boolean {
   const native = machineTarget();
   return t.arch === native.arch && (t.os === native.os || (t.os === "musl" && native.os === "linux"));
+}
+
+/// Whether this is a Linux machine of musl (Alpine): Node's report names
+/// the glibc it runs on, and no C library on musl.
+export function muslMachine(): boolean {
+  if (process.platform !== "linux") return false;
+  const header = (process.report.getReport() as { header?: { glibcVersionRuntime?: string } }).header;
+  return !header?.glibcVersionRuntime;
 }
 
 /// The kind of CI machine that builds for a target.
@@ -230,7 +246,7 @@ export function machine(): Machine {
 /// The target that runs natively on this machine.
 export function machineTarget(): Target {
   const arch: Arch = os.arch() === "arm64" ? "aarch64" : "x86_64";
-  const o: Os = process.platform === "darwin" ? "darwin" : "linux";
+  const o: Os = process.platform === "darwin" ? "darwin" : muslMachine() ? "musl" : "linux";
   return TARGETS.find((t) => t.os === o && t.arch === arch)!;
 }
 

@@ -4,7 +4,7 @@ For tools built on `clang` and LLVM, such as
 [clice](https://github.com/clice-io/clice) and
 [catter](https://github.com/clice-io/catter). In these docs, *libclang* refers
 to the static C++ libraries and headers of `clang`, `clang-tidy` and LLVM, not
-only the `libclang` C API. Every release publishes `libclang` for all six hosts
+only the `libclang` C API. Every release publishes `libclang` for all eight hosts
 as ThinLTO bitcode compiled with the same PGO profile as xclang's `clang`,
 paired with `XCLANG_THINLTO_CACHE` so incremental links finish in seconds, an
 ASan-instrumented `libclang` build for Linux `x86_64` and macOS `arm64`, and
@@ -297,10 +297,18 @@ Full option lists are in the [CMake API](../reference/cmake-api.md) and the
   automatically selects and downloads only the archive matching the target
   platform (`--platforms`). In CMake, set `CMAKE_PREFIX_PATH` to the unpacked
   `libclang` archive of the target host.
-- **Hosts only**: there is a `libclang` for each of the six hosts, and none
-  for the musl or MSVC targets; in Bazel, what depends on `@libclang` is
+- **Hosts only**: there is a `libclang` for each of the eight hosts, and
+  none for the MSVC targets; in Bazel, what depends on `@libclang` is
   incompatible with those platforms. A `libclang` for the MSVC ABI is
   [not planned](../design/roadmap.md#libclang-msvc).
+- **musl's `malloc`**: a tool linked against a musl host's `libclang` is a
+  static program on musl's `malloc` unless it links another, and musl's
+  `malloc` is slow for `clang`'s many small allocations
+  ([the musl hosts](../design/toolchain.md#the-musl-hosts)): link an
+  allocator into the tool, as xclang's own musl hosts link mimalloc. Its
+  threads have musl's 128 KiB of stack unless it asks for more, which
+  `clang` on a thread needs
+  ([thread stacks](../guide/cross-compiling.md#musl-targets)).
 
 
 ### What the Archive Contains
@@ -335,7 +343,8 @@ CMake, the components are `AllTargetsInfos`, `AllTargetsDescs`,
 ### The ASan Build
 
 `libclang-<version>-<host>-asan.tar.xz`, published for the
-`x86_64-unknown-linux-gnu` and `aarch64-apple-darwin` hosts, is built with
+`x86_64-unknown-linux-gnu` and `aarch64-apple-darwin` hosts (none for the
+musl hosts: musl has no ASan, [sanitizers](sanitizers.md#musl-targets)), is built with
 assertions and AddressSanitizer at `-O1`, without PGO or ThinLTO, against the
 [ASan `libc++`](sanitizers.md). It carries the same headers and library targets
 for debugging a tool under ASan.
@@ -427,6 +436,6 @@ branch `exp/bazel-lto`):
 | First link on a fresh runner after restoring the cache, with a change | 6.2 s | 15.6 s | 13.7 s |
 | Cache size | 352–403 MiB | 414–425 MiB | 394–660 MiB |
 
-Linking a small tool (`examples/libclang`) across all six hosts takes 7 to
-20 s cold (no cache or empty cache) and 0.6 to 1.7 s warm (152 to 155 cache
-entries), producing identical binary bytes on every run.
+Linking a small tool (`examples/libclang`) on the six hosts other than
+musl takes 7 to 20 s cold (no cache or empty cache) and 0.6 to 1.7 s warm
+(152 to 155 cache entries), producing identical binary bytes on every run.

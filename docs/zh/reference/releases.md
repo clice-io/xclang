@@ -18,25 +18,25 @@ xclang 的每个版本都会发布到 GitHub Releases、clice conda 频道、CMa
 
 | 渠道 | 发布内容 | 锁定版本 | 获取最新版本 |
 |---|---|---|---|
-| [GitHub Releases](https://github.com/clice-io/xclang/releases) | 全部 17 个发布文件 | `releases/download/<version>` | `releases/latest`，其中的 `SHA256SUMS` 标明了具体版本号 |
-| [conda.clice.io](https://conda.clice.io) | 基于发布压缩包构建的各主机 `xclang` 包与 `noarch` 的 `llvm-option-inc` 包 | `xclang = "<version>.*"`（软件包构建号记录这个版本的打包修复次数） | `xclang = "*"`，由 `pixi.lock` 锁定，直到运行 `pixi update` |
+| [GitHub Releases](https://github.com/clice-io/xclang/releases) | 全部 21 个发布文件 | `releases/download/<version>` | `releases/latest`，其中的 `SHA256SUMS` 标明了具体版本号 |
+| [conda.clice.io](https://conda.clice.io) | 基于发布压缩包构建的各主机 `xclang` 包（musl 主机除外：conda 没有 musl 平台）与 `noarch` 的 `llvm-option-inc` 包 | `xclang = "<version>.*"`（软件包构建号记录这个版本的打包修复次数） | `xclang = "*"`，由 `pixi.lock` 锁定，直到运行 `pixi update` |
 | CMake FetchContent | 仓库标签 `<version>` | `GIT_TAG <version>` | `GIT_TAG latest`（指向最新发布标签的分支） |
 | [bazel.clice.io](https://bazel.clice.io) | 基于发布压缩包构建并测试通过后发布的 `xclang` Bazel 模块 | `version = "<version>"` | Bazel 自动解析依赖图中请求的最高版本 |
 
 ## 发布文件
 
-每个 [GitHub 版本](https://github.com/clice-io/xclang/releases)都包含固定的 17 个发布文件：
+每个 [GitHub 版本](https://github.com/clice-io/xclang/releases)都包含固定的 21 个发布文件：
 
 | 发布文件 | 内容 | 大小 |
 |---|---|---|
 | `xclang-<version>-<host>.tar.xz` | 工具链压缩包，每个主机平台一个，内置全部八个目标平台（[压缩包目录结构](layout.md)） | 约 100 MB |
 | `libclang-<version>-<host>.tar.xz` | `clang` 与 LLVM 的静态库及头文件，每个主机平台一个（[libclang](../features/libclang.md)） | 约 265 MB |
-| `libclang-<version>-<host>-asan.tar.xz` | 带 ASan 插桩的 `libclang` 构建，提供 Linux x64 与 macOS arm64 版本（[ASan 构建](../features/libclang.md#the-asan-build)） | 约 200 MB |
+| `libclang-<version>-<host>-asan.tar.xz` | 带 ASan 插桩的 `libclang` 构建，提供 Linux x64（glibc）与 macOS arm64 版本（[ASan 构建](../features/libclang.md#the-asan-build)） | 约 200 MB |
 | `llvm-option-inc-<version>.tar.xz` | 预先生成的 `clang`、`lld`、`llvm-lib` 与 `llvm-dlltool` 选项表（[选项表](../features/libclang.md#the-option-tables)） | 约 200 KB |
 | `xclang-<version>.profdata` | 构建这个版本所用的 PGO profile（[PGO](../design/pgo.md)） | 约 50 MB |
 | `SHA256SUMS` | 这个版本中其余所有发布文件的 `sha256` 摘要 | |
 
-六个 `<host>` triple 分别为 `x86_64-unknown-linux-gnu`、`aarch64-unknown-linux-gnu`、`x86_64-w64-mingw32`、`aarch64-w64-mingw32`、`aarch64-apple-darwin` 和 `x86_64-apple-darwin`。
+八个 `<host>` triple 分别为 `x86_64-unknown-linux-gnu`、`aarch64-unknown-linux-gnu`、`x86_64-unknown-linux-musl`、`aarch64-unknown-linux-musl`、`x86_64-w64-mingw32`、`aarch64-w64-mingw32`、`aarch64-apple-darwin` 和 `x86_64-apple-darwin`（[主机](../guide/cross-compiling.md#targets-and-hosts)）。
 
 ## 校验下载文件
 

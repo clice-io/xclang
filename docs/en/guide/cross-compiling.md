@@ -59,6 +59,15 @@ targets above:
 | `aarch64-w64-mingw32` | Linux x64, cross-compiled (MinGW program) | `windows-11-arm` | Windows 10 or later |
 | `aarch64-apple-darwin` | macOS arm64 | `macos-15` | macOS 13 or later; Xcode or the Command Line Tools for macOS targets |
 | `x86_64-apple-darwin` | macOS arm64, cross-compiled | `macos-15-intel` | macOS 13 or later; Xcode or the Command Line Tools for macOS targets |
+| `x86_64-unknown-linux-musl` | Linux x64, cross-compiled (static, with musl) | Alpine Linux on `ubuntu-24.04` | any Linux: nothing of the host's |
+| `aarch64-unknown-linux-musl` | Linux x64, cross-compiled (static, with musl) | Alpine Linux on `ubuntu-24.04-arm` | any Linux: nothing of the host's |
+
+The musl hosts' toolchains are for Linux systems without glibc, such as
+Alpine and Void's musl flavour. Their `clang` builds for the musl target of
+its architecture by default, as the [CMake package](../integrations/cmake.md)
+and the [Bazel module](../integrations/bazel.md) do on such a machine. conda
+has no musl platform, so they have no conda package: unpack the archive from
+the [release](../reference/releases.md#assets).
 
 ## How Clang Finds a Target's Files
 
@@ -71,7 +80,8 @@ file expands to `bin/`, pointing `clang` to the target's sysroot or SDK,
 
 The config files apply to native builds as well, so `clang++ hello.cpp` on
 Linux compiles against the bundled glibc 2.17 sysroot rather than the host's
-`/usr/include` and `/usr/lib`. Build scripts written for GCC (`-latomic`,
+`/usr/include` and `/usr/lib` (on a musl host, against the bundled musl, a
+static program). Build scripts written for GCC (`-latomic`,
 `-lgcc`, `-lgcc_s`, `-lgcc_eh`, `-lstdc++`) link without changes
 ([GCC library names](../design/hermeticity.md#gcc-library-names)). Pass
 `--no-default-config` to skip the target config file and run a bare `clang`
@@ -199,6 +209,13 @@ GitHub Linux x64 runners):
   took 0.21 s on one thread (glibc: 0.07 s) and 4.8 s across four threads at
   once (glibc: 0.12 s). Link an allocator of your own into programs that
   allocate heavily across threads.
+- **Thread stacks**: musl gives a thread 128 KiB of stack unless the
+  program asks for more, glibc the main thread's 8 MiB; deep recursion on a
+  thread, such as `clang` run by a tool on
+  [libclang](../features/libclang.md), needs more. Link with
+  `-Wl,-z,stack-size=8388608`, which musl takes as the default of the
+  program's threads (8 MiB is the most it takes), as the musl hosts'
+  `clang` and `lld` are linked, or give the threads their stack size.
 - **Locales**: musl has no locale data and formats as the `C` locale:
   `printf("%'.1f", 1234567.5)` prints `1234567.5` under `en_US.UTF-8` where
   glibc prints `1,234,567.5`, and `libc++`'s `std::locale` behaves the same

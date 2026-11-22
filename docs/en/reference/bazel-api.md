@@ -11,10 +11,19 @@ release.
 The module registers, for every host, one C++ toolchain per target:
 `@xclang//bazel/toolchains:<host>` for the host itself, and
 `<host>-to-<target>` for the others,
-`@xclang//bazel/toolchains/musl:<host>-to-<target>` for the musl targets
+`@xclang//bazel/toolchains/musl:<host>-to-<target>` for the musl targets (a
+musl host's own: `musl:<host>`)
 and `@xclang//bazel/toolchains/msvc:<host>-to-<target>` for the MSVC ones,
 registered first. Each is the host archive configured for the target, and
-only the archive of the machine Bazel runs on is downloaded. The MSVC
+only the archive of the machine Bazel runs on is downloaded. A Linux host's
+toolchains ask the execution platform for their C library, which a platform
+without one has from the machine (`@xclang//platforms/libc`): musl where
+`ldd --version` names musl (Alpine, Void's musl flavour; as rustup tells
+them), else glibc. On a musl machine the host platform, the default
+execution and target platform, is therefore musl's: Bazel downloads the musl
+host's archive, builds static musl programs and links `@libclang`'s musl
+archive; `--platforms=@xclang//platforms:x86_64-unknown-linux-gnu` builds
+for glibc there. The MSVC
 targets, and the macOS targets off macOS hosts, build against the vendor
 SDK the root module fetches ([tags](#tags)); without it, their toolchain
 fails the build and says why.
@@ -52,7 +61,8 @@ Each has `@platforms//os`, `@platforms//cpu` and a C library,
 The toolchains ask a platform for os and cpu only, but those of musl and of
 the MSVC targets, which ask for `:musl` or `:msvc` too; so a platform of
 one's own with an os and a cpu works, and gets glibc on Linux and MinGW on
-Windows unless it names one of those.
+Windows unless it names one of those. A platform without a C library has
+the machine's ([toolchains](#toolchains)): on a musl machine, musl.
 
 ## Features
 
@@ -143,7 +153,7 @@ From the module extension, `use_extension("@xclang//bazel:extensions.bzl", "xcla
 | repository | |
 |---|---|
 | `@libclang` | the target platform's libclang: `@libclang//:clangBasic`, `:LLVMSupport`, ... with their link interfaces; `:headers`; `:resource_dir`; `:AllTargetsInfos`, `:AllTargetsDescs`, `:AllTargetsAsmParsers`, `:AllTargetsDisassemblers`. With `--features=asan`, the ASan build. None for the MSVC targets: what depends on it is incompatible with them |
-| `@libclang_asan` | the ASan build (Linux x64 and macOS arm64 targets) |
+| `@libclang_asan` | the ASan build (Linux x64 glibc and macOS arm64 targets) |
 | `@libclang_<target>` | the libclang of one target |
 | `@llvm_option_inc` | the option tables of clang, lld, llvm-lib and llvm-dlltool, as a header-only library |
 

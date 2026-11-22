@@ -32,28 +32,30 @@ to select a pinned release or the newest one:
 
 | channel | what it publishes | pin a release | take the newest |
 |---|---|---|---|
-| [GitHub releases](https://github.com/clice-io/xclang/releases) | all 17 release assets | `releases/download/<version>` | `releases/latest`, whose `SHA256SUMS` names the version |
-| [conda.clice.io](https://conda.clice.io) | `xclang` per host and `noarch` `llvm-option-inc`, built from the release archives | `xclang = "<version>.*"` (the package build number counts packaging fixes of that release) | `xclang = "*"`, locked in `pixi.lock` until `pixi update` |
+| [GitHub releases](https://github.com/clice-io/xclang/releases) | all 21 release assets | `releases/download/<version>` | `releases/latest`, whose `SHA256SUMS` names the version |
+| [conda.clice.io](https://conda.clice.io) | `xclang` per host but the musl ones (conda has no musl platform) and `noarch` `llvm-option-inc`, built from the release archives | `xclang = "<version>.*"` (the package build number counts packaging fixes of that release) | `xclang = "*"`, locked in `pixi.lock` until `pixi update` |
 | CMake FetchContent | the repository tag `<version>` | `GIT_TAG <version>` | `GIT_TAG latest`, a branch at the newest release tag |
 | [bazel.clice.io](https://bazel.clice.io) | the `xclang` Bazel module, published after it builds and tests against the release archives | `version = "<version>"` | Bazel resolves the newest version requested across the dependency graph |
 
 ## Assets
 
 Every [GitHub release](https://github.com/clice-io/xclang/releases)
-contains the same 17 assets:
+contains the same 21 assets:
 
 | asset | contents | size |
 |---|---|---|
 | `xclang-<version>-<host>.tar.xz` | the toolchain archive, one per host, with all eight bundled targets ([archive layout](layout.md)) | about 100 MB |
 | `libclang-<version>-<host>.tar.xz` | the static libraries and headers of `clang` and LLVM, one per host ([libclang](../features/libclang.md)) | about 265 MB |
-| `libclang-<version>-<host>-asan.tar.xz` | the ASan-instrumented build of `libclang`, for Linux x64 and macOS arm64 ([the ASan build](../features/libclang.md#the-asan-build)) | about 200 MB |
+| `libclang-<version>-<host>-asan.tar.xz` | the ASan-instrumented build of `libclang`, for Linux x64 (glibc) and macOS arm64 ([the ASan build](../features/libclang.md#the-asan-build)) | about 200 MB |
 | `llvm-option-inc-<version>.tar.xz` | the pre-generated option tables of `clang`, `lld`, `llvm-lib` and `llvm-dlltool` ([the option tables](../features/libclang.md#the-option-tables)) | about 200 KB |
 | `xclang-<version>.profdata` | the PGO profile the release was built with ([PGO](../design/pgo.md)) | about 50 MB |
 | `SHA256SUMS` | the `sha256` digest of every other asset in the release | |
 
-The six `<host>` triples are `x86_64-unknown-linux-gnu`,
-`aarch64-unknown-linux-gnu`, `x86_64-w64-mingw32`, `aarch64-w64-mingw32`,
-`aarch64-apple-darwin` and `x86_64-apple-darwin`.
+The eight `<host>` triples are `x86_64-unknown-linux-gnu`,
+`aarch64-unknown-linux-gnu`, `x86_64-unknown-linux-musl`,
+`aarch64-unknown-linux-musl`, `x86_64-w64-mingw32`, `aarch64-w64-mingw32`,
+`aarch64-apple-darwin` and `x86_64-apple-darwin`
+([hosts](../guide/cross-compiling.md#targets-and-hosts)).
 
 ## Checking a Download
 

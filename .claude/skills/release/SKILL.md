@@ -187,7 +187,7 @@ gh release view <previous> -R clice-io/xclang --json assets -q '.assets[] | [.na
   parent, M; it changes packages/bazel/bazel/versions.bzl and MODULE.bazel
   alone, to the release and its digests; its message ends with
   `Archives-Run`, `Compiler-Run` and `Profile-Run`.
-- 17 assets: six toolchains, six libclang, two ASan libclang, the option
+- 21 assets: eight toolchains, eight libclang, two ASan libclang, the option
   tables, the profdata, SHA256SUMS. Sizes against the previous release's
   (within a few percent unless a change explains it).
 - Every job of the run green: test (smoke and libclang on every host, the

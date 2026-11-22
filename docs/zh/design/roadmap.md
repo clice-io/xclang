@@ -77,7 +77,7 @@ xclang 的目标是让 `clang` 拥有 `rustup`、`cross-rs` 与 `cargo-zigbuild`
 - **面向 MSVC 目标平台从源码构建运行时库，以及 Bazel 中的 ThinLTO**：扩展[从源码构建运行时库](../features/runtimes-from-source.md)，支持基于拉取的 Windows SDK 用 `clang-cl` 在 `vcruntime` 之上编译 `libc++`；同时在 Bazel 中将源码构建的运行时库作为 `cc_library` 依赖暴露出来，让 Bazel 对它们的位码目标文件执行 ThinLTO 后端动作。
 - **musl 目标平台的 sanitizer**：ASan、TSan 与 LSan 需要借助 `dlsym` 拦截 C 标准库函数，而静态链接的 musl 可执行文件没有 `dlsym`（[sanitizer](../features/sanitizers.md#musl-targets)）。支持它们需要像 Alpine Linux 那样提供动态链接 `libc.so` 的 musl 目标平台变体。
 - **将 `libgcc_s.a` 作为链接器脚本**：把 Linux sysroot 中的空静态库 `libgcc_s.a` 替换为 `INPUT(-lunwind)`，使手动配置的 `*-unknown-linux-gnu` Cargo 构建无需额外添加 `-Clink-arg=-l:libunwind.a` 即可完成链接（[不使用 `xclang cargo`](../integrations/cargo.md#without-xclang-cargo)）。
-- **不计划**：xclang 是编译器工具链，编辑器或静态检查工具直接链接 [`libclang`](../features/libclang.md)；`libc++` 静态链接进每个二进制文件，不在动态库之间共享（[每个共享对象独立的 `libc++`](hermeticity.md#one-libc-per-shared-object)）；conda-forge 配方使用 conda-forge 自己的动态链接编译器包；`libclang` 仅面向六个主机平台构建（Windows 上为 MinGW，供 clice 使用），不提供 MSVC ABI 版本。
+- **不计划**：xclang 是编译器工具链，编辑器或静态检查工具直接链接 [`libclang`](../features/libclang.md)；`libc++` 静态链接进每个二进制文件，不在动态库之间共享（[每个共享对象独立的 `libc++`](hermeticity.md#one-libc-per-shared-object)）；conda-forge 配方使用 conda-forge 自己的动态链接编译器包；`libclang` 仅面向八个主机平台构建（Windows 上为 MinGW，供 clice 使用），不提供 MSVC ABI 版本。
 
 ## 编译速度
 

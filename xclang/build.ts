@@ -92,6 +92,9 @@ for (const host of hosts) {
   const t = target.replaceAll("-", "_");
   const flags = [`-Clink-arg=--target=${host.triple}`, `--remap-path-prefix=${cargoHome}=/cargo`];
   if (host.os === "linux") flags.push("-Clink-arg=-l:libunwind.a");
+  /// musl: xclang's, static (toolchain/config/musl.cfg), not rustc's own
+  /// startup files and musl, as the crates' C code is compiled against it.
+  if (host.os === "musl") flags.push("-Clink-self-contained=no");
   if (target === "x86_64-unknown-linux-gnu") flags.push("-Clinker-features=-lld");
   if (host.os === "mingw") flags.push("-Clink-arg=-Wl,--no-insert-timestamp");
   if (host.os === "darwin") flags.push("-Clink-arg=-Wl,-S");
@@ -128,7 +131,11 @@ if (process.env.GITHUB_STEP_SUMMARY) {
 function check(host: common.Target, file: string): string {
   const failures: string[] = [];
   let libs: string[];
-  if (host.os === "linux") {
+  if (host.os === "musl") {
+    const headers = common.capture(tool("llvm-readelf"), ["--program-headers", "--dynamic-table", file]);
+    if (/\bINTERP\b|\(NEEDED\)/.test(headers)) failures.push("is not static");
+    libs = ["nothing (static)"];
+  } else if (host.os === "linux") {
     libs = [...common.capture(tool("llvm-readobj"), ["--needed-libs", file]).matchAll(/^\s+(\S+\.so\S*)$/gm)].map((m) => m[1]!);
     const allowed = /^(libc\.so\.6|libm\.so\.6|libpthread\.so\.0|libdl\.so\.2|librt\.so\.1|libutil\.so\.1|ld-linux[-\w]*\.so\.\d)$/;
     failures.push(...libs.filter((l) => !allowed.test(l)).map((l) => `loads ${l}`));

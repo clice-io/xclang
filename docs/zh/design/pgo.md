@@ -1,6 +1,6 @@
 # PGO
 
-在全部六个主机平台上，xclang 的 `clang` 与 `lld` 均使用在 Linux x64 上采集的单份前端 profile 开启按 profile 引导的优化（PGO）与 ThinLTO 构建。在 23.1.2.6 的 C++ 基准测试中，xclang 在 Linux 与 macOS 上的编译速度与 LLVM 官方的 PGO+ThinLTO 发布构建持平，在 Windows x64 上则比 LLVM 官方构建快 11% 至 22%；在 23.1.2.1 中，相比未启用 PGO 的同一构建，这份 profile 将 C++ 编译耗时缩短了 16% 至 34%。
+在所有主机平台上，xclang 的 `clang` 与 `lld` 均使用在 Linux x64 上采集的单份前端 profile 开启按 profile 引导的优化（PGO）与 ThinLTO 构建。在 23.1.2.6 的 C++ 基准测试中，xclang 在 Linux 与 macOS 上的编译速度与 LLVM 官方的 PGO+ThinLTO 发布构建持平，在 Windows x64 上则比 LLVM 官方构建快 11% 至 22%；在 23.1.2.1 中，相比未启用 PGO 的同一构建，这份 profile 将 C++ 编译耗时缩短了 16% 至 34%。
 
 ## 训练负载
 
@@ -32,7 +32,7 @@ xclang 采用前端插桩。在 23.1.2.1 之前的实验中，在 Linux x64 上�
 | macOS arm64 | 0.905 / 0.818 | 0.895 / 0.864 |
 | Windows x64 | 0.771 / 0.792 | 0.764 / 0.820 |
 
-因此，训练只需在单台 Linux x64 runner 上运行一次，生成的 profile 即可用于优化全部六个主机的工具链与 `libclang` 压缩包，无需在各个主机上分别构建插桩版本或借助模拟器运行。
+因此，训练只需在单台 Linux x64 runner 上运行一次，生成的 profile 即可用于优化每个主机的工具链与 `libclang` 压缩包，musl 主机也不例外（[musl 主机](toolchain.md#the-musl-hosts)），无需在各个主机上分别构建插桩版本或借助模拟器运行。
 
 ### 重映射文件
 

@@ -69,7 +69,10 @@ interface Package {
 }
 const packages: Package[] = [];
 
-const hosts = values.hosts ? values.hosts.split(",").map((h) => common.target(h)) : common.HOSTS;
+/// conda has no subdir of musl: the musl hosts have no packages.
+const hosts = values.hosts ? values.hosts.split(",").map((h) => common.target(h)) : common.HOSTS.filter((h) => h.triple in SUBDIRS);
+const unpackaged = hosts.filter((h) => !(h.triple in SUBDIRS));
+if (unpackaged.length) common.fail(`conda has no subdir for ${unpackaged.map((h) => h.triple).join(", ")}`);
 for (const host of hosts) {
   const archive = path.join(dist, `xclang-${version}-${host.triple}.tar.xz`);
   if (!fs.existsSync(archive)) common.fail(`missing ${archive}`);

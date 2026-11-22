@@ -121,11 +121,14 @@ jobs:
     name: test on ${{ matrix.host }}
     needs: build
     if: ${{ !cancelled() && !inputs.build-only && needs.build.result != 'failure' }}
-    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm","aarch64-apple-darwin":"macos-15","x86_64-apple-darwin":"macos-15-intel"}')[matrix.host] }}
+    # A musl host's on Alpine (the alpine action), on a Linux runner of its
+    # architecture.
+    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm","aarch64-apple-darwin":"macos-15","x86_64-apple-darwin":"macos-15-intel","x86_64-unknown-linux-musl":"ubuntu-24.04","aarch64-unknown-linux-musl":"ubuntu-24.04-arm"}')[matrix.host] }}
     strategy:
       fail-fast: false
       matrix:
-        host: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, x86_64-w64-mingw32, aarch64-w64-mingw32, aarch64-apple-darwin, x86_64-apple-darwin]
+        host: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, x86_64-w64-mingw32, aarch64-w64-mingw32, aarch64-apple-darwin, x86_64-apple-darwin,
+          x86_64-unknown-linux-musl, aarch64-unknown-linux-musl]
     defaults:
       run:
         shell: bash
@@ -140,18 +143,26 @@ jobs:
           host: ${{ matrix.host }}
           dist-run: ${{ inputs.dist-run }}
       - uses: actions/download-artifact@v8
-        if: ${{ !inputs.dist-run }}
+        if: ${{ !inputs.dist-run && !env.XCLANG_ABSENT }}
         with:
           pattern: ${{ inputs.artifact || 'cli-build' }}-*
           path: built
           merge-multiple: true
       - name: The command built
-        if: ${{ !inputs.dist-run }}
+        if: ${{ !inputs.dist-run && !env.XCLANG_ABSENT }}
         run: |
           cp built/cli-${{ matrix.host }}/xclang* "$XCLANG_TREE/bin/"
           chmod +x "$XCLANG_TREE"/bin/xclang*
       - name: Test
+        if: ${{ !env.XCLANG_ABSENT && !contains(matrix.host, 'musl') }}
         run: node tests/cli/cli.ts --tree "$XCLANG_TREE" --out "$RUNNER_TEMP/programs"
+      - name: Test (Alpine)
+        if: ${{ !env.XCLANG_ABSENT && contains(matrix.host, 'musl') }}
+        uses: ./.github/actions/alpine
+        with:
+          # xz, for the test's target archive (tar -J).
+          packages: xz
+          run: node tests/cli/cli.ts --tree "$XCLANG_TREE" --out "$RUNNER_TEMP/programs"
       # xclang cargo for every target (docs/en/integrations/cargo.md); the
       # runners have CMake, Ninja and a libclang for bindgen.
       - name: xclang cargo

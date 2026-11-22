@@ -1,6 +1,6 @@
 # libclang 与选项表
 
-面向基于 `clang` 与 LLVM 构建的工具，例如 [clice](https://github.com/clice-io/clice) 与 [catter](https://github.com/clice-io/catter)。在本文档中，*libclang* 指 `clang`、`clang-tidy` 与 LLVM 的 C++ 静态库及头文件，而非仅指 `libclang` C API。每个版本都会为全部六个主机平台发布采用与 xclang 自身的 `clang` 同一份 PGO profile 编译的 ThinLTO bitcode 版 `libclang`（配合 `XCLANG_THINLTO_CACHE` 可在几秒内完成增量链接），同时提供面向 Linux `x86_64` 与 macOS `arm64` 的带 ASan 插桩的 `libclang` 构建，以及包含 TableGen 驱动选项表的 `llvm-option-inc`。
+面向基于 `clang` 与 LLVM 构建的工具，例如 [clice](https://github.com/clice-io/clice) 与 [catter](https://github.com/clice-io/catter)。在本文档中，*libclang* 指 `clang`、`clang-tidy` 与 LLVM 的 C++ 静态库及头文件，而非仅指 `libclang` C API。每个版本都会为全部八个主机平台发布采用与 xclang 自身的 `clang` 同一份 PGO profile 编译的 ThinLTO bitcode 版 `libclang`（配合 `XCLANG_THINLTO_CACHE` 可在几秒内完成增量链接），同时提供面向 Linux `x86_64` 与 macOS `arm64` 的带 ASan 插桩的 `libclang` 构建，以及包含 TableGen 驱动选项表的 `llvm-option-inc`。
 
 ## 用法
 
@@ -238,7 +238,8 @@ bazel run //:options
 - **使用 `-fno-rtti` 编译**：与压缩包中的 LLVM 和 `clang` 库保持一致。
 - **随附资源目录**：如果工具需要解析 C 或 C++ 代码，请将 `lib/clang/<major>` 放在相对于可执行文件所在目录的 `../lib/clang/<major>` 处（在 Bazel 中使用 `xclang_resource_dir`，或从压缩包的 `lib/clang/<major>` 拷贝）。
 - **交叉编译时使用目标平台的 `libclang`**：在 Bazel 中，`@libclang` 会自动选择并仅下载与目标平台（`--platforms`）匹配的压缩包。在 CMake 中，请将 `CMAKE_PREFIX_PATH` 设为目标主机对应的 `libclang` 压缩包解压目录。
-- **仅限主机平台**：六个主机平台各有对应的 `libclang`，而 musl 与 MSVC 目标平台没有；在 Bazel 中，依赖 `@libclang` 的目标会标记为与这些平台不兼容。面向 MSVC ABI 的 `libclang` [不计划](../design/roadmap.md#libclang-msvc)提供。
+- **仅限主机平台**：八个主机平台各有对应的 `libclang`，而 MSVC 目标平台没有；在 Bazel 中，依赖 `@libclang` 的目标会标记为与这些平台不兼容。面向 MSVC ABI 的 `libclang` [不计划](../design/roadmap.md#libclang-msvc)提供。
+- **musl 的 `malloc`**：链接 musl 主机 `libclang` 的工具是静态程序，除非另外链接分配器，否则用的是 musl 的 `malloc`，而它应付 `clang` 大量的小块分配很慢（[musl 主机](../design/toolchain.md#the-musl-hosts)）：请给工具链接一个分配器，xclang 自己的 musl 主机链接的是 mimalloc。除非工具自己要求更大的栈，它的线程只有 musl 的 128 KiB 栈，而在线程里运行 `clang` 需要更多（[线程栈](../guide/cross-compiling.md#musl-targets)）。
 
 ### 压缩包内容
 
@@ -261,7 +262,7 @@ bazel run //:options
 
 ### ASan 构建版本
 
-面向 `x86_64-unknown-linux-gnu` 与 `aarch64-apple-darwin` 主机发布的 `libclang-<version>-<host>-asan.tar.xz` 基于 [ASan `libc++`](sanitizers.md) 构建，开启了断言（assertions）与 AddressSanitizer，优化级别为 `-O1`，不启用 PGO 或 ThinLTO。它包含相同的头文件与库目标，供在 ASan 下调试工具使用。
+面向 `x86_64-unknown-linux-gnu` 与 `aarch64-apple-darwin` 主机发布的 `libclang-<version>-<host>-asan.tar.xz`（musl 主机没有：musl 不支持 ASan，见 [sanitizer](sanitizers.md#musl-targets)） 基于 [ASan `libc++`](sanitizers.md) 构建，开启了断言（assertions）与 AddressSanitizer，优化级别为 `-O1`，不启用 PGO 或 ThinLTO。它包含相同的头文件与库目标，供在 ASan 下调试工具使用。
 
 在 Bazel 中，`@libclang_asan` 直接引用 ASan 压缩包；当命令行传入 `--features=asan` 时，`@libclang` 会自动将其库文件、头文件与资源目录切换到 ASan 构建版本（若目标平台没有 ASan 版 `libclang` 压缩包，则在分析阶段报错停止）。仅在单个 Bazel 目标上设置 `features = ["asan"]` 不会切换 `@libclang`。
 
@@ -300,4 +301,4 @@ bazel run //:options
 | 新 runner 恢复缓存后带改动首次链接 | 6.2 s | 15.6 s | 13.7 s |
 | 缓存大小 | 352–403 MiB | 414–425 MiB | 394–660 MiB |
 
-在全部六个主机平台上链接一个小型工具（`examples/libclang`），冷启动（不启用缓存或空缓存）耗时 7 至 20 s，热缓存（152 至 155 个缓存条目）耗时 0.6 至 1.7 s，每次运行产出的二进制文件逐字节相同。
+在 musl 以外的六个主机平台上链接一个小型工具（`examples/libclang`），冷启动（不启用缓存或空缓存）耗时 7 至 20 s，热缓存（152 至 155 个缓存条目）耗时 0.6 至 1.7 s，每次运行产出的二进制文件逐字节相同。

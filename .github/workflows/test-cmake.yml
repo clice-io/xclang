@@ -59,10 +59,16 @@ jobs:
           - aarch64-w64-mingw32
           - aarch64-apple-darwin
           - x86_64-apple-darwin
+          - x86_64-unknown-linux-musl
+          - aarch64-unknown-linux-musl
         cmake: ["3.28.1", latest]
         include:
           - { cmake: "3.28.1", ninja: "1.11.1" }
-    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm","aarch64-apple-darwin":"macos-15","x86_64-apple-darwin":"macos-15-intel"}')[matrix.host] }}
+        # A musl host's on Alpine (the alpine action), with its CMake.
+        exclude:
+          - { host: x86_64-unknown-linux-musl, cmake: "3.28.1" }
+          - { host: aarch64-unknown-linux-musl, cmake: "3.28.1" }
+    runs-on: ${{ fromJSON('{"x86_64-unknown-linux-gnu":"ubuntu-24.04","aarch64-unknown-linux-gnu":"ubuntu-24.04-arm","x86_64-w64-mingw32":"windows-2025","aarch64-w64-mingw32":"windows-11-arm","aarch64-apple-darwin":"macos-15","x86_64-apple-darwin":"macos-15-intel","x86_64-unknown-linux-musl":"ubuntu-24.04","aarch64-unknown-linux-musl":"ubuntu-24.04-arm"}')[matrix.host] }}
     timeout-minutes: 60
     defaults:
       run:
@@ -72,9 +78,11 @@ jobs:
         with:
           persist-credentials: false
       - uses: actions/setup-python@v6
+        if: ${{ !contains(matrix.host, 'musl') }}
         with:
           python-version: "3.13"
       - name: CMake and Ninja
+        if: ${{ !contains(matrix.host, 'musl') }}
         run: |
           if [[ "${{ matrix.cmake }}" == latest ]]; then
             python -m pip install cmake ninja
@@ -87,12 +95,23 @@ jobs:
           dist-run: ${{ inputs.dist-run }}
           release: ${{ inputs.release }}
       - name: Test
+        if: ${{ !env.XCLANG_ABSENT && !contains(matrix.host, 'musl') }}
         env:
           GIT_REF: ${{ inputs.git-ref }}
           PROGRAMS: ${{ matrix.cmake == 'latest' && format('{0}/programs', runner.temp) || '' }}
         run: |
           node tests/cmake/cmake.ts --tree "$XCLANG_TREE" --libclang "$XCLANG_LIBCLANG" \
             --sums "$XCLANG_DIST/SHA256SUMS" --url "$XCLANG_URL" ${GIT_REF:+--git "$GIT_REF"} ${PROGRAMS:+--programs "$PROGRAMS"}
+      - name: Test (Alpine)
+        if: ${{ !env.XCLANG_ABSENT && contains(matrix.host, 'musl') }}
+        uses: ./.github/actions/alpine
+        env:
+          XCLANG_GIT_REF: ${{ inputs.git-ref }}
+        with:
+          packages: cmake ninja-is-really-ninja g++ python3
+          run: |
+            node tests/cmake/cmake.ts --tree "$XCLANG_TREE" --libclang "$XCLANG_LIBCLANG" \
+              --sums "$XCLANG_DIST/SHA256SUMS" --url "$XCLANG_URL" ${XCLANG_GIT_REF:+--git "$XCLANG_GIT_REF"}
       - uses: actions/upload-artifact@v7
         if: matrix.cmake == 'latest'
         with:

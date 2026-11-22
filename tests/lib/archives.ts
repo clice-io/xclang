@@ -18,7 +18,8 @@
 /// archives and their SHA256SUMS stay in <out>/dist. For the steps after
 /// it, $GITHUB_ENV gets XCLANG_TREE, XCLANG_LIBCLANG,
 /// XCLANG_LIBCLANG_ASAN, XCLANG_DIST, XCLANG_URL (where the archives can
-/// be downloaded from: the release, or <out>/dist) and XCLANG_VERSION.
+/// be downloaded from: the release, or <out>/dist) and XCLANG_VERSION; a
+/// release without archives of the host, XCLANG_ABSENT, saying so, alone.
 
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -65,6 +66,14 @@ if (values.dist) {
   const listed = new Map(fs.readFileSync(sums, "utf8").split("\n").map((l) => l.trim().split(/ [ *]?/)).filter((p) => p.length === 2).map(([sum, f]) => [f!, sum!]));
   version = /^llvm-option-inc-(.+)\.tar\.xz$/.exec([...listed.keys()].find((f) => f.startsWith("llvm-option-inc-")) ?? "")?.[1] ?? common.fail(`no release in ${sums}`);
   url = `${REPO}/download/${version}`;
+  /// A host of later releases (musl's, from 23.1.5.3 on): nothing to check,
+  /// which the steps after it see as XCLANG_ABSENT.
+  if (![...listed.keys()].some(mine)) {
+    const absent = `${version} has no archives of ${host.triple}`;
+    console.log(`::notice::${absent}`);
+    if (process.env.GITHUB_ENV) fs.appendFileSync(process.env.GITHUB_ENV, `XCLANG_ABSENT=${absent}\n`);
+    process.exit(0);
+  }
   for (const [f, sum] of listed) {
     if (!mine(f)) continue;
     await download(`${url}/${f}`, path.join(dist, f));

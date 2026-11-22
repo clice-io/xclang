@@ -68,9 +68,11 @@ if (targets.status !== 0) common.fail("the target registry is not every target's
 /// reaches the tool's frames past the C library's: from qsort's comparator,
 /// and from a signal handler printing the stack itself, through the
 /// exception dispatcher. On arm64 Windows both stopped at the first frame
-/// of a system DLL before patches/0010, in 23.1.2.10.
+/// of a system DLL before patches/0010, in 23.1.2.10. On musl LLVM prints
+/// none: it unwinds with backtrace(), which musl has not, or on glibc only
+/// with _Unwind_Backtrace (llvm/lib/Support/Unix/Signals.inc).
 const symbolizer = path.join(tree, "bin", `llvm-symbolizer${exe}`);
-const walks = process.platform !== "win32" || process.arch !== "arm64" || since("23.1.2.10");
+const walks = !common.muslMachine() && (process.platform !== "win32" || process.arch !== "arm64" || since("23.1.2.10"));
 for (const mode of walks ? ["qsort", "handler"] : []) {
   const crash = spawnSync(path.join(build, `stacktrace${exe}`), [mode],
     { encoding: "utf8", env: { ...process.env, LLVM_SYMBOLIZER_PATH: symbolizer } });

@@ -24,12 +24,13 @@ The root module's tags fetch the vendor SDKs, accepting their license
 """
 
 load(":hosts.bzl", "HOSTS")
-load(":repositories.bzl", "xclang_libclang", "xclang_libclang_aliases", "xclang_option_inc", "xclang_toolchain", "xclang_xcode_sdk")
+load(":repositories.bzl", "xclang_libclang", "xclang_libclang_aliases", "xclang_machine", "xclang_option_inc", "xclang_toolchain", "xclang_xcode_sdk")
 load(":sdk.bzl", "macos_sdk", "vendor_sdks", "windows_sdk")
 load(":versions.bzl", "SHA256", "VERSION")
 load(":thinlto_cache.bzl", "xclang_thinlto_cache")
 
 def _xclang_impl(mctx):
+    xclang_machine(name = "xclang_machine")
     xclang_xcode_sdk(name = "xclang_xcode_sdk")
     xclang_thinlto_cache(name = "xclang_thinlto_cache")
     vendor_sdks(mctx)

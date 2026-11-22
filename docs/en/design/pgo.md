@@ -1,7 +1,7 @@
 # PGO
 
 xclang's `clang` and `lld` are built with profile-guided optimization (PGO)
-and ThinLTO on all six hosts from a single frontend profile recorded on Linux
+and ThinLTO on every host from a single frontend profile recorded on Linux
 x64. On C++ benchmarks in 23.1.2.6, xclang compiles as fast as LLVM's own
 PGO+ThinLTO release builds on Linux and macOS and takes 11 to 22% less time
 than LLVM's build on Windows x64; in 23.1.2.1, the profile cut C++ compile
@@ -79,8 +79,9 @@ relative to no PGO, median of five runners):
 | Windows x64 | 0.771 / 0.792 | 0.764 / 0.820 |
 
 Training therefore runs once on a single Linux x64 runner, and its profile
-optimizes all six host toolchains and `libclang` archives without per-host
-instrumented builds or emulation.
+optimizes every host's toolchain and `libclang` archives without per-host
+instrumented builds or emulation, the musl hosts' included
+([the musl hosts](toolchain.md#the-musl-hosts)).
 
 ### The Remapping File
 
