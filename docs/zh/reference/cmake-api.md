@@ -37,7 +37,7 @@ cmake -G Ninja -B build --toolchain $XCLANG/lib/cmake/xclang/toolchain.cmake [-D
 
 | 变量 | |
 |---|---|
-| `XCLANG_TARGET` | 可选 `x86_64-unknown-linux-gnu`、`aarch64-unknown-linux-gnu`、`x86_64-unknown-linux-musl`、`aarch64-unknown-linux-musl`、`x86_64-w64-mingw32`、`aarch64-w64-mingw32`、`aarch64-apple-darwin`、`x86_64-apple-darwin`、`x86_64-pc-windows-msvc` 或 `aarch64-pc-windows-msvc`，默认为当前主机。MSVC 目标平台以及在 Linux 和 Windows 主机上构建的 macOS 目标平台会使用由工具链 `xclang` 命令下载的 SDK；未下载 SDK 的 Windows 主机在构建 MSVC 目标平台时则会使用本机安装的 Visual Studio。在同架构的 Linux 主机上构建 musl 目标平台不视为交叉编译，主机可直接运行其生成的静态程序（`try_run` 与测试）。构建目录会固定首次配置时的目标平台，后续若改为其他目标平台则会停止配置（请换用新构建目录或运行 `cmake --fresh`） |
+| `XCLANG_TARGET` | 可选 `x86_64-unknown-linux-gnu`、`aarch64-unknown-linux-gnu`、`x86_64-unknown-linux-musl`、`aarch64-unknown-linux-musl`、`x86_64-w64-mingw32`、`aarch64-w64-mingw32`、`aarch64-apple-darwin`、`x86_64-apple-darwin`、`x86_64-pc-windows-msvc` 或 `aarch64-pc-windows-msvc`，默认为当前主机；musl 主机的工具链目录（依据其 `clang -dumpmachine`）默认为 musl 目标平台。MSVC 目标平台以及在 Linux 和 Windows 主机上构建的 macOS 目标平台会使用由工具链 `xclang` 命令下载的 SDK；未下载 SDK 的 Windows 主机在构建 MSVC 目标平台时则会使用本机安装的 Visual Studio。在同架构的 Linux 主机上构建 musl 目标平台不视为交叉编译，主机可直接运行其生成的静态程序（`try_run` 与测试）。构建目录会固定首次配置时的目标平台，后续若改为其他目标平台则会停止配置（请换用新构建目录或运行 `cmake --fresh`） |
 | `XCLANG_ROOT` | 工具链目录，在工具链目录之外使用工具链文件时需指定；相对路径相对于构建目录解析 |
 | `XCLANG_STDLIB` | 默认为 `libc++`：使用 xclang 的 libc++ 及内置 sysroot。设为 `platform` 时：使用平台的 C++ 标准库，向每次编译和链接传入 `-stdlib=platform`（[使用系统的 C++ 标准库](../integrations/cmake.md#use-the-system-s-c-library)）；Linux 目标平台不再设置指向工具链的 `CMAKE_SYSROOT`，musl 与 MinGW 目标平台则要求用户自行指定 sysroot；当平台标准库带有模块清单（如 GCC 15 的 libstdc++）时，`xclang::std` 使用平台标准库的模块，否则 `find_package(xclang)` 会报错失败。不可与 `XCLANG_RUNTIMES=source` 同时使用 |
 | `XCLANG_RUNTIMES`, `XCLANG_SANITIZER`, ... | 从源码构建运行时库及构建所用的 sanitizer 选项（[见下文](#runtimes-from-source)） |
@@ -87,7 +87,7 @@ include(${xclang_SOURCE_DIR}/packages/cmake/xclang.cmake)
 | `XCLANG_CACHE_DIR` | 解压工具链的缓存目录，按 `<version>/<host>` 存放（也可通过同名环境变量设置）；在 Linux 上默认为 `$XDG_CACHE_HOME/xclang` 或 `~/.cache/xclang`，在 macOS 上为 `~/Library/Caches/xclang`，在 Windows 上为 `%LOCALAPPDATA%\xclang` |
 | `XCLANG_URL` | 下载 `SHA256SUMS` 与压缩包的发布镜像地址；设置后将以镜像站上的 `SHA256SUMS` 为准 |
 
-它会验证服务器证书并下载对应版本的 `SHA256SUMS` 与主机压缩包 `xclang-<version>-<host>.tar.xz`，再对照校验行验证压缩包摘要。压缩包会先解压到临时目录，再原子移入缓存目录，避免多个构建树同时配置时发生冲突，随后自动设置 `CMAKE_TOOLCHAIN_FILE`。如果当前构建已经设置了工具链文件（例如 vcpkg 的工具链文件），它会报错停止；此时应改为通过 vcpkg 的 `VCPKG_CHAINLOAD_TOOLCHAIN_FILE` 链式加载 xclang 的工具链文件。构建目录会固定首次配置时的工具链文件：当版本号、`XCLANG_ROOT` 或 `XCLANG_CACHE_DIR` 发生变化时，它会在下载前报错停止，提示换用新构建目录或运行 `cmake --fresh`。
+它会验证服务器证书并下载对应版本的 `SHA256SUMS` 与主机压缩包 `xclang-<version>-<host>.tar.xz`（在 Linux 上，若 `ldd --version` 显示 musl，则下载 musl 主机的压缩包，与 rustup 判断 musl 系统的方式相同），再对照校验行验证压缩包摘要。压缩包会先解压到临时目录，再原子移入缓存目录，避免多个构建树同时配置时发生冲突，随后自动设置 `CMAKE_TOOLCHAIN_FILE`。如果当前构建已经设置了工具链文件（例如 vcpkg 的工具链文件），它会报错停止；此时应改为通过 vcpkg 的 `VCPKG_CHAINLOAD_TOOLCHAIN_FILE` 链式加载 xclang 的工具链文件。构建目录会固定首次配置时的工具链文件：当版本号、`XCLANG_ROOT` 或 `XCLANG_CACHE_DIR` 发生变化时，它会在下载前报错停止，提示换用新构建目录或运行 `cmake --fresh`。
 
 ## libclang 的 CMake 包
 

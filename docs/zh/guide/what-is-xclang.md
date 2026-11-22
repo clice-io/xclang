@@ -9,7 +9,7 @@ clang++ --target=aarch64-w64-mingw32 hello.cpp -o hello.exe
 
 ## 版本包含的内容
 
-- **clang、lld 与 LLVM 二进制工具**：基于上游 LLVM 加上少量正在合入上游的[补丁](../reference/patches.md)构建，打包为单个多合一可执行文件（`llvm`），并针对六个主机平台静态链接 xclang 自身的 `libc++`（[工具链结构](../design/toolchain.md)）。
+- **clang、lld 与 LLVM 二进制工具**：基于上游 LLVM 加上少量正在合入上游的[补丁](../reference/patches.md)构建，打包为单个多合一可执行文件（`llvm`），并针对八个主机平台静态链接 xclang 自身的 `libc++`，其中两个是为没有 glibc 的 Linux 准备的 musl 静态程序（[工具链结构](../design/toolchain.md)）。
 - **每个压缩包内置八个目标平台**：[Linux](cross-compiling.md#linux) x64 与 arm64（glibc 2.17，以及用于静态程序的 musl 1.2.6）、[Windows](cross-compiling.md#windows) x64 与 arm64（使用 UCRT 的 MinGW-w64）、[macOS](cross-compiling.md#macos) arm64 与 x64。每个目标平台都带有预编译好的 sysroot、`libc++`、`libc++abi`、`libunwind` 和 `compiler-rt`，以及将 `clang` 指向这些目录的配置文件（[交叉编译](cross-compiling.md)）。
 - **MSVC 目标平台**：Windows x64 与 arm64，使用微软的 CRT 和 xclang 的 `libc++`（或微软的 STL），可在任意主机上编译，配合 `xclang` 命令从微软获取的 SDK 或 Windows 本机安装的 Visual Studio 使用（[Windows](cross-compiling.md#windows)、[Windows 设计](../design/windows.md)）。
 - **`xclang` 命令**：用于获取不允许二次分发的 Apple 与微软 SDK；`xclang cargo` 则无需编写任何 cargo 配置即可为 xclang 的目标平台构建 Rust 代码（[`xclang` 命令](../reference/xclang-command.md)、[Rust 与 Cargo](../integrations/cargo.md)）。

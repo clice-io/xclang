@@ -4,7 +4,7 @@
 
 ## 工具链
 
-模块会为每个主机注册面向各目标平台的 C++ 工具链：面向主机自身的是 `@xclang//bazel/toolchains:<host>`，面向其他目标平台的是 `<host>-to-<target>`；musl 目标平台为 `@xclang//bazel/toolchains/musl:<host>-to-<target>`，MSVC 目标平台为 `@xclang//bazel/toolchains/msvc:<host>-to-<target>`（这两组会排在前面优先注册）。每个工具链都使用针对对应目标平台配置的主机压缩包，且只会下载运行 Bazel 所在机器的主机压缩包。MSVC 目标平台以及在非 macOS 主机上构建的 macOS 目标平台会基于根模块获取的厂商 SDK 构建（[标签](#tags)）；未配置对应标签时，工具链会使构建报错失败并说明原因。
+模块会为每个主机注册面向各目标平台的 C++ 工具链：面向主机自身的是 `@xclang//bazel/toolchains:<host>`，面向其他目标平台的是 `<host>-to-<target>`；musl 目标平台为 `@xclang//bazel/toolchains/musl:<host>-to-<target>`（musl 主机自身的为 `musl:<host>`），MSVC 目标平台为 `@xclang//bazel/toolchains/msvc:<host>-to-<target>`（这两组会排在前面优先注册）。每个工具链都使用针对对应目标平台配置的主机压缩包，且只会下载运行 Bazel 所在机器的主机压缩包。Linux 主机的工具链会要求执行平台具备自己的 C 库；没有 C 库约束的平台使用本机的 C 库（`@xclang//platforms/libc`）：`ldd --version` 显示 musl 时为 musl（Alpine、Void 的 musl 版本；与 rustup 的判断方式相同），否则为 glibc。因此在 musl 机器上，主机平台（默认的执行平台与目标平台）是 musl：Bazel 下载 musl 主机的压缩包，构建 musl 静态程序，并链接 `@libclang` 的 musl 压缩包；要在这台机器上构建 glibc 程序，传入 `--platforms=@xclang//platforms:x86_64-unknown-linux-gnu`。MSVC 目标平台以及在非 macOS 主机上构建的 macOS 目标平台会基于根模块获取的厂商 SDK 构建（[标签](#tags)）；未配置对应标签时，工具链会使构建报错失败并说明原因。
 
 每个工具链都会：
 
@@ -31,7 +31,7 @@
 | `x86_64-unknown-linux-musl` | `x86_64-linux-musl` | Linux x64，musl，静态链接 |
 | `aarch64-unknown-linux-musl` | `aarch64-linux-musl` | Linux arm64，musl，静态链接 |
 
-每个平台都声明了 `@platforms//os`、`@platforms//cpu` 以及 C 标准库约束（`@xclang//platforms/libc:glibc`、`:musl`、`:mingw`、`:macosx` 或 `:msvc`）。除额外要求 `:musl` 或 `:msvc` 的 musl 与 MSVC 工具链外，其余工具链只要求平台匹配 os 与 cpu；因此用户自定义的只含 os 与 cpu 的平台也可直接使用，若未指定 `:musl` 或 `:msvc`，在 Linux 上默认选用 glibc，在 Windows 上默认选用 MinGW。
+每个平台都声明了 `@platforms//os`、`@platforms//cpu` 以及 C 标准库约束（`@xclang//platforms/libc:glibc`、`:musl`、`:mingw`、`:macosx` 或 `:msvc`）。除额外要求 `:musl` 或 `:msvc` 的 musl 与 MSVC 工具链外，其余工具链只要求平台匹配 os 与 cpu；因此用户自定义的只含 os 与 cpu 的平台也可直接使用，若未指定 `:musl` 或 `:msvc`，在 Linux 上默认选用 glibc，在 Windows 上默认选用 MinGW。没有 C 库约束的平台使用本机的 C 库（[工具链](#toolchains)）：在 musl 机器上即为 musl。
 
 ## 特性
 
@@ -106,7 +106,7 @@
 | 仓库 | |
 |---|---|
 | `@libclang` | 当前目标平台的 libclang：包含带完整链接接口的 `@libclang//:clangBasic`、`:LLVMSupport` 等库目标，以及 `:headers`、`:resource_dir`、`:AllTargetsInfos`、`:AllTargetsDescs`、`:AllTargetsAsmParsers` 与 `:AllTargetsDisassemblers`。启用 `--features=asan` 时自动切换为 ASan 构建版本。不提供 MSVC 目标平台版本，依赖它的目标会自动标记为与 MSVC 目标平台不兼容 |
-| `@libclang_asan` | ASan 构建版本（面向 Linux x64 与 macOS arm64 目标平台） |
+| `@libclang_asan` | ASan 构建版本（面向 Linux x64 glibc 与 macOS arm64 目标平台） |
 | `@libclang_<target>` | 指定目标平台的 libclang |
 | `@llvm_option_inc` | clang、lld、llvm-lib 与 llvm-dlltool 的选项表，作为纯头文件库提供 |
 

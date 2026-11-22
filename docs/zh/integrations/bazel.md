@@ -67,6 +67,10 @@ startup --windows_enable_symlinks
 
 Bazel 在 Windows 上不使用沙盒运行动作，因此动作在 Windows 上可能会读取未声明的输入文件；同一目标在 Linux 与 macOS 上的构建则会校验这些声明。
 
+## 在 musl 主机上
+
+Bazel 官方发布的版本依赖 glibc，因此在 Alpine 这类没有 glibc 的 Linux 上，请使用发行版自己的 Bazel：Alpine 的是 edge `testing` 仓库中的 `bazel` 包。在这样的机器上，模块会下载 musl 主机的工具链和 `@libclang` 的 musl 压缩包，默认构建 musl 静态程序：本机平台的 C 库是 musl（[工具链](../reference/bazel-api.md#toolchains)）。
+
 ## 构建其他目标平台
 
 传入 `--platforms=@xclang//platforms:<target>` 即可构建其他目标平台：
@@ -76,7 +80,7 @@ Bazel 在 Windows 上不使用沙盒运行动作，因此动作在 Windows 上�
 bazel build --platforms=@xclang//platforms:x86_64-w64-mingw32 //:hello
 ```
 
-十个目标平台列在 [Bazel API](../reference/bazel-api.md) 与[交叉编译](../guide/cross-compiling.md#targets-and-hosts)中。交叉编译直接使用主机工具链压缩包中针对目标平台的配置，Bazel 不会下载第二个工具链压缩包。`@xclang//bazel:std` 与 `@libclang` 会自动跟随目标平台切换，而在执行配置（`cfg = "exec"`）下构建的工具则面向主机平台构建。你也可以自定义 `platform` 目标：工具链按操作系统与 CPU 匹配，未添加 C 标准库约束时 Linux 默认选用 `glibc`、Windows 默认选用 MinGW；如需选用 musl 或 MSVC，请分别添加 `@xclang//platforms/libc:musl` 或 `@xclang//platforms/libc:msvc`。
+十个目标平台列在 [Bazel API](../reference/bazel-api.md) 与[交叉编译](../guide/cross-compiling.md#targets-and-hosts)中。交叉编译直接使用主机工具链压缩包中针对目标平台的配置，Bazel 不会下载第二个工具链压缩包。`@xclang//bazel:std` 与 `@libclang` 会自动跟随目标平台切换，而在执行配置（`cfg = "exec"`）下构建的工具则面向主机平台构建。你也可以自定义 `platform` 目标：工具链按操作系统与 CPU 匹配，未添加 C 标准库约束时 Linux 默认选用 `glibc`（在 musl 机器上为 musl，[见下文](#on-a-musl-host)）、Windows 默认选用 MinGW；如需选用 musl 或 MSVC，请分别添加 `@xclang//platforms/libc:musl` 或 `@xclang//platforms/libc:msvc`。
 
 - **musl 目标平台**：`--platforms=@xclang//platforms:x86_64-unknown-linux-musl` 与 `aarch64-unknown-linux-musl` 可在任意主机上构建静态程序（[musl 目标平台](../guide/cross-compiling.md#musl-targets)）。在同架构的 Linux 主机上，`bazel test` 可直接运行它们的测试。
 - **MSVC 目标平台，以及在非 macOS 主机上构建 macOS 目标平台**：需要在根 `MODULE.bazel` 中声明接受厂商许可证（[见下文](#build-for-msvc-and-for-macos-anywhere)）。未添加对应标签时，构建会立即报错失败并提示需要添加的内容。

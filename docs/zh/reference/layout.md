@@ -88,6 +88,7 @@ share/licenses/
 | `xclang` | xclang 的配置文件、CMake 包与 `xclang` 命令 | Apache-2.0 |
 | `llvm-project` | clang、lld、LLVM 工具、libc++、libc++abi、libunwind 与 compiler-rt；各文件保留其在 LLVM 源码树中的相对路径，`<file>.license` 则是从对应文件头部注释中提取出的版权声明 | Apache-2.0 WITH LLVM-exception，以及第三方组件各自的许可证（正则表达式引擎、BLAKE3、xxHash、Unicode 转换与数据、Visual Studio Setup API 声明） |
 | `zlib`, `zstd` | 静态链接进可执行程序（macOS 主机仅链接 zstd） | Zlib；BSD-3-Clause OR GPL-2.0-only |
+| `mimalloc` | musl 主机程序的分配器，链接进这些程序 | MIT |
 | `glibc` | Linux 目标平台的 C 标准库（2.17） | LGPL-2.1-or-later |
 | `musl` | musl 目标平台的 C 标准库（1.2.6） | MIT，以及其 `COPYRIGHT` 中列出的部分：BSD-2-Clause、BSD-3-Clause、ISC、SunPro |
 | `linux` | Linux 目标平台（glibc 与 musl）的内核 UAPI 头文件 | GPL-2.0-only WITH Linux-syscall-note |
