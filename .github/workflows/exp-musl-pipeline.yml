@@ -28,8 +28,8 @@ jobs:
       matrix:
         include:
           - { host: x86_64-unknown-linux-gnu, toolchain-run: "43291517745" }
-          - { host: x86_64-unknown-linux-musl, toolchain-run: "44988135814" }
-          - { host: aarch64-unknown-linux-musl, toolchain-run: "44988135814" }
+          - { host: x86_64-unknown-linux-musl, toolchain-run: "44996323031" }
+          - { host: aarch64-unknown-linux-musl, toolchain-run: "44996323031" }
     uses: ./.github/workflows/stage-package.yml
     with:
       host: ${{ matrix.host }}
