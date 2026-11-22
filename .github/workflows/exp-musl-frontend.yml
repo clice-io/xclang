@@ -1,9 +1,9 @@
 name: exp-musl-frontend
 
 # Experiment (exp/musl-hosts only): the frontend alone, as clice runs it
-# (exp/split/frontend.ts), by 23.1.5.2's glibc build, the same with
-# mimalloc 3.7.0 preloaded, and the musl host's build with mimalloc of
-# exp-musl's run: time and peak memory on several machines.
+# (exp/split/frontend.ts), by 23.1.5.2's glibc build and the musl host's
+# build with mimalloc of exp-musl's run, with mimalloc's options that hold
+# memory changed: time and peak memory on several machines.
 
 on:
   push:
@@ -73,11 +73,20 @@ jobs:
           lib=$(find "$PWD/mimalloc/build" -name 'libmimalloc.so.*' -type f | head -n 1)
           echo "MI_LIB=$lib" >> "$GITHUB_ENV"
           LD_PRELOAD="$lib" MIMALLOC_VERBOSE=1 glibc/xclang/bin/clang --version 2>&1 | grep -m 1 '^mimalloc: ' || { echo "::error::mimalloc not preloaded"; exit 1; }
+      # mimalloc's options that hold memory: transparent huge pages
+      # (allow_thp, 2: madvise and 2 MiB purges) and the purge delay
+      # (purge_delay, 1000 ms), on the musl host's build.
       - name: Frontend
         run: |
+          cat /sys/kernel/mm/transparent_hugepage/enabled | tee -a "$GITHUB_STEP_SUMMARY"
+          mi=t/mimalloc3/xclang/bin/clang++
+          MIMALLOC_VERBOSE=1 MIMALLOC_ALLOW_THP=0 MIMALLOC_PURGE_DELAY=0 $mi --version 2>&1 | grep -E "option '(allow_thp|purge_delay)'" | tee -a "$GITHUB_STEP_SUMMARY"
           node exp/split/frontend.ts --libclang libclang-gnu --out frontend-${{ matrix.arch }}-${{ matrix.shard }}.json \
-            --compiler glibc=glibc/xclang/bin/clang++ --compiler glibc-mi=glibc/xclang/bin/clang++ --preload "glibc-mi=$MI_LIB" \
-            --compiler mimalloc3=t/mimalloc3/xclang/bin/clang++
+            --compiler glibc=glibc/xclang/bin/clang++ --compiler mi=$mi \
+            --compiler mi-nothp=$mi --env mi-nothp=MIMALLOC_ALLOW_THP=0 \
+            --compiler mi-purge0=$mi --env mi-purge0=MIMALLOC_PURGE_DELAY=0 \
+            --compiler mi-purge10=$mi --env mi-purge10=MIMALLOC_PURGE_DELAY=10 \
+            --compiler mi-nothp-purge0=$mi --env mi-nothp-purge0=MIMALLOC_ALLOW_THP=0 --env mi-nothp-purge0=MIMALLOC_PURGE_DELAY=0
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:

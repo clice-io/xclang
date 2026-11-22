@@ -18,6 +18,8 @@ const { values } = parseArgs({
     libclang: { type: "string" },
     compiler: { type: "string", multiple: true, default: [] },
     preload: { type: "string", multiple: true, default: [] },
+    /// name=KEY=VALUE: an environment variable for that compiler.
+    env: { type: "string", multiple: true, default: [] },
     rounds: { type: "string", default: "3" },
     out: { type: "string", default: "frontend.json" },
   },
@@ -28,7 +30,10 @@ const libclang = path.resolve(values.libclang!);
 const compilers = values.compiler.map((s) => {
   const name = s.slice(0, s.indexOf("="));
   const preload = values.preload.find((p) => p.startsWith(`${name}=`))?.slice(name.length + 1);
-  return { name, path: s.slice(s.indexOf("=") + 1), env: preload ? { ...process.env, LD_PRELOAD: preload } : undefined };
+  const vars = Object.fromEntries(values.env.filter((e) => e.startsWith(`${name}=`))
+    .map((e) => e.slice(name.length + 1)).map((kv) => [kv.slice(0, kv.indexOf("=")), kv.slice(kv.indexOf("=") + 1)]));
+  if (preload) vars.LD_PRELOAD = preload;
+  return { name, path: s.slice(s.indexOf("=") + 1), env: Object.keys(vars).length ? { ...process.env, ...vars } : undefined };
 });
 
 const llvm = path.join(common.WORK, "src", "llvm-frontend");
