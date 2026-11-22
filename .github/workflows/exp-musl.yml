@@ -1,0 +1,215 @@
+name: exp-musl
+
+# Experiment (exp/musl-hosts only): the musl hosts' toolchain, with the
+# runtimes and the profile of the 23.1.5.2 release run, relinked with
+# other allocators; compile and link speed against 23.1.5.2's glibc build
+# on several machines, perf profiles, and clang in-process on a thread.
+
+on:
+  push:
+    branches: [exp/musl-hosts]
+    paths: [".github/workflows/exp-musl.yml"]
+  workflow_dispatch:
+    inputs:
+      build-run:
+        description: Run holding the variants (skips the build)
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  RELEASE_RUN: "43291517745"
+  RELEASE: 23.1.5.2
+
+jobs:
+  build:
+    if: ${{ !inputs.build-run }}
+    strategy:
+      fail-fast: false
+      matrix:
+        host: [x86_64-unknown-linux-musl, aarch64-unknown-linux-musl]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/free-disk
+      - uses: ./.github/actions/setup
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: runtimes-*
+          path: work/artifacts
+          merge-multiple: true
+          run-id: ${{ env.RELEASE_RUN }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: profile
+          path: work/profile
+          run-id: ${{ env.RELEASE_RUN }}
+          github-token: ${{ github.token }}
+      - name: Build
+        run: |
+          mkdir -p work/out
+          for archive in work/artifacts/runtimes-*.tar.zst; do zstd -dc "$archive" | tar -C work/out -xf -; done
+          start=$SECONDS
+          pixi run toolchain --host ${{ matrix.host }} --profile work/profile/profile.profdata 2>&1 | tee build.log
+          echo "${{ matrix.host }}: $(( (SECONDS - start) / 60 )) min" | tee -a "$GITHUB_STEP_SUMMARY"
+          { echo '```'; grep -E "static, mimalloc|^error" build.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Variants
+        run: pixi run node exp/musl/variants.ts --host ${{ matrix.host }}
+      - name: Pack
+        run: |
+          cd work/out
+          for dir in toolchain-${{ matrix.host }} libclang-${{ matrix.host }} variants-${{ matrix.host }}; do
+            du -sh "$dir" | tee -a "$GITHUB_STEP_SUMMARY"
+            tar -cf - "$dir" | zstd -T0 -6 -o "../../$dir.tar.zst"
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: toolchain-${{ matrix.host }}
+          path: |
+            toolchain-*.tar.zst
+            libclang-*.tar.zst
+          compression-level: 0
+          retention-days: 30
+      - uses: actions/upload-artifact@v7
+        with:
+          name: variants-${{ matrix.host }}
+          path: variants-*.tar.zst
+          compression-level: 0
+          retention-days: 30
+
+  bench:
+    needs: build
+    if: ${{ !cancelled() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+        shard: [1, 2, 3]
+    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 360
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MUSL: ${{ matrix.arch }}-unknown-linux-musl
+      GNU: ${{ matrix.arch }}-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: "*-${{ matrix.arch }}-unknown-linux-musl"
+          path: art
+          merge-multiple: true
+          run-id: ${{ inputs.build-run || github.run_id }}
+          github-token: ${{ github.token }}
+      - name: Trees
+        run: |
+          gh release download "$RELEASE" -R clice-io/xclang -D rel -p "xclang-$RELEASE-$GNU.tar.xz" -p "libclang-$RELEASE-$GNU.tar.xz"
+          mkdir -p glibc libclang-gnu t
+          tar -xf "rel/xclang-$RELEASE-$GNU.tar.xz" -C glibc
+          tar -xf "rel/libclang-$RELEASE-$GNU.tar.xz" -C libclang-gnu --strip-components=1
+          for a in art/*.tar.zst; do zstd -dc "$a" | tar -xf -; done
+          for v in variants-$MUSL/*/; do
+            name=$(basename "$v")
+            mkdir -p "t/$name"
+            cp -al glibc/xclang "t/$name/xclang"
+            rm "t/$name/xclang/bin/llvm"
+            cp "$v/llvm" "t/$name/xclang/bin/llvm"
+          done
+          ls t
+          for name in glibc t/mimalloc3 t/mallocng; do
+            dir=$([[ $name == glibc ]] && echo glibc/xclang || echo $name/xclang)
+            "$dir/bin/clang" --version | head -n 2
+          done
+      - name: Startup
+        run: |
+          { echo "### startup: 300 × clang --version, $(nproc) threads"; echo '```'
+            for name in glibc mimalloc3 mallocng; do
+              dir=$([[ $name == glibc ]] && echo glibc/xclang || echo t/$name/xclang)
+              start=$(date +%s%N)
+              for i in $(seq 300); do "$dir/bin/clang" --version > /dev/null; done
+              echo "$name: $(( ($(date +%s%N) - start) / 300000 )) µs each"
+            done; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: clang in-process on a thread (libclang of musl, static)
+        if: matrix.shard == 1
+        run: |
+          set -x
+          cxx=glibc/xclang/bin/clang++
+          L=libclang-$MUSL
+          $cxx --target=$MUSL -std=c++17 -fno-rtti -O2 -flto=thin -I$L/include -c exp/musl/stack.cpp -o stack.o
+          libs=$(ls $L/lib/*.a)
+          for stack in default 8m; do
+            flags=(); [[ $stack == 8m ]] && flags=(-Wl,-z,stack-size=8388608)
+            $cxx --target=$MUSL -flto=thin -fuse-ld=lld stack.o -Wl,--start-group $libs -Wl,--end-group "${flags[@]}" -o stack-$stack
+            file stack-$stack
+            { echo "### clang on a thread, stack $stack"; echo '```'; ./stack-$stack 2>&1 | tail -n 5; echo "exit $?"; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY" || true
+          done
+      - name: Compile speed
+        run: |
+          args=(--tree glibc/xclang --rounds 3 --out compile-${{ matrix.arch }}-${{ matrix.shard }}.json --compiler glibc=glibc/xclang/bin/clang++)
+          for name in mimalloc3 mallocng mimalloc2 snmalloc jemalloc; do
+            [[ -d t/$name ]] && args+=(--compiler "$name=t/$name/xclang/bin/clang++")
+          done
+          node tests/bench/bench.ts "${args[@]}"
+      - name: Link speed
+        run: |
+          args=(--libclang libclang-gnu --out link-${{ matrix.arch }}-${{ matrix.shard }}.json --compiler glibc=glibc/xclang/bin/clang++)
+          for name in mimalloc3 mallocng mimalloc2 snmalloc jemalloc mimalloc3-nostack; do
+            [[ -d t/$name ]] && args+=(--compiler "$name=t/$name/xclang/bin/clang++")
+          done
+          node exp/musl/link.ts "${args[@]}"
+      - name: perf
+        if: matrix.shard == 1
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq "linux-tools-$(uname -r)" linux-tools-common > /dev/null || { echo "no perf"; exit 0; }
+          sudo sysctl -q kernel.perf_event_paranoid=-1 kernel.kptr_restrict=0
+          fmt=work/src/fmt
+          for name in glibc mimalloc3-syms mallocng-syms; do
+            dir=$([[ $name == glibc ]] && echo glibc/xclang || echo t/$name/xclang)
+            cmd="for t in format ranges chrono; do for m in -O2 -fsyntax-only; do $dir/bin/clang++ --target=$GNU -std=c++20 -include cstdlib -I$fmt/include -I$fmt/test -I$fmt/test/gtest \$m -c $fmt/test/\$t-test.cc -o /tmp/x.o; done; done"
+            perf record -q -e cpu-clock -F 4000 -o perf-$name.data -- bash -c "$cmd"
+            { echo "### perf: $name, by DSO"; echo '```'
+              perf report -i perf-$name.data --no-children --sort dso --stdio 2>/dev/null | grep -v '^#' | grep -v '^$' | head -n 8
+              echo; echo "by symbol (top 45)"
+              perf report -i perf-$name.data --no-children --sort dso,symbol --stdio 2>/dev/null | grep -v '^#' | grep -v '^$' | head -n 45
+              echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: bench-${{ matrix.arch }}-${{ matrix.shard }}
+          path: |
+            compile-*.json
+            link-*.json
+          retention-days: 30
+
+  report:
+    needs: bench
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: bench-*
+          path: results
+          merge-multiple: true
+      - run: |
+          mkdir compile && mv results/compile-*.json compile/ || true
+          node tests/bench/report.ts compile | tee -a "$GITHUB_STEP_SUMMARY"
+          node exp/musl/report.ts results | tee -a "$GITHUB_STEP_SUMMARY"
