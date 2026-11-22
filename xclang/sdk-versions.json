@@ -2248,10 +2248,10 @@
     "macos-26-xlarge"
    ],
    "readme": "https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md",
-   "image-version": "20261102.0473.1",
+   "image-version": "20261117.0516.1",
    "xcode": "26.6",
    "sdk": "26.5",
-   "read": "2026-11-12"
+   "read": "2026-11-22"
   },
   "macOS-15": {
    "image": "macOS-15",
@@ -2272,10 +2272,10 @@
     "macos-15-xlarge"
    ],
    "readme": "https://github.com/actions/runner-images/blob/main/images/macos/macos-15-arm64-Readme.md",
-   "image-version": "20261104.0514.1",
+   "image-version": "20261118.0550.1",
    "xcode": "16.4",
    "sdk": "15.5",
-   "read": "2026-11-12"
+   "read": "2026-11-22"
   },
   "windows-2025-vs2026": {
    "image": "windows-2025-vs2026",
@@ -2285,11 +2285,11 @@
     "windows-2025-vs2026"
    ],
    "readme": "https://github.com/actions/runner-images/blob/main/images/windows/Windows2025-VS2026-Readme.md",
-   "image-version": "20261103.298.1",
-   "visual-studio": "2026 18.11.12328.437",
+   "image-version": "20261116.315.1",
+   "visual-studio": "2026 18.12.12405.243",
    "msvc": "14.52",
    "sdk": "10.0.26100.9457",
-   "read": "2026-11-12"
+   "read": "2026-11-22"
   },
   "windows-2022": {
    "image": "windows-2022",
@@ -2297,11 +2297,11 @@
     "windows-2022"
    ],
    "readme": "https://github.com/actions/runner-images/blob/main/images/windows/Windows2022-Readme.md",
-   "image-version": "20261101.353.1",
-   "visual-studio": "2022 17.14.37827.9",
+   "image-version": "20261116.370.1",
+   "visual-studio": "2022 17.14.37906.3",
    "msvc": "14.44.17.14",
-   "sdk": "10.0.26100.7705",
-   "read": "2026-11-12"
+   "sdk": "10.0.26100.9457",
+   "read": "2026-11-22"
   },
   "windows-11-vs2026-arm64": {
    "image": "windows-11-vs2026-arm64",
@@ -2310,11 +2310,11 @@
     "windows-11-vs2026-arm"
    ],
    "readme": "https://github.com/actions/runner-images/blob/main/images/windows/Windows11-VS2026-Arm64-Readme.md",
-   "image-version": "20261101.203.1",
-   "visual-studio": "2026 18.11.12328.437",
+   "image-version": "20261115.219.1",
+   "visual-studio": "2026 18.12.12405.243",
    "msvc": "14.52",
    "sdk": "10.0.26100.9457",
-   "read": "2026-11-12"
+   "read": "2026-11-22"
   }
  }
 }
