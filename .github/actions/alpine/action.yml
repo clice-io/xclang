@@ -36,4 +36,6 @@ runs:
             [ -z "$0" ] || echo "$0" >> /etc/apk/repositories
             for try in 1 2 3; do apk add -q bash nodejs git $1 && break; [ $try = 3 ] && exit 1; sleep 15; done
             git config --global --add safe.directory "*"
+            # ninja-is-really-ninja'"'"'s ninja, which it leaves off PATH.
+            export PATH="/usr/lib/ninja-build/bin:$PATH"
             exec bash -eo pipefail -c "$2"' "$repositories" "$PACKAGES" "$SCRIPT"
