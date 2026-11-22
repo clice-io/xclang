@@ -108,7 +108,7 @@ jobs:
         env:
           XCLANG_GIT_REF: ${{ inputs.git-ref }}
         with:
-          packages: cmake ninja-is-really-ninja g++
+          packages: cmake ninja-is-really-ninja g++ python3
           run: |
             node tests/cmake/cmake.ts --tree "$XCLANG_TREE" --libclang "$XCLANG_LIBCLANG" \
               --sums "$XCLANG_DIST/SHA256SUMS" --url "$XCLANG_URL" ${XCLANG_GIT_REF:+--git "$XCLANG_GIT_REF"}
