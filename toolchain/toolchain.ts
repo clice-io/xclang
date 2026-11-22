@@ -183,14 +183,12 @@ if (host.os === "darwin") args.push("-DCLANG_USE_XCSELECT=ON");
 /// lld folds identical functions whose address nothing compares, and
 /// merges string tails. (The macOS linker deduplicates on its own.)
 const exeLinkerFlags = mode === "release" && host.os !== "darwin" ? ["-Wl,--icf=safe", "-Wl,-O2"] : [];
-/// A musl host's programs, static (toolchain/config/musl.cfg): with
-/// mimalloc (allocator()), and 8 MiB stacks for every thread, which musl
-/// gives 128 KiB unless the program's PT_GNU_STACK asks for more (up to
-/// 8 MiB). glibc's threads have the main thread's 8 MiB, as LLVM expects:
-/// llvm::thread asks for 8 MiB on macOS only, and lld's parallel work and
-/// ThinLTO backends, and clang-scan-deps' workers, run on threads of the
-/// default size.
-if (host.os === "musl") exeLinkerFlags.push(`-Wl,-z,stack-size=${8 << 20}`, await allocator());
+/// A musl host's programs, static, with 8 MiB stacks for every thread
+/// (toolchain/config/musl.cfg), as glibc's and LLVM expects: llvm::thread
+/// asks for 8 MiB on macOS only, and lld's parallel work and ThinLTO
+/// backends, and clang-scan-deps' workers, run on threads of the default
+/// size, musl's 128 KiB without it; and with mimalloc (allocator()).
+if (host.os === "musl") exeLinkerFlags.push(await allocator());
 if (exeLinkerFlags.length) args.push(`-DCMAKE_EXE_LINKER_FLAGS=${exeLinkerFlags.join(" ")}`);
 /// A macOS program exports its weak definitions (template instantiations)
 /// for dyld to coalesce, and strip keeps them: 632 of them in llvm, after
