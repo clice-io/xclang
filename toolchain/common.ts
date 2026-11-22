@@ -72,8 +72,8 @@ export const SOURCES = {
   /// The allocator of the musl hosts' programs (toolchain/toolchain.ts),
   /// linked statically in place of musl's malloc.
   "mimalloc": {
-    url: `${GH}/microsoft/mimalloc/archive/refs/tags/v3.7.0.tar.gz`,
-    sha256: "1b8653b9ff9b841a97f2c50fd996e89e1a0cb712c3c5b0980ef16a027eb7acf8",
+    url: `${GH}/microsoft/mimalloc/archive/refs/tags/v2.5.3.tar.gz`,
+    sha256: "d0e7b923533db035bbda50e1582c3a9b1d06827b03be68618d789071e024e1ee",
   },
   /// The training corpus (toolchain/pgo/train.ts).
   "abseil": {

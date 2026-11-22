@@ -168,7 +168,7 @@ glibc hosts' in two flags, which `checkMusl` in `toolchain/toolchain.ts`
 checks in every program:
 
 - **mimalloc in place of musl's `malloc`**: the programs link mimalloc
-  3.7.0's single object (`MI_OVERRIDE`). It also defines musl's internal
+  2.5.3's single object (`MI_OVERRIDE`). It also defines musl's internal
   `__libc_malloc` and `__libc_free`, so none of musl's allocator is linked.
 - **8 MiB thread stacks** (`-Wl,-z,stack-size=8388608`): musl gives a thread
   128 KiB of stack, and LLVM sets a thread's stack size only on Apple
@@ -179,43 +179,48 @@ checks in every program:
 Measured for 23.1.5.3 on GitHub's Linux x64 and arm64 runners against the
 glibc hosts' toolchain of 23.1.5.2, built with the same profile and
 compiling for the same target, median of three runners (time relative to
-glibc, lower is faster). Compile times span the fmt, lua and `std` builds
-(`tests/bench`); the link is a small `libclang` tool linked with ThinLTO and
-no cache:
+glibc, lower is faster; mimalloc 2.5.3 built for ARMv8.1 on arm64 there,
+the release's for the baseline). Compile times span the fmt, lua and `std`
+builds (`tests/bench`); the link is a small `libclang` tool linked with
+ThinLTO and no cache:
 
 | allocator | compile, Linux x64 | compile, Linux arm64 | link, Linux x64 | link, Linux arm64 |
 |---|---|---|---|---|
+| mimalloc 2.5.3 | 0.82–0.96 | 0.70–0.84 | 0.99 | 0.92 |
 | mimalloc 3.7.0 | 0.82–0.96 | 0.69–0.83 | 0.95 | 0.93 |
 | musl's `malloc` (mallocng) | 0.84–1.22 | 0.83–1.24 | 1.43 | 2.68 |
-| mimalloc 2.5.3 | 0.82–0.96 | 0.70–0.84 | 0.99 | 0.92 |
 | snmalloc 0.7.6 | 0.92–1.06 | 0.78–0.97 | 0.95 | 0.88 |
 | jemalloc 5.4.0 | 0.76–1.05 | 0.79–0.99 | 0.95 | 0.89 |
 
-With mimalloc, the link's peak memory is 0.70 to 0.75 of glibc's, and the
-frontend's (`clang -fsyntax-only` over clang's Sema sources and abseil)
-1.10 to 1.24 times glibc's. Most of the lead over glibc is mimalloc itself.
-In a second run, the glibc hosts' toolchain with the same mimalloc
-preloaded (`LD_PRELOAD`) took 0.88 to 0.89 of its own time on the fmt and
-`std` builds on Linux x64 and 0.82 to 0.86 on arm64; the musl hosts' took
-0.88 to 0.91 and 0.81 to 0.83. The static executable adds a faster start,
-as it has none of the glibc build's 247,000 relocations: `clang --version`
-takes 4.2 ms on Linux x64 and 3.4 ms on arm64, against glibc's 8.5 and
-7.9 ms, which makes lua's 34 small files up to 20% faster still. The glibc
-hosts' profile serves the musl hosts as it serves every host
-([one profile for every host](pgo.md#one-profile-for-every-host)).
+With either mimalloc, the link's peak memory is 0.69 to 0.78 of glibc's. On
+the frontend (`clang -fsyntax-only` over clang's Sema sources and abseil),
+2.5.3 is as fast as 3.7.0, 0.89 to 0.90 of glibc's time on Linux x64 and 0.80
+to 0.82 on arm64, with less memory: 1.03 to 1.16 times glibc's peak against
+3.7.0's 1.11 to 1.24. 3.7.0 asks for transparent huge pages (`MADV_HUGEPAGE`)
+and purges only whole 2 MiB pages, and its speed comes from them: without them
+(`MIMALLOC_ALLOW_THP=0`) its peak memory is 0.98 to 1.11 times glibc's, and it
+takes 0.97 to 1.03 of glibc's time. Most of the lead over glibc is the
+allocator itself. In another run, the glibc hosts' toolchain with mimalloc
+3.7.0 preloaded (`LD_PRELOAD`) took 0.88 to 0.89 of its own time on the fmt
+and `std` builds on Linux x64 and 0.82 to 0.86 on arm64; the musl hosts' took
+0.88 to 0.91 and 0.81 to 0.83. The static executable adds a faster start, as
+it has none of the glibc build's 247,000 relocations: `clang --version` takes
+4.2 ms on Linux x64 and 3.4 ms on arm64, against glibc's 8.5 and 7.9 ms, which
+makes lua's 34 small files up to 20% faster still. The glibc hosts' profile
+serves the musl hosts as it serves every host ([one profile for every
+host](pgo.md#one-profile-for-every-host)).
 
 The rest of musl is left as it is. In a `perf` profile of the fmt build,
-musl's string functions take 3.18% of `clang`'s samples on Linux x64 and
-1.61% on arm64, glibc's 2.12% and 1.17%. On Linux x64 that offsets what the
-static allocator saves (1.63% of the samples, against 3.05% preloaded), and
-links, which copy and compare much, take 4 to 10% longer than the glibc
-build's with mimalloc. musl's `qsort` (smoothsort, which LLVM's
+musl's string functions take 3.18% of `clang`'s samples on Linux x64 and 1.61%
+on arm64, glibc's 2.12% and 1.17%. On Linux x64 that offsets what the static
+allocator saves (mimalloc 3.7.0: 1.63% of the samples, against 3.05%
+preloaded), and links, which copy and compare much, take 4 to 10% longer than
+the glibc build's with mimalloc. musl's `qsort` (smoothsort, which LLVM's
 `array_pod_sort` calls) takes under 0.1%, and no locale or `ctype` function
-reaches 0.05%. Neither `dlopen` nor DNS matters:
-no host's `clang` or `lld` loads plugins (`LLVM_ENABLE_PLUGINS` and
-`CLANG_PLUGIN_SUPPORT` are off) or reaches the network. One difference
-remains: a crash prints no stack trace on the musl hosts, because LLVM
-walks the stack only with glibc.
+reaches 0.05%. Neither `dlopen` nor DNS matters: no host's `clang` or `lld`
+loads plugins (`LLVM_ENABLE_PLUGINS` and `CLANG_PLUGIN_SUPPORT` are off) or
+reaches the network. One difference remains: a crash prints no stack trace on
+the musl hosts, because LLVM walks the stack only with glibc.
 
 ## Plain Directories
 

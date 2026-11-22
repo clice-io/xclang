@@ -147,7 +147,7 @@ export async function allocator(host: common.Target): Promise<Component[]> {
   return [{
     name: "mimalloc",
     what: "linked into the programs in bin/ as their malloc",
-    version: "3.7.0",
+    version: "2.5.3",
     license: "MIT",
     source: [common.SOURCES.mimalloc.url],
     files: await filesOf("mimalloc", ["LICENSE"]),
