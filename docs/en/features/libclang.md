@@ -436,6 +436,6 @@ branch `exp/bazel-lto`):
 | First link on a fresh runner after restoring the cache, with a change | 6.2 s | 15.6 s | 13.7 s |
 | Cache size | 352–403 MiB | 414–425 MiB | 394–660 MiB |
 
-Linking a small tool (`examples/libclang`) across all six hosts takes 7 to
-20 s cold (no cache or empty cache) and 0.6 to 1.7 s warm (152 to 155 cache
-entries), producing identical binary bytes on every run.
+Linking a small tool (`examples/libclang`) on the six hosts other than
+musl takes 7 to 20 s cold (no cache or empty cache) and 0.6 to 1.7 s warm
+(152 to 155 cache entries), producing identical binary bytes on every run.

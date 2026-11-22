@@ -8,6 +8,21 @@ the [patches](docs/en/reference/patches.md) of its tag.
 
 ## Unreleased
 
+- **musl hosts: `x86_64-unknown-linux-musl` and
+  `aarch64-unknown-linux-musl`.** A toolchain, `xclang` command included,
+  and a libclang for Linux without glibc (Alpine, Void's musl flavour):
+  static programs that run on any Linux, with mimalloc in place of musl's
+  `malloc` and 8 MiB thread stacks, compiling in 4 to 31% less time than
+  the glibc hosts' toolchain
+  ([the musl hosts](docs/en/design/toolchain.md#the-musl-hosts)). Their
+  `clang` builds for the musl target by default. On a musl machine
+  (`ldd --version`, as rustup tells) the Bazel module and the CMake package
+  take them, `@libclang` included. There is no ASan libclang for them
+  (musl has no ASan) and no conda package.
+- **`-stdlib=platform` finds Alpine's libstdc++** for the musl targets,
+  whose target headers are under `<arch>-alpine-linux-musl`. Patches:
+  **0018** updated.
+
 ## [23.1.5.2](https://github.com/clice-io/xclang/releases/tag/23.1.5.2) — 2026-11-13
 
 Built by 23.1.5.1.

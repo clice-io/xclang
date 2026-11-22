@@ -2,7 +2,7 @@
   "version": 1,
   "pairs": [
     { "kind": "heading", "en": "b938ae79eddc5616", "zh": "6626bd32f6a6dbe5" },
-    { "kind": "paragraph", "en": "32efd2b0e8f6eb0b", "zh": "e81eba0ccfffc913" },
+    { "kind": "paragraph", "en": "ec2382ade3178d28", "zh": "e68372a58fd4e541" },
     { "kind": "heading", "en": "63bfd61a0561b255", "zh": "898cf1ff9fecac7c" },
     { "kind": "paragraph", "en": "fbba484cd416cc35", "zh": "c96a2c2f16f52007" },
     { "kind": "paragraph", "en": "da184f583d24798e", "zh": "1780bd8040f7eebc" },
@@ -43,7 +43,8 @@
     { "kind": "listItem", "en": "8de223fc5836e616", "zh": "0cb22d9abff29e07" },
     { "kind": "listItem", "en": "41ce8fc5d781a08a", "zh": "d5c4248b9a73ff10" },
     { "kind": "listItem", "en": "c5bd81955834b855", "zh": "8d3021bcc85a4eff" },
-    { "kind": "listItem", "en": "bda1e4a9bd7ddec4", "zh": "e2c3ec648e0a9663" },
+    { "kind": "listItem", "en": "0e225c5a7c2dc233", "zh": "72f316b3768cb3f7" },
+    { "kind": "listItem", "en": "2be0e1ee3aeef5c9", "zh": "ba99876d709ecd48" },
     { "kind": "heading", "en": "f4e96086f4d6c131", "zh": "767b7ba985750d77" },
     { "kind": "paragraph", "en": "49b8bf8a1edc5a0b", "zh": "97ccbcec9a5d0f5e" },
     { "kind": "tableRow", "en": "e6e0b362dbc29f84", "zh": "05039219255fd7f2" },
@@ -59,7 +60,7 @@
     { "kind": "tableRow", "en": "f2cf8bb6ec9cc24c", "zh": "4b295b60f0cdc46c" },
     { "kind": "paragraph", "en": "6dbccd8d18c593e5", "zh": "5028a01697cb956a" },
     { "kind": "heading", "en": "0a02f2e0c7b1a5c1", "zh": "6514a272719499a7" },
-    { "kind": "paragraph", "en": "2058090840461c15", "zh": "4beb8b44f7df9b6c" },
+    { "kind": "paragraph", "en": "698a38bf25b05493", "zh": "15548d2f69eccfd3" },
     { "kind": "paragraph", "en": "23a46a31c4a2499a", "zh": "83216230504665b2" },
     { "kind": "heading", "en": "36050fd590b5072b", "zh": "945f676301316b56" },
     { "kind": "listItem", "en": "66f85c04381fd5b2", "zh": "6f091e3ea96aff09" },
@@ -84,6 +85,6 @@
     { "kind": "tableRow", "en": "9c710b41859eee38", "zh": "b3cc21f95862bc6b" },
     { "kind": "tableRow", "en": "1edbde23e778f160", "zh": "cbe556bd019d4e66" },
     { "kind": "tableRow", "en": "e3e1d75b6ba27a51", "zh": "67dde2a5e1e52c85" },
-    { "kind": "paragraph", "en": "b16ae72a082f81b1", "zh": "d180b415c2fc6eef" }
+    { "kind": "paragraph", "en": "33b8d0f784ff7669", "zh": "2f8ce7cfade8b6cf" }
   ]
 }
