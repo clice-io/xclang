@@ -1,0 +1,39 @@
+name: alpine
+description: >-
+  A script on Alpine Linux, a musl machine, as a musl host's checks run:
+  bash in a container on this Linux runner (the actions of a job run on
+  the runner, which an Alpine job container cannot have on arm64), with the
+  workspace and $RUNNER_TEMP at their paths, the job's XCLANG_* variables
+  and GitHub's, and Node, git and the packages asked for.
+
+inputs:
+  run:
+    description: The script, for bash -eo pipefail, in the workspace
+    required: true
+  packages:
+    description: Alpine's packages to add, space-separated
+    default: ""
+  image:
+    description: The image; edge for a package only edge has (bazel, from edge/testing)
+    default: alpine:3.24
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        SCRIPT: ${{ inputs.run }}
+        PACKAGES: ${{ inputs.packages }}
+        IMAGE: ${{ inputs.image }}
+      run: |
+        env | grep -E '^(XCLANG_|GITHUB_|RUNNER_|CI=|GH_TOKEN=)' > "$RUNNER_TEMP/alpine.env"
+        repositories=""
+        [[ "$IMAGE" == alpine:edge ]] && repositories="https://dl-cdn.alpinelinux.org/alpine/edge/testing"
+        node tests/lib/retry.ts docker pull -q "$IMAGE"
+        docker run --rm --env-file "$RUNNER_TEMP/alpine.env" \
+          -v "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" -v "$RUNNER_TEMP:$RUNNER_TEMP" -w "$PWD" "$IMAGE" \
+          sh -euc '
+            [ -z "$0" ] || echo "$0" >> /etc/apk/repositories
+            for try in 1 2 3; do apk add -q bash nodejs git $1 && break; [ $try = 3 ] && exit 1; sleep 15; done
+            git config --global --add safe.directory "*"
+            exec bash -eo pipefail -c "$2"' "$repositories" "$PACKAGES" "$SCRIPT"

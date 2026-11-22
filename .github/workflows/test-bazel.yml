@@ -195,6 +195,65 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # A musl host's module on Alpine (the alpine action; edge, whose testing
+  # repository has the one Bazel that runs on musl): tests/bazel's tests,
+  # which a Linux platform without a C library builds with the musl host's
+  # toolchain for musl (platforms/libc), libclang's tests with its musl
+  # libclang; and for glibc, given as the platform.
+  module-musl:
+    name: module (${{ matrix.host }})
+    needs: source
+    strategy:
+      fail-fast: false
+      matrix:
+        host: [x86_64-unknown-linux-musl, aarch64-unknown-linux-musl]
+    runs-on: ${{ matrix.host == 'aarch64-unknown-linux-musl' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      # A release before the musl hosts' (23.1.5.3) has nothing to test.
+      - name: Release digests
+        if: ${{ !needs.source.outputs.dist-run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node tests/lib/retry.ts gh release download $RELEASE -R "$GITHUB_REPOSITORY" -p SHA256SUMS -D "$RUNNER_TEMP" --clobber
+          node packages/bazel/bazel.ts versions "$RUNNER_TEMP/SHA256SUMS"
+          grep -q -- "-${{ matrix.host }}.tar.xz$" "$RUNNER_TEMP/SHA256SUMS" ||
+            echo "XCLANG_ABSENT=the release has no archives of ${{ matrix.host }}" | tee -a "$GITHUB_ENV"
+      - uses: ./.github/actions/distdir
+        if: needs.source.outputs.dist-run
+        with:
+          dist-run: ${{ needs.source.outputs.dist-run }}
+          hosts: ${{ matrix.host }} x86_64-unknown-linux-gnu
+      # Its .bazelrc, of the runner's user, for the container's.
+      - if: needs.source.outputs.dist-run
+        run: cp ~/.bazelrc "$RUNNER_TEMP/bazelrc"
+      - name: Test (Alpine)
+        if: ${{ !env.XCLANG_ABSENT }}
+        uses: ./.github/actions/alpine
+        env:
+          XCLANG_HOST: ${{ matrix.host }}
+        with:
+          image: alpine:edge
+          packages: bazel
+          run: |
+            [[ -f "$RUNNER_TEMP/bazelrc" ]] && cp "$RUNNER_TEMP/bazelrc" ~/.bazelrc
+            cd tests/bazel
+            bazel version | head -n 1
+            bazel test //... --disk_cache="$RUNNER_TEMP/disk"
+            bazel test -c opt //... --disk_cache="$RUNNER_TEMP/disk"
+            external="$(bazel info output_base)/external"
+            glibc="${XCLANG_HOST%-musl}-gnu"
+            ls -d "$external"/*+xclang_"$XCLANG_HOST" > /dev/null || { echo "::error::no toolchain of $XCLANG_HOST"; exit 1; }
+            if ls -d "$external"/*+xclang_"$glibc" > /dev/null 2>&1; then echo "::error::the toolchain of $glibc fetched"; exit 1; fi
+            bazel build --platforms=@xclang//platforms:"$glibc" //c/... //cpp/... --disk_cache="$RUNNER_TEMP/disk"
+
   # The runtimes from source of other targets, run there.
   runtimes-run:
     needs: module

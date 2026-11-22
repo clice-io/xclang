@@ -29,11 +29,8 @@ runs:
         dir="$RUNNER_TEMP/distdir"; rc="$HOME/.bazelrc"
         [[ "$RUNNER_OS" == Windows ]] && { dir=$(cygpath -m "$dir"); rc="$USERPROFILE/.bazelrc"; }
         hosts=$(tr ' ' '\n' <<< "$HOSTS" | sort -u)
-        names=()
-        for h in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu x86_64-w64-mingw32 aarch64-w64-mingw32 \
-          aarch64-apple-darwin x86_64-apple-darwin; do
-          names+=(-n "digests-$h-first")
-        done
+        # Every host's digests, the draft's SHA256SUMS.
+        names=(-p "digests-*-first")
         for h in $hosts; do names+=(-n "dist-$h"); done
         # Tried again from nothing: gh refuses to overwrite a file.
         node tests/lib/retry.ts bash -c 'rm -rf "$0"; gh run download "$1" -R "$GITHUB_REPOSITORY" -D "$0" "${@:2}"' \

@@ -62,7 +62,7 @@ on:
       hosts:
         description: JSON list of the hosts to build a toolchain for
         type: string
-        default: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin"]'
+        default: '["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-w64-mingw32", "aarch64-w64-mingw32", "aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl"]'
       reuse-run:
         description: Run whose artifacts stand in for the stages not run
         type: string

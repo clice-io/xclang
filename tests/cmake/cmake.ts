@@ -87,8 +87,8 @@ if (!values.tree || !values.sums) {
 const tree = path.resolve(values.tree);
 const sums = path.resolve(values.sums);
 const windows = process.platform === "win32";
-const native = common.TARGETS.find((t) => t.arch === (os.arch() === "arm64" ? "aarch64" : "x86_64") &&
-  t.os === (windows ? "mingw" : process.platform === "darwin" ? "darwin" : "linux"))!;
+/// On a musl machine (Alpine), the musl host's.
+const native = windows ? common.target(`${os.arch() === "arm64" ? "aarch64" : "x86_64"}-w64-mingw32`) : common.machineTarget();
 /// The long form of Windows' temporary directory (not RUNNER~1).
 const work = fs.mkdtempSync(path.join(fs.realpathSync.native(os.tmpdir()), "xclang-cmake-"));
 const source = path.join(common.ROOT, "tests", "cmake");
@@ -304,15 +304,15 @@ if (fs.existsSync(sources)) {
 
 /// 6. The platform's C++ library, with a CMAKE_CXX_FLAGS given, which
 /// leaves the toolchain file's -stdlib=platform (an option, not a flag):
-/// libstdc++ on Linux; on macOS the SDK's libc++, by its headers, whose
+/// libstdc++ on Linux (Alpine's on a musl host); on macOS the SDK's libc++, by its headers, whose
 /// version is not the toolchain's LLVM's (<major>xxxx), and its library,
 /// the system's.
 if (since("23.1.2.11")) {
   const project = path.join(source, "platform");
   const [a, b] = [...version.split(".")[0]!];
-  const expect = native.os === "linux" ? "^libstdc\\+\\+ thrown"
+  const expect = native.os === "linux" || native.os === "musl" ? "^libstdc\\+\\+ thrown"
     : native.os === "darwin" ? `^libc\\+\\+ ([^${a}][0-9]|${a}[^${b}])[0-9][0-9][0-9][0-9] thrown` : undefined;
-  if (expect && (native.os !== "linux" || fs.existsSync("/usr/include/c++")) &&
+  if (expect && (native.os === "darwin" || fs.existsSync("/usr/include/c++")) &&
     build("platform", [`--toolchain=${toolchain}`, "-DXCLANG_STDLIB=platform", "-DCMAKE_CXX_FLAGS=-O1",
       `-DXCLANG_TEST_EXPECT=${expect}`], process.env, true, project) && native.os === "darwin") {
     const dylibs = spawnSync(path.join(tree, "bin", "llvm-objdump"), ["--macho", "--dylibs-used", path.join(work, "platform", "platform")],
@@ -354,7 +354,7 @@ if (since("23.1.2.11")) {
     build(`sanitizer-${name}`, [`--toolchain=${toolchain}`, `-DXCLANG_SANITIZER=${list}`], pathEnv, true, project);
   }
   const musl = `${native.arch}-unknown-linux-musl`;
-  if (native.os === "linux" && fs.existsSync(path.join(tree, musl))) {
+  if ((native.os === "linux" || native.os === "musl") && fs.existsSync(path.join(tree, musl))) {
     build("sanitizer-musl", [`--toolchain=${toolchain}`, `-DXCLANG_TARGET=${musl}`, "-DXCLANG_SANITIZER=undefined"],
       process.env, true, project);
   }

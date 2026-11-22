@@ -49,10 +49,11 @@ export const SOURCES = {
     sha256: "b48ae68930be2f916de6b6d05172e573073abbe36f310815c82256f7eb6d2b61",
   },
   /// What builds xclang's own command (xclang/build.ts): a released
-  /// toolchain, the C compiler and linker of every host's binary.
+  /// toolchain, the C compiler and linker of every host's binary (on Linux
+  /// one with the musl targets, for the musl hosts').
   "cli-linux": {
-    url: `${XCLANG}/23.1.2.5/xclang-23.1.2.5-x86_64-unknown-linux-gnu.tar.xz`,
-    sha256: "45b833478833a95ec45a025928df52aef45f14fdbd84e934ea31fe885364ccfc",
+    url: `${XCLANG}/23.1.5.2/xclang-23.1.5.2-x86_64-unknown-linux-gnu.tar.xz`,
+    sha256: "6eb5f493c1c2171fed2ece3da2d234d24208953e833cb042de23f269c6870579",
   },
   "cli-macos": {
     url: `${XCLANG}/23.1.2.5/xclang-23.1.2.5-aarch64-apple-darwin.tar.xz`,

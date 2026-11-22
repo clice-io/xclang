@@ -21,6 +21,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { muslMachine } from "../../toolchain/common.ts";
 
 /// A program of a programs.json.
 export interface Program {
@@ -59,7 +60,7 @@ export function host(): string {
   const arch = os.arch() === "arm64" ? "aarch64" : "x86_64";
   if (process.platform === "win32") return `${arch}-w64-mingw32`;
   if (process.platform === "darwin") return `${arch}-apple-darwin`;
-  return `${arch}-unknown-linux-gnu`;
+  return `${arch}-unknown-linux-${muslMachine() ? "musl" : "gnu"}`;
 }
 
 /// The directory of the programs a check (`origin`) built here for
