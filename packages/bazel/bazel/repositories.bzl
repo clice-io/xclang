@@ -286,7 +286,7 @@ xclang_xcode_sdk = repository_rule(
 
 def _machine_impl(rctx):
     rctx.file("BUILD.bazel", "")
-    rctx.file("machine.bzl", "# The machine's C library (bazel/hosts.bzl, machine_libc).\nLIBC = %s\n" % json.encode(machine_libc(rctx)))
+    rctx.file("machine.bzl", "# The machine's C library (bazel/hosts.bzl, machine_libc).\nLIBC = %s\n" % repr(machine_libc(rctx)))
 
 xclang_machine = repository_rule(
     implementation = _machine_impl,
