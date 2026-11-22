@@ -1,0 +1,105 @@
+name: exp-musl-frontend
+
+# Experiment (exp/musl-hosts only): the frontend alone, as clice runs it
+# (exp/split/frontend.ts), by 23.1.5.2's glibc build, the same with
+# mimalloc 3.7.0 preloaded, and the musl host's build with mimalloc of
+# exp-musl's run: time and peak memory on several machines.
+
+on:
+  push:
+    branches: [exp/musl-hosts]
+    paths: [".github/workflows/exp-musl-frontend.yml"]
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  RELEASE: 23.1.5.2
+  BUILD_RUN: "44996323031"
+  MIMALLOC: https://github.com/microsoft/mimalloc/archive/refs/tags/v3.7.0.tar.gz
+  MIMALLOC_SHA256: 1b8653b9ff9b841a97f2c50fd996e89e1a0cb712c3c5b0980ef16a027eb7acf8
+
+jobs:
+  bench:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+        shard: [1, 2, 3]
+    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 240
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MUSL: ${{ matrix.arch }}-unknown-linux-musl
+      GNU: ${{ matrix.arch }}-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          name: variants-${{ matrix.arch }}-unknown-linux-musl
+          path: art
+          run-id: ${{ env.BUILD_RUN }}
+          github-token: ${{ github.token }}
+      - name: Trees
+        run: |
+          gh release download "$RELEASE" -R clice-io/xclang -D rel -p "xclang-$RELEASE-$GNU.tar.xz" -p "libclang-$RELEASE-$GNU.tar.xz"
+          mkdir -p glibc libclang-gnu t
+          tar -xf "rel/xclang-$RELEASE-$GNU.tar.xz" -C glibc
+          tar -xf "rel/libclang-$RELEASE-$GNU.tar.xz" -C libclang-gnu --strip-components=1
+          zstd -dc art/variants-$MUSL.tar.zst | tar -xf -
+          for name in mimalloc3; do
+            mkdir -p "t/$name"
+            cp -al glibc/xclang "t/$name/xclang"
+            rm "t/$name/xclang/bin/llvm"
+            cp "variants-$MUSL/$name/llvm" "t/$name/xclang/bin/llvm"
+          done
+      # mimalloc 3.7.0 as a shared library, built by the glibc build's clang
+      # with the options of the musl hosts' object.
+      - name: mimalloc
+        run: |
+          curl -fsSL --retry 5 -o mimalloc.tar.gz "$MIMALLOC"
+          echo "$MIMALLOC_SHA256  mimalloc.tar.gz" | sha256sum -c -
+          mkdir mimalloc && tar -xzf mimalloc.tar.gz -C mimalloc --strip-components=1
+          cmake -S mimalloc -B mimalloc/build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER="$PWD/glibc/xclang/bin/clang" -DCMAKE_CXX_COMPILER="$PWD/glibc/xclang/bin/clang++" \
+            -DMI_OVERRIDE=ON -DMI_OPT_ARCH=OFF -DMI_BUILD_SHARED=ON -DMI_BUILD_STATIC=OFF -DMI_BUILD_OBJECT=OFF -DMI_BUILD_TESTS=OFF > /dev/null
+          cmake --build mimalloc/build -j "$(nproc)" > /dev/null
+          lib=$(find "$PWD/mimalloc/build" -name 'libmimalloc.so.*' -type f | head -n 1)
+          echo "MI_LIB=$lib" >> "$GITHUB_ENV"
+          LD_PRELOAD="$lib" MIMALLOC_VERBOSE=1 glibc/xclang/bin/clang --version 2>&1 | grep -m 1 '^mimalloc: ' || { echo "::error::mimalloc not preloaded"; exit 1; }
+      - name: Frontend
+        run: |
+          node exp/split/frontend.ts --libclang libclang-gnu --out frontend-${{ matrix.arch }}-${{ matrix.shard }}.json \
+            --compiler glibc=glibc/xclang/bin/clang++ --compiler glibc-mi=glibc/xclang/bin/clang++ --preload "glibc-mi=$MI_LIB" \
+            --compiler mimalloc3=t/mimalloc3/xclang/bin/clang++
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: frontend-${{ matrix.arch }}-${{ matrix.shard }}
+          path: frontend-*.json
+          retention-days: 30
+
+  report:
+    needs: bench
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: frontend-*
+          path: results
+          merge-multiple: true
+      - run: |
+          node exp/split/frontend-report.ts results | tee -a "$GITHUB_STEP_SUMMARY"
