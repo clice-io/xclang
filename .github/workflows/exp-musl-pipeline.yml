@@ -1,0 +1,68 @@
+name: exp-musl-pipeline
+
+# Experiment (exp/musl-pipeline only): the release pipeline's package and
+# test stages for the musl hosts, with exp-musl's toolchains (BUILD_RUN),
+# 23.1.5.2's runtimes and Linux x64 toolchain (RELEASE_RUN, for the option
+# tables), this branch's command.
+
+on:
+  push:
+    branches: [exp/musl-pipeline]
+    paths: [".github/workflows/exp-musl-pipeline.yml"]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  cli:
+    uses: ./.github/workflows/cli.yml
+    with:
+      revision: "3"
+      build-only: true
+
+  package:
+    needs: cli
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { host: x86_64-unknown-linux-gnu, toolchain-run: "43291517745" }
+          - { host: x86_64-unknown-linux-musl, toolchain-run: "44988135814" }
+          - { host: aarch64-unknown-linux-musl, toolchain-run: "44988135814" }
+    uses: ./.github/workflows/stage-package.yml
+    with:
+      host: ${{ matrix.host }}
+      revision: "3"
+      runtimes-run: "43291517745"
+      toolchain-run: ${{ matrix.toolchain-run }}
+      cli-run: ${{ github.run_id }}
+
+  test:
+    needs: package
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/test-archives.yml
+    with:
+      hosts: '["x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl"]'
+      dist-run: ${{ github.run_id }}
+
+  cmake:
+    needs: package
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/test-cmake.yml
+    with:
+      dist-run: ${{ github.run_id }}
+
+  bazel:
+    needs: package
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/test-bazel.yml
+    with:
+      dist-run: ${{ github.run_id }}
+
+  cli-test:
+    needs: package
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/cli.yml
+    with:
+      dist-run: ${{ github.run_id }}
