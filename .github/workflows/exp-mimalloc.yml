@@ -1,0 +1,141 @@
+name: exp-mimalloc
+
+# Experiment (exp/mimalloc-hosts only): every host's toolchain with
+# mimalloc against 23.1.5.3's release, on several machines of each host:
+# compile time (tests/bench/bench.ts), a ThinLTO link
+# (exp/mimalloc/link.ts), and the frontend's time and peak memory
+# (exp/mimalloc/frontend.ts). The toolchains are built with 23.1.5.3's
+# runtimes and profile by release.yml runs of this branch: the glibc
+# hosts' in GLIBC_RUN, the others' in 45104311620, packaged in BUILD_RUN.
+# The report is the median over the machines.
+
+on:
+  push:
+    branches: [exp/mimalloc-hosts]
+    paths: [".github/workflows/exp-mimalloc.yml"]
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  RELEASE: 23.1.5.3
+  BUILD_RUN: "45115856117"
+  GLIBC_RUN: "45109067169"
+
+jobs:
+  bench:
+    strategy:
+      fail-fast: false
+      matrix:
+        host: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, x86_64-w64-mingw32, aarch64-w64-mingw32, aarch64-apple-darwin, x86_64-apple-darwin]
+        shard: [1, 2, 3, 4, 5]
+        include:
+          - host: x86_64-unknown-linux-gnu
+            os: ubuntu-24.04
+          - host: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+          - host: x86_64-w64-mingw32
+            os: windows-2025
+          - host: aarch64-w64-mingw32
+            os: windows-11-arm
+          - host: aarch64-apple-darwin
+            os: macos-15
+          - host: x86_64-apple-darwin
+            os: macos-15-intel
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 300
+    defaults:
+      run:
+        shell: bash
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HOST: ${{ matrix.host }}
+      OUT: ${{ matrix.host }}-${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist-${{ matrix.host }}
+          path: dist
+          run-id: ${{ endsWith(matrix.host, '-linux-gnu') && env.GLIBC_RUN || env.BUILD_RUN }}
+          github-token: ${{ github.token }}
+      - name: Trees
+        run: |
+          gh release download "$RELEASE" -R clice-io/xclang -D rel -p "xclang-$RELEASE-$HOST.tar.xz" -p "libclang-$RELEASE-$HOST.tar.xz"
+          tar=tar; [[ "$RUNNER_OS" == Windows ]] && tar=/c/Windows/System32/tar.exe
+          mkdir -p base mimalloc libclang
+          $tar -C base -xf "rel/xclang-$RELEASE-$HOST.tar.xz"
+          $tar -C mimalloc -xf "dist/xclang-$RELEASE-$HOST.tar.xz"
+          $tar -C libclang -xf "rel/libclang-$RELEASE-$HOST.tar.xz" --strip-components=1
+          exe=""; flags=""; [[ "$RUNNER_OS" == Windows ]] && { exe=.exe; flags=-municode; }
+          base/xclang/bin/clang$exe -O2 $flags exp/mimalloc/peak.c -o "peak$exe"
+          for tree in base mimalloc; do
+            echo "$tree: $(MIMALLOC_VERBOSE=1 $tree/xclang/bin/clang$exe --version 2>&1 | grep -c '^mimalloc: ') lines of mimalloc"
+          done | tee -a "$GITHUB_STEP_SUMMARY"
+          MIMALLOC_VERBOSE=1 mimalloc/xclang/bin/clang$exe --version 2>&1 | grep -q '^mimalloc: ' || { echo "::error::no mimalloc"; exit 1; }
+          here="$PWD"; [[ "$RUNNER_OS" == Windows ]] && here="$(cygpath -m "$PWD")"
+          echo "HERE=$here" >> "$GITHUB_ENV"
+          echo "EXE=$exe" >> "$GITHUB_ENV"
+      - name: Compile
+        run: |
+          args=(--tree "$HERE/base/xclang" --rounds 3 --out "bench-$OUT.json")
+          for tree in base mimalloc; do
+            if [[ "$RUNNER_OS" == Windows ]]; then
+              args+=(--compiler "$tree=$HERE/$tree/xclang/bin/llvm.exe" --prefix "$tree=clang++")
+            else
+              args+=(--compiler "$tree=$HERE/$tree/xclang/bin/clang++")
+            fi
+          done
+          node tests/bench/bench.ts "${args[@]}"
+      - name: Link
+        run: |
+          args=(--peak "$HERE/peak$EXE" --libclang "$HERE/libclang" --rounds 3 --out "link-$OUT.json")
+          for tree in base mimalloc; do
+            args+=(--compiler "$tree=$HERE/$tree/xclang/bin/clang++$EXE")
+            [[ "$RUNNER_OS" == Windows ]] && args+=(--llvm "$tree=$HERE/$tree/xclang/bin/llvm.exe")
+          done
+          node exp/mimalloc/link.ts "${args[@]}"
+      - name: Frontend
+        run: |
+          args=(--peak "$HERE/peak$EXE" --libclang "$HERE/libclang" --rounds 3 --out "frontend-$OUT.json")
+          for tree in base mimalloc; do
+            if [[ "$RUNNER_OS" == Windows ]]; then
+              args+=(--compiler "$tree=$HERE/$tree/xclang/bin/llvm.exe" --prefix "$tree=clang++")
+            else
+              args+=(--compiler "$tree=$HERE/$tree/xclang/bin/clang++")
+            fi
+          done
+          node exp/mimalloc/frontend.ts "${args[@]}"
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: bench-${{ matrix.host }}-${{ matrix.shard }}
+          path: |
+            bench-*.json
+            link-*.json
+            frontend-*.json
+          retention-days: 30
+
+  report:
+    needs: bench
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: bench-*
+          path: results
+          merge-multiple: true
+      - run: node exp/mimalloc/report.ts results | tee -a "$GITHUB_STEP_SUMMARY"
