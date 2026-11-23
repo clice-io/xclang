@@ -127,16 +127,24 @@ async function compression(): Promise<{ prefix: string; args: string[] }> {
 }
 const compressionLibs = await compression();
 
-/// The allocator of a musl host's programs: mimalloc, as an object of its
-/// own, which a static link always takes. Its malloc, free and the rest,
-/// and the __libc_malloc family musl allocates with itself, are the
-/// program's, and nothing of musl's malloc is linked: musl's is slow for
-/// a compiler's many small allocations (docs/en/design/toolchain.md).
-/// Version 2, which holds less memory than 3 at the same speed. Built for
-/// the architecture's baseline, as LLVM is: mimalloc 2 asks for ARMv8.1 of
-/// arm64 unless MI_NO_OPT_ARCH. libclang has none: a tool on it chooses
-/// its own.
-async function allocator(): Promise<string> {
+/// The allocator of a host's programs: mimalloc 2, which holds less memory
+/// than 3 at the same speed, in place of the C library's
+/// (docs/en/design/toolchain.md). An object of its own, which a link always
+/// takes, built for the architecture's baseline as LLVM is (mimalloc 2 asks
+/// for ARMv8.1 of arm64 unless MI_NO_OPT_ARCH):
+///   - musl: its malloc, free and the rest, and the __libc_malloc family
+///     musl allocates with itself, are the program's, and nothing of musl's
+///     malloc is linked: musl's is slow for a compiler's many small
+///     allocations;
+///   - glibc: the same, which the program exports, as glibc defines them
+///     too: glibc's own allocations (strdup, getline) are mimalloc's as
+///     well, as with LD_PRELOAD;
+///   - MinGW: mimalloc overrides nothing of UCRT's, whose functions that
+///     allocate toolchain/mimalloc/ucrt.c defines on mimalloc's;
+///   - macOS: malloc and the rest are the program's, and mimalloc's zone
+///     the default one, which the system's libraries allocate from.
+/// libclang has none: a tool on it chooses its own.
+async function allocator(): Promise<string[]> {
   const source = path.join(common.WORK, "src", "mimalloc");
   if (!fs.existsSync(source)) common.extract(await common.fetchSource("mimalloc"), source);
   const dir = path.join(common.WORK, "build", `mimalloc-${host.triple}`);
@@ -144,13 +152,21 @@ async function allocator(): Promise<string> {
   common.run("cmake", [
     "-G", "Ninja", "-S", source, "-B", dir,
     ...common.cmakeToolchainArgs(stage, host),
-    "-DCMAKE_BUILD_TYPE=Release", "-DMI_OVERRIDE=ON", "-DMI_LIBC_MUSL=ON", "-DMI_OPT_ARCH=OFF", "-DMI_NO_OPT_ARCH=ON",
-    "-DMI_BUILD_SHARED=OFF", "-DMI_BUILD_TESTS=OFF",
+    "-DCMAKE_BUILD_TYPE=Release", `-DMI_OVERRIDE=${host.os === "mingw" ? "OFF" : "ON"}`,
+    ...(host.os === "musl" ? ["-DMI_LIBC_MUSL=ON"] : []),
+    "-DMI_OPT_ARCH=OFF", "-DMI_NO_OPT_ARCH=ON", "-DMI_BUILD_SHARED=OFF", "-DMI_BUILD_TESTS=OFF",
   ]);
   common.run("cmake", ["--build", dir, "--target", "mimalloc-obj"]);
-  const object = path.join(dir, "CMakeFiles", "mimalloc-obj.dir", "src", "static.c.o");
-  if (!fs.existsSync(object)) common.fail(`no ${object}`);
-  return object;
+  const objects = path.join(dir, "CMakeFiles", "mimalloc-obj.dir", "src");
+  const object = ["static.c.o", "static.c.obj"].map((f) => path.join(objects, f)).find((f) => fs.existsSync(f));
+  if (!object) common.fail(`no static.c.o in ${objects}`);
+  if (host.os !== "mingw") return [object];
+  const ucrt = path.join(dir, "ucrt.o");
+  common.run(path.join(stage, "bin", "clang"), [
+    `--target=${host.triple}`, "-O2", "-Wall", "-Werror", `-I${path.join(source, "include")}`,
+    "-c", path.join(import.meta.dirname, "mimalloc", "ucrt.c"), "-o", ucrt,
+  ]);
+  return [object, ucrt];
 }
 
 const name = mode === "release" ? host.triple : `${host.triple}-${mode}`;
@@ -190,16 +206,17 @@ const exeLinkerFlags = mode === "release" && host.os !== "darwin" ? ["-Wl,--icf=
 /// PT_GNU_STACK asks for more (8 MiB at most). glibc's threads have the
 /// main thread's 8 MiB, as LLVM expects: llvm::thread sets a size on Apple
 /// systems and AIX only, and lld's parallel work and ThinLTO backends, and
-/// clang-scan-deps' workers, run on threads of the default size. And with
-/// mimalloc (allocator()).
-if (host.os === "musl") exeLinkerFlags.push(`-Wl,-z,stack-size=${8 << 20}`, await allocator());
-if (exeLinkerFlags.length) args.push(`-DCMAKE_EXE_LINKER_FLAGS=${exeLinkerFlags.join(" ")}`);
+/// clang-scan-deps' workers, run on threads of the default size.
+if (host.os === "musl") exeLinkerFlags.push(`-Wl,-z,stack-size=${8 << 20}`);
 /// A macOS program exports its weak definitions (template instantiations)
 /// for dyld to coalesce, and strip keeps them: 632 of them in llvm, after
 /// which a crash trace named every frame. With none exported and no local
 /// symbols (__mh_execute_header, which would name them all), llvm has no
 /// symbols left and its frames are addresses, as on the other hosts.
-if (mode === "release" && host.os === "darwin") args.push("-DCMAKE_EXE_LINKER_FLAGS=-Wl,-no_exported_symbols -Wl,-x");
+if (mode === "release" && host.os === "darwin") exeLinkerFlags.push("-Wl,-no_exported_symbols", "-Wl,-x");
+/// Every host's programs allocate with mimalloc (allocator()).
+if (mode === "release") exeLinkerFlags.push(...await allocator());
+if (exeLinkerFlags.length) args.push(`-DCMAKE_EXE_LINKER_FLAGS=${exeLinkerFlags.join(" ")}`);
 /// The ASan build compiles and links with libc++'s ASan build
 /// (toolchain/runtimes.ts), as its users' ASan builds do. Every link has the
 /// ASan runtime the instrumented libc++.a needs, CMake's checks too, which
@@ -275,37 +292,66 @@ function windowsAliases(dir: string): void {
   console.log(`${links.length} aliases of llvm.exe: ${links.map((f) => path.basename(f, ".exe")).join(", ")}`);
 }
 
-/// A musl host's programs are static, with 8 MiB thread stacks, mimalloc's
-/// malloc and nothing of musl's: checked in the build tree's programs,
-/// which still have their symbols, for each one the toolchain has.
-function checkMusl(dest: string): void {
-  if (host.os !== "musl") return;
+/// UCRT's functions that allocate a block or take one: toolchain/mimalloc/
+/// ucrt.c defines those a MinGW host's programs call on mimalloc's, and
+/// UCRT's _*_base names, _fullpath, _getcwd and _tempnam allocate with
+/// UCRT's heap.
+const UCRT_ALLOCATING = [
+  ...fs.readFileSync(path.join(import.meta.dirname, "mimalloc", "ucrt.c"), "utf8").matchAll(/^IMPORT\((\w+)\)$/gm),
+].map((m) => m[1]!).concat(["_malloc_base", "_calloc_base", "_realloc_base", "_recalloc_base", "_free_base",
+  "_msize_base", "_fullpath", "_wfullpath", "_getcwd", "_wgetcwd", "_getdcwd", "_wgetdcwd", "_tempnam", "_wtempnam"]);
+
+/// Every program allocates with mimalloc (allocator()), checked in the
+/// build tree's programs, for each one the toolchain has: none imports the
+/// C library's malloc, free, calloc or realloc, nor on MinGW any other of
+/// UCRT's that allocate; glibc's export theirs, for glibc's own
+/// allocations; musl's are static, with 8 MiB thread stacks, and have
+/// nothing of musl's malloc.
+function checkAllocator(dest: string): void {
   const tool = (name: string) => path.join(stage, "bin", name);
+  const magic = (file: string) => fs.readFileSync(file).subarray(0, 4).toString("latin1");
   const programs = fs.readdirSync(path.join(dest, "bin")).filter((f) => {
     const file = path.join(dest, "bin", f);
-    return !fs.lstatSync(file).isSymbolicLink() && fs.readFileSync(file).subarray(0, 4).equals(Buffer.from("\x7fELF", "latin1"));
+    return !fs.lstatSync(file).isSymbolicLink() && /^(\x7fELF|MZ|\xcf\xfa\xed\xfe)/.test(magic(file));
   });
+  const names = (args: string[], file: string) =>
+    new Set(common.capture(tool("llvm-nm"), [...args, "--just-symbol-name", file]).split("\n").filter(Boolean));
   const failures: string[] = [];
   for (const program of programs) {
     const file = path.join(build, "bin", program);
-    const headers = common.capture(tool("llvm-readelf"), ["--program-headers", "--dynamic-table", file]);
-    if (/\bINTERP\b|\(NEEDED\)/.test(headers)) failures.push(`${program} is not static`);
-    const stack = /GNU_STACK\s+\S+\s+\S+\s+\S+\s+\S+\s+(0x[0-9a-f]+)/.exec(headers)?.[1];
-    if (Number(stack) !== 8 << 20) failures.push(`${program} has threads of ${stack ?? "the default"} bytes of stack`);
-    const symbols = new Set(common.capture(tool("llvm-nm"), ["--defined-only", "--just-symbol-name", file]).split("\n"));
-    if (!symbols.has("mi_malloc") || !symbols.has("__libc_malloc")) failures.push(`${program} has no mimalloc`);
-    for (const musl of ["__libc_malloc_impl", "__malloc_alloc_meta", "__simple_malloc"]) {
-      if (symbols.has(musl)) failures.push(`${program} has musl's malloc (${musl})`);
+    if (host.os === "musl") {
+      const headers = common.capture(tool("llvm-readelf"), ["--program-headers", "--dynamic-table", file]);
+      if (/\bINTERP\b|\(NEEDED\)/.test(headers)) failures.push(`${program} is not static`);
+      const stack = /GNU_STACK\s+\S+\s+\S+\s+\S+\s+\S+\s+(0x[0-9a-f]+)/.exec(headers)?.[1];
+      if (Number(stack) !== 8 << 20) failures.push(`${program} has threads of ${stack ?? "the default"} bytes of stack`);
+      const symbols = names(["--defined-only"], file);
+      if (!symbols.has("mi_malloc") || !symbols.has("__libc_malloc")) failures.push(`${program} has no mimalloc`);
+      for (const musl of ["__libc_malloc_impl", "__malloc_alloc_meta", "__simple_malloc"]) {
+        if (symbols.has(musl)) failures.push(`${program} has musl's malloc (${musl})`);
+      }
+      continue;
+    }
+    const allocating = host.os === "mingw" ? UCRT_ALLOCATING : ["malloc", "free", "calloc", "realloc"];
+    const imports = host.os === "mingw"
+      ? [...common.capture(tool("llvm-readobj"), ["--coff-imports", file]).matchAll(/^\s*Symbol: (\S+)/gm)].map((m) => m[1]!)
+      : [...names(host.os === "linux" ? ["-D", "--undefined-only"] : ["--undefined-only"], file)]
+        .map((s) => host.os === "darwin" ? s.replace(/^_/, "") : s.replace(/@.*/, ""));
+    const imported = allocating.filter((f) => imports.includes(f));
+    if (imported.length) failures.push(`${program} imports ${imported.join(", ")}`);
+    if (host.os === "linux") {
+      const exported = names(["-D", "--defined-only"], file);
+      const missing = allocating.filter((f) => !exported.has(f));
+      if (missing.length) failures.push(`${program} does not export ${missing.join(", ")}`);
     }
   }
   if (!programs.length || failures.length) common.fail(failures.join("; ") || `no programs in ${dest}/bin`);
-  console.log(`${programs.join(", ")}: static, mimalloc, 8 MiB thread stacks`);
+  console.log(`${programs.join(", ")}: mimalloc${host.os === "musl" ? ", static, 8 MiB thread stacks" : ""}`);
 }
 
 checkCross();
 const out = path.join(common.WORK, "out");
 if (mode !== "asan") install("install-toolchain-distribution-stripped", path.join(out, `toolchain-${name}`));
-if (mode !== "asan") checkMusl(path.join(out, `toolchain-${name}`));
+if (mode === "release") checkAllocator(path.join(out, `toolchain-${name}`));
 if (host.os === "mingw" && mode !== "asan") windowsAliases(path.join(out, `toolchain-${name}`));
 /// The option tables of clang, lld, llvm-lib and llvm-dlltool, TableGen's
 /// output in this build, for tools that parse those command lines without

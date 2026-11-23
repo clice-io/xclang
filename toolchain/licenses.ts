@@ -140,10 +140,9 @@ export async function compression(host: common.Target): Promise<Component[]> {
   ];
 }
 
-/// mimalloc, the allocator linked into a musl host's programs
-/// (toolchain/toolchain.ts); the other hosts' have their C library's.
-export async function allocator(host: common.Target): Promise<Component[]> {
-  if (host.os !== "musl") return [];
+/// mimalloc, the allocator linked into every host's programs
+/// (toolchain/toolchain.ts).
+export async function allocator(_host: common.Target): Promise<Component[]> {
   return [{
     name: "mimalloc",
     what: "linked into the programs in bin/ as their malloc",

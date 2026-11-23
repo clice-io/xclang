@@ -1,8 +1,8 @@
 /// Check a release toolchain on the machine it is built for:
 ///
 /// - its own programs do not load a C++ runtime, and on Linux need no
-///   glibc newer than 2.17; a musl host's are static, with 8 MiB thread
-///   stacks and mimalloc;
+///   glibc newer than 2.17; they allocate with mimalloc; a musl host's are
+///   static, with 8 MiB thread stacks;
 /// - a C and a C++ program (exceptions, iostreams, threads) build for every
 ///   target it carries (macOS ones only on macOS: the SDK) and run where
 ///   this machine can run them; with --out, those it cannot run go to
@@ -40,6 +40,8 @@ const exe = windows ? ".exe" : "";
 const arch = os.arch() === "arm64" ? "aarch64" : "x86_64";
 /// On a musl machine (Alpine), the musl host's tree.
 const muslHost = common.muslMachine();
+/// Whose programs allocate with mimalloc (toolchain/toolchain.ts).
+const mimalloc = muslHost || since("23.1.6.1");
 const native = windows ? `${arch}-w64-mingw32`
   : process.platform === "darwin" ? `${arch}-apple-darwin` : `${arch}-unknown-linux-${muslHost ? "musl" : "gnu"}`;
 const work = fs.mkdtempSync(path.join(os.tmpdir(), "xclang-smoke-"));
@@ -159,7 +161,7 @@ for (const dir of ["include", ...triples.flatMap(([t]) => [`${t}/include`, `${t}
 
 /// The license notices of what the archive holds (toolchain/licenses.ts).
 failures.push(...licenses.check(tree, ["xclang", "llvm-project", "zstd", "glibc", "linux", "nss", "mingw-w64",
-  ...(musl.length ? ["musl"] : []), ...(muslHost ? ["mimalloc"] : []), ...(fs.existsSync(tool("xclang")) ? ["rust", "rust-crates"] : [])]));
+  ...(musl.length ? ["musl"] : []), ...(mimalloc ? ["mimalloc"] : []), ...(fs.existsSync(tool("xclang")) ? ["rust", "rust-crates"] : [])]));
 /// With the notices that LLVM keeps only in its sources' comments.
 if (since("23.1.3.1")) {
   for (const { file } of licenses.LLVM_NOTICES) {
@@ -168,9 +170,10 @@ if (since("23.1.3.1")) {
   }
 }
 
-/// A musl host's programs allocate with mimalloc, which says so with
-/// MIMALLOC_VERBOSE (toolchain/toolchain.ts).
-if (muslHost) {
+/// A host's programs allocate with mimalloc, which says so with
+/// MIMALLOC_VERBOSE (toolchain/toolchain.ts): the musl hosts', and since
+/// 23.1.6.1 every host's.
+if (mimalloc) {
   const result = spawnSync(tool("clang"), ["--version"], { encoding: "utf8", env: { ...process.env, MIMALLOC_VERBOSE: "1" } });
   if (!/^mimalloc: /m.test(result.stderr ?? "")) failures.push(`clang does not allocate with mimalloc: ${result.stderr}`);
 }
