@@ -1,0 +1,128 @@
+name: exp-mimalloc-startup
+
+# Experiment (exp/mimalloc-hosts only): where the glibc hosts' build with
+# mimalloc (GLIBC_RUN) loses on small compiles: lua's 34 files at
+# -fsyntax-only took 1.15 times 23.1.5.3's time in exp-mimalloc. Against
+# 23.1.5.3 as released, with mimalloc 2.5.3 preloaded as a shared library
+# (which skips the collection at exit), and the static build without its
+# exit (MIMALLOC_DESTROY_ON_EXIT=2) or with other options: startup, the lua
+# loop, the syscalls of one compile, page faults, and a perf profile.
+
+on:
+  push:
+    branches: [exp/mimalloc-hosts]
+    paths: [".github/workflows/exp-mimalloc-startup.yml"]
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  RELEASE: 23.1.5.3
+  GLIBC_RUN: "45109067169"
+  MIMALLOC: https://github.com/microsoft/mimalloc/archive/refs/tags/v2.5.3.tar.gz
+  MIMALLOC_SHA256: d0e7b923533db035bbda50e1582c3a9b1d06827b03be68618d789071e024e1ee
+  LUA: https://www.lua.org/ftp/lua-5.4.7.tar.gz
+  LUA_SHA256: 9fbf5e28ef86c69858f6d3d34eccc32e911c1a28b4120ff3e84aaa70cfbf1e30
+
+jobs:
+  diag:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HOST: ${{ matrix.arch }}-unknown-linux-gnu
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist-${{ matrix.arch }}-unknown-linux-gnu
+          path: dist
+          run-id: ${{ env.GLIBC_RUN }}
+          github-token: ${{ github.token }}
+      - name: Trees
+        run: |
+          gh release download "$RELEASE" -R clice-io/xclang -D rel -p "xclang-$RELEASE-$HOST.tar.xz"
+          mkdir -p base static
+          tar -C base -xf "rel/xclang-$RELEASE-$HOST.tar.xz"
+          tar -C static -xf "dist/xclang-$RELEASE-$HOST.tar.xz"
+          curl -fsSL --retry 5 -o mimalloc.tar.gz "$MIMALLOC"
+          echo "$MIMALLOC_SHA256  mimalloc.tar.gz" | sha256sum -c -
+          mkdir mimalloc && tar -xzf mimalloc.tar.gz -C mimalloc --strip-components=1
+          cmake -S mimalloc -B mimalloc/build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER="$PWD/base/xclang/bin/clang" -DCMAKE_CXX_COMPILER="$PWD/base/xclang/bin/clang++" \
+            -DMI_OVERRIDE=ON -DMI_OPT_ARCH=OFF -DMI_NO_OPT_ARCH=ON -DMI_BUILD_SHARED=ON -DMI_BUILD_STATIC=OFF -DMI_BUILD_OBJECT=OFF -DMI_BUILD_TESTS=OFF > /dev/null
+          cmake --build mimalloc/build -j "$(nproc)" > /dev/null
+          echo "MI_LIB=$(find "$PWD/mimalloc/build" -name 'libmimalloc.so.*' -type f | head -n 1)" >> "$GITHUB_ENV"
+          curl -fsSL --retry 5 -o lua.tar.gz "$LUA"
+          echo "$LUA_SHA256  lua.tar.gz" | sha256sum -c -
+          mkdir lua && tar -xzf lua.tar.gz -C lua --strip-components=1
+          sudo apt-get update -q && sudo apt-get install -yq strace "linux-tools-$(uname -r)" linux-tools-common > /dev/null || true
+          sudo sysctl -q kernel.perf_event_paranoid=-1 kernel.kptr_restrict=0 || true
+          cat /sys/kernel/mm/transparent_hugepage/enabled
+      - name: Variants
+        run: |
+          cat > variants.sh <<'EOF'
+          # The command line of a variant, words without blanks.
+          cmd() {
+            case "$1" in
+              base) echo "base/xclang/bin/clang" ;;
+              preload) echo "env LD_PRELOAD=$MI_LIB base/xclang/bin/clang" ;;
+              static) echo "static/xclang/bin/clang" ;;
+              static-noexit) echo "env MIMALLOC_DESTROY_ON_EXIT=2 static/xclang/bin/clang" ;;
+              static-nocommit) echo "env MIMALLOC_ARENA_EAGER_COMMIT=0 static/xclang/bin/clang" ;;
+              static-nopurge) echo "env MIMALLOC_PURGE_DELAY=-1 static/xclang/bin/clang" ;;
+            esac
+          }
+          run() { local c; c=$(cmd "$1"); shift; $c "$@"; }
+          VARIANTS="base preload static static-noexit static-nocommit static-nopurge"
+          EOF
+          echo ok
+      - name: Startup
+        run: |
+          . ./variants.sh
+          { echo "### $HOST: 300 × clang --version"; echo '```'
+            for v in $VARIANTS; do
+              start=$(date +%s%N)
+              for i in $(seq 300); do run "$v" --version > /dev/null; done
+              echo "$v: $(( ($(date +%s%N) - start) / 300000 )) µs each"
+            done; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: lua at -fsyntax-only
+        run: |
+          . ./variants.sh
+          for round in 1 2 3 4 5; do
+            for v in $VARIANTS; do
+              start=$(date +%s%N)
+              for f in lua/src/*.c; do run "$v" --target=$HOST -fsyntax-only "$f"; done
+              echo "$v $(( ($(date +%s%N) - start) / 1000000 ))" >> lua.txt
+            done
+          done
+          { echo "### $HOST: lua's 34 files at -fsyntax-only, ms per round (5 rounds)"; echo '```'
+            for v in $VARIANTS; do echo "$v: $(awk -v v=$v '$1 == v { print $2 }' lua.txt | sort -n | tr '\n' ' ')"; done
+            echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Syscalls and page faults
+        run: |
+          . ./variants.sh
+          for v in base static static-noexit preload; do
+            { echo "### $HOST: $v, lapi.c at -fsyntax-only"; echo '```'
+              c=$(cmd "$v")
+              strace -f -c -o strace-$v.txt $c --target=$HOST -fsyntax-only lua/src/lapi.c
+              head -n 14 strace-$v.txt
+              perf stat -e task-clock,page-faults,minor-faults -r 20 $c --target=$HOST -fsyntax-only lua/src/lapi.c 2>&1 | grep -E "task-clock|faults|elapsed"
+              echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY" || true
+          done
+      - name: perf
+        run: |
+          . ./variants.sh
+          for v in base static; do
+            c=$(cmd "$v")
+            perf record -q -e cpu-clock -F 10000 -g -o perf-$v.data -- bash -c "for f in lua/src/*.c; do $c --target=$HOST -fsyntax-only \$f; done" || continue
+            { echo "### $HOST: perf, $v, lua at -fsyntax-only, by DSO and symbol"; echo '```'
+              perf report -i perf-$v.data --no-children --sort dso --stdio 2>/dev/null | grep -v '^#' | grep -v '^$' | head -n 8
+              echo
+              perf report -i perf-$v.data --no-children --sort dso,symbol --stdio -g none 2>/dev/null | grep -v '^#' | grep -v '^$' | head -n 40
+              echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+          done
