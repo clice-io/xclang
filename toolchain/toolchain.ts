@@ -160,6 +160,9 @@ async function allocator(): Promise<string[]> {
   const objects = path.join(dir, "CMakeFiles", "mimalloc-obj.dir", "src");
   const object = ["static.c.o", "static.c.obj"].map((f) => path.join(objects, f)).find((f) => fs.existsSync(f));
   if (!object) common.fail(`no static.c.o in ${objects}`);
+  /// glibc 2.17 has pthread_key_create and the rest of what mimalloc
+  /// calls in libpthread, apart from the C library.
+  if (host.os === "linux") return [object, "-lpthread"];
   if (host.os !== "mingw") return [object];
   const ucrt = path.join(dir, "ucrt.o");
   common.run(path.join(stage, "bin", "clang"), [
