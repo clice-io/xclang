@@ -1,0 +1,68 @@
+name: exp-mimalloc-macos
+
+# Experiment (exp/mimalloc-hosts only): why the macOS arm64 build with
+# mimalloc (BUILD_RUN) precompiles libc++'s std module at -O2 in 1.21
+# times 23.1.5.3's time: 23.1.5.3, with mimalloc 2.5.3 inserted as a
+# dylib, and the build with mimalloc's options that purge, commit and
+# collect changed (exp/mimalloc/macos.ts), on three machines.
+
+on:
+  push:
+    branches: [exp/mimalloc-hosts]
+    paths: [".github/workflows/exp-mimalloc-macos.yml"]
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  RELEASE: 23.1.5.3
+  BUILD_RUN: "45115856117"
+  HOST: aarch64-apple-darwin
+  MIMALLOC: https://github.com/microsoft/mimalloc/archive/refs/tags/v2.5.3.tar.gz
+  MIMALLOC_SHA256: d0e7b923533db035bbda50e1582c3a9b1d06827b03be68618d789071e024e1ee
+
+jobs:
+  diag:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    runs-on: macos-15
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist-aarch64-apple-darwin
+          path: dist
+          run-id: ${{ env.BUILD_RUN }}
+          github-token: ${{ github.token }}
+      - name: Trees
+        run: |
+          gh release download "$RELEASE" -R clice-io/xclang -D rel -p "xclang-$RELEASE-$HOST.tar.xz"
+          mkdir -p base static
+          tar -C base -xf "rel/xclang-$RELEASE-$HOST.tar.xz"
+          tar -C static -xf "dist/xclang-$RELEASE-$HOST.tar.xz"
+          curl -fsSL --retry 5 -o mimalloc.tar.gz "$MIMALLOC"
+          echo "$MIMALLOC_SHA256  mimalloc.tar.gz" | shasum -a 256 -c -
+          mkdir mimalloc && tar -xzf mimalloc.tar.gz -C mimalloc --strip-components=1
+          cmake -S mimalloc -B mimalloc/build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER="$PWD/base/xclang/bin/clang" -DCMAKE_CXX_COMPILER="$PWD/base/xclang/bin/clang++" \
+            -DMI_OVERRIDE=ON -DMI_OPT_ARCH=OFF -DMI_NO_OPT_ARCH=ON -DMI_BUILD_SHARED=ON -DMI_BUILD_STATIC=OFF -DMI_BUILD_OBJECT=OFF -DMI_BUILD_TESTS=OFF > /dev/null
+          cmake --build mimalloc/build -j "$(sysctl -n hw.ncpu)" > /dev/null
+          dylib=$(find "$PWD/mimalloc/build" -name 'libmimalloc*.dylib' -type f | head -n 1)
+          echo "DYLIB=$dylib" >> "$GITHUB_ENV"
+          DYLD_INSERT_LIBRARIES="$dylib" MIMALLOC_VERBOSE=1 base/xclang/bin/clang --version 2>&1 | grep -m 1 '^mimalloc: ' || { echo "::error::the dylib is not inserted"; exit 1; }
+          curl -fsSL --retry 5 -o fmt.tar.gz https://github.com/fmtlib/fmt/archive/refs/tags/11.2.0.tar.gz
+          echo "bc23066d87ab3168f27cef3e97d545fa63314f5c79df5ea444d41d56f962c6af  fmt.tar.gz" | shasum -a 256 -c -
+          mkdir fmt && tar -xzf fmt.tar.gz -C fmt --strip-components=1
+      - name: Variants
+        run: node exp/mimalloc/macos.ts --base base/xclang/bin/clang++ --mimalloc static/xclang/bin/clang++ --dylib "$DYLIB" --fmt fmt
