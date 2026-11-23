@@ -78,7 +78,8 @@ jobs:
           for tree in base mimalloc; do
             echo "$tree: $(MIMALLOC_VERBOSE=1 $tree/xclang/bin/clang$exe --version 2>&1 | grep -c '^mimalloc: ') lines of mimalloc"
           done | tee -a "$GITHUB_STEP_SUMMARY"
-          MIMALLOC_VERBOSE=1 mimalloc/xclang/bin/clang$exe --version 2>&1 | grep -q '^mimalloc: ' || { echo "::error::no mimalloc"; exit 1; }
+          verbose=$(MIMALLOC_VERBOSE=1 mimalloc/xclang/bin/clang$exe --version 2>&1)
+          grep -q '^mimalloc: ' <<< "$verbose" || { echo "::error::no mimalloc"; exit 1; }
           here="$PWD"; [[ "$RUNNER_OS" == Windows ]] && here="$(cygpath -m "$PWD")"
           echo "HERE=$here" >> "$GITHUB_ENV"
           echo "EXE=$exe" >> "$GITHUB_ENV"
