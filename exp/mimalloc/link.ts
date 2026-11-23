@@ -55,7 +55,7 @@ const lib = path.join(libclang, "lib");
 const libs = fs.readdirSync(lib).filter((f) => f.endsWith(".a")).sort().map((f) => path.join(lib, f));
 const system = process.platform === "linux" ? ["-lpthread", "-ldl", "-lrt", "-lm"]
   : windows ? ["-lpsapi", "-lshell32", "-lole32", "-loleaut32", "-luuid", "-ladvapi32", "-lws2_32", "-lntdll", "-lversion"]
-  : ["-lz"];
+  : ["-lz", "-lxcselect"];
 const group = process.platform === "linux" ? ["-Wl,--start-group", ...libs, "-Wl,--end-group"] : libs;
 
 /// The link command of `clang++ -###`, its arguments unquoted.

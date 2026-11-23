@@ -28,7 +28,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        host: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, x86_64-w64-mingw32, aarch64-w64-mingw32, aarch64-apple-darwin, x86_64-apple-darwin]
+        # The macOS hosts again, linking xcselect (run 45120301987 has the others).
+        host: [aarch64-apple-darwin, x86_64-apple-darwin]
         shard: [1, 2, 3, 4, 5]
         include:
           - host: x86_64-unknown-linux-gnu
