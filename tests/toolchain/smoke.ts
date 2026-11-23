@@ -41,7 +41,7 @@ const arch = os.arch() === "arm64" ? "aarch64" : "x86_64";
 /// On a musl machine (Alpine), the musl host's tree.
 const muslHost = common.muslMachine();
 /// Whose programs allocate with mimalloc (toolchain/toolchain.ts).
-const mimalloc = muslHost || since("23.1.6.1");
+const mimalloc = muslHost || since("23.1.5.3");
 const native = windows ? `${arch}-w64-mingw32`
   : process.platform === "darwin" ? `${arch}-apple-darwin` : `${arch}-unknown-linux-${muslHost ? "musl" : "gnu"}`;
 const work = fs.mkdtempSync(path.join(os.tmpdir(), "xclang-smoke-"));
